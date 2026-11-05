@@ -1,0 +1,116 @@
+import { App, registerScreen } from '../app.js';
+import { icon } from '../ui/icons.js';
+import { carSVG, teamBadge } from '../ui/art.js';
+import { esc, bar } from '../ui/dom.js';
+import { S } from '../engine/state.js';
+import { cat, playerTeam, teamDrivers, partRanking, fmtM, rdSlots, rdCost, RD_TIERS, startProject, partName, applyConcept, changeEngine, overallCarRanking } from '../engine/season.js';
+import { ENGINE_SUPPLIERS } from '../data/teams.js';
+import { avgPart } from '../engine/world.js';
+import { sfx } from '../ui/audio.js';
+
+const PALETTE = ['#e10600', '#d40000', '#ff8000', '#ffd400', '#cedc00', '#22d37a', '#00594f', '#00d2be', '#00c2ff', '#005aff', '#1b2a6b', '#0a2a66', '#9b30ff', '#ff4fa3', '#ffffff', '#c0c0c0', '#6b6b6b', '#1a1a1a', '#6b3e1e', '#c9a227'];
+const PATTERNS = ['Classica', 'Banda', 'Bicolore', 'Frecce', 'Sfumata', 'Retrò'];
+let tab = 'dev';
+
+registerScreen({
+  id: 'car',
+  render() {
+    const st = S();
+    st._conceptSeen = true;
+    const t = playerTeam(st);
+    const C = cat(st);
+    const ds = teamDrivers(st, t);
+    const tabs = [['dev', 'Sviluppo R&D'], ['design', 'Progetto & Livrea'], ['compare', 'Confronto']];
+    const rank = overallCarRanking(st).indexOf(t.id) + 1;
+    return `<div class="screen-title"><div><div class="sub">${esc(t.name)} · Vettura ${st.season}</div><h1>Centro Tecnico</h1></div><div class="tabs">${tabs.map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="tab" data-t="${k}">${n}</div>`).join('')}</div></div>
+    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px" class="anim-in">
+      <div class="car-stage" style="min-height:300px"><div class="grid-floor"></div>
+        <div style="position:absolute;left:20px;top:16px;z-index:2"><div class="tiny upper muted">Valore complessivo</div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:46px;line-height:1">${avgPart(t).toFixed(1)}</div><div class="small ${rank <= 3 ? 'good' : rank > 6 ? 'bad' : 'warn'}">${rank}ª vettura del gruppo</div></div>
+        <div style="position:absolute;right:20px;top:16px;z-index:2" class="chip">Concetto: <b>${C.concepts.find((c) => c.id === t.car.concept)?.name}</b></div>
+        ${carSVG(st.category, t.car.livery, { number: ds[0]?.number, sponsor: t.sponsors[0]?.name || t.short, helmet: ds[0]?.helmet.c1 })}
+      </div>
+      <div class="panel"><div class="panel-head"><h3>Componenti</h3><span class="small muted">Classifica tra i ${Object.keys(st.teams).length} team</span></div>
+        <div class="col gap16">${C.parts.map((p) => {
+          const r = partRanking(st, p.id); const pos = r.indexOf(t.id) + 1; const best = st.teams[r[0]].car.parts[p.id];
+          return `<div><div class="row between small"><b>${p.name}</b><span class="muted">${p.desc}</span></div><div class="stat mt8" style="grid-template-columns:1fr 46px 40px">${bar(t.car.parts[p.id], '', best)}<b class="right mono">${t.car.parts[p.id].toFixed(1)}</b><span class="rank ${pos <= 3 ? 'good' : pos > 6 ? 'bad' : 'warn'}">${pos}°</span></div></div>`;
+        }).join('')}</div>
+        <div class="tiny muted mt16">La barra chiara indica il miglior valore in griglia.</div>
+      </div>
+    </div>
+    <div class="mt16 anim-in">${tab === 'dev' ? devTab(st, t, C) : tab === 'design' ? designTab(st, t, C) : compareTab(st, t, C)}</div>`;
+  },
+  actions: {
+    tab(el) { tab = el.dataset.t; App.refresh(); },
+    start(el) {
+      const st = S();
+      const r = startProject(st, el.dataset.part, el.dataset.tier);
+      if (!r.ok) { App.toast('Impossibile avviare', r.msg, 'bad'); sfx.bad(); return; }
+      sfx.ok(); App.toast('Progetto avviato', `${partName(st, el.dataset.part)} · ${RD_TIERS[el.dataset.tier].name}`, 'good'); App.refresh();
+    },
+    concept(el) {
+      const st = S();
+      if (st.round > 0) { App.toast('Troppo tardi', 'Il concetto si sceglie solo in pre-stagione.', 'bad'); return; }
+      applyConcept(st, playerTeam(st), el.dataset.id); sfx.ok(); App.refresh();
+    },
+    engine(el) {
+      const st = S();
+      const t = playerTeam(st);
+      if (st.round > 0) { App.toast('Troppo tardi', 'Il fornitore si cambia solo in pre-stagione.', 'bad'); return; }
+      const sup = ENGINE_SUPPLIERS.find((e) => e.id === el.dataset.id);
+      changeEngine(st, t, sup.id); sfx.ok(); App.refresh();
+    },
+    color(el) { const t = playerTeam(S()); t.car.livery[el.dataset.k] = el.dataset.c; if (el.dataset.k === 'primary') t.colors[0] = el.dataset.c; if (el.dataset.k === 'secondary') t.colors[1] = el.dataset.c; App.refresh(); },
+    pattern(el) { playerTeam(S()).car.livery.pattern = +el.dataset.p; App.refresh(); },
+    customcolor(el) { const t = playerTeam(S()); t.car.livery[el.dataset.k] = el.value; if (el.dataset.k === 'primary') t.colors[0] = el.value; App.refresh(); },
+  },
+});
+
+function devTab(st, t, C) {
+  const slots = rdSlots(t);
+  const td = st.staff[t.staff.td];
+  return `<div class="panel"><div class="panel-head"><h3>Progetti di sviluppo</h3><div class="row"><span class="chip">${icon('factory', 'ico', 'style="width:13px"')} Slot ${t.projects.length}/${slots}</span><span class="chip">Direttore Tecnico: ${esc(td?.name)} (${td?.rating})</span><span class="chip">Galleria Lv${t.facilities.windtunnel}</span></div></div>
+    <div class="grid3 mb16">${Object.entries(RD_TIERS).map(([k, T]) => `<div class="card"><div class="row between"><b>${T.name}</b><span class="chip">${fmtM(rdCost(st, k))}</span></div><div class="small muted mt8">${T.desc}</div><div class="row wrap mt8 gap6 tiny"><span class="chip">+${T.gain[0]}–${T.gain[1]}</span><span class="chip">${T.races} ${T.races > 1 ? 'eventi' : 'evento'}</span><span class="chip ${T.fail > 0.1 ? 'bad' : ''}">Rischio ${Math.round(T.fail * 100)}%</span></div></div>`).join('')}</div>
+    ${C.parts.map((p) => {
+      const proj = t.projects.find((x) => x.part === p.id);
+      const v = t.car.parts[p.id];
+      const dim = Math.max(0.18, Math.min(1.35, (102 - v) / 24));
+      return `<div class="part-row"><div><b>${p.name}</b><div class="tiny muted">${p.desc}</div></div>
+        <div>${bar(v)}<div class="tiny muted mt8">Efficienza sviluppo: <span class="${dim > 0.8 ? 'good' : dim > 0.45 ? 'warn' : 'bad'}">${Math.round(dim * 100)}%</span></div></div>
+        <b class="mono" style="font-size:20px;font-family:var(--display)">${v.toFixed(1)}</b>
+        <div class="row gap6" style="justify-content:flex-end">${proj ? `<div style="width:100%"><div class="row between small"><span class="info">${RD_TIERS[proj.tier].name}</span><span>${proj.racesLeft} ${proj.racesLeft === 1 ? 'evento' : 'eventi'}</span></div>${bar(((proj.total - proj.racesLeft) / proj.total) * 100 + 8, 'blue')}</div>` :
+        Object.keys(RD_TIERS).map((k) => `<button class="btn sm" data-a="start" data-part="${p.id}" data-tier="${k}" ${t.projects.length >= slots || t.money < rdCost(st, k) ? 'disabled' : ''} title="${RD_TIERS[k].name} – ${fmtM(rdCost(st, k))}">${k === 'base' ? 'Base' : k === 'major' ? 'Evo' : 'Rivo'}</button>`).join('')}</div></div>`;
+    }).join('')}
+    <div class="small muted mt16">I progetti si completano dopo il numero di eventi indicato. Più un componente è già sviluppato, minore è il guadagno (rendimenti decrescenti). Più slot con la Fabbrica, guadagni maggiori con Galleria del Vento e un Direttore Tecnico migliore.</div>
+  </div>`;
+}
+
+function designTab(st, t, C) {
+  const pre = st.round === 0;
+  const L = t.car.livery;
+  const sw = (k) => `<div class="swatches mt8">${PALETTE.map((c) => `<div class="swatch ${L[k] === c ? 'sel' : ''}" style="background:${c}" data-a="color" data-k="${k}" data-c="${c}"></div>`).join('')}<input type="color" value="${L[k]}" data-change="customcolor" data-k="${k}" title="Personalizzato"></div>`;
+  return `<div class="grid2">
+    <div class="col gap16">
+      <div class="panel"><div class="panel-head"><h3>Concetto vettura</h3>${pre ? '<span class="chip good">Pre-stagione: modificabile</span>' : '<span class="chip">Bloccato fino a fine stagione</span>'}</div>
+        <div class="grid2">${C.concepts.map((c) => `<div class="card ${pre ? 'click' : ''} ${t.car.concept === c.id ? 'sel' : ''}" ${pre ? `data-a="concept" data-id="${c.id}"` : ''}><b>${c.name}</b><div class="small muted mt8">${c.desc}</div><div class="row wrap gap6 mt8">${Object.entries(c.mods).map(([k, v]) => `<span class="chip ${v > 0 ? 'good' : 'bad'} tiny">${partName(st, k)} ${v > 0 ? '+' : ''}${v}</span>`).join('') || '<span class="chip tiny">Nessun modificatore</span>'}</div></div>`).join('')}</div>
+      </div>
+      ${st.category === 'formula' ? `<div class="panel"><div class="panel-head"><h3>Power Unit</h3>${t.works ? '<span class="chip">Team ufficiale</span>' : ''}</div>
+        ${t.works ? `<div class="small muted">Sei un costruttore ufficiale: utilizzi la tua power unit ${esc(ENGINE_SUPPLIERS.find((e) => e.id === t.engine)?.name || '')}.</div>` :
+        `<div class="col gap6">${ENGINE_SUPPLIERS.map((e) => `<div class="card row ${pre ? 'click' : ''} ${t.engine === e.id ? 'sel' : ''}" ${pre ? `data-a="engine" data-id="${e.id}"` : ''}><b class="grow">${e.name}</b><span class="chip">Potenza ${e.power}</span><span class="chip">Affidabilità ${e.rel}</span></div>`).join('')}</div>`}</div>` : ''}
+    </div>
+    <div class="panel"><div class="panel-head"><h3>${icon('palette', 'ico', 'style="width:16px"')} Livrea</h3></div>
+      <label class="lbl">Colore primario</label>${sw('primary')}
+      <label class="lbl mt16" style="display:block">Colore secondario</label>${sw('secondary')}
+      <label class="lbl mt16" style="display:block">Dettagli</label>${sw('accent')}
+      <label class="lbl mt16" style="display:block">Motivo</label>
+      <div class="row wrap gap6 mt8">${PATTERNS.map((p, i) => `<button class="btn sm ${L.pattern === i ? 'active' : ''}" data-a="pattern" data-p="${i}">${p}</button>`).join('')}</div>
+      <div class="grid3 mt16">${PATTERNS.map((p, i) => `<div class="card click ${L.pattern === i ? 'sel' : ''}" data-a="pattern" data-p="${i}" style="padding:6px">${carSVG(st.category, { ...L, pattern: i }, { number: '' })}</div>`).join('')}</div>
+    </div>
+  </div>`;
+}
+
+function compareTab(st, t, C) {
+  const teams = Object.values(st.teams).sort((a, b) => avgPart(b) - avgPart(a));
+  return `<div class="panel flush"><table class="tbl"><thead><tr><th>#</th><th>Team</th>${C.parts.map((p) => `<th class="right">${p.name}</th>`).join('')}<th class="right">Media</th></tr></thead><tbody>
+    ${teams.map((x, i) => `<tr class="${x.id === t.id ? 'me' : ''}"><td class="pos">${i + 1}</td><td><div class="row">${teamBadge(x, 24)}<b>${esc(x.name)}</b></div></td>${C.parts.map((p) => { const r = partRanking(st, p.id).indexOf(x.id); return `<td class="right mono ${r === 0 ? 'good' : r >= teams.length - 2 ? 'bad' : ''}">${x.car.parts[p.id].toFixed(1)}</td>`; }).join('')}<td class="right mono"><b>${avgPart(x).toFixed(1)}</b></td></tr>`).join('')}
+  </tbody></table></div>`;
+}
