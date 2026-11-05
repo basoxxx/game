@@ -7,13 +7,15 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +27,7 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: npm run build:site
+      # Option A: publish to the gh-pages branch (works when Pages source = gh-pages branch)
       - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -32,3 +35,20 @@ jobs:
           publish_branch: gh-pages
           force_orphan: true
           commit_message: 'Deploy sito Apex Dynasty'
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+  # Option B: official Pages deployment (works when Pages source = GitHub Actions)
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+        continue-on-error: true
+      - id: deployment
+        uses: actions/deploy-pages@v4
