@@ -29,11 +29,11 @@ registerScreen({
     const sponsorSlots = 3 - t.sponsors.length;
     const todo = [];
     if (myDrivers.length < seatsPerTeam(st)) todo.push(['bad', 'Sedili vuoti! Ingaggia un pilota', 'market']);
-    if (sponsorSlots > 0 && st.sponsorOffers.length) todo.push(['warn', `${sponsorSlots} spazi sponsor liberi`, 'finance']);
-    if (t.projects.length < rdSlots(t)) todo.push(['warn', `${rdSlots(t) - t.projects.length} slot R&D inattivi`, 'car']);
+    if (sponsorSlots > 0 && st.sponsorOffers.length) todo.push(['warn', sponsorSlots === 1 ? '1 spazio sponsor libero' : `${sponsorSlots} spazi sponsor liberi`, 'finance']);
+    if (t.projects.length < rdSlots(t)) todo.push(['warn', rdSlots(t) - t.projects.length === 1 ? '1 slot R&D inattivo' : `${rdSlots(t) - t.projects.length} slot R&D inattivi`, 'car']);
     if (st.round === 0 && t.car.concept === 'balanced' && !st._conceptSeen) todo.push(['info', 'Scegli il concetto della nuova vettura', 'car']);
     const unread = st.inbox.filter((m) => !m.read).length;
-    if (unread) todo.push(['info', `${unread} messaggi non letti`, 'inbox']);
+    if (unread) todo.push(['info', unread === 1 ? '1 messaggio non letto' : `${unread} messaggi non letti`, 'inbox']);
 
     let hero = '';
     if (info) {
@@ -90,6 +90,19 @@ registerScreen({
           </div>
         </div>
       </div>`;
+  },
+  mount() {
+    const st = S();
+    if (!st.tutorialSeen) {
+      st.tutorialSeen = true;
+      const C = cat(st);
+      App.modal(`<div class="tiny upper muted" style="letter-spacing:.3em">Benvenuto, Team Principal</div><h2 style="font-size:28px;font-style:italic">La tua prima stagione</h2>
+      <div class="col gap16 mt16">
+        ${[['car', 'Centro Tecnico', 'Scegli il concetto dell’auto (solo in pre-stagione!), la livrea e avvia i progetti R&D.'], ['money', 'Sponsor & Finanze', 'Hai 3 spazi sponsor: firmali subito per avere entrate ad ogni evento.'], ['users', 'Piloti & Mercato', 'Controlla morale e contratti. Il mercato è sempre aperto, ma i top driver costano.'], ['flag', 'Weekend di gara', C.type === 'rally' ? 'Shakedown per l’assetto, poi gomme e ritmo per ogni prova. Rispondi alle chiamate del copilota!' : 'Prove libere per l’assetto, qualifiche, poi in gara gestisci ritmo, gomme e pit stop.']].map(([ic, t, d]) => `<div class="row" style="align-items:flex-start;gap:14px"><div class="rating" style="flex:none">${icon(ic)}</div><div><b>${t}</b><div class="small muted">${d}</div></div></div>`).join('')}
+      </div>
+      <div class="card mt16 small">Obiettivo del consiglio: <b>${st.board.target}° posto</b> tra i costruttori. Se la fiducia scende troppo... potresti essere licenziato!</div>
+      <div class="row mt24" style="justify-content:flex-end"><button class="btn primary lg" data-a="close-modal">Al lavoro! ${icon('right')}</button></div>`);
+    }
   },
   actions: {},
 });

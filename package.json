@@ -15,7 +15,8 @@
     "electron": "npm run build && electron .",
     "dist:mac": "npm run build && electron-builder --mac --x64 --arm64 --publish never",
     "dist:win": "npm run build && electron-builder --win --x64 --publish never",
-    "dist:linux": "npm run build && electron-builder --linux --x64 --publish never"
+    "dist:linux": "npm run build && electron-builder --linux --x64 --publish never",
+    "build:site": "vite build && node scripts-build-site.mjs"
   },
   "devDependencies": {
     "electron": "^38.8.6",

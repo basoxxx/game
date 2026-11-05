@@ -284,6 +284,7 @@ label.lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; 
 .feed-item.sc { color: var(--warn); font-weight: 700; }
 .feed-item.weather { color: var(--info); }
 .feed-item.finish { color: var(--gold); font-weight: 700; }
+.feed-item.radio { color: #9fe6ff; font-style: italic; }
 .lb-row { display: grid; grid-template-columns: 30px 6px 1fr 26px 62px 64px; align-items: center; gap: 8px; padding: 5px 10px; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.035); transition: background .3s; }
 .lb-row.me { background: color-mix(in srgb, var(--team) 16%, transparent); }
 .lb-row.dnf { opacity: 0.4; }

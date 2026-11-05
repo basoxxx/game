@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apex Dynasty — Motorsport Manager</title>
+<meta name="description" content="Apex Dynasty: il gestionale motorsport multi-categoria. Guida la tua scuderia in Formula, Rally ed Endurance. Gratis per macOS (Apple Silicon e Intel), Windows e browser.">
+<meta property="og:title" content="Apex Dynasty — Motorsport Manager">
+<meta property="og:description" content="Formula · Rally · Endurance. Progetta l'auto, gestisci piloti e strategie, vinci il titolo.">
+<meta property="og:image" content="shots/race.jpg">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,400;0,600;0,800;1,800;1,900&family=Titillium+Web:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root { --bg:#06080b; --panel:#10141b; --line:rgba(255,255,255,.09); --text:#eef2f8; --muted:#8b95a7; --red:#e10600; --red2:#ff5a4a; --gold:#ffcc33; --rally:#ffb400; --end:#00c2ff; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin:0; background:var(--bg); color:var(--text); font-family:'Titillium Web',system-ui,sans-serif; font-size:17px; line-height:1.6; overflow-x:hidden; }
+a { color:inherit; }
+.wrap { max-width:1180px; margin:0 auto; padding:0 24px; }
+h1,h2,h3 { font-family:'Exo 2',sans-serif; margin:0; }
+nav { position:sticky; top:0; z-index:10; backdrop-filter:blur(14px); background:rgba(6,8,11,.75); border-bottom:1px solid var(--line); }
+nav .wrap { display:flex; align-items:center; gap:24px; height:64px; }
+.brand { display:flex; align-items:center; gap:10px; font-family:'Exo 2'; font-weight:900; font-style:italic; text-transform:uppercase; font-size:20px; text-decoration:none; }
+.brand img { width:32px; height:32px; }
+nav .links { margin-left:auto; display:flex; gap:22px; font-weight:600; font-size:15px; }
+nav .links a { text-decoration:none; color:var(--muted); } nav .links a:hover { color:#fff; }
+.btn { display:inline-flex; align-items:center; gap:10px; padding:14px 26px; border-radius:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; text-decoration:none; font-size:14px; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.05); transition:transform .15s, box-shadow .2s, background .2s; }
+.btn:hover { transform:translateY(-2px); background:rgba(255,255,255,.1); }
+.btn.red { background:linear-gradient(135deg,var(--red),#8a0400); border-color:transparent; box-shadow:0 10px 30px rgba(225,6,0,.35); }
+.btn.red:hover { box-shadow:0 14px 40px rgba(225,6,0,.55); }
+.hero { position:relative; padding:90px 0 70px; overflow:hidden; }
+.hero::before { content:''; position:absolute; inset:0; background:radial-gradient(900px 500px at 80% 0%, rgba(225,6,0,.3), transparent 60%), radial-gradient(700px 400px at 0% 100%, rgba(0,194,255,.12), transparent 60%); }
+.hero::after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(115deg, transparent 0 60px, rgba(255,255,255,.02) 60px 120px); pointer-events:none; }
+.hero .wrap { position:relative; display:grid; grid-template-columns:1fr 1.15fr; gap:40px; align-items:center; }
+.kicker { letter-spacing:.4em; text-transform:uppercase; color:var(--muted); font-size:13px; font-weight:600; }
+.title { font-weight:900; font-style:italic; text-transform:uppercase; font-size:clamp(56px,8vw,104px); line-height:.86; margin:14px 0 18px; }
+.title span { display:block; background:linear-gradient(90deg,#fff,var(--red2) 60%,var(--red)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.lead { color:#c9d1dc; font-size:19px; max-width:520px; }
+.cta { display:flex; gap:14px; flex-wrap:wrap; margin-top:28px; }
+.hero-shot { border-radius:18px; overflow:hidden; border:1px solid rgba(255,255,255,.14); box-shadow:0 40px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(225,6,0,.2); transform:perspective(1400px) rotateY(-8deg) rotateX(3deg); transition:transform .5s; }
+.hero-shot:hover { transform:perspective(1400px) rotateY(0) rotateX(0); }
+.hero-shot img { display:block; width:100%; }
+.badges { display:flex; gap:10px; flex-wrap:wrap; margin-top:22px; }
+.badge { padding:5px 12px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,.04); font-size:13px; font-weight:600; color:#c9d1dc; }
+section { padding:80px 0; }
+.sec-title { font-weight:900; font-style:italic; text-transform:uppercase; font-size:clamp(34px,4.6vw,52px); line-height:1; }
+.sec-sub { color:var(--muted); margin-top:10px; max-width:700px; }
+.cats { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:40px; }
+.cat { border-radius:18px; padding:26px; background:linear-gradient(160deg, color-mix(in srgb, var(--c) 22%, #10141b), #0c0f14 70%); border:1px solid color-mix(in srgb, var(--c) 35%, transparent); position:relative; overflow:hidden; }
+.cat h3 { font-style:italic; font-weight:900; font-size:28px; text-transform:uppercase; color:var(--c); }
+.cat ul { padding-left:18px; color:#c9d1dc; margin:14px 0 0; }
+.cat .tag { font-size:12px; letter-spacing:.25em; text-transform:uppercase; color:var(--muted); font-weight:700; }
+.features { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:40px; }
+.feat { padding:22px; border-radius:16px; background:var(--panel); border:1px solid var(--line); }
+.feat b { font-family:'Exo 2'; font-size:18px; display:block; margin-bottom:6px; }
+.feat p { margin:0; color:var(--muted); font-size:15.5px; }
+.feat .ic { width:42px; height:42px; border-radius:12px; background:rgba(225,6,0,.15); color:var(--red2); display:flex; align-items:center; justify-content:center; font-size:22px; margin-bottom:12px; }
+.gallery { display:grid; grid-template-columns:repeat(2,1fr); gap:18px; margin-top:40px; }
+.gallery figure { margin:0; border-radius:14px; overflow:hidden; border:1px solid var(--line); background:#000; }
+.gallery img { display:block; width:100%; transition:transform .4s; } .gallery figure:hover img { transform:scale(1.03); }
+.gallery figcaption { padding:10px 14px; font-size:14px; color:var(--muted); background:var(--panel); }
+.dl { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:40px; }
+.os { padding:24px; border-radius:18px; background:var(--panel); border:1px solid var(--line); display:flex; flex-direction:column; gap:12px; }
+.os h3 { font-size:22px; } .os .muted { color:var(--muted); font-size:14.5px; }
+.os .btn { justify-content:center; }
+.os.main { border-color:rgba(225,6,0,.5); box-shadow:0 0 0 1px rgba(225,6,0,.25), 0 20px 50px rgba(225,6,0,.12); }
+.note { margin-top:26px; padding:18px 22px; border-radius:14px; background:rgba(255,180,0,.07); border:1px solid rgba(255,180,0,.25); color:#e9dcc0; font-size:15px; }
+.note code { background:rgba(0,0,0,.4); padding:2px 8px; border-radius:6px; color:#fff; }
+footer { border-top:1px solid var(--line); padding:40px 0; color:var(--muted); font-size:14px; }
+.play-band { position:relative; border-radius:22px; padding:40px; overflow:hidden; background:linear-gradient(120deg, rgba(225,6,0,.35), #10141b 60%); border:1px solid rgba(225,6,0,.35); display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+@media (max-width: 900px) {
+  .hero .wrap, .cats, .features, .gallery, .dl { grid-template-columns:1fr; }
+  nav .links { display:none; }
+  .hero-shot { transform:none; }
+}
+</style>
+</head>
+<body>
+<nav><div class="wrap"><a class="brand" href="#"><img src="icon.svg" alt="">Apex Dynasty</a><div class="links"><a href="#categorie">Categorie</a><a href="#caratteristiche">Caratteristiche</a><a href="#galleria">Galleria</a><a href="#download">Download</a></div><a class="btn red" href="#download" style="padding:10px 18px">Scarica</a></div></nav>
+
+<header class="hero"><div class="wrap">
+  <div>
+    <div class="kicker">Motorsport Manager · v__VERSION__</div>
+    <h1 class="title">Apex<span>Dynasty</span></h1>
+    <p class="lead">Diventa Team Principal. Progetta la tua vettura, ingaggia i piloti, chiama i pit stop sotto la pioggia e costruisci una dinastia in <b>Formula</b>, <b>Rally</b> ed <b>Endurance</b>.</p>
+    <div class="cta"><a class="btn red" href="#download">⬇ Scarica gratis</a><a class="btn" href="play/">▶ Gioca nel browser</a></div>
+    <div class="badges"><span class="badge">macOS Apple Silicon</span><span class="badge">macOS Intel</span><span class="badge">Windows 10/11</span><span class="badge">Linux</span><span class="badge">Browser</span></div>
+  </div>
+  <div class="hero-shot"><img src="shots/race.jpg" alt="Gara in diretta"></div>
+</div></header>
+
+<section id="categorie"><div class="wrap">
+  <h2 class="sec-title">Tre mondi, una carriera</h2>
+  <p class="sec-sub">Inizia in una categoria e, stagione dopo stagione, ricevi offerte anche dalle altre. 26 squadre e oltre 70 piloti ispirati al paddock reale (con nomi... leggermente diversi).</p>
+  <div class="cats">
+    <div class="cat" style="--c:#e10600"><div class="tag">Monoposto</div><h3>Formula Apex</h3><ul><li>11 team, 22 piloti, fino a 18 GP</li><li>Q1 · Q2 · Q3 ad eliminazione</li><li>5 mescole, regola delle due gomme</li><li>Safety car, pioggia, DRS e duelli</li><li>Fornitori di power unit</li></ul></div>
+    <div class="cat" style="--c:#ffb400"><div class="tag">Prove speciali</div><h3>Rally Apex</h3><ul><li>7 team ufficiali, 12 rally mondiali</li><li>Sterrato, asfalto, neve e sterrato duro</li><li>Decisioni live del copilota in prova</li><li>Parco assistenza a tempo (45 min)</li><li>Super Rally e Power Stage</li></ul></div>
+    <div class="cat" style="--c:#00c2ff"><div class="tag">Gare di durata</div><h3>Endurance Apex</h3><ul><li>8 costruttori hypercar, 2 auto per team</li><li>6 ore, 8 ore e la 24 Ore della Sarthe</li><li>Carburante, doppi stint, cambi pilota</li><li>Notte e fatica dei piloti</li><li>Punti doppi a Le Mans... ehm, alla Sarthe</li></ul></div>
+  </div>
+</div></section>
+
+<section id="caratteristiche" style="background:linear-gradient(180deg,transparent,#0a0d12 30%,#0a0d12 70%,transparent)"><div class="wrap">
+  <h2 class="sec-title">Gestione a 360°</h2>
+  <div class="features">
+    <div class="feat"><div class="ic">🛠</div><b>Progetta l'auto</b><p>Scegli il concetto tecnico, avvia progetti R&D con rischio e rendimenti decrescenti, disegna la livrea.</p></div>
+    <div class="feat"><div class="ic">🏁</div><b>Gare in tempo reale</b><p>Mappa live, classifica, usura gomme, meteo radar. Ritmo, pit stop e mescole in ogni momento.</p></div>
+    <div class="feat"><div class="ic">🔧</div><b>Prove e assetto</b><p>Minigioco di setup basato sul feedback dei piloti: un buon assetto vale mezzo secondo al giro.</p></div>
+    <div class="feat"><div class="ic">💼</div><b>Mercato e contratti</b><p>Stipendi, durata, clausole rescissorie. Scopri i giovani talenti con l'Accademia.</p></div>
+    <div class="feat"><div class="ic">💰</div><b>Sponsor e finanze</b><p>Firma sponsor con bonus obiettivo, gestisci budget, stipendi e montepremi.</p></div>
+    <div class="feat"><div class="ic">🏆</div><b>Carriera</b><p>Obiettivi del consiglio, rischio licenziamento, cambi di regolamento, trofei e obiettivi sbloccabili.</p></div>
+  </div>
+</div></section>
+
+<section id="galleria"><div class="wrap">
+  <h2 class="sec-title">Galleria</h2>
+  <div class="gallery">
+    <figure><img src="shots/menu.jpg" alt="" loading="lazy"><figcaption>Menu principale</figcaption></figure>
+    <figure><img src="shots/hub.jpg" alt="" loading="lazy"><figcaption>Quartier generale della squadra</figcaption></figure>
+    <figure><img src="shots/car.jpg" alt="" loading="lazy"><figcaption>Centro Tecnico: sviluppo e livrea</figcaption></figure>
+    <figure><img src="shots/rally.jpg" alt="" loading="lazy"><figcaption>Rally: decisioni live in prova speciale</figcaption></figure>
+    <figure><img src="shots/endurance.jpg" alt="" loading="lazy"><figcaption>Endurance: carburante e cambi pilota</figcaption></figure>
+    <figure><img src="shots/results.jpg" alt="" loading="lazy"><figcaption>Podio e classifiche</figcaption></figure>
+  </div>
+</div></section>
+
+<section id="download"><div class="wrap">
+  <h2 class="sec-title">Download</h2>
+  <p class="sec-sub">Gratis. Nessun account. I salvataggi restano sul tuo computer.</p>
+  <div class="dl">
+    <div class="os main"><h3>🍎 macOS · Apple Silicon</h3><div class="muted">Mac con chip M1, M2, M3, M4 · macOS 11+</div><a class="btn red" href="https://github.com/__REPO__/releases/latest/download/ApexDynasty-__VERSION__-mac-arm64.dmg">Scarica .dmg</a></div>
+    <div class="os main"><h3>🍏 macOS · Intel</h3><div class="muted">Mac con processore Intel · macOS 10.15+</div><a class="btn red" href="https://github.com/__REPO__/releases/latest/download/ApexDynasty-__VERSION__-mac-x64.dmg">Scarica .dmg</a></div>
+    <div class="os main"><h3>🪟 Windows</h3><div class="muted">Windows 10 e 11 · 64 bit</div><a class="btn red" href="https://github.com/__REPO__/releases/latest/download/ApexDynasty-__VERSION__-Setup.exe">Installer .exe</a><a class="btn" href="https://github.com/__REPO__/releases/latest/download/ApexDynasty-__VERSION__-Portable.exe">Versione portable</a></div>
+    <div class="os"><h3>🐧 Linux</h3><div class="muted">AppImage x64</div><a class="btn" href="https://github.com/__REPO__/releases/latest">Vai alle release</a></div>
+    <div class="os"><h3>🌐 Browser</h3><div class="muted">Chrome, Edge, Firefox, Safari — nessuna installazione</div><a class="btn" href="play/">Gioca ora</a></div>
+    <div class="os"><h3>📦 Tutte le versioni</h3><div class="muted">Archivi .zip per macOS e note di rilascio</div><a class="btn" href="https://github.com/__REPO__/releases">Release su GitHub</a></div>
+  </div>
+  <div class="note"><b>Primo avvio su macOS:</b> l'app non è firmata con un certificato Apple Developer. Apri il .dmg, trascina <i>Apex Dynasty</i> in Applicazioni, poi <b>clic destro → Apri</b>. Se macOS dice che l'app è "danneggiata", apri il Terminale ed esegui <code>xattr -cr "/Applications/Apex Dynasty.app"</code>.<br><b>Windows:</b> se SmartScreen avvisa, scegli <i>Ulteriori informazioni → Esegui comunque</i>.</div>
+  <div class="play-band" style="margin-top:40px"><div><h2 class="sec-title" style="font-size:36px">Pronto al semaforo verde?</h2><div class="sec-sub" style="margin-top:6px">Prova subito la versione browser: è lo stesso gioco dell'app desktop.</div></div><a class="btn red" href="play/">▶ Gioca nel browser</a></div>
+</div></section>
+
+<footer><div class="wrap">Apex Dynasty v__VERSION__ · Gioco gestionale di fantasia. Tutti i nomi di squadre, piloti, sponsor e marchi sono parodie inventate e non sono affiliati né approvati da persone, team o aziende reali. · <a href="https://github.com/__REPO__">Codice sorgente</a></div></footer>
+</body>
+</html>

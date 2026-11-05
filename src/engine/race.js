@@ -260,6 +260,7 @@ export class CircuitSim {
     if (req.swap && c.driverIds.length > 1) { c.driverIdx = (c.driverIdx + 1) % c.driverIds.length; c.stintCount = 0; }
     const d = this.driver(c);
     const tyreTxt = req.compound ? `gomme ${COMPOUNDS[req.compound].name}` : 'solo carburante';
+    if (c.isPlayer) this.log(`📻 Ingegnere a ${d.name.split(' ')[0]}: «${pick(['Box, box! Box questo giro.', 'Rientra, gomme pronte.', 'Box box, confermato.', 'Pit stop ora, ci siamo.'])}»`, 'radio', c.key, true);
     this.log(`BOX: ${d.name} si ferma – ${tyreTxt}${req.swap ? ', cambio pilota' : ''}. Sosta ${stat.toFixed(1)}s${slow}`, 'pit', c.key, c.isPlayer);
     c.pitReq = null;
     c.lastStop = stat;
@@ -294,6 +295,9 @@ export class CircuitSim {
     // finish
     if (this.leaderFinished || c.lap >= this.laps) {
       if (!this.leaderFinished) { this.leaderFinished = true; this.log(`🏁 ${this.driver(c).name} vince il ${this.track.name}!`, 'finish', c.key, true); }
+      if (this.C.id === 'formula' && !this.weather.isRain && [...c.compoundsUsed].filter((x) => !COMPOUNDS[x].wet).length < 2) {
+        c.penalty += 10; this.log(`⚖ ${this.driver(c).name}: +10s di penalità (una sola mescola utilizzata)`, 'warn', c.key, c.isPlayer);
+      }
       c.status = 'finished'; c.finishTime = crossT + c.penalty; c.finishLap = c.lap;
       return;
     }
@@ -368,6 +372,8 @@ export class CircuitSim {
             b.dist = a.dist + 0.0012; a.dist -= 0.0012;
             [order[i - 1], order[i]] = [b, a];
             if (a.isPlayer || b.isPlayer || i <= 3) this.log(`⇄ ${db.name} sorpassa ${da.name} per la P${i}!`, 'overtake', b.key, b.isPlayer || a.isPlayer);
+            if (b.isPlayer && chance(0.35)) this.log(`📻 ${db.name.split(' ')[0]}: «${pick(['Sììì! Che sorpasso!', 'Fatto! Avanti il prossimo.', 'Era mio, era mio!', 'Ho più passo, continuo così.'])}»`, 'radio', b.key, true);
+            else if (a.isPlayer && chance(0.3)) this.log(`📻 ${da.name.split(' ')[0]}: «${pick(['Non ho grip, le gomme sono andate!', 'Mi ha sorpreso alla staccata...', 'Non riesco a difendermi!'])}»`, 'radio', a.key, true);
             // contact risk
             if (chance(0.012 * (1.5 - db.attrs.race / 100))) { this.retire(a, 'Contatto in duello', true); }
           } else b.dist = a.dist - MIN_GAP;

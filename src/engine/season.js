@@ -421,8 +421,10 @@ export function jobOffers(state) {
     const teams = catId === state.category ? Object.values(state.teams).map((t) => ({ id: t.id, name: t.name, rep: t.rep, colors: t.colors })) : null;
     let pool = teams;
     if (!pool) pool = TEAMS[catId].map((t) => ({ id: t.id, name: t.name, rep: t.rep, colors: t.colors }));
-    const suitable = pool.filter((t) => t.id !== state.playerTeam || catId !== state.category).filter((t) => t.rep <= rep + 25 + (catId !== state.category ? 10 : 0));
-    const chosen = shuffle(suitable).slice(0, catId === state.category ? 2 : 2);
+    const others = pool.filter((t) => t.id !== state.playerTeam || catId !== state.category);
+    let suitable = others.filter((t) => t.rep <= rep + 30 + (catId !== state.category ? 10 : 0));
+    if (suitable.length < 2) suitable = others.slice().sort((a, b) => a.rep - b.rep).slice(0, 2);
+    const chosen = shuffle(suitable).slice(0, 2);
     for (const t of chosen) offers.push({ category: catId, teamId: t.id, name: t.name, colors: t.colors, rep: t.rep });
   }
   return offers;
