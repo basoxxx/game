@@ -103,5 +103,10 @@
       "category": "Game",
       "icon": "build/icon.png"
     }
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/basoxxx/game.git"
+  },
+  "homepage": "https://basoxxx.github.io/game/"
 }
