@@ -5,6 +5,7 @@ import { physicsLap } from './trackphys.js';
 import { tyreModel, degPenalty, tempPenalty, weatherFactor, strategyOptions } from './tyres.js';
 import { rand, randInt, chance, clamp, gauss, pick } from './rng.js';
 import { hasPerk } from './progress.js';
+import { getSettings } from './state.js';
 
 export const RACE_LENGTHS = { short: 0.25, normal: 0.4, long: 0.66, full: 1 };
 
@@ -145,6 +146,8 @@ export class CircuitSim {
     this.scale = this.realLaps / laps; // real laps per sim lap
     this.ls = track.lap / 90;
     this.pitLoss = track.pit || this.C.pitLoss;
+    const gs = (() => { try { return getSettings(); } catch { return {}; } })();
+    this.realism = { failures: gs.failures ?? 1, damage: gs.damage ?? 1, aiAggr: gs.aiAggr ?? 1 };
     this.time = 0; this.finished = false; this.leaderFinished = false;
     this.events = []; this.sc = null; this.vsc = null; this.scCount = 0;
     this.fastest = { time: 999, key: null };
@@ -462,6 +465,8 @@ export class CircuitSim {
     const rel = c.team.car.parts.reliability;
     let failP = 0.0012 * ((100 - rel) / 18) ** 2 * { push: 1.25, normal: 1, save: 0.8 }[c.mode] * Math.max(0.4, this.scale * 0.6);
     if (this.endurance) failP *= 0.55;
+    failP *= this.realism.failures;
+    crashP *= this.realism.damage;
     if (c.isPlayer && hasPerk(this.state, 'reliable')) failP *= 0.8;
     if (chance(crashP)) {
       const r = Math.random();
@@ -572,7 +577,7 @@ export class CircuitSim {
           b.battleT = 0;
           const paceDiff = a.lapTarget - b.lapTarget;
           const da = this.driver(a), db = this.driver(b);
-          const p = clamp(0.05 + this.track.ovt * 0.42 + (paceDiff / this.ls) * 0.3 + (db.attrs.race - da.attrs.race) / 110 + (b.drs ? 0.1 : 0) + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.16 : 0) - (a.ersMode === 'deploy' ? 0.1 : 0), 0.02, 0.9);
+          const p = clamp(0.05 + this.track.ovt * 0.42 + (paceDiff / this.ls) * 0.3 + (db.attrs.race - da.attrs.race) / 110 + (b.drs ? 0.1 : 0) + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.16 : 0) - (a.ersMode === 'deploy' ? 0.1 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.12 : 0), 0.02, 0.9);
           if (chance(p)) {
             b.dist = a.dist + 0.0012; a.dist -= 0.0012;
             [order[i - 1], order[i]] = [b, a];

@@ -55,6 +55,7 @@ export const App = {
     prev?.unmount?.();
     this.cur = id; this.params = params;
     this.closeModal();
+    document.querySelector('.coach')?.remove();
     const mood = { menu: 'menu', newgame: 'menu', settings: S() ? 'manage' : 'menu', weekend: null, rally: null, results: 'win', seasonend: 'win', quickrace: 'menu' }[id];
     if (mood !== null) music.setMood(mood || 'manage');
     this.render();

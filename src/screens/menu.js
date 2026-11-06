@@ -33,6 +33,7 @@ registerScreen({
           ${hasSave ? `<div class="menu-item" data-a="continue-last">${icon('play')} Continua</div>` : ''}
           <div class="menu-item" data-a="nav" data-to="newgame">${icon('flag')} Nuova Carriera</div>
           <div class="menu-item" data-a="nav" data-to="quickrace">${icon('speed')} Gara Rapida</div>
+          <div class="menu-item" data-a="nav" data-to="challenges">${icon('target')} Sfide</div>
           <div class="menu-item ${hasSave ? '' : 'disabled'}" data-a="load">${icon('save')} Carica Partita</div>
           <div class="menu-item" data-a="nav" data-to="settings" data-back="menu">${icon('settings')} Impostazioni</div>
           <div class="menu-item" data-a="credits">${icon('info')} Come si gioca</div>

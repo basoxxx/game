@@ -159,6 +159,8 @@ registerScreen({
         <div class="row between"><span>Velocità gara predefinita</span><div class="row gap6">${[2, 4, 8, 16, 32].map((v) => `<button class="btn sm ${s.raceSpeed === v ? 'active' : ''}" data-a="speed" data-v="${v}">${v}x</button>`).join('')}</div></div>
         <div class="row between mt16"><span>Qualità grafica 3D</span><div class="row gap6"><button class="btn sm ${s.gfx !== 'low' ? 'active' : ''}" data-a="gfx" data-v="high">Alta</button><button class="btn sm ${s.gfx === 'low' ? 'active' : ''}" data-a="gfx" data-v="low">Prestazioni</button></div></div>
         <div class="row between mt16"><span>Vista 3D in gara</span><button class="btn sm ${s.view3d !== false ? 'active' : ''}" data-a="toggle" data-k="view3d">${s.view3d !== false ? 'ON' : 'OFF'}</button></div>
+        <div class="panel-head mt24"><h3>Realismo gara</h3></div>
+        ${[['failures', 'Guasti meccanici'], ['damage', 'Incidenti e danni'], ['aiAggr', 'Aggressività avversari']].map(([k, n]) => `<div class="row between mt8"><span>${n}</span><div class="row gap6">${[[0.3, 'Bassi'], [1, 'Realistici'], [1.6, 'Alti']].map(([v, l]) => `<button class="btn sm ${(s[k] ?? 1) === v ? 'active' : ''}" data-a="real" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div></div>`).join('')}
         ${window.apex?.toggleFullscreen ? `<div class="row between mt16"><span>Schermo intero</span><button class="btn sm" data-a="fs">${icon('fullscreen')} F11</button></div>` : ''}
       </div>
       ${S() ? `<div class="panel"><div class="panel-head"><h3>Salvataggi</h3></div><div class="row wrap gap6"><button class="btn" data-a="save-as">${icon('save')} Salva in slot…</button><button class="btn" data-a="export">${icon('download')} Esporta su file</button></div><div class="small muted mt8">Il gioco salva automaticamente dopo ogni evento.</div></div>` : ''}
@@ -172,6 +174,7 @@ registerScreen({
     mvol(el) { setSettings({ musicVol: +el.value }); applyVolumes(); },
     speed(el) { setSettings({ raceSpeed: +el.dataset.v }); App.refresh(); },
     gfx(el) { setSettings({ gfx: el.dataset.v }); App.refresh(); },
+    real(el) { setSettings({ [el.dataset.k]: +el.dataset.v }); App.refresh(); },
     fs() { window.apex?.toggleFullscreen?.(); },
     'save-as'() { openLoad(true); },
     export() {

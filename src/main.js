@@ -11,6 +11,7 @@ import './screens/rallyweekend.js';
 import './screens/results.js';
 import './screens/seasonend.js';
 import './screens/quickrace.js';
+import './screens/challenges.js';
 import { S, saveGame } from './engine/state.js';
 
 App.init();

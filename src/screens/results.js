@@ -7,6 +7,7 @@ import { getTrack } from '../engine/world.js';
 import { cat, playerTeam, standings } from '../engine/season.js';
 import { driverChip, teamStripe, tyreBadge } from './common.js';
 import { pressQuestion } from '../engine/events.js';
+import { recordChallenge, CHALLENGES } from './challenges.js';
 import { sfx } from '../ui/audio.js';
 
 export function celebrate(n = 150) {
@@ -65,6 +66,13 @@ registerScreen({
     const ev = st.calendar[App.params?.idx ?? st.round - 1];
     const mine = ev?.results?.classification.filter((r) => r.teamId === st.playerTeam) || [];
     if (mine.some((r) => r.pos === 1 && r.status !== 'dnf')) celebrate(220);
+    if (st.challenge && ev?.results && !st._chDone) {
+      st._chDone = true;
+      const r = recordChallenge(st, ev.results); const ch = CHALLENGES.find((c) => c.id === st.challenge);
+      const M = [['ORO', '#ffcc33', 'D’ORO'], ['ARGENTO', '#c9d1dc', 'D’ARGENTO'], ['BRONZO', '#d98c4a', 'DI BRONZO']];
+      setTimeout(() => App.modal(`<div style="text-align:center"><div class="tiny upper muted" style="letter-spacing:.3em">Sfida · ${esc(ch.title)}</div>${r.medal >= 0 ? `<div style="font-size:70px;margin:10px 0">🏅</div><h2 style="color:${M[r.medal][1]}">MEDAGLIA ${M[r.medal][2]}</h2>` : '<div style="font-size:60px;margin:10px 0">😤</div><h2>Sfida non superata</h2>'}<p class="muted">Miglior risultato: ${r.best === 99 ? 'ritiro' : 'P' + r.best} · Obiettivi: ${ch.medals.map((p, i) => M[i][0] + ' P' + p).join(' · ')}</p><div class="row mt16 center gap6"><button class="btn" data-a="close-modal">Chiudi</button><button class="btn primary" data-a="again">Altre sfide</button></div></div>`, { again() { App.closeModal(); App.go('challenges'); } }), 1500);
+      return;
+    }
     if (st.pressPending && ev?.results) {
       st.pressPending = false;
       const pq = pressQuestion(st, ev.results);
@@ -78,7 +86,7 @@ registerScreen({
   actions: {
     done() {
       const st = S();
-      if (st.quick) { App.go('quickrace'); return; }
+      if (st.quick) { App.go(st.challenge ? 'challenges' : 'quickrace'); return; }
       if (st.round >= st.calendar.length) App.go('seasonend'); else App.go('hub');
     },
   },

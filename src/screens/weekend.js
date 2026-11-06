@@ -100,7 +100,7 @@ registerScreen({
     if (e.code === 'KeyR' && R.r3d) { if (R.replay) stopReplay(); else startReplay(R.lastHighlight && R.sim.time - R.lastHighlight.t < 12 ? R.lastHighlight.key : R.focus); }
   },
   actions: {
-    exit() { App.go(S().quick ? 'quickrace' : 'hub'); },
+    exit() { App.go(S().quick ? (S().challenge ? 'challenges' : 'quickrace') : 'hub'); },
     slider(el) {
       const st = S(); const c = st.weekend.cars[el.dataset.key];
       c.vals[el.dataset.p] = +el.value;
