@@ -38,6 +38,9 @@ registerScreen({
           <div class="kpi"><b>${pos ? pos + '°' : '-'}</b><span>Campionato</span></div><div class="kpi"><b>${pts}</b><span>Punti</span></div>
           <div class="kpi"><b>${d.stats.wins}</b><span>Vittorie carriera</span></div><div class="kpi"><b>${d.stats.titles}</b><span>Titoli</span></div>
         </div>
+        <div class="card mt16"><div class="row between"><b class="small">${icon('sim', 'ico', 'style="width:14px;vertical-align:-2px"')} Sessione al simulatore</b><span class="tiny muted">${fmtM(simCost(st))} · 1 per evento</span></div>
+          <div class="row wrap gap4 mt8">${Object.entries(ATTR_NAMES).filter(([k]) => k !== 'exp').map(([k, n]) => `<button class="btn sm" data-a="train" data-id="${d.id}" data-k="${k}" ${d._trained === st.round + '-' + st.season || d.attrs[k] >= Math.min(99, d.pot + 2) || t.money < simCost(st) ? 'disabled' : ''}>${n}</button>`).join('')}</div>
+          <div class="tiny muted mt8">${d._trained === st.round + '-' + st.season ? 'Già allenato per questo evento.' : 'Migliora un attributo fino al potenziale del pilota. Più efficace con un Simulatore di livello alto.'}</div></div>
         <div class="row mt16 gap6"><button class="btn sm" data-a="renew" data-id="${d.id}">${icon('swap')} Rinnova</button><button class="btn sm ghost" data-a="release" data-id="${d.id}">${icon('x')} Libera</button></div>
       </div>`;
     }).join('')}
@@ -45,6 +48,17 @@ registerScreen({
     </div>`;
   },
   actions: {
+    train(el) {
+      const st = S(); const t = playerTeam(st); const d = st.drivers[el.dataset.id]; const k = el.dataset.k;
+      const cost = simCost(st);
+      if (t.money < cost) return;
+      addFinance(st, `Simulatore: ${d.name}`, -cost);
+      const gain = Math.random() < 0.35 + t.facilities.simulator * 0.12 ? (Math.random() < 0.2 ? 2 : 1) : 0;
+      d.attrs[k] = Math.min(99, d.attrs[k] + gain); d._trained = st.round + '-' + st.season;
+      d.morale = Math.min(100, d.morale + 2);
+      App.toast(gain ? `${d.name}: ${ATTR_NAMES[k]} +${gain}` : 'Sessione poco produttiva', gain ? 'Il lavoro al simulatore ha dato frutti.' : 'Nessun miglioramento questa volta.', gain ? 'good' : '');
+      if (gain) sfx.ok(); App.refresh();
+    },
     renew(el) { openContract(el.dataset.id, null, true); },
     release(el) {
       const st = S(); const d = st.drivers[el.dataset.id];
@@ -217,3 +231,5 @@ registerScreen({
     },
   },
 });
+
+function simCost(st) { return +(0.6 * ({ formula: 1, rally: 0.35, endurance: 0.55 }[st.category] || 1)).toFixed(2); }
