@@ -6,6 +6,9 @@ import { tyreModel, degPenalty, tempPenalty, weatherFactor, strategyOptions } fr
 import { rand, randInt, chance, clamp, gauss, pick } from './rng.js';
 import { hasPerk } from './progress.js';
 import { getSettings } from './state.js';
+import { ensureRivalries, duelModifiers, radioAfterPass, radioContact, radioOrders, commentaryPass, commentaryBattle, commentaryGeneric } from './rivalry.js';
+
+function fmtLapShort(t) { const m = Math.floor(t / 60); const r = t - m * 60; return `${m}:${r.toFixed(3).padStart(6, '0')}`; }
 
 export const RACE_LENGTHS = { short: 0.25, normal: 0.4, long: 0.66, full: 1 };
 
@@ -161,6 +164,8 @@ export class CircuitSim {
     this.planCache = {};
     this.teamOrders = {}; this.radioQ = []; this.radioId = 0;
     this.moments = []; this.momentCD = {}; this.momentsOn = true;
+    this.rivalEvents = []; this.commT = -99; this.lastComm = null; this.battles = {}; this.leaderKey = null; this.commFlags = {};
+    try { ensureRivalries(state); } catch { /* quick race worlds */ }
     this.cars = grid.map((key, i) => {
       const e = byKey[key];
       const team = state.teams[e.teamId];
@@ -280,6 +285,18 @@ export class CircuitSim {
     this.events.push({ t: this.time, lap, text, type, key, important });
     if (this.events.length > 400) this.events.shift();
   }
+
+  // live TV commentary (throttled) — shown as subtitles in the race view
+  comment(text, key = null, force = false) {
+    if (!text) return;
+    if (!force && this.time - this.commT < 14) return;
+    this.commT = this.time;
+    this.lastComm = { t: this.time, text, key };
+    this.log(text, 'comm', key, false);
+  }
+  // driver-to-pit radio outbursts about other drivers
+  rivalRadio(text, key, force = false) { if (!text) return; if (!force && this.time - (this.rrT ?? -99) < 30) return; this.rrT = this.time; { this.log(text, 'rradio', key, true); this.lastRadio = { t: this.time, text, key }; } }
+  rivalHeat(a, b, amt, why) { const da = this.driver(a), db = this.driver(b); if (da && db) this.rivalEvents.push({ a: da.id, b: db.id, amt, why }); }
 
   setMode(key, mode) { const c = this.cars.find((x) => x.key === key); if (c && c.status === 'running') { c.mode = mode; c.lapTarget = this.computeLap(c); } }
   setErs(key, m) { const c = this.cars.find((x) => x.key === key); if (c && c.status === 'running') { c.ersMode = m; c.lapTarget = this.computeLap(c); } }
@@ -461,6 +478,7 @@ export class CircuitSim {
     if (req.swap && c.driverIds.length > 1) { c.driverIdx = (c.driverIdx + 1) % c.driverIds.length; c.stintCount = 0; }
     const d = this.driver(c);
     const tyreTxt = req.compound ? `gomme ${COMPOUNDS[req.compound].name}` : 'solo carburante';
+    if (c.pos <= 5 || c.isPlayer) this.comment(commentaryGeneric('pit', d, ` dalla P${c.pos}`), c.key);
     if (c.isPlayer) this.log(`📻 Ingegnere a ${d.name.split(' ')[0]}: «${pick(['Box, box! Box questo giro.', 'Rientra, gomme pronte.', 'Box box, confermato.', 'Pit stop ora, ci siamo.'])}»`, 'radio', c.key, true);
     this.log(`BOX: ${d.name} si ferma – ${tyreTxt}${req.swap ? ', cambio pilota' : ''}. Sosta ${stat.toFixed(1)}s${slow}`, 'pit', c.key, c.isPlayer);
     c.pitReq = null;
@@ -485,6 +503,7 @@ export class CircuitSim {
     c.status = 'dnf'; c.reason = reason;
     const d = this.driver(c);
     this.log(`${crash ? '💥' : '🔧'} RITIRO: ${d.name} (${c.team.name}) – ${reason}`, crash ? 'crash' : 'fail', c.key, true);
+    if (c.pos <= 10 || c.isPlayer) this.comment(commentaryGeneric('retire', d, crash ? ' dopo il contatto' : ''), c.key, true);
     if (!this.sc && !this.vsc && c.dist < this.laps - 1.5) {
       if (crash && chance(0.6)) this.deploySC();
       else if (chance(crash ? 0.5 : 0.35)) this.deployVSC();
@@ -516,7 +535,7 @@ export class CircuitSim {
     if (c.lap > 0 && lapTime > 20) {
       c.lastLap = lapTime;
       if (!c.bestLap || lapTime < c.bestLap) c.bestLap = lapTime;
-      if (lapTime < this.fastest.time && !this.sc && !this.vsc && c.lap > 1) { this.fastest = { time: lapTime, key: c.key }; }
+      if (lapTime < this.fastest.time && !this.sc && !this.vsc && c.lap > 1) { this.fastest = { time: lapTime, key: c.key }; if (c.lap > 3) this.comment(commentaryGeneric('fastest', this.driver(c), fmtLapShort(lapTime)), c.key); }
       this.history[c.key].push({ lap: c.lap, time: lapTime, tyre: c.tyre, wear: c.age / this.life(c), temp: c.temp, pos: c.pos, sc: !!(this.sc || this.vsc) });
     }
     if (this.endurance) {
@@ -659,9 +678,17 @@ export class CircuitSim {
           b.dist = a.dist + 0.0008; a.dist -= 0.006;
           [order[i - 1], order[i]] = [b, a];
           this.log(`🔁 ${this.driver(a).name} lascia passare il compagno ${this.driver(b).name}.`, 'radio', b.key, a.isPlayer);
+          this.rivalHeat(a, b, 11, 'Ordini di scuderia contestati');
+          if (a.isPlayer || chance(0.3)) this.rivalRadio(radioOrders(this.driver(a), this.driver(b)), a.key);
           this.teamOrders[a.teamId] = 'free';
           if (a.isPlayer) { const da = this.driver(a); da.morale = clamp(da.morale - 3, 10, 100); }
           continue;
+        }
+        // declared number one: the other driver must let him by
+        const n1 = a.team.number1;
+        if (ord === 'free' && n1 && this.driver(b).id === n1 && this.driver(a).id !== n1 && gapS < 0.8 && a.status === 'running' && b.status === 'running' && !(a.yieldUntil > this.time)) {
+          a.yieldUntil = this.time + 6; this.rivalHeat(a, b, 3, 'Gerarchia di squadra');
+          if (a.isPlayer && chance(0.5)) this.rivalRadio(radioOrders(this.driver(a), this.driver(b)), a.key);
         }
         if (ord === 'hold' && gap < MIN_GAP * 1.5) { b.dist = a.dist - MIN_GAP * 1.5; b.battleT = 0; continue; }
       }
@@ -670,11 +697,15 @@ export class CircuitSim {
       if (gap < MIN_GAP) {
         if (this.sc || this.vsc || b.dist < 0.3) { if (this.sc || b.dist < 0.3) b.dist = a.dist - MIN_GAP * (this.sc ? 3 : 1.2); continue; }
         b.battleT += dt;
+        { const bk = a.key + '>' + b.key; const bt = (this.battles[bk] = (this.battles[bk] || 0) + dt / this.track.lap);
+          if (bt > 2.5 && !this.commFlags[bk + Math.floor(bt / 3)] && (a.isPlayer || b.isPlayer || i <= 6)) { this.commFlags[bk + Math.floor(bt / 3)] = 1; const h = duelModifiers(this.state, this.driver(a).id, this.driver(b).id).heat; this.comment(commentaryBattle(this.driver(a), this.driver(b), i, Math.round(bt), h), b.key, h >= 55); this.rivalHeat(a, b, 1.5, 'Lunga battaglia ruota a ruota'); } }
         if (b.battleT >= 2.2) {
           b.battleT = 0;
           const paceDiff = a.lapTarget - b.lapTarget;
           const da = this.driver(a), db = this.driver(b);
-          const p = clamp(0.05 + this.track.ovt * 0.42 + (paceDiff / this.ls) * 0.3 + (db.attrs.race - da.attrs.race) / 110 + (b.drs ? 0.1 : 0) + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.16 : 0) - (a.ersMode === 'deploy' ? 0.1 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.12 : 0) + (b.attackUntil > this.time ? 0.12 : 0) - (a.defendUntil > this.time ? 0.18 : 0) + (a.yieldUntil > this.time ? 0.6 : 0), 0.02, 0.95);
+          const duel = duelModifiers(this.state, da.id, db.id);
+          const mates = a.teamId === b.teamId;
+          const p = clamp(duel.pBonus + 0.05 + this.track.ovt * 0.42 + (paceDiff / this.ls) * 0.3 + (db.attrs.race - da.attrs.race) / 110 + (b.drs ? 0.1 : 0) + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.16 : 0) - (a.ersMode === 'deploy' ? 0.1 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.12 : 0) + (b.attackUntil > this.time ? 0.12 : 0) - (a.defendUntil > this.time ? 0.18 : 0) + (a.yieldUntil > this.time ? 0.6 : 0), 0.02, 0.95);
           if (chance(p)) {
             b.dist = a.dist + 0.0012; a.dist -= 0.0012;
             [order[i - 1], order[i]] = [b, a];
@@ -682,7 +713,13 @@ export class CircuitSim {
             if (b.isPlayer && chance(0.35)) this.log(`📻 ${db.name.split(' ')[0]}: «${pick(['Sììì! Che sorpasso!', 'Fatto! Avanti il prossimo.', 'Era mio, era mio!', 'Ho più passo, continuo così.'])}»`, 'radio', b.key, true);
             else if (a.isPlayer && chance(0.3)) this.log(`📻 ${da.name.split(' ')[0]}: «${pick(['Non ho grip, le gomme sono andate!', 'Mi ha sorpreso alla staccata...', 'Non riesco a difendermi!'])}»`, 'radio', a.key, true);
             this.onOvertake?.(b, a);
-            if (chance(0.006 * (1.5 - db.attrs.race / 100))) {
+            const visible = a.isPlayer || b.isPlayer || i <= 8;
+            this.rivalHeat(a, b, mates ? 4 : duel.heat > 25 ? 2.2 : 0.7, mates ? 'Sorpasso tra compagni' : 'Duelli in pista');
+            if (visible) this.comment(commentaryPass({ ...db, teamName: b.team.name }, da, i, duel.heat, mates, b.drs), b.key, duel.heat >= 55 || mates);
+            if ((duel.heat >= 45 || mates) && (visible || duel.heat >= 70) && chance(0.4 + duel.heat / 250)) this.rivalRadio(radioAfterPass(db, da, duel.heat, mates), chance(0.5) ? a.key : b.key);
+            if (chance(0.006 * (1.5 - db.attrs.race / 100) * duel.contactMult)) {
+              this.rivalHeat(a, b, 17, mates ? 'Contatto tra compagni di squadra' : 'Contatto in pista');
+              this.rivalRadio(radioContact(db, da, duel.heat), a.key, true);
               if (chance(0.3)) this.retire(a, 'Contatto in duello', true);
               else { a.damage += rand(0.3, 0.9); this.log(`⚠ Contatto tra ${db.name} e ${da.name}: ala danneggiata!`, 'warn', a.key, a.isPlayer || b.isPlayer); a.lapTarget = this.computeLap(a); }
             }
@@ -704,6 +741,16 @@ export class CircuitSim {
     }
     const all = this.classification();
     all.forEach((c, i) => (c.pos = i + 1));
+    // race-narrative commentary
+    const ld = all[0];
+    if (ld && !this.leaderFinished) {
+      const lapN = Math.floor(Math.max(0, ld.dist));
+      if (this.time > 2 && !this.commFlags.start) { this.commFlags.start = 1; this.comment(commentaryGeneric('start'), null, true); }
+      if (this.leaderKey && ld.key !== this.leaderKey && this.time > 20) this.comment(commentaryGeneric('lead', this.driver(ld), ` – cambio al vertice al giro ${lapN + 1}`), ld.key, true);
+      this.leaderKey = ld.key;
+      if (lapN === Math.floor(this.laps / 2) && !this.commFlags.half) { this.commFlags.half = 1; this.comment(commentaryGeneric('halfway'), null, true); }
+      if (lapN === this.laps - 1 && !this.commFlags.last) { this.commFlags.last = 1; this.comment(commentaryGeneric('lastlap'), null, true); }
+    }
     if (this.leaderFinished && this.cars.every((c) => c.status !== 'running')) { this.finished = true; this.log('Bandiera a scacchi. Gara conclusa.', 'finish', null, true); }
     if (!this.cars.some((c) => c.status === 'running')) this.finished = true;
   }

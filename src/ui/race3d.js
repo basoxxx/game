@@ -75,6 +75,7 @@ export class Race3D {
     Object.assign(this.labels.style, { position: 'absolute', inset: '0', pointerEvents: 'none', overflow: 'hidden' });
     container.appendChild(this.labels);
     this.buildEnv(street);
+    this.street = street;
     if (this.open) this.buildStage(); else { this.buildTrack(street); this.buildScenery(street); }
     this.buildRacingLine();
     applyHDRI(this.renderer, this.scene, night ? 'night' : (this.surface === 'snow' ? 'day' : 'day'), { intensity: night ? 0.35 : 0.9 }).then((ok) => { if (ok && this.skyDome) { this.skyDome.visible = false; if (this.clouds) this.clouds.visible = false; this.hdr = true; } });
@@ -166,19 +167,59 @@ export class Race3D {
     return m;
   }
 
+  // ribbon over a sample range [i0, i1] (wraps), offsets a..b, edges faded in over 4 samples
+  segRibbon(i0, i1, a, b, y, material, vScale = 0.1) {
+    const { N, x, y: Y, hdg } = this.geo;
+    const pos = [], uv = [], idx = [];
+    const n = i1 - i0;
+    for (let q = 0; q <= n; q++) {
+      const i = (((i0 + q) % N) + N) % N;
+      const nx = -Math.sin(hdg[i]), nz = Math.cos(hdg[i]);
+      const t = Math.min(1, Math.min(q, n - q) / 4);
+      const inner = Math.abs(a) < Math.abs(b) ? a : b;
+      const outer = inner === a ? b : a;
+      const o2 = inner + (outer - inner) * t;
+      const A = inner === a ? a : o2, B = inner === a ? o2 : b;
+      pos.push(x[i] + nx * A, y, Y[i] + nz * A, x[i] + nx * B, y, Y[i] + nz * B);
+      uv.push(0, q * this.geo.ds * vScale, Math.abs(B - A) * vScale, q * this.geo.ds * vScale);
+      if (q < n) { const k = q * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, material); m.receiveShadow = true; return m;
+  }
+
   buildTrack(street) {
     const W = street > 0.7 ? 11 : 13;
     this.TW = W;
-    this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x3b3e44, roughness: 0.85 }) : pbr('asphalt_02', { color: 0x9a9a9a, roughness: 0.95, normalScale: 0.8 });
+    this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x3b3e44, roughness: 0.85 }) : pbr('asphalt_02', { color: 0x727272, roughness: 0.95, normalScale: 0.8 });
     const runoffMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x777b82, roughness: 0.9 }) : pbr('concrete_floor_worn_001', { color: street > 0.7 ? 0x8a8a8a : 0xb8b8b8 });
-    const groundMat = this.low ? new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x5d6066 : 0x3f7a34, roughness: 1 }) : pbr(street > 0.7 ? 'concrete_floor_worn_001' : 'aerial_grass_rock', { repeat: [1400, 1400], color: street > 0.7 ? 0x777777 : 0x8db86a });
+    const groundMat = this.low ? new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x5d6066 : 0x3f7a34, roughness: 1 }) : pbr(street > 0.7 ? 'concrete_floor_worn_001' : 'aerial_grass_rock', { repeat: [1400, 1400], color: street > 0.7 ? 0x4c4f54 : 0x8db86a });
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(12000, 12000), groundMat);
     ground.rotation.x = -Math.PI / 2; ground.position.set((this.geo.bbox[0] + this.geo.bbox[2]) / 2, -0.25, (this.geo.bbox[1] + this.geo.bbox[3]) / 2);
     ground.receiveShadow = true;
     this.scene.add(ground);
     const runoff = street > 0.7 ? 3 : 16;
-    this.scene.add(this.ribbon(W / 2, W / 2 + runoff, 0.01, runoffMat, 1 / 5, 1, runoff / 5));
-    this.scene.add(this.ribbon(-W / 2 - runoff, -W / 2, 0.01, runoffMat, 1 / 5, 1, runoff / 5));
+    if (street > 0.7) {
+      this.scene.add(this.ribbon(W / 2, W / 2 + runoff, 0.01, runoffMat, 1 / 5, 1, runoff / 5));
+      this.scene.add(this.ribbon(-W / 2 - runoff, -W / 2, 0.01, runoffMat, 1 / 5, 1, runoff / 5));
+    } else {
+      // permanent circuit: narrow tarmac shoulder, then grass up to the barriers, gravel traps outside corners
+      const shoulder = this.low ? new THREE.MeshStandardMaterial({ color: 0x55585e, roughness: 0.9 }) : pbr('asphalt_02', { color: 0x777777, roughness: 0.95 });
+      const grass = this.low ? new THREE.MeshStandardMaterial({ color: 0x4f8a3c, roughness: 1 }) : pbr('aerial_grass_rock', { color: 0x9cc27a, roughness: 1 });
+      this.scene.add(this.ribbon(W / 2, W / 2 + 2.2, 0.012, shoulder, 1 / 6, 1, 2.2 / 6));
+      this.scene.add(this.ribbon(-W / 2 - 2.2, -W / 2, 0.012, shoulder, 1 / 6, 1, 2.2 / 6));
+      this.scene.add(this.ribbon(W / 2 + 2.2, W / 2 + runoff + 6, 0.0, grass, 1 / 14, 2, (runoff + 4) / 14));
+      this.scene.add(this.ribbon(-W / 2 - runoff - 6, -W / 2 - 2.2, 0.0, grass, 1 / 14, 2, (runoff + 4) / 14));
+      const gravel = this.low ? new THREE.MeshStandardMaterial({ color: 0xc9b48a, roughness: 1 }) : pbr('gravel_floor', { color: 0xf0dcb0, roughness: 1 });
+      for (const cn of this.geo.corners) {
+        if (cn.r > 220) continue;
+        const span = Math.min(40, Math.max(14, Math.round(cn.r / 6)));
+        const side = -cn.dir;
+        const a = side > 0 ? W / 2 + 2.2 : -(W / 2 + runoff - 1), b = side > 0 ? W / 2 + runoff - 1 : -(W / 2 + 2.2);
+        this.scene.add(this.segRibbon(cn.i - Math.round(span * 0.6), cn.i + span, a, b, 0.02, gravel, 1 / 8));
+      }
+    }
     // white edge lines + rubbered racing line
     const lineMat = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.6 });
     this.scene.add(this.ribbon(W / 2 - 0.35, W / 2 - 0.1, 0.045, lineMat, 0.05));
@@ -209,12 +250,42 @@ export class Race3D {
     // barriers
     const wallTex = canvasTex(256, 32, (c, w, h) => { const cols = street > 0.7 ? ['#e8e8e8', '#c81e1e'] : ['#d32f2f', '#f2f2f2']; for (let i = 0; i < 8; i++) { c.fillStyle = cols[i % 2]; c.fillRect(i * w / 8, 0, w / 8, h); } c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(0, h - 4, w, 4); });
     const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.7, side: THREE.DoubleSide });
+    // pit lane: dedicated lane on the + side around the start line, inside the barriers
+    this.pitSpan = 44; this.pitOff = W / 2 + (street > 0.7 ? 6.5 : 9);
+    const pitW = (i) => { const d = Math.min(i, N - i); return d <= this.pitSpan ? 1 : d >= this.pitSpan + 14 ? 0 : 1 - (d - this.pitSpan) / 14; };
+    const baseWall = W / 2 + runoff + (street > 0.7 ? 0.5 : 4);
+    this.wallOff = (i, side) => side > 0 ? Math.max(baseWall, baseWall + (this.pitOff + 4.2 - baseWall) * pitW(i)) : baseWall;
+    {
+      const pos = [], idx = [], uv = [];
+      const pm = this.low ? new THREE.MeshStandardMaterial({ color: 0x45484e, roughness: 0.85 }) : pbr('asphalt_02', { color: 0x8a8a8a, roughness: 0.9, repeat: [1, 1] });
+      let n = 0;
+      for (let q = -this.pitSpan - 10; q <= this.pitSpan + 10; q++, n++) {
+        const i = (q + N) % N; const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
+        const t = Math.min(1, (this.pitSpan + 10 - Math.abs(q)) / 12);
+        const a = W / 2 + 0.2, b = W / 2 + 0.2 + (this.pitOff + 2.6 - W / 2) * t;
+        pos.push(this.geo.x[i] + nx * a, 0.025, this.geo.y[i] + nz * a, this.geo.x[i] + nx * b, 0.025, this.geo.y[i] + nz * b);
+        uv.push(0, n * this.geo.ds / 6, (b - a) / 6, n * this.geo.ds / 6);
+        if (q < this.pitSpan + 10) { const k = n * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+      }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+      const pl = new THREE.Mesh(g, pm); pl.receiveShadow = true; this.scene.add(pl);
+      // pit lane white line + box markings
+      const ln = []; const li = [];
+      for (let q = -this.pitSpan + 4, k = 0; q <= this.pitSpan - 4; q++, k++) {
+        const i = (q + N) % N; const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
+        const a = this.pitOff - 2.9, b = this.pitOff - 2.7;
+        ln.push(this.geo.x[i] + nx * a, 0.04, this.geo.y[i] + nz * a, this.geo.x[i] + nx * b, 0.04, this.geo.y[i] + nz * b);
+        if (q < this.pitSpan - 4) { const j = k * 2; li.push(j, j + 1, j + 2, j + 1, j + 3, j + 2); }
+      }
+      const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(ln, 3)); lg.setIndex(li); lg.computeVertexNormals();
+      this.scene.add(new THREE.Mesh(lg, lineMat));
+    }
     for (const side of [1, -1]) {
-      const off = side * (W / 2 + runoff + (street > 0.7 ? 0.5 : 4));
       const pos = [], uv = [], idx = [];
       const step = 2; let v = 0; const count = Math.ceil(N / step) + 1;
       for (let n = 0; n < count; n++) {
         const i = (n * step) % N; const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
+        const off = side * this.wallOff(i, side);
         const px = this.geo.x[i] + nx * off, pz = this.geo.y[i] + nz * off;
         pos.push(px, 0, pz, px, 1.1, pz); uv.push(v, 0, v, 1); v += this.geo.ds * step / 20;
         if (n < count - 1) { const k = n * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
@@ -310,6 +381,41 @@ export class Race3D {
     }
   }
 
+  // true if (px,pz) is at least r metres from every track sample not near index `near`
+  clearOfTrack(px, pz, r, near = null) {
+    const N = this.geo.N; const r2 = r * r;
+    for (let j = 0; j < N; j += 2) {
+      const dx = this.geo.x[j] - px, dz = this.geo.y[j] - pz; if (dx * dx + dz * dz < r2) return false;
+    }
+    return true;
+  }
+
+  // stepped grandstand in local frame: x along the track, track side towards +z
+  makeStand(L, D, H, crowdMat, roofMat) {
+    const g = new THREE.Group();
+    const frame = this._standFrame ||= new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.6, metalness: 0.4 });
+    const back = new THREE.Mesh(new THREE.BoxGeometry(L, H, 0.6), frame); back.position.set(0, H / 2, -D / 2); back.castShadow = true; g.add(back);
+    for (const sx of [-1, 1]) { const side = new THREE.Mesh(new THREE.BoxGeometry(0.6, H, D), frame); side.position.set(sx * L / 2, H / 2, 0); g.add(side); }
+    const slopeLen = Math.hypot(D, H - 1.6);
+    const sl = new THREE.Mesh(new THREE.PlaneGeometry(L, slopeLen), crowdMat.clone());
+    sl.material.map = crowdMat.map.clone(); sl.material.map.repeat.set(L / 14, 1); sl.material.map.needsUpdate = true;
+    sl.position.set(0, (H + 1.6) / 2, 0); sl.rotation.x = -Math.atan2(D, H - 1.6); sl.receiveShadow = true; g.add(sl);
+    const front = new THREE.Mesh(new THREE.BoxGeometry(L, 1.6, 0.4), frame); front.position.set(0, 0.8, D / 2); g.add(front);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(L + 2, 0.4, D + 3), roofMat); roof.position.set(0, H + 3.2, -0.5); roof.rotation.x = 0.06; roof.castShadow = true; g.add(roof);
+    for (let px = -L / 2; px <= L / 2 + 0.1; px += L / 4) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 3.4, 6), frame); post.position.set(px, H + 1.5, -D / 2 + 0.4); g.add(post); }
+    return g;
+  }
+
+  // checks the footprint (half-length along local x, half-depth along local z) of a placed object
+  boxClear(obj, hl, hd, r, near) {
+    const c = Math.cos(obj.rotation.y), sn = Math.sin(obj.rotation.y);
+    for (const [a, b] of [[0, 0], [hl, hd], [-hl, hd], [hl, -hd], [-hl, -hd]]) {
+      const px = obj.position.x + a * c + b * sn, pz = obj.position.z - a * sn + b * c;
+      if (!this.clearOfTrack(px, pz, r, near)) return false;
+    }
+    return true;
+  }
+
   placeAt(obj, i, off, y = 0, rot = 0) {
     const N = this.geo.N; i = ((Math.round(i) % N) + N) % N;
     const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
@@ -330,32 +436,53 @@ export class Race3D {
     this.placeAt(g, 3, 0); g.rotation.y += Math.PI / 2;
     this.scene.add(g);
     // grandstands + pit building along start straight
-    const standMat = new THREE.MeshStandardMaterial({ map: canvasTex(256, 64, (c, w, h) => { c.fillStyle = '#3b4252'; c.fillRect(0, 0, w, h); for (let i = 0; i < 1600; i++) { c.fillStyle = `hsl(${Math.random() * 360},60%,${40 + Math.random() * 30}%)`; c.fillRect(Math.random() * w, Math.random() * h, 2, 2); } }, [4, 1]), roughness: 0.9 });
+    const crowd = canvasTex(512, 256, (c, w, h) => {
+      const rows = 16; const rh = h / rows;
+      for (let r = 0; r < rows; r++) {
+        c.fillStyle = r % 2 ? '#2b3140' : '#343b4d'; c.fillRect(0, r * rh, w, rh);
+        c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, r * rh + rh - 2, w, 2);
+        for (let x = 2; x < w; x += 6 + Math.random() * 3) {
+          if (Math.random() < 0.12) continue;
+          const hue = Math.random() < 0.3 ? [0, 355, 210, 45][Math.floor(Math.random() * 4)] : Math.random() * 360;
+          c.fillStyle = `hsl(${hue},${55 + Math.random() * 35}%,${38 + Math.random() * 30}%)`; c.fillRect(x, r * rh + rh * 0.35, 4.2, rh * 0.6);
+          c.fillStyle = `hsl(25,${30 + Math.random() * 30}%,${45 + Math.random() * 35}%)`; c.fillRect(x + 0.7, r * rh + rh * 0.08, 2.8, rh * 0.32);
+        }
+      }
+    }, [3, 1]);
+    const standMat = new THREE.MeshStandardMaterial({ map: crowd, roughness: 0.95 });
     const roofMat = new THREE.MeshStandardMaterial({ color: 0xdedede, roughness: 0.5, metalness: 0.3 });
+    this.obstacles = [];
     for (let k = -3; k <= 3; k++) {
-      const st = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.BoxGeometry(38, 12, 14), standMat); body.position.y = 6; body.rotation.x = 0; st.add(body);
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(40, 0.6, 16), roofMat); roof.position.y = 13; st.add(roof);
-      body.castShadow = true;
-      this.placeAt(st, k * 9, -(W / 2 + (street > 0.7 ? 14 : 34)), 0);
-      this.scene.add(st);
+      const st = this.makeStand(38, 14, 12, standMat, roofMat);
+      this.placeAt(st, k * 9, -(this.wallOff(k * 9, -1) + 10), 0);
+      if (this.boxClear(st, 19, 7, W / 2 + 3, k * 9)) { this.scene.add(st); this.obstacles.push({ x: st.position.x, z: st.position.z, r: 22, h: 16 }); }
     }
-    const big = this.geo.corners.slice().sort((a, b) => a.r - b.r).slice(0, 4);
+    const big = this.geo.corners.slice().sort((a, b) => a.r - b.r).slice(0, 5);
     for (const cn of big) {
-      const st = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.BoxGeometry(30, 9, 10), standMat); body.position.y = 4.5; body.castShadow = true; st.add(body);
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(32, 0.5, 12), roofMat); roof.position.y = 10; st.add(roof);
-      this.placeAt(st, cn.i, -cn.dir * (W / 2 + (street > 0.7 ? 12 : 30)), 0);
-      this.scene.add(st);
+      const side = -cn.dir;
+      const st = this.makeStand(30, 10, 9, standMat, roofMat);
+      this.placeAt(st, cn.i, side * (this.wallOff(cn.i, side) + 8), 0, side > 0 ? Math.PI : 0);
+      if (this.boxClear(st, 15, 5, W / 2 + 3, cn.i)) { this.scene.add(st); this.obstacles.push({ x: st.position.x, z: st.position.z, r: 18, h: 13 }); }
     }
-    const pit = new THREE.Mesh(new THREE.BoxGeometry(260, 9, 18), new THREE.MeshStandardMaterial({ color: 0xc9ced6, roughness: 0.5, metalness: 0.2 }));
-    pit.castShadow = true; pit.receiveShadow = true;
-    this.placeAt(pit, 0, W / 2 + (street > 0.7 ? 16 : 40), 4.5);
-    this.scene.add(pit);
+    const pitMat = new THREE.MeshStandardMaterial({ color: 0xc9ced6, roughness: 0.5, metalness: 0.2 });
+    const garMat = new THREE.MeshStandardMaterial({ color: 0x15181d, roughness: 0.7 });
+    const pitBack = (this.pitOff || W / 2 + 9) + 4.6;
+    for (let q = -this.pitSpan + 2; q <= this.pitSpan - 2; q += 3) {
+      const seg = new THREE.Group();
+      const b = new THREE.Mesh(new THREE.BoxGeometry(this.geo.ds * 3 + 0.4, 5.2, 14), pitMat); b.position.set(0, 2.6, 7); b.castShadow = true; b.receiveShadow = true; seg.add(b);
+      const glass = new THREE.Mesh(new THREE.BoxGeometry(this.geo.ds * 3 + 0.4, 3.4, 12), this._glass ||= new THREE.MeshStandardMaterial({ color: 0x1b2a3c, roughness: 0.08, metalness: 0.85 })); glass.position.set(0, 6.9, 7.6); seg.add(glass);
+      const roofS = new THREE.Mesh(new THREE.BoxGeometry(this.geo.ds * 3 + 0.4, 0.5, 15), this._pitRoof ||= new THREE.MeshStandardMaterial({ color: 0x5c6470, roughness: 0.6, metalness: 0.3 })); roofS.position.set(0, 8.85, 6.8); roofS.castShadow = true; seg.add(roofS);
+      const gd = new THREE.Mesh(new THREE.BoxGeometry(this.geo.ds * 3 - 2.5, 4.2, 0.2), garMat); gd.position.set(0, 2.1, -0.05); seg.add(gd);
+      // local x = track tangent, local z = outward normal
+      b.position.set(0, 2.6, 0); glass.position.set(0, 6.9, 0.6); roofS.position.set(0, 8.85, -0.2); gd.position.set(0, 2.1, -7.05);
+      this.placeAt(seg, q, pitBack + 7, 0);
+      if (this.clearOfTrack(seg.position.x, seg.position.z, W / 2 + 9, q)) { this.scene.add(seg); this.obstacles?.push({ x: seg.position.x, z: seg.position.z, r: 11, h: 9.5 }); }
+    }
     // trees / buildings instanced
     const count = Math.round((street > 0.7 ? 260 : 700) * (this.low ? 0.35 : 1));
     const geo = street > 0.7 ? new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0) : Math.random() < 0.5 ? treeGeo() : bushGeo();
-    const m = street > 0.7 ? new THREE.MeshStandardMaterial({ color: 0xb0b4bc, roughness: 0.8 }) : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
+    const facade = street > 0.7 ? canvasTex(128, 256, (c, w, h) => { c.fillStyle = '#ffffff'; c.fillRect(0, 0, w, h); for (let y = 10; y < h - 8; y += 22) for (let x = 8; x < w - 8; x += 20) { c.fillStyle = Math.random() < 0.25 ? '#e8d9a8' : '#3a4658'; c.fillRect(x, y, 11, 14); c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(x, y + 14, 11, 2); } c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(0, h - 10, w, 10); }) : null;
+    const m = street > 0.7 ? new THREE.MeshStandardMaterial({ map: facade, roughness: 0.85 }) : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
     const inst = new THREE.InstancedMesh(geo, m, count);
     const tint = new THREE.Color();
     const dummy = new THREE.Object3D();
@@ -366,14 +493,23 @@ export class Race3D {
       // keep away from the track (other parts)
       const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
       const px = this.geo.x[i] + nx * off, pz = this.geo.y[i] + nz * off;
-      let ok = true;
-      for (let j = 0; j < N; j += 6) { const dx = this.geo.x[j] - px, dz = this.geo.y[j] - pz; if (dx * dx + dz * dz < (street > 0.7 ? 18 * 18 : 30 * 30)) { ok = false; break; } }
-      if (!ok) continue;
-      const h = street > 0.7 ? 12 + Math.random() * 50 : 9 + Math.random() * 13;
+      let h = street > 0.7 ? 12 + Math.random() * 50 : 9 + Math.random() * 13;
       const wd = street > 0.7 ? 10 + Math.random() * 18 : h * (0.75 + Math.random() * 0.35);
+      // keep the whole footprint (not just the centre) away from every part of the track,
+      // the pit building and the grandstands
+      const clear = street > 0.7 ? W / 2 + 4 + wd * 0.72 : W / 2 + 10 + wd * 0.45;
+      let ok = true, dmin = 1e9;
+      for (let j = 0; j < N; j += 2) { const dx = this.geo.x[j] - px, dz = this.geo.y[j] - pz; const d2 = dx * dx + dz * dz; if (d2 < dmin) dmin = d2; if (d2 < clear * clear) { ok = false; break; } }
+      if (ok && this.obstacles.some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.r + wd * 0.72) ** 2)) ok = false;
+      if (!ok) { inst.setMatrixAt(k, new THREE.Matrix4().makeScale(0, 0, 0)); continue; }
+      // tall buildings only away from the circuit (cameras fly above the first row)
+      if (street > 0.7) h = Math.min(h, 10 + (Math.sqrt(dmin) - clear) * 1.2 + 8);
+      this.obstacles.push({ x: px, z: pz, r: wd * 0.72 + 2, h });
       dummy.position.set(px, 0, pz); dummy.scale.set(wd, h, wd); dummy.rotation.y = Math.random() * 6; dummy.updateMatrix();
       inst.setMatrixAt(k, dummy.matrix);
-      if (street <= 0.7) { tint.setHSL(0.22 + Math.random() * 0.1, 0.35 + Math.random() * 0.25, 0.75 + Math.random() * 0.35); inst.setColorAt(k, tint); }
+      if (street <= 0.7) tint.setHSL(0.22 + Math.random() * 0.1, 0.35 + Math.random() * 0.25, 0.75 + Math.random() * 0.35);
+      else tint.setHSL([0.08, 0.1, 0.05, 0.12, 0.0, 0.58][Math.floor(Math.random() * 6)], 0.25 + Math.random() * 0.35, 0.62 + Math.random() * 0.22);
+      inst.setColorAt(k, tint);
     }
     inst.castShadow = true;
     this.scene.add(inst);
@@ -386,7 +522,8 @@ export class Race3D {
       if (Math.abs(this.geo.k[i]) > 1 / 300) continue;
       const side = k % 2 ? 1 : -1;
       const bb = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.4, 12), bmats[k % bmats.length]);
-      this.placeAt(bb, i, side * (W / 2 + (street > 0.7 ? 4.2 : 6.5)), 1.4);
+      this.placeAt(bb, i, side * (this.wallOff(i, side) + 1.4), 1.4);
+      if (!this.boxClear(bb, 6, 0.3, W / 2 + 2, i)) continue;
       bb.castShadow = true; this.scene.add(bb);
     }
     // night lighting poles
@@ -408,7 +545,10 @@ export class Race3D {
     for (let i = 0; i < N; i += step) {
       const side = (cams.length % 2 ? 1 : -1);
       const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
-      cams.push({ i, pos: new THREE.Vector3(this.geo.x[i] + nx * side * (this.TW / 2 + 26), 7 + (cams.length % 3) * 3, this.geo.y[i] + nz * side * (this.TW / 2 + 26)) });
+      const blocked = (sd, off) => { const px = this.geo.x[i] + nx * sd * off, pz = this.geo.y[i] + nz * sd * off; return (this.obstacles || []).some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < o.r * o.r) || !this.clearOfTrack(px, pz, this.street > 0.7 ? this.TW / 2 + 3.4 : this.TW / 2 + 6); };
+      let sd = side, off = this.street > 0.7 ? this.wallOff(i, side) + 1.6 : this.TW / 2 + 26, hgt = this.street > 0.7 ? 6 + (cams.length % 3) * 2 : 7 + (cams.length % 3) * 3;
+      if (blocked(sd, off)) { sd = -side; if (this.street > 0.7) off = this.wallOff(i, sd) + 1.6; if (blocked(sd, off)) { off = this.street > 0.7 ? this.wallOff(i, sd) + 1.2 : this.TW / 2 + 14; if (blocked(sd, off)) { sd = side; hgt = 24; } } }
+      cams.push({ i, pos: new THREE.Vector3(this.geo.x[i] + nx * sd * off, hgt, this.geo.y[i] + nz * sd * off) });
     }
     return cams;
   }
@@ -424,7 +564,8 @@ export class Race3D {
     if (c.isPlayer) label.classList.add('me');
     label.style.setProperty('--lc', c.livery.primary);
     this.labels.appendChild(label);
-    this.cars.set(c.key, { mesh: m, label, lane: ((c.key.charCodeAt(0) + c.key.length * 7) % 5 - 2) * 0.9, lastS: 0, tyre: c.tyreColor, isPlayer: c.isPlayer });
+    const team = String(c.key).split('#')[0]; this._boxes ||= new Map(); if (!this._boxes.has(team)) this._boxes.set(team, this._boxes.size);
+    this.cars.set(c.key, { box: this._boxes.get(team), mesh: m, label, lane: ((c.key.charCodeAt(0) + c.key.length * 7) % 5 - 2) * 0.9, lastS: 0, tyre: c.tyreColor, isPlayer: c.isPlayer });
   }
 
   setNight(n) {
@@ -471,37 +612,82 @@ export class Race3D {
       }
     }
     let focus = null;
+    const ds = this.geo.ds, open = this.open;
+    const dS = (a, b) => { let d = a - b; if (!open) { if (d > N / 2) d -= N; if (d < -N / 2) d += N; } return d; };
+    const wrap = (v) => open ? Math.min(N - 1.001, Math.max(0, v)) : ((v % N) + N) % N;
+    const maxLane = this.TW / 2 - 1.15;
+    // pass 1: desired longitudinal position + lane for every car
+    const items = [];
     for (const st of states) {
       const car = this.cars.get(st.key); if (!car) continue;
-      const m = car.mesh;
-      if (st.hidden) { m.visible = false; car.label.style.display = 'none'; continue; }
-      m.visible = true;
-      let s = st.s;
-      const i0 = this.open ? Math.min(N - 2, Math.max(0, Math.floor(s))) : Math.floor(s) % N, i1 = this.open ? i0 + 1 : (i0 + 1) % N, f = this.open ? Math.min(1, Math.max(0, s - i0)) : s - Math.floor(s);
-      let hd = this.geo.hdg[i1] - this.geo.hdg[i0]; while (hd > Math.PI) hd -= 2 * Math.PI; while (hd < -Math.PI) hd += 2 * Math.PI;
-      const h = this.geo.hdg[i0] + hd * f;
-      let lane = st.inPit ? this.TW / 2 + 10 : (this.line ? this.line[i0] * (st.close ? 0.4 : 1) : 0) + (st.close && st.pos ? (st.pos % 2 ? 2.4 : -2.4) : car.lane * 0.25);
-      car.laneCur = car.laneCur == null ? lane : car.laneCur + (lane - car.laneCur) * Math.min(1, dt * 6);
-      const nx = -Math.sin(h), nz = Math.cos(h);
-      const x = this.geo.x[i0] + (this.geo.x[i1] - this.geo.x[i0]) * f + nx * car.laneCur;
-      const z = this.geo.y[i0] + (this.geo.y[i1] - this.geo.y[i0]) * f + nz * car.laneCur;
-      let yy = 0.02;
-      if (this.geo.h) {
-        const h0 = this.geo.h[i0], h1 = this.geo.h[i1]; yy += h0 + (h1 - h0) * f;
-        // airborne over crests: ballistic arc proportional to speed
-        for (const ci of this.geo.crests || []) { const dd = s - ci; if (dd > 0 && dd < 10 && (st.speed || 0) > 22) { yy += Math.sin((dd / 10) * Math.PI) * Math.min(1.6, (st.speed - 22) / 14); } }
-        m.rotation.z = Math.atan2(h1 - h0, this.geo.ds) * 0.9;
+      if (st.hidden) { car.mesh.visible = false; car.label.style.display = 'none'; car.pit = car.exit = null; continue; }
+      let s = st.s, spd = st.speed || 0, lane, pit = false;
+      const i0 = open ? Math.min(N - 2, Math.max(0, Math.floor(s))) : Math.floor(s) % N;
+      const race = (this.line ? this.line[i0] * (st.close ? 0.45 : 1) : 0) + (st.close && st.pos ? (st.pos % 2 ? 2.6 : -2.6) : car.lane * 0.3);
+      if (st.inPit && this.pitOff && !open) {
+        // drive down the pit lane to the team box, stop, wait for the sim to release the car
+        if (!car.pit) { car.pit = { adv: 0, box: 6 + (car.box || 0) * 2.6 }; car.exit = null; }
+        const rel = dS(st.s, 0);
+        const target = car.pit.box - rel;
+        if (car.pit.adv < target) { car.pit.adv = Math.min(target, car.pit.adv + 21 * dt / ds); spd = 21; } else spd = 0;
+        s = st.s + car.pit.adv; lane = this.pitOff; pit = true;
+      } else {
+        if (car.pit) { car.exit = { off: car.pit.adv, t: 0 }; car.pit = null; }
+        lane = race;
+        if (car.exit) {
+          // leave the box at limiter speed and let the visual position fall back onto the sim one
+          car.exit.t += dt;
+          const vv = Math.min(spd, 21 + Math.max(0, car.exit.t - 1.2) * 16);
+          car.exit.off -= Math.max(spd * 0.15, spd - vv) * dt / ds;
+          if (car.exit.off <= 0) car.exit = null;
+          else { s = st.s + car.exit.off; spd = vv; if (dS(s, 0) < this.pitSpan - 4 && dS(s, 0) > -4) { lane = this.pitOff; pit = true; } }
+        }
+        lane = Math.max(-maxLane, Math.min(maxLane, lane));
       }
-      m.position.set(x, yy, z);
-      m.rotation.y = -h;
-      // body roll/pitch from curvature and acceleration
-      const k = this.geo.k[i0];
-      m.rotation.x = Math.max(-0.04, Math.min(0.04, k * (st.speed || 0) ** 2 * 0.0012));
-      const spin = (st.speed || 0) * dt / 0.34;
-      for (const w of m.userData.wheels) for (const sp of w.userData.spin) sp.rotation.z -= spin;
-      if (st.tyreColor && st.tyreColor !== car.tyre) { car.tyre = st.tyreColor; setTyreColor(m, st.tyreColor); }
-      car.state = st;
-      if (st.key === this.focusKey) focus = car;
+      items.push({ st, car, s: wrap(s), spd, lane, pit });
+    }
+    // pass 2: resolve overlaps. Process cars from the front so the car behind yields
+    // (moves aside if there is room, otherwise backs off) — no two bodies can intersect.
+    if (items.length > 1) {
+      const asc = items.slice().sort((a, b) => a.s - b.s);
+      let cut = 0, gap = -1;
+      for (let k = 0; k < asc.length; k++) { const nx = asc[(k + 1) % asc.length]; const g = k + 1 < asc.length ? nx.s - asc[k].s : (open ? -1 : nx.s + N - asc[k].s); if (g > gap) { gap = g; cut = k; } }
+      const order = open ? asc.reverse() : [...asc.slice(cut + 1), ...asc.slice(0, cut + 1)].reverse();
+      items.length = 0; items.push(...order);
+    }
+    const WID = 2.45;
+    const placed = [];
+    for (const it of items) {
+      const car = it.car;
+      car.latOff = (car.latOff || 0) * Math.max(0, 1 - dt * 0.7);
+      const tgt = it.pit ? it.lane : Math.max(-maxLane, Math.min(maxLane, it.lane + car.latOff));
+      car.laneCur = car.laneCur == null ? tgt : car.laneCur + (tgt - car.laneCur) * Math.min(1, dt * (it.pit ? 2.2 : 4));
+      if (!it.pit) car.laneCur = Math.max(-maxLane, Math.min(maxLane, car.laneCur));
+      // visual longitudinal back-off memory so a yielding car does not snap
+      let s = wrap(it.s - (car.sBack || 0));
+      let back = 0;
+      const hitAt = (ss, lane) => { const q = this.pose(ss, lane); for (const o of placed) { const dx = o.x - q.x, dz = o.z - q.z; if (dx * dx + dz * dz > 64) continue; const c = Math.cos(q.h), sn = Math.sin(q.h); const lon = dx * c + dz * sn, lat = -dx * sn + dz * c; if (Math.abs(lon) < 5.5 && Math.abs(lat) < 2.25) return o; } return null; };
+      for (let iter = 0; iter < 24; iter++) {
+        const hit = hitAt(s, car.laneCur);
+        if (!hit) break;
+        if (!it.pit && !hit.pit && iter < 3) {
+          // steer aside (rate limited) towards the side with room, remember the offset
+          const side = car.laneCur >= hit.lane ? 1 : -1;
+          let want = hit.lane + side * WID;
+          if (Math.abs(want) > maxLane || hitAt(s, want)) want = hit.lane - side * WID;
+          if (Math.abs(want) <= maxLane && !hitAt(s, want)) {
+            car.laneCur += Math.max(-dt * 6, Math.min(dt * 6, want - car.laneCur)); car.latOff = want - it.lane;
+            continue;
+          }
+        }
+        s = wrap(s - 0.3); back += 0.3;
+      }
+      car.sBack = Math.max(0, (car.sBack || 0) + back) * Math.max(0, 1 - dt * 1.5);
+      if (car.sBack < 0.01) car.sBack = 0;
+      s = wrap(s);
+      placed.push({ ...this.pose(s, car.laneCur), s, lane: car.laneCur, pit: it.pit });
+      this.placeCar(car, it.st, s, car.laneCur, it.spd, dt);
+      if (it.st.key === this.focusKey) focus = car;
     }
     if (!focus) focus = [...this.cars.values()].find((c) => c.mesh.visible);
     this.updateCamera(focus, dt);
@@ -523,6 +709,43 @@ export class Race3D {
     }
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
     this.updateLabels();
+  }
+
+  pose(s, lane) {
+    const N = this.geo.N;
+    const i0 = this.open ? Math.min(N - 2, Math.max(0, Math.floor(s))) : Math.floor(s) % N, i1 = this.open ? i0 + 1 : (i0 + 1) % N, f = this.open ? Math.min(1, Math.max(0, s - i0)) : s - Math.floor(s);
+    let hd = this.geo.hdg[i1] - this.geo.hdg[i0]; while (hd > Math.PI) hd -= 2 * Math.PI; while (hd < -Math.PI) hd += 2 * Math.PI;
+    const h = this.geo.hdg[i0] + hd * f;
+    return { x: this.geo.x[i0] + (this.geo.x[i1] - this.geo.x[i0]) * f - Math.sin(h) * lane, z: this.geo.y[i0] + (this.geo.y[i1] - this.geo.y[i0]) * f + Math.cos(h) * lane, h };
+  }
+
+  placeCar(car, st, s, laneCur, speed, dt) {
+    const N = this.geo.N, m = car.mesh;
+    m.visible = true;
+    const i0 = this.open ? Math.min(N - 2, Math.max(0, Math.floor(s))) : Math.floor(s) % N, i1 = this.open ? i0 + 1 : (i0 + 1) % N, f = this.open ? Math.min(1, Math.max(0, s - i0)) : s - Math.floor(s);
+    let hd = this.geo.hdg[i1] - this.geo.hdg[i0]; while (hd > Math.PI) hd -= 2 * Math.PI; while (hd < -Math.PI) hd += 2 * Math.PI;
+    const h = this.geo.hdg[i0] + hd * f;
+    const nx = -Math.sin(h), nz = Math.cos(h);
+    const x = this.geo.x[i0] + (this.geo.x[i1] - this.geo.x[i0]) * f + nx * laneCur;
+    const z = this.geo.y[i0] + (this.geo.y[i1] - this.geo.y[i0]) * f + nz * laneCur;
+    let yy = 0.02;
+    if (this.geo.h) {
+      const h0 = this.geo.h[i0], h1 = this.geo.h[i1]; yy += h0 + (h1 - h0) * f;
+      for (const ci of this.geo.crests || []) { const dd = s - ci; if (dd > 0 && dd < 10 && speed > 22) { yy += Math.sin((dd / 10) * Math.PI) * Math.min(1.6, (speed - 22) / 14); } }
+      m.rotation.z = Math.atan2(h1 - h0, this.geo.ds) * 0.9;
+    }
+    // yaw follows the direction of travel including lane changes
+    const prevLane = car._pl ?? laneCur; car._pl = laneCur;
+    const yawLat = speed > 2 && dt > 0 ? Math.atan2(laneCur - prevLane, speed * dt) : 0;
+    car._yaw = (car._yaw || 0) + (Math.max(-0.35, Math.min(0.35, yawLat)) - (car._yaw || 0)) * Math.min(1, dt * 8);
+    m.position.set(x, yy, z);
+    m.rotation.y = -h - car._yaw;
+    const k = this.geo.k[i0];
+    m.rotation.x = Math.max(-0.04, Math.min(0.04, k * speed ** 2 * 0.0012));
+    const spin = speed * dt / 0.34;
+    for (const w of m.userData.wheels) for (const sp of w.userData.spin) sp.rotation.z -= spin;
+    if (st.tyreColor && st.tyreColor !== car.tyre) { car.tyre = st.tyreColor; setTyreColor(m, st.tyreColor); }
+    car.state = st;
   }
 
   startIntro(sec = 5) { this.introT = sec; this.introDur = sec; this.introStart = performance.now(); }
@@ -598,6 +821,8 @@ export class Race3D {
       const dist = pos.distanceTo(target);
       fov = Math.max(6, Math.min(48, 2 * Math.atan(16 / dist) * 180 / Math.PI));
     }
+    // never put the camera inside a building / grandstand: lift it above the roof
+    if (this.obstacles && this.camMode !== 'onboard') for (const o of this.obstacles) { const d2 = (o.x - pos.x) ** 2 + (o.z - pos.z) ** 2; if (d2 < o.r * o.r && pos.y < (o.h ?? 14) + 3) pos.y = (o.h ?? 14) + 3; }
     const k = this.camMode === 'heli' ? Math.min(1, dt * 3) : 1;
     if (this._cut || this.camMode === 'onboard') { this.camPos.copy(pos); this.camLook.copy(look); this._cut = false; }
     else { this.camPos.lerp(pos, k); this.camLook.lerp(look, this.camMode === 'chase' ? 1 : Math.min(1, dt * 8)); }

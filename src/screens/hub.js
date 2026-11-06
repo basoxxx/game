@@ -11,6 +11,8 @@ import { partSensitivity, trackStats, physicsLap } from '../engine/trackphys.js'
 import { teamBaseLap } from '../engine/race.js';
 import { ensureProgress } from '../engine/progress.js';
 import { resolvePaddockEvent } from '../engine/events.js';
+import { rivalryList, heatLabel, heatColor } from '../engine/rivalry.js';
+import { maybeTechDecision, resolveTechDecision } from '../engine/techdecisions.js';
 import { sfx } from '../ui/audio.js';
 import { SURFACES } from '../data/categories.js';
 import { driverChip, ovr, ratingBox, moraleChip, teamStripe } from './common.js';
@@ -20,6 +22,13 @@ export function nextEventInfo(st) {
   if (!ev) return null;
   const tr = getTrack(st.category, ev.trackId);
   return { ev, tr };
+}
+
+function rivalPanel(st) {
+  let list = [];
+  try { list = rivalryList(st).filter((r) => r.heat >= 12).slice(0, 4); } catch { return ''; }
+  if (!list.length) return '';
+  return `<div class="panel"><div class="panel-head"><h3>🔥 Tensione tra piloti</h3></div><div class="col gap8">${list.map((r) => { const a = st.drivers[r.a], b = st.drivers[r.b]; const c = heatColor(r.heat); return `<div class="rival-row ${r.mine ? 'mine' : ''}"><div class="row between small"><b>${esc(a.name.split(' ').slice(-1)[0])} <span class="dim">vs</span> ${esc(b.name.split(' ').slice(-1)[0])}</b><span class="tiny" style="color:${c};font-weight:800">${heatLabel(r.heat).toUpperCase()}</span></div><div class="heat"><i style="width:${Math.round(r.heat)}%;background:linear-gradient(90deg,#ffc400,${c})"></i></div><div class="tiny muted">${r.mates ? 'Compagni di squadra · ' : ''}${esc(r.why)}</div></div>`; }).join('')}</div></div>`;
 }
 
 registerScreen({
@@ -101,6 +110,7 @@ registerScreen({
             <div class="panel"><div class="panel-head"><h3>Posta recente</h3><button class="btn sm ghost" data-a="nav" data-to="inbox">Apri ${icon('right')}</button></div>
               <div class="col gap4">${st.inbox.slice(0, 4).map((m) => `<div class="mail ${m.read ? '' : 'unread'} ${m.type}" data-a="nav" data-to="inbox" data-mail="${m.id}"><div class="ic">${icon(m.icon || 'mail')}</div><div class="grow" style="min-width:0"><div class="subj small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject)}</div><div class="tiny muted">${esc(m.from)}</div></div></div>`).join('') || '<div class="muted small">Nessun messaggio</div>'}</div>
             </div>
+            ${rivalPanel(st)}
             ${st.news.length ? `<div class="panel"><div class="panel-head"><h3>Dal paddock</h3></div><div class="col gap6 small">${st.news.slice(0, 5).map((n) => `<div class="row" style="align-items:flex-start"><span class="dim">●</span><span>${esc(n.text)}</span></div>`).join('')}</div></div>` : ''}
           </div>
         </div>
@@ -109,6 +119,14 @@ registerScreen({
   mount() {
     const st = S();
     ensureProgress(st);
+    if (st.tutorialSeen && !st.quick) maybeTechDecision(st);
+    if (st.pendingTech && st.tutorialSeen) {
+      const pt = st.pendingTech;
+      App.modal(`<div class="tiny upper" style="letter-spacing:.3em;color:var(--accent)">Decisione tecnica · ${esc(pt.tag || '')} · ${esc(pt.from)}</div><h2 style="margin-top:6px;font-style:italic">${esc(pt.title)}</h2><p class="muted" style="line-height:1.6">${esc(pt.text)}</p>
+        <div class="tech-grid mt16">${pt.a.map((a, i) => `<div class="card click tech-opt ${a.risk ? 'risk' : ''}" data-a="choose" data-i="${i}"><div class="tiny upper muted">Opzione ${i + 1}${a.risk ? ' · rischio' : ''}</div><b style="font-size:16px">${esc(a.t)}</b><div class="small mt8" style="color:var(--text2,#cfd3da)">${esc(a.note)}</div></div>`).join('')}</div>`,
+        { choose(el) { const out = resolveTechDecision(st, +el.dataset.i); sfx.ok(); App.closeModal(); App.toast?.('Decisione tecnica', out); App.refresh(); } }, 'locked');
+      return;
+    }
     if (st.pendingEvent && st.tutorialSeen) {
       const pe = st.pendingEvent;
       App.modal(`<div class="tiny upper warn" style="letter-spacing:.3em">Decisione dal paddock · ${esc(pe.from)}</div><h2 style="margin-top:6px">${esc(pe.title)}</h2><p class="muted" style="line-height:1.6">${esc(pe.text)}</p>

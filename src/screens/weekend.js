@@ -5,6 +5,7 @@ import { helmetSVG, flagSVG, teamBadge, carSVG, trackSVG } from '../ui/art.js';
 import { esc, bar, fmtTime, fmtGap } from '../ui/dom.js';
 import { S, saveGame, getSettings } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
+import { applyRaceRivalry } from '../engine/rivalry.js';
 import { cat, playerTeam, teamDrivers, applyRoundResults, standings, seatsPerTeam, aiFillSeats, addMail } from '../engine/season.js';
 import { buildEntries, runQualifying, makeWeatherPlan, raceLaps, CircuitSim, aiSetupQuality } from '../engine/race.js';
 import { COMPOUNDS } from '../data/categories.js';
@@ -109,7 +110,7 @@ registerScreen({
     if (!R.sim) return;
     if (R.moment && /^Digit[1-3]$/.test(e.code)) { resolveMomentUI(+e.code.slice(5) - 1); return; }
     if (e.code === 'Space') { e.preventDefault(); R.paused = !R.paused; updateSpeedUI(); }
-    const sp = { Digit1: 2, Digit2: 4, Digit3: 8, Digit4: 16, Digit5: 32 }[e.code];
+    const sp = { Digit1: 1, Digit2: 2, Digit3: 4, Digit4: 8, Digit5: 16, Digit6: 32, Digit0: 1 }[e.code];
     if (sp) { R.speed = sp; R.paused = false; updateSpeedUI(); }
     if (e.code === 'KeyR' && R.r3d) { if (R.replay) stopReplay(); else startReplay(R.lastHighlight && R.sim.time - R.lastHighlight.t < 12 ? R.lastHighlight.key : R.focus); }
   },
@@ -301,11 +302,11 @@ function raceScreen(st) {
       <div class="tb-stat" id="wx"><b>—</b><span>Meteo</span></div>
       <div id="flagstatus"></div>
       <div class="grow"></div>
-      <div class="speed-btns" id="speedbtns">${[2, 4, 8, 16, 32].map((v) => `<button class="btn sm" data-a="speed" data-v="${v}">${v}x</button>`).join('')}</div>
+      <div class="speed-btns" id="speedbtns">${[1, 2, 4, 8, 16, 32].map((v) => `<button class="btn sm" data-a="speed" data-v="${v}" title="${v === 1 ? 'Tempo reale' : v + 'x'}">${v === 1 ? '1x LIVE' : v + 'x'}</button>`).join('')}</div>
       <button class="btn sm ghost" data-a="sim-end">${icon('ff')} Fine gara</button>
     </div>
     <div class="race-board" id="board"></div>
-    <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div id="finish-overlay"></div></div>
+    <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="race-sub" id="race-sub"></div><div id="finish-overlay"></div></div>
     <div class="race-side" id="side"></div>
     <div class="race-feed"><div class="row gap4 mb8" id="feed-tabs"></div><div id="feed" style="height:calc(100% - 34px);overflow-y:auto"></div></div>
   </div>`;
@@ -456,7 +457,25 @@ function draw() {
   }, { rain: sim.rain, night: sim.night });
 }
 
-function updateAll(force) { updateBoard(); updateTop(); updateControls(force); updateFeed(); }
+function updateAll(force) { updateBoard(); updateTop(); updateControls(force); updateFeed(); updateSub(); }
+
+// TV-style subtitles: latest commentary line and driver radio outbursts
+function updateSub() {
+  const sim = R.sim, el = document.getElementById('race-sub'); if (!sim || !el) return;
+  const now = performance.now();
+  for (const [k, cls] of [['lastRadio', 'radio'], ['lastComm', 'comm']]) {
+    const m = sim[k];
+    if (m && m !== R['_sub' + k]) {
+      R['_sub' + k] = m;
+      const c = m.key && sim.cars.find((x) => x.key === m.key);
+      const col = c ? c.team.car.livery.primary : 'var(--accent)';
+      el.insertAdjacentHTML('afterbegin', `<div class="sub ${cls}" data-t="${now}" style="--sc:${col}">${cls === 'radio' ? '<span class="sub-tag">RADIO</span>' : '<span class="sub-tag">LIVE</span>'}${esc(m.text.replace(/^(🎙|📻)\s*/u, ''))}</div>`);
+      if (cls === 'radio' && c) try { sfx.radio?.(); } catch {}
+    }
+  }
+  const items = [...el.children];
+  items.forEach((x, i) => { if (i > 1 || now - +x.dataset.t > 7000) { x.classList.add('out'); setTimeout(() => x.remove(), 400); } });
+}
 
 function updateTop() {
   const sim = R.sim;
@@ -622,6 +641,7 @@ function finishRace() {
   if (!sim.finished) sim.runToEnd();
   const res = sim.results();
   const w = st.weekend;
+  if (!st.quick) try { applyRaceRivalry(st, sim); } catch (e) { console.warn(e); }
   if (sim.isSprint) {
     const SP = [8, 7, 6, 5, 4, 3, 2, 1];
     w.sprintRes = res.classification.map((r) => ({ key: r.key, teamId: r.teamId, driverIds: r.driverIds, pos: r.pos, status: r.status, pts: r.status === 'dnf' ? 0 : SP[r.pos - 1] || 0 }));

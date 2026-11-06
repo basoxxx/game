@@ -156,7 +156,7 @@ registerScreen({
         <div class="mt16"><label class="lbl">Volume musica</label><input type="range" min="0" max="1" step="0.05" value="${s.musicVol ?? 0.55}" data-change="mvol" class="mt8"></div>
       </div>
       <div class="panel"><div class="panel-head"><h3>Gioco</h3></div>
-        <div class="row between"><span>Velocità gara predefinita</span><div class="row gap6">${[2, 4, 8, 16, 32].map((v) => `<button class="btn sm ${s.raceSpeed === v ? 'active' : ''}" data-a="speed" data-v="${v}">${v}x</button>`).join('')}</div></div>
+        <div class="row between"><span>Velocità gara predefinita</span><div class="row gap6">${[1, 2, 4, 8, 16, 32].map((v) => `<button class="btn sm ${s.raceSpeed === v ? 'active' : ''}" data-a="speed" data-v="${v}">${v}x</button>`).join('')}</div></div>
         <div class="row between mt16"><span>Qualità grafica 3D</span><div class="row gap6"><button class="btn sm ${s.gfx !== 'low' ? 'active' : ''}" data-a="gfx" data-v="high">Alta</button><button class="btn sm ${s.gfx === 'low' ? 'active' : ''}" data-a="gfx" data-v="low">Prestazioni</button></div></div>
         <div class="row between mt16"><span>Vista 3D in gara</span><button class="btn sm ${s.view3d !== false ? 'active' : ''}" data-a="toggle" data-k="view3d">${s.view3d !== false ? 'ON' : 'OFF'}</button></div>
         <div class="panel-head mt24"><h3>Realismo gara</h3></div>

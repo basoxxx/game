@@ -2,6 +2,7 @@
 import { pick, chance, clamp, rand, shuffle } from './rng.js';
 import { addFinance, addMail, addNews, playerTeam, teamDrivers, fmtM, cat } from './season.js';
 import { gainXP } from './progress.js';
+import { rivalryList, addHeat, heatLabel } from './rivalry.js';
 
 function morale(d, v) { if (d) d.morale = clamp(d.morale + v, 10, 100); }
 function board(st, v) { st.board.confidence = clamp(st.board.confidence + v, 0, 100); }
@@ -88,11 +89,38 @@ const EVENTS = [
   ] }),
 ];
 
+// rivalry-driven drama (indices >= RIVAL0 in EVENTS)
+const RIVAL0 = EVENTS.length;
+const hotMate = (st, t, min) => rivalryList(st, true).find((r) => r.mates && r.heat >= min && st.drivers[r.a]?.teamId === t.id);
+const hotExt = (st, t, min) => rivalryList(st, true).find((r) => !r.mates && r.heat >= min);
+const mineFirst = (st, t, r) => { const a = st.drivers[r.a], b = st.drivers[r.b]; return a.teamId === t.id ? [a, b] : [b, a]; };
+EVENTS.push(
+  (st, t, C) => { const r = hotMate(st, t, 48); if (!r) return null; const [x, y] = [st.drivers[r.a], st.drivers[r.b]].sort((p, q) => q.attrs.pace - p.attrs.pace); return { title: `Guerra in casa: ${x.name} contro ${y.name}`, from: 'Ufficio Stampa', text: `Il clima nel box è irrespirabile (${heatLabel(r.heat).toLowerCase()}, ${Math.round(r.heat)}/100). Ultimo episodio: ${r.why.toLowerCase()}. I meccanici sono divisi in due fazioni e i giornalisti fiutano la storia.`, a: [
+    { t: `${x.name} è la prima guida`, note: `${x.name} morale +7 · ${y.name} morale -12 · tensione -15`, fx: () => { morale(x, 7); morale(y, -12); addHeat(st, x.id, y.id, -15); t.number1 = x.id; } },
+    { t: 'Lasciateli correre: vinca il migliore', note: 'Morale entrambi +3, Aggressività +1 · tensione +6 (più contatti!)', fx: () => { morale(x, 3); morale(y, 3); x.attrs.race = Math.min(99, x.attrs.race + 1); y.attrs.race = Math.min(99, y.attrs.race + 1); addHeat(st, x.id, y.id, 6, 'Il team li lascia liberi di lottare'); t.number1 = null; } },
+    { t: 'Riunione a porte chiuse', note: `-${fmtM(0.4 * C.budgetScale)} · tensione -30 · morale entrambi -2`, fx: () => { addFinance(st, 'Mediatore sportivo', -0.4 * C.budgetScale); morale(x, -2); morale(y, -2); addHeat(st, x.id, y.id, -30); } },
+  ] }; },
+  (st, t, C) => { const r = hotExt(st, t, 52); if (!r) return null; const [m, o] = mineFirst(st, t, r); const ot = st.teams[o.teamId]; return { title: `Scintille: ${m.name} contro ${o.name}`, from: 'Radio Paddock', text: `${o.name} (${ot?.name || ''}) ha dichiarato in TV che ${m.name} «guida in modo pericoloso e un giorno farà male a qualcuno». Motivo del contendere: ${r.why.toLowerCase()}. La stampa aspetta la tua reazione.`, a: [
+    { t: 'Difendo il mio pilota a spada tratta', note: `${m.name} morale +7 · tensione +10 · reputazione +`, fx: () => { morale(m, 7); addHeat(st, m.id, o.id, 10, 'Botta e risposta in conferenza stampa'); rep(st, 0.6); } },
+    { t: 'Chiamo il team principal rivale', note: 'Tensione -25 · morale -2', fx: () => { addHeat(st, m.id, o.id, -25); morale(m, -2); } },
+    { t: 'Reclamo ufficiale alla Federazione', note: '50%: richiamo al rivale (suo morale -10) · 50%: multa per noi · tensione +14', fx: () => { addHeat(st, m.id, o.id, 14, 'Reclamo alla Federazione'); if (chance(0.5)) { morale(o, -10); addNews(st, `La Federazione richiama ${o.name} dopo il reclamo di ${t.name}.`); } else { addFinance(st, 'Reclamo respinto: multa', -1 * C.budgetScale); addNews(st, `Reclamo di ${t.name} contro ${o.name} respinto.`); } } },
+  ] }; },
+  (st, t, C) => { const r = rivalryList(st, true).find((x) => x.heat >= 68); if (!r) return null; const [m, o] = mineFirst(st, t, r); return { title: 'La rivalità fa audience', from: 'Area Commerciale', text: `Il duello tra ${m.name} e ${o.name} è ovunque: social, TV, giornali. Un network propone un documentario a pagamento dietro le quinte.`, a: [
+    { t: 'Accettiamo: telecamere nel box', note: `+${fmtM(2.2 * C.budgetScale)} · tensione +8 · morale ${m.name} -3`, fx: () => { addFinance(st, 'Diritti documentario', 2.2 * C.budgetScale); addHeat(st, m.id, o.id, 8, 'Il documentario alimenta la faida'); morale(m, -3); } },
+    { t: 'No, vogliamo concentrarci', note: 'Morale +3', fx: () => morale(m, 3) },
+  ] }; },
+);
+
 export function maybePaddockEvent(st) {
   if (st.quick || st.pendingEvent || st.round >= st.calendar.length) return;
-  if (!chance(0.38)) return;
   const t = playerTeam(st); const C = cat(st);
-  for (const f of shuffle(EVENTS)) {
+  // rivalry drama has priority when tension is high
+  if (chance(0.55)) for (const f of shuffle(EVENTS.slice(RIVAL0))) {
+    const ev = f(st, t, C);
+    if (ev) { st.pendingEvent = { title: ev.title, from: ev.from, text: ev.text, a: ev.a.map((x) => ({ t: x.t, note: x.note })), idx: EVENTS.indexOf(f) }; return; }
+  }
+  if (!chance(0.38)) return;
+  for (const f of shuffle(EVENTS.slice(0, RIVAL0))) {
     const ev = f(st, t, C);
     if (ev) { st.pendingEvent = { title: ev.title, from: ev.from, text: ev.text, a: ev.a.map((x) => ({ t: x.t, note: x.note })), idx: EVENTS.indexOf(f) }; st._eventFx = ev.a.map((x) => x.fx); return; }
   }

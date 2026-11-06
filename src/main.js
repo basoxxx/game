@@ -24,6 +24,7 @@ import { getTrack } from './engine/world.js';
 import { runQualifying, makeWeatherPlan, raceLaps, CircuitSim } from './engine/race.js';
 import { RallyEvent } from './engine/rally.js';
 import { applyRoundResults } from './engine/season.js';
+import { applyRaceRivalry } from './engine/rivalry.js';
 window.__apex.simRound = () => {
   const st = S(); if (st.round >= st.calendar.length) return false;
   const ev = st.calendar[st.round]; const tr = getTrack(st.category, ev.trackId);
@@ -35,7 +36,7 @@ window.__apex.simRound = () => {
   } else {
     const q = runQualifying(st, tr, {}, 0); const laps = raceLaps(st, tr);
     const sim = new CircuitSim(st, tr, { grid: q.grid, setups: {}, weather: makeWeatherPlan(tr, laps), laps });
-    sim.cars.forEach((c) => (c.auto = true)); sim.runToEnd(); res = sim.results();
+    sim.cars.forEach((c) => (c.auto = true)); sim.runToEnd(); res = sim.results(); applyRaceRivalry(st, sim); window.__apex.lastSim = sim;
     const pk = q.grid[0]; res.pole = sim.cars.find((c) => c.key === pk)?.driverIds[0];
   }
   st.weekend = null; applyRoundResults(st, res); saveGame(); return true;

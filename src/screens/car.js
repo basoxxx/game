@@ -119,7 +119,15 @@ function designTab(st, t, C) {
   const pre = st.round === 0;
   const L = t.car.livery;
   const sw = (k) => `<div class="swatches mt8">${PALETTE.map((c) => `<div class="swatch ${L[k] === c ? 'sel' : ''}" style="background:${c}" data-a="color" data-k="${k}" data-c="${c}"></div>`).join('')}<input type="color" value="${L[k]}" data-change="customcolor" data-k="${k}" title="Personalizzato"></div>`;
-  return `<div class="grid2">
+  const tl = (st.techLog || []).filter((x) => x.season === st.season);
+  const L3 = st.calendar.length;
+  const plan = [['regs', 'Regolamento', 0], ['package', 'Pacchetto metà stagione', Math.max(1, Math.round(L3 * 0.3))], ['focus', 'Quest’anno o il prossimo?', Math.max(2, Math.round(L3 * 0.58))]];
+  const nx = Object.entries(t.nextYear || {}).filter(([, v]) => v);
+  return `<div class="panel mb16"><div class="panel-head"><h3>Decisioni tecniche della stagione ${st.season}</h3><span class="tiny muted">Ogni scelta cambia la vettura: non si torna indietro</span></div>
+      <div class="row gap8" style="flex-wrap:wrap">${plan.map(([id, n, at]) => { const d = tl.find((x) => x.id === id); return `<div class="card grow" style="min-width:200px;border-left:3px solid ${d ? 'var(--good)' : st.round >= at ? 'var(--warn)' : 'var(--line2)'}"><div class="tiny upper muted">${n} · round ${at + 1}</div>${d ? `<b class="small">${esc(d.choice)}</b><div class="tiny muted">${esc(d.out || '')}</div>` : `<div class="small muted">${st.round >= at ? 'In attesa della tua decisione' : 'Da decidere'}</div>`}</div>`; }).join('')}</div>
+      ${nx.length ? `<div class="small mt8 muted">Vettura ${st.season + 1} (già in sviluppo): ${nx.map(([k, v]) => `${esc(C.parts.find((p) => p.id === k)?.name || k)} ${v > 0 ? '+' : ''}${v}`).join(' · ')}</div>` : ''}
+    </div>
+    <div class="grid2">
     <div class="col gap16">
       <div class="panel"><div class="panel-head"><h3>Concetto vettura</h3>${pre ? '<span class="chip good">Pre-stagione: modificabile</span>' : '<span class="chip">Bloccato fino a fine stagione</span>'}</div>
         <div class="grid2">${C.concepts.map((c) => `<div class="card ${pre ? 'click' : ''} ${t.car.concept === c.id ? 'sel' : ''}" ${pre ? `data-a="concept" data-id="${c.id}"` : ''}><b>${c.name}</b><div class="small muted mt8">${c.desc}</div><div class="row wrap gap6 mt8">${Object.entries(c.mods).map(([k, v]) => `<span class="chip ${v > 0 ? 'good' : 'bad'} tiny">${partName(st, k)} ${v > 0 ? '+' : ''}${v}</span>`).join('') || '<span class="chip tiny">Nessun modificatore</span>'}</div></div>`).join('')}</div>

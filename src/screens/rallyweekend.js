@@ -69,7 +69,7 @@ registerScreen({
   onKey(e) {
     if (S().weekend?.phase !== 'run') return;
     if (e.code === 'Space') { e.preventDefault(); X.paused = !X.paused; speedUI(); }
-    const sp = { Digit1: 8, Digit2: 16, Digit3: 32, Digit4: 64 }[e.code]; if (sp) { X.speed = sp; X.paused = false; speedUI(); }
+    const sp = { Digit1: 1, Digit2: 4, Digit3: 8, Digit4: 16, Digit5: 32, Digit6: 64 }[e.code]; if (sp) { X.speed = sp; X.paused = false; speedUI(); }
     if (X.decision && (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft')) decide('a');
     if (X.decision && (e.key === 'b' || e.key === 'B' || e.key === 'ArrowRight')) decide('b');
   },
@@ -183,7 +183,7 @@ function runScreen(st, tr) {
       ${flagSVG(tr.nat, 30, 20)}<div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:19px;text-transform:uppercase;line-height:1">PS${stg.idx + 1} · ${esc(stg.name)}</div><div class="tiny muted upper">${SURFACES[stg.surface].name} · ${stg.km} km${stg.wet ? ' · Bagnato' : ''}${stg.power ? ' · Power Stage' : ''}</div></div>
       <div class="tb-stat"><b id="stagetime">0:00</b><span>Tempo prova</span></div>
       <div class="grow"></div>
-      <div class="speed-btns" id="speedbtns">${[8, 16, 32, 64].map((v) => `<button class="btn sm" data-a="speed" data-v="${v}">${v}x</button>`).join('')}</div>
+      <div class="speed-btns" id="speedbtns">${[1, 4, 8, 16, 32, 64].map((v) => `<button class="btn sm" data-a="speed" data-v="${v}">${v === 1 ? '1x LIVE' : v + 'x'}</button>`).join('')}</div>
       <button class="btn sm ghost" data-a="skip-stage">${icon('ff')} Fine prova</button>
     </div>
     <div class="race-board" id="board"></div>

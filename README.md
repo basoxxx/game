@@ -18,6 +18,15 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 3.1
+
+- **Rivalità tra piloti**: tensione per ogni coppia di piloti (duelli, contatti, ordini di scuderia), faide più aggressive in pista, drammi nel paddock e gerarchia di squadra
+- **Telecronaca in diretta** come sottotitoli e **radio dei piloti** contro i rivali
+- **Velocità 1x in tempo reale** (gara e rally)
+- **Scelte tecniche stagionali**: interpretazione del regolamento, pacchetto di metà stagione, anno in corso o prossimo
+- **3D senza compenetrazioni**: separazione tra le auto, pit lane dedicata con box, edifici e tribune fuori dalla pista, telecamere che non entrano negli edifici
+- Tribune a gradoni con pubblico, prato e ghiaia nelle vie di fuga, palazzi colorati nei cittadini
+
 ## Novità della versione 3.0
 
 - **Grafica rifatta**: cielo HDRI e texture PBR (Poly Haven, CC0), bloom e SMAA, nuove vetture 3D con livree dipinte, alberi, render 3D anche nelle schermate di gestione
