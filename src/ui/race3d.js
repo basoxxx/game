@@ -342,6 +342,18 @@ export class Race3D {
     }
     inst.castShadow = true;
     this.scene.add(inst);
+    // trackside sponsor billboards
+    const brands = ['PETRONIX', 'ORACLO', 'ARAMCORE', 'ROLEXA', 'HEINEKAN 0.0', 'DHX', 'PIRELLO', 'LENOVA', 'SANTANDOR', 'MONSTRO', 'PUMO', 'BREMBI', 'CRYPTO.CAM', 'LAVAZZO', 'TAG HEUERR', 'APEX DYNASTY'];
+    const bcols = ['#e10600', '#111111', '#0a2a66', '#ffd400', '#00594f', '#ffffff', '#ff8000', '#1d4ec2'];
+    const bmats = brands.map((b, i) => { const t = canvasTex(512, 96, (c, w, h) => { const bg = bcols[i % bcols.length]; c.fillStyle = bg; c.fillRect(0, 0, w, h); c.fillStyle = bg === '#ffffff' || bg === '#ffd400' ? '#111' : '#fff'; c.font = 'italic 900 60px "Exo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(b, w / 2, h / 2 + 3); }); return new THREE.MeshStandardMaterial({ map: t, roughness: 0.6, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: this.night ? 0.6 : 0.08 }); });
+    const bstep = Math.max(30, Math.round(N / 34));
+    for (let i = 10, k = 0; i < N; i += bstep, k++) {
+      if (Math.abs(this.geo.k[i]) > 1 / 300) continue;
+      const side = k % 2 ? 1 : -1;
+      const bb = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.4, 12), bmats[k % bmats.length]);
+      this.placeAt(bb, i, side * (W / 2 + (street > 0.7 ? 4.2 : 6.5)), 1.4);
+      bb.castShadow = true; this.scene.add(bb);
+    }
     // night lighting poles
     if (this.night) {
       const poleMat = new THREE.MeshStandardMaterial({ color: 0xfff6dd, emissive: 0xfff3c8, emissiveIntensity: 2 });
