@@ -12,7 +12,7 @@ import { RALLY_TYRES, SURFACES } from '../data/categories.js';
 import { genStage, TrackView } from '../ui/trackview.js';
 import { mulberry32, clamp, rand } from '../engine/rng.js';
 import { tyreBadge, teamStripe, driverChip } from './common.js';
-import { sfx, engineStart, engineSet, engineStop } from '../ui/audio.js';
+import { sfx, engineStart, engineSet, engineStop, music } from '../ui/audio.js';
 import { celebrate } from './results.js';
 import { shortName } from './weekend.js';
 import { Race3D, webglAvailable, stageGeometry, stageSampleAt } from '../ui/race3d.js';
@@ -202,7 +202,8 @@ function mountRun() {
   rallyViewBtns();
   if (X.view3d) rallyEnable3D(X.view3d);
   X.t = 0; X.paused = false; X.decision = null; X.last = performance.now(); X.speed = Math.max(8, Math.min(64, (getSettings().raceSpeed || 8) * 2)); X.finished = false;
-  engineStart();
+  music.setMood('race');
+  engineStart('rally');
   const loop = (t) => {
     const dt = Math.min(0.1, (t - X.last) / 1000); X.last = t;
     if (!X.paused && !X.decision && !X.finished) {
@@ -213,7 +214,7 @@ function mountRun() {
     if (X.decision) { X.decT -= dt; const bar = document.getElementById('dectimer'); if (bar) bar.style.width = `${Math.max(0, X.decT / 9) * 100}%`; if (X.decT <= 0) decide('b'); }
     if (X.r3d) rallyUpdate3D(dt);
     drawRally();
-    engineSet(X.paused || X.decision || X.finished ? 0.05 : X.r3d && X.focusSpeed != null ? Math.min(1, X.focusSpeed / 190) : 0.55 + Math.sin(t / 200) * 0.1);
+    engineSet(X.paused || X.decision || X.finished ? 0 : X.r3d && X.focusSpeed != null ? X.focusSpeed / 200 : 0.5 + Math.sin(t / 700) * 0.3, { rain: X.ev.stage.wet ? 0.7 : 0, crowd: 0.2 });
     X.uiT += dt; if (X.uiT > 0.25) { X.uiT = 0; renderUI(); }
     X.raf = requestAnimationFrame(loop);
   };

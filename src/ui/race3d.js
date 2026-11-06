@@ -85,7 +85,7 @@ export class Race3D {
     this.scene.background = new THREE.Color(sky);
     this.scene.fog = new THREE.Fog(night ? 0x070b18 : 0xb8d4f0, 400, 2600);
     const hemi = new THREE.HemisphereLight(night ? 0x334466 : 0xdfefff, night ? 0x0b0d10 : 0x4a6a3a, night ? 0.9 : 1.1);
-    this.scene.add(hemi);
+    this.scene.add(hemi); this.hemi = hemi;
     const sun = new THREE.DirectionalLight(night ? 0xbfd4ff : 0xfff1dc, night ? 0.9 : 2.6);
     sun.position.set(300, 500, 200);
     sun.castShadow = true;
@@ -102,7 +102,7 @@ export class Race3D {
       vertexShader: 'varying vec3 vp; void main(){ vp = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
       fragmentShader: 'uniform vec3 top; uniform vec3 bot; varying vec3 vp; void main(){ float h = normalize(vp).y; gl_FragColor = vec4(mix(bot, top, clamp(h*1.6,0.0,1.0)),1.0); }',
     });
-    this.skyDome = new THREE.Mesh(g, skyMat);
+    this.skyDome = new THREE.Mesh(g, skyMat); this.skyMat = skyMat;
     this.scene.add(this.skyDome);
   }
 
@@ -339,6 +339,18 @@ export class Race3D {
     label.style.setProperty('--lc', c.livery.primary);
     this.labels.appendChild(label);
     this.cars.set(c.key, { mesh: m, label, lane: ((c.key.charCodeAt(0) + c.key.length * 7) % 5 - 2) * 0.9, lastS: 0, tyre: c.tyreColor, isPlayer: c.isPlayer });
+  }
+
+  setNight(n) {
+    if (this._night === n) return; this._night = n;
+    const day = { top: new THREE.Color(0x3d7ad6), bot: new THREE.Color(0xcfe3f7), fog: new THREE.Color(0xb8d4f0) };
+    const nite = { top: new THREE.Color(0x02040c), bot: new THREE.Color(0x141c33), fog: new THREE.Color(0x070b18) };
+    this.skyMat.uniforms.top.value.copy(day.top).lerp(nite.top, n);
+    this.skyMat.uniforms.bot.value.copy(day.bot).lerp(nite.bot, n);
+    this.scene.fog.color.copy(day.fog).lerp(nite.fog, n);
+    this.scene.background = this.scene.fog.color.clone();
+    this.hemi.intensity = 1.1 - n * 0.55; this.sun.intensity = 2.6 - n * 2.0;
+    this.renderer.toneMappingExposure = 1.05 - n * 0.2;
   }
 
   setStartLights(n, go) {

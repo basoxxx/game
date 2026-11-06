@@ -1,7 +1,7 @@
 import { icon } from './ui/icons.js';
 import { teamBadge, logoMark, luminance } from './ui/art.js';
 import { esc } from './ui/dom.js';
-import { sfx } from './ui/audio.js';
+import { sfx, music } from './ui/audio.js';
 import { S, saveGame } from './engine/state.js';
 import { fmtM, playerTeam, cat } from './engine/season.js';
 
@@ -54,6 +54,8 @@ export const App = {
     prev?.unmount?.();
     this.cur = id; this.params = params;
     this.closeModal();
+    const mood = { menu: 'menu', newgame: 'menu', settings: S() ? 'manage' : 'menu', weekend: null, rally: null, results: 'win', seasonend: 'win', quickrace: 'menu' }[id];
+    if (mood !== null) music.setMood(mood || 'manage');
     this.render();
   },
   render() {

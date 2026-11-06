@@ -11,7 +11,7 @@ import { COMPOUNDS } from '../data/categories.js';
 import { circuitPath, arcFrac, speedAtTimeFrac, TrackView } from '../ui/trackview.js';
 import { mulberry32, clamp, chance, rand } from '../engine/rng.js';
 import { tyreBadge, teamStripe, driverChip } from './common.js';
-import { sfx, engineStart, engineSet, engineStop } from '../ui/audio.js';
+import { sfx, engineStart, engineSet, engineStop, music } from '../ui/audio.js';
 import { celebrate } from './results.js';
 import { Race3D, webglAvailable } from '../ui/race3d.js';
 import { trackGeometry } from '../engine/trackphys.js';
@@ -289,7 +289,8 @@ function mountRace() {
   if (R.view3d) enable3D(R.view3d);
   updateAll(true);
   // start lights
-  startLights(() => { R.paused = false; R.last = performance.now(); updateSpeedUI(); engineStart(); });
+  music.setMood('race');
+  startLights(() => { R.paused = false; R.last = performance.now(); updateSpeedUI(); engineStart(st.category); });
   const loop = (t) => {
     const dt = Math.min(0.1, (t - R.last) / 1000); R.last = t;
     if (!R.paused && !R.sim.finished) {
@@ -301,7 +302,7 @@ function mountRace() {
     R.uiT += dt;
     if (R.uiT > 0.25) { R.uiT = 0; updateAll(); }
     if (R.sim.finished && !R.done) { R.done = true; updateAll(true); onRaceFinished(); }
-    engineSet(R.paused || R.sim.finished ? 0 : R.r3d && R.focusSpeed != null ? Math.min(1, R.focusSpeed / 330) : Math.min(1, R.speed / 16) * 0.6 + 0.3 + Math.sin(t / 300) * 0.05);
+    engineSet(R.paused || R.sim.finished ? 0 : R.r3d && R.focusSpeed != null ? R.focusSpeed / 345 : 0.55 + Math.sin(t / 900) * 0.35, { rain: R.sim.rain, crowd: 0.5 });
     R.raf = requestAnimationFrame(loop);
   };
   R.raf = requestAnimationFrame(loop);
@@ -348,6 +349,7 @@ function update3D(dt) {
   });
   r.focusKey = R.focus;
   r.setRain(sim.rain);
+  if (sim.endurance && sim.track.night) { R.nightLvl = (R.nightLvl ?? 0) + ((sim.night ? 1 : 0) - (R.nightLvl ?? 0)) * Math.min(1, dt * 0.3); r.setNight(Math.round(R.nightLvl * 20) / 20); }
   r.update(states, dt);
   const fc = sim.cars.find((c) => c.key === R.focus);
   const hud = document.getElementById('hud3d');
@@ -501,6 +503,7 @@ function updateFeed(force) {
   R.feedN = evs.length;
   for (const e of newOnes) {
     if (e.type === 'crash') sfx.crash();
+    else if (e.type === 'pit' && e.important) sfx.pit();
     else if (e.type === 'sc') sfx.notify();
     else if (e.type === 'overtake' && e.important) sfx.overtake();
     else if (e.type === 'radio') sfx.radio?.();
@@ -541,7 +544,7 @@ function onRaceFinished() {
   const res = R.sim.results();
   const mine = res.classification.filter((r) => r.teamId === st.playerTeam);
   const best = Math.min(...mine.map((r) => (r.status === 'dnf' ? 99 : r.pos)));
-  if (best <= 3) { sfx.win(); celebrate(best === 1 ? 260 : 120); }
+  if (best <= 3) { sfx.win(); celebrate(best === 1 ? 260 : 120); music.setMood('win'); }
   const ov = document.getElementById('finish-overlay');
   if (ov) ov.innerHTML = `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);z-index:3"><div class="panel glow" style="text-align:center;padding:30px 40px;animation:pop .4s"><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:44px">🏁 GARA FINITA</div><div class="muted mt8">${esc(st.drivers[res.classification[0].driverIds[0]].name)} vince · Il tuo miglior risultato: ${best === 99 ? 'Ritiro' : 'P' + best}</div><button class="btn primary xl mt16" data-a="finish-race">Vai ai risultati ${icon('right')}</button></div></div>`;
 }

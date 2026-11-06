@@ -9,6 +9,7 @@ import { cat, playerTeam, standings, fmtM } from '../engine/season.js';
 import { CATEGORIES } from '../data/categories.js';
 import { driverChip, teamStripe, ratingBox, ovr } from './common.js';
 import { openLoad } from './menu.js';
+import { applyVolumes } from '../ui/audio.js';
 
 // ---------------- INBOX ----------------
 let selMail = null;
@@ -121,10 +122,13 @@ registerScreen({
       <div class="panel"><div class="panel-head"><h3>Audio</h3></div>
         <div class="row between"><span>Effetti sonori</span><button class="btn sm ${s.sound ? 'active' : ''}" data-a="toggle" data-k="sound">${s.sound ? 'ON' : 'OFF'}</button></div>
         <div class="row between mt16"><span>Rombo motori in gara</span><button class="btn sm ${s.engineSound ? 'active' : ''}" data-a="toggle" data-k="engineSound">${s.engineSound ? 'ON' : 'OFF'}</button></div>
-        <div class="mt16"><label class="lbl">Volume</label><input type="range" min="0" max="1" step="0.05" value="${s.volume}" data-change="vol" class="mt8"></div>
+        <div class="row between mt16"><span>Colonna sonora</span><button class="btn sm ${s.music !== false ? 'active' : ''}" data-a="toggle" data-k="music">${s.music !== false ? 'ON' : 'OFF'}</button></div>
+        <div class="mt16"><label class="lbl">Volume generale</label><input type="range" min="0" max="1" step="0.05" value="${s.volume}" data-change="vol" class="mt8"></div>
+        <div class="mt16"><label class="lbl">Volume musica</label><input type="range" min="0" max="1" step="0.05" value="${s.musicVol ?? 0.55}" data-change="mvol" class="mt8"></div>
       </div>
       <div class="panel"><div class="panel-head"><h3>Gioco</h3></div>
         <div class="row between"><span>Velocità gara predefinita</span><div class="row gap6">${[2, 4, 8, 16, 32].map((v) => `<button class="btn sm ${s.raceSpeed === v ? 'active' : ''}" data-a="speed" data-v="${v}">${v}x</button>`).join('')}</div></div>
+        <div class="row between mt16"><span>Vista 3D in gara</span><button class="btn sm ${s.view3d !== false ? 'active' : ''}" data-a="toggle" data-k="view3d">${s.view3d !== false ? 'ON' : 'OFF'}</button></div>
         ${window.apex?.toggleFullscreen ? `<div class="row between mt16"><span>Schermo intero</span><button class="btn sm" data-a="fs">${icon('fullscreen')} F11</button></div>` : ''}
       </div>
       ${S() ? `<div class="panel"><div class="panel-head"><h3>Salvataggi</h3></div><div class="row wrap gap6"><button class="btn" data-a="save-as">${icon('save')} Salva in slot…</button><button class="btn" data-a="export">${icon('download')} Esporta su file</button></div><div class="small muted mt8">Il gioco salva automaticamente dopo ogni evento.</div></div>` : ''}
@@ -133,8 +137,9 @@ registerScreen({
     return back ? `<div style="position:fixed;inset:0;padding:40px 60px;overflow-y:auto">${inner}</div>` : inner;
   },
   actions: {
-    toggle(el) { const k = el.dataset.k; setSettings({ [k]: !getSettings()[k] }); App.refresh(); },
-    vol(el) { setSettings({ volume: +el.value }); },
+    toggle(el) { const k = el.dataset.k; const cur = getSettings()[k]; setSettings({ [k]: !(cur ?? true) }); applyVolumes(); App.refresh(); },
+    vol(el) { setSettings({ volume: +el.value }); applyVolumes(); },
+    mvol(el) { setSettings({ musicVol: +el.value }); applyVolumes(); },
     speed(el) { setSettings({ raceSpeed: +el.dataset.v }); App.refresh(); },
     fs() { window.apex?.toggleFullscreen?.(); },
     'save-as'() { openLoad(true); },
