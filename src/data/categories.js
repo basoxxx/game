@@ -2,6 +2,31 @@
 export const POINTS_STD = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
 
 export const CATEGORIES = {
+  junior: {
+    id: 'junior',
+    name: 'Formula Apex 2',
+    full: 'Formula Apex 2 Championship',
+    tagline: 'La scuola dei campioni: monoposto identiche, giovani talenti, il trampolino verso la Formula Apex.',
+    type: 'circuit',
+    cars: 2, driversPerCar: 1,
+    color: '#3aa0ff',
+    icon: 'formula',
+    parts: [
+      { id: 'aero', name: 'Assetto Aero', desc: 'Regolazioni e flap' },
+      { id: 'engine', name: 'Motore', desc: 'Mappatura e manutenzione' },
+      { id: 'chassis', name: 'Telaio', desc: 'Sospensioni e bilanciamento' },
+      { id: 'tyre', name: 'Gestione Gomme', desc: 'Degrado e finestra di utilizzo' },
+      { id: 'reliability', name: 'Affidabilità', desc: 'Rischio di guasti meccanici' },
+    ],
+    baseLap: 95, lapsDefault: 20, pitLoss: 22, refuel: false, swaps: false,
+    compounds: ['soft', 'medium', 'hard', 'wet'],
+    budgetScale: 0.12, prizeTop: 3, prizeStep: 0.25,
+    concepts: [
+      { id: 'balanced', name: 'Standard', desc: 'L’assetto di base fornito dal costruttore.', mods: {} },
+      { id: 'downforce', name: 'Carico', desc: '+Aero, meno velocità di punta.', mods: { aero: 3, engine: -3 } },
+      { id: 'lowdrag', name: 'Scarico', desc: '+Velocità, soffre nel misto.', mods: { engine: 3, aero: -3 } },
+    ],
+  },
   formula: {
     id: 'formula',
     name: 'Formula Apex',

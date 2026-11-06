@@ -165,6 +165,7 @@ export function logoMark(size = 30) {
 export function categoryArt(cat) {
   const sample = {
     formula: { primary: '#e10600', secondary: '#ffffff', accent: '#111', pattern: 1, number: 16 },
+    junior: { primary: '#0a2a66', secondary: '#3aa0ff', accent: '#fff', pattern: 3, number: 2 },
     rally: { primary: '#0a2a66', secondary: '#ffcc00', accent: '#e10600', pattern: 5, number: 1 },
     endurance: { primary: '#111', secondary: '#00c2ff', accent: '#fff', pattern: 2, number: 7 },
   }[cat];

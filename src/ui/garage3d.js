@@ -58,3 +58,41 @@ export class Garage3D {
   }
   destroy() { cancelAnimationFrame(this.raf); this._ro?.disconnect(); this.renderer.dispose(); this.renderer.domElement.remove(); }
 }
+
+// ---- Static 3D renders of cars for UI cards (cached data URLs) ----
+let snapR = null, snapScene = null, snapCam = null;
+const snapCache = new Map();
+export function carSnapshot(category, livery, opts = {}, w = 640, h = 300) {
+  const key = [category, livery.primary, livery.secondary, livery.accent, livery.pattern, opts.number, opts.sponsor, opts.helmet, w, h, opts.angle].join('|');
+  if (snapCache.has(key)) return snapCache.get(key);
+  try {
+    if (!snapR) {
+      snapR = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      snapR.toneMapping = THREE.ACESFilmicToneMapping; snapR.outputColorSpace = THREE.SRGBColorSpace;
+      snapR.shadowMap.enabled = true;
+      snapScene = new THREE.Scene();
+      const pm = new THREE.PMREMGenerator(snapR); snapScene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; snapScene.environmentIntensity = 0.85;
+      const key2 = new THREE.DirectionalLight(0xffffff, 2.2); key2.position.set(4, 8, 6); key2.castShadow = true; key2.shadow.mapSize.set(1024, 1024);
+      const sc = key2.shadow.camera; sc.left = -5; sc.right = 5; sc.top = 5; sc.bottom = -5;
+      snapScene.add(key2, new THREE.HemisphereLight(0xdde6ff, 0x222428, 0.5));
+      const sh = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.ShadowMaterial({ opacity: 0.45 })); sh.rotation.x = -Math.PI / 2; sh.receiveShadow = true; snapScene.add(sh);
+      snapCam = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+    }
+    snapR.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    snapR.setSize(w, h, false);
+    const car = buildCar(category, livery, opts);
+    snapScene.add(car);
+    const a = opts.angle ?? -0.75, d = (category === 'rally' ? 5.4 : category === 'endurance' ? 6.2 : 6.6) * (w / h < 1.8 ? 1.2 : 1);
+    snapCam.aspect = w / h; snapCam.updateProjectionMatrix();
+    snapCam.position.set(Math.cos(a) * d, d * 0.26, Math.sin(a) * d * -1); snapCam.lookAt(0, 0.45, 0);
+    snapR.render(snapScene, snapCam);
+    const url = snapR.domElement.toDataURL('image/png');
+    snapScene.remove(car);
+    snapCache.set(key, url);
+    return url;
+  } catch (e) { console.warn('snapshot', e); return null; }
+}
+export function carImg(category, livery, opts = {}, w = 640, h = 300, fallback = '') {
+  const url = carSnapshot(category, livery, opts, w, h);
+  return url ? `<img src="${url}" alt="" style="width:100%;display:block;position:relative;z-index:1;filter:drop-shadow(0 14px 16px rgba(0,0,0,.45))">` : fallback;
+}

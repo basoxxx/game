@@ -74,6 +74,7 @@ export function trackGeometry(cid) {
 }
 
 export const CAR_BASE = {
+  junior: { mu: 1.85, kA: 0.00036, P: 620, cd: 0.00105, brakeMu: 1.95 },
   formula: { mu: 2.05, kA: 0.00046, P: 980, cd: 0.00112, brakeMu: 2.1 },
   endurance: { mu: 1.85, kA: 0.0003, P: 560, cd: 0.00066, brakeMu: 1.9 },
 };

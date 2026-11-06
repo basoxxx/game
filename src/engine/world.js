@@ -105,7 +105,7 @@ export function buildCalendar(cat, length) {
   if (n >= all.length) chosen = all.slice();
   else {
     // keep calendar order but pick subset (always keep iconic events)
-    const iconic = new Set(['mon', 'ita', 'gbr', 'bel', 'lem', 'mc', 'fin', 'swe', 'abu']);
+    const iconic = new Set(['mon', 'ita', 'gbr', 'bel', 'lem', 'mc', 'fin', 'swe', 'abu', 'bhr']);
     const must = all.filter((t) => iconic.has(t.id));
     const rest = shuffle(all.filter((t) => !iconic.has(t.id))).slice(0, Math.max(0, n - must.length));
     const set = new Set([...must, ...rest].map((t) => t.id));
@@ -113,7 +113,7 @@ export function buildCalendar(cat, length) {
   }
   return chosen.map((t, i) => {
     const ev = { trackId: t.id, round: i + 1, done: false, weather: null, results: null };
-    if (cat === 'formula' && ['chn', 'mia', 'can', 'gbr', 'ned', 'sgp'].includes(t.id)) ev.sprint = true;
+    if ((cat === 'formula' && ['chn', 'mia', 'can', 'gbr', 'ned', 'sgp'].includes(t.id)) || cat === 'junior') ev.sprint = true;
     if (cat === 'rally') {
       const r = mulberry32(t.seed + i);
       const names = shuffle(STAGE_NAMES);
@@ -186,7 +186,10 @@ export function createWorld({ playerName, category, teamId, difficulty, seasonLe
   for (const td of teamsData) {
     const t = teamFromData(td, cat, difficulty, td.id === teamId);
     state.teams[t.id] = t;
-    for (const dd of td.d) {
+    if (td.gen && !(td.d && td.d.length)) {
+      for (let k = 0; k < 2; k++) { const d = generateRookie(cat, 1.03); d.teamId = t.id; d.contract = randInt(1, 2); d.salary = salaryFor(d, cat); d.number = nextNumber(); state.drivers[d.id] = d; t.drivers.push(d.id); }
+    }
+    for (const dd of td.d || []) {
       const d = makeDriver(dd);
       d.teamId = t.id; d.contract = randInt(1, 3); d.salary = salaryFor(d, cat); d.number = nextNumber();
       state.drivers[d.id] = d; t.drivers.push(d.id);

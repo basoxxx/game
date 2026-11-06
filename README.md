@@ -18,6 +18,14 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 3.0
+
+- **Grafica rifatta**: cielo HDRI e texture PBR (Poly Haven, CC0), bloom e SMAA, nuove vetture 3D con livree dipinte, alberi, render 3D anche nelle schermate di gestione
+- **Momenti chiave in gara** con pausa e decisione (safety car, pioggia, undercut, attacco, difesa)
+- **Budget cap**, **ore di galleria del vento** in base alla classifica, sviluppo della **vettura dell'anno successivo**
+- Economia più stretta e AI più forte
+- Nuova categoria **Formula Apex 2** e carriera dalla gavetta
+
 ## Novità della versione 2.2
 
 - **Sfide** con medaglie oro/argento/bronzo (8 scenari)

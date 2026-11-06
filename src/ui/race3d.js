@@ -582,7 +582,7 @@ export class Race3D {
       look = target.clone().addScaledVector(fwd, 6).add(new THREE.Vector3(0, 1, 0));
       fov = 62;
     } else if (this.camMode === 'onboard') {
-      pos = target.clone().addScaledVector(fwd, this.category === 'formula' ? -1.25 : 0.2).add(new THREE.Vector3(0, this.category === 'formula' ? 1.55 : 1.3, 0));
+      pos = target.clone().addScaledVector(fwd, this.category === 'formula' || this.category === 'junior' ? -1.25 : 0.2).add(new THREE.Vector3(0, this.category === 'formula' || this.category === 'junior' ? 1.55 : 1.3, 0));
       look = target.clone().addScaledVector(fwd, 35).add(new THREE.Vector3(0, 0.9, 0));
       fov = 66;
     } else if (this.camMode === 'heli') {

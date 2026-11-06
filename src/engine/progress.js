@@ -87,7 +87,7 @@ export function makeObjectives(state) {
   const team = state.teams[state.playerTeam];
   const strong = team.rep >= 88;
   const pool = strong ? OBJ.filter((o) => ['win', 'podiums3', 'pole', 'onetwo', 'double'].includes(o.id)) : team.rep >= 75 ? OBJ.filter((o) => ['podium', 'points10', 'double', 'nodnf5', 'win'].includes(o.id)) : OBJ.filter((o) => ['points5', 'double', 'nodnf5', 'podium'].includes(o.id));
-  return shuffle(pool).slice(0, 3).map((o) => ({ id: o.id, text: o.text, xp: o.xp, money: +(o.money * (state.category === 'formula' ? 1 : state.category === 'rally' ? 0.4 : 0.6)).toFixed(1), done: false }));
+  return shuffle(pool).slice(0, 3).map((o) => ({ id: o.id, text: o.text, xp: o.xp, money: +(o.money * (state.category === 'formula' ? 1 : state.category === 'rally' ? 0.4 : state.category === 'junior' ? 0.15 : 0.6)).toFixed(1), done: false }));
 }
 
 export function seasonStats(state) {

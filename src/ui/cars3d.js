@@ -314,6 +314,7 @@ function rally(L, opts) {
 export function buildCar(category, livery, opts = {}) {
   const L = { primary: '#e10600', secondary: '#ffffff', accent: '#111111', pattern: 1, ...livery };
   const car = category === 'rally' ? rally(L, opts) : category === 'endurance' ? endurance(L, opts) : formula(L, opts);
+  if (category === 'junior') car.scale.setScalar(0.94);
   car.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return car;
 }

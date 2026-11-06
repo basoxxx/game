@@ -1,3 +1,4 @@
+import { carImg } from '../ui/garage3d.js';
 import { App, registerScreen } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { carSVG, flagSVG, helmetSVG, trackSVG, teamBadge } from '../ui/art.js';
@@ -87,7 +88,7 @@ registerScreen({
               <div class="grid2">${myDrivers.map((d) => { const p = s.drivers.findIndex((x) => x.id === d.id) + 1; const pts = s.drivers.find((x) => x.id === d.id)?.pts || 0; return `<div class="card row" style="gap:12px">${helmetSVG(d.helmet, 54)}<div class="grow"><div class="row">${flagSVG(d.nat)}<b>${esc(d.name)}</b></div><div class="small muted mt8">#${d.number} · ${d.age} anni · ${p}° (${pts} pt)</div><div class="mt8">${moraleChip(d.morale)}</div></div>${ratingBox(ovr(st, d), false)}</div>`; }).join('') || '<div class="muted">Nessun pilota</div>'}</div>
             </div>
             <div class="panel"><div class="panel-head"><h3>La vettura</h3><button class="btn sm ghost" data-a="nav" data-to="car">Centro Tecnico ${icon('right')}</button></div>
-              <div style="display:grid;grid-template-columns:1fr 1.1fr;gap:18px;align-items:center"><div class="car-stage" style="min-height:160px"><div class="grid-floor"></div>${carSVG(st.category, t.car.livery, { number: myDrivers[0]?.number, sponsor: t.sponsors[0]?.name, helmet: myDrivers[0]?.helmet.c1 })}</div><div class="col gap6">${parts}</div></div>
+              <div style="display:grid;grid-template-columns:1fr 1.1fr;gap:18px;align-items:center"><div class="car-stage" style="min-height:160px"><div class="grid-floor"></div>${carImg(st.category, t.car.livery, { number: myDrivers[0]?.number, sponsor: t.sponsors[0]?.name, helmet: myDrivers[0]?.helmet.c1 })}</div><div class="col gap6">${parts}</div></div>
               ${t.projects.length ? `<div class="row wrap mt16 gap6">${t.projects.map((p) => `<span class="chip info">${icon('rd', 'ico', 'style="width:13px"')} ${partName(st, p.part)} · ${RD_TIERS[p.tier].name} · ${p.racesLeft} ${p.racesLeft === 1 ? 'evento' : 'eventi'}</span>`).join('')}</div>` : ''}
             </div>
           </div>

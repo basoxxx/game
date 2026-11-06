@@ -52,7 +52,13 @@ export const TRACKS = {
   ],
 };
 
+// Formula Apex 2 runs on the same circuits as support races (~8% slower, shorter races)
+TRACKS.junior = ['bhr', 'ksa', 'aus', 'esp', 'mon', 'aut', 'gbr', 'bel', 'hun', 'ita', 'aze', 'qat', 'abu', 'mad']
+  .map((id) => TRACKS.formula.find((t) => t.id === id)).filter(Boolean)
+  .map((t) => ({ ...t, lap: +(t.lap * 1.085).toFixed(1), laps: Math.round(t.laps * 0.62), pit: t.pit + 1, wear: t.wear * 1.1 }));
+
 export const SEASON_LENGTH = {
+  junior: { short: 8, normal: 12, full: 14 },
   formula: { short: 10, normal: 16, full: 24 },
   rally: { short: 7, normal: 10, full: 12 },
   endurance: { short: 6, normal: 8, full: 8 },

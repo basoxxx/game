@@ -10,6 +10,18 @@ export const ENGINE_SUPPLIERS = [
 ];
 
 export const TEAMS = {
+  junior: [
+    { id: 'premia', name: 'Premia Racing', short: 'PRE', colors: ['#d10a11', '#111111', '#ffffff'], rep: 62, budget: 16, base: 82, bias: { aero: 1, chassis: 1 }, principal: 'Renè Rosina', hq: 'Grisignano, ITA', gen: 1 },
+    { id: 'arte', name: 'ARTE Grand Prix', short: 'ART', colors: ['#111111', '#ffffff', '#e10600'], rep: 60, budget: 15, base: 81, bias: { engine: 1 }, principal: 'Sébastien Philippon', hq: 'Villeneuve, FRA', gen: 1 },
+    { id: 'camposol', name: 'Camposol Racing', short: 'CAM', colors: ['#f2c500', '#0b2a6b', '#ffffff'], rep: 56, budget: 13, base: 80, bias: { tyre: 1 }, principal: 'Adriano Campos', hq: 'Valencia, ESP', gen: 1 },
+    { id: 'hitec', name: 'HiTec Pulse-8', short: 'HIT', colors: ['#ffffff', '#1e1e1e', '#e10600'], rep: 57, budget: 14, base: 80.5, bias: { aero: 1 }, principal: 'Oliver Oakes', hq: 'Silverstone, GBR', gen: 1 },
+    { id: 'mpx', name: 'MPX Motorsport', short: 'MPX', colors: ['#ff6a00', '#111111', '#ffffff'], rep: 52, budget: 12, base: 79.5, bias: { reliability: 1 }, principal: 'Sander Dorsman', hq: 'Westmaas, NED', gen: 1 },
+    { id: 'damas', name: 'DAMAS Lucas Oil', short: 'DAM', colors: ['#003b7a', '#00a3e0', '#ffffff'], rep: 52, budget: 12, base: 79, bias: { chassis: 1 }, principal: 'François Sicard', hq: 'Le Mans, FRA', gen: 1 },
+    { id: 'invicto', name: 'Invicto Virtuosi', short: 'INV', colors: ['#0b0b0b', '#c9a227', '#ffffff'], rep: 55, budget: 13, base: 80, bias: {}, principal: 'Darren Butler', hq: 'Leeds, GBR', gen: 1 },
+    { id: 'rodan', name: 'Rodan Motorsport', short: 'ROD', colors: ['#1a1a1a', '#00e0b0', '#ffffff'], rep: 48, budget: 11, base: 78.5, bias: { engine: 1 }, principal: 'Tim Rodan', hq: 'Christchurch, NZL', gen: 1 },
+    { id: 'tridente', name: 'Tridente', short: 'TRI', colors: ['#0a1f44', '#e30613', '#ffffff'], rep: 46, budget: 10, base: 78, bias: {}, principal: 'Giacomo Ricci', hq: 'Mantova, ITA', gen: 1 },
+    { id: 'amersford', name: 'Van Amersford Racing', short: 'VAR', colors: ['#ff4f00', '#ffffff', '#111111'], rep: 44, budget: 10, base: 77.5, bias: { tyre: -1 }, principal: 'Frits van Amersford', hq: 'Huizen, NED', gen: 1 },
+  ],
   formula: [
     { id: 'ferrani', name: 'Scuderia Ferrani', short: 'FER', colors: ['#d40000', '#ffdd00', '#111111'], engine: 'ferrani', works: true, rep: 96, budget: 150, base: 87, bias: { aero: -1, engine: 1, chassis: 1, tyre: -1, reliability: 1 }, principal: 'Federico Vasseur', hq: 'Maranello, ITA',
       d: [['Charles Leclair', 'MON', 28, 93, 85, 89, 88, 84, 80, 94], ['Lewis Hammerton', 'GBR', 41, 90, 90, 93, 95, 90, 99, 90]] },

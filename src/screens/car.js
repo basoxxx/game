@@ -1,3 +1,4 @@
+import { carImg } from '../ui/garage3d.js';
 import { App, registerScreen, coach } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { carSVG, teamBadge } from '../ui/art.js';
@@ -133,7 +134,7 @@ function designTab(st, t, C) {
       <label class="lbl mt16" style="display:block">Dettagli</label>${sw('accent')}
       <label class="lbl mt16" style="display:block">Motivo</label>
       <div class="row wrap gap6 mt8">${PATTERNS.map((p, i) => `<button class="btn sm ${L.pattern === i ? 'active' : ''}" data-a="pattern" data-p="${i}">${p}</button>`).join('')}</div>
-      <div class="grid3 mt16">${PATTERNS.map((p, i) => `<div class="card click ${L.pattern === i ? 'sel' : ''}" data-a="pattern" data-p="${i}" style="padding:6px">${carSVG(st.category, { ...L, pattern: i }, { number: '' })}</div>`).join('')}</div>
+      <div class="grid3 mt16">${PATTERNS.map((p, i) => `<div class="card click ${L.pattern === i ? 'sel' : ''}" data-a="pattern" data-p="${i}" style="padding:6px">${carImg(st.category, { ...L, pattern: i }, { number: '' })}</div>`).join('')}</div>
     </div>
   </div>`;
 }

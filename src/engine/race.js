@@ -526,7 +526,7 @@ export class CircuitSim {
     // finish
     if (this.leaderFinished || c.lap >= this.laps) {
       if (!this.leaderFinished) { this.leaderFinished = true; this.log(`🏁 ${this.driver(c).name} taglia per primo il traguardo!`, 'finish', c.key, true); }
-      if (this.C.id === 'formula' && !this.weather.isRain && [...c.compoundsUsed].filter((x) => !COMPOUNDS[x].wet).length < 2) {
+      if ((this.C.id === 'formula' || this.C.id === 'junior') && !this.weather.isRain && [...c.compoundsUsed].filter((x) => !COMPOUNDS[x].wet).length < 2) {
         c.penalty += 10; this.log(`⚖ ${this.driver(c).name}: +10s di penalità (una sola mescola utilizzata)`, 'warn', c.key, c.isPlayer);
       }
       c.status = 'finished'; c.finishTime = crossT + c.penalty; c.finishLap = c.lap;
@@ -645,7 +645,7 @@ export class CircuitSim {
       const gapS = gap * this.track.lap;
       b.gapAhead = gapS;
       const wasDrs = b.drs, wasDirty = b.dirty;
-      b.drs = this.C.id === 'formula' && gapS < 1 && b.lap >= 2 && rain < 0.2 && !this.sc && !this.vsc;
+      b.drs = (this.C.id === 'formula' || this.C.id === 'junior') && gapS < 1 && b.lap >= 2 && rain < 0.2 && !this.sc && !this.vsc;
       b.dirty = gapS < 1.6 && !this.sc && !this.vsc;
       if (b.auto && !b.noErs && !this.sc && !this.vsc) {
         const want = (gapS < 0.7 && b.ers > 35) ? 'deploy' : b.ers < 20 ? 'harvest' : (gapS > 4 && b.ers < 45) ? 'harvest' : 'balanced';

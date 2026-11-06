@@ -330,7 +330,7 @@ function mountRace() {
   if (isSprint) R.sim.log('⚡ SPRINT: gara breve, punti ai primi 8 (8-7-6-5-4-3-2-1).', 'start', null, true);
   for (const c of R.sim.cars) if (c.isPlayer) { c.tyre = w.startTyre[c.key] || c.tyre; c.compoundsUsed = new Set([c.tyre]); c.plan = !isSprint && w.plans?.[c.key] ? w.plans[c.key].map((x) => ({ ...x })) : null; c.planIdx = 0; c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c); }
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {};
-  R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, padTop: 40, glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' ? drsZones('formula', tr) : [] });
+  R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, padTop: 40, glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' || st.category === 'junior' ? drsZones('formula', tr) : [] });
   R.last = performance.now(); R.uiT = 0;
   R.focus = R.sim.cars.find((c) => c.isPlayer)?.key;
   R.view3d = getSettings().view3d !== false && webglAvailable() ? (R.cam || 'auto') : null;
@@ -556,7 +556,7 @@ function engineerAdvice(sim, c) {
     if (left <= 4) return { text: `Piano: sosta tra ${left} giri (${COMPOUNDS[c.plan[c.planIdx + 1].c].name}). Valuta l’undercut sul rivale davanti.` };
   }
   if (c.wear > 0.75 && lapsLeft > 3) return { text: 'Usura alta: siamo vicini al cliff, finestra di pit aperta.' };
-  if (Math.abs(c.temp - (sim.cat === 'formula' ? { soft: 95, medium: 103, hard: 111 }[c.tyre] || 80 : 100)) > 14 && !comp.wet) return { text: c.temp < 90 ? 'Gomme fredde: spingi un po’ per portarle in temperatura.' : 'Gomme surriscaldate: passa in Gestione per qualche giro.' };
+  if (Math.abs(c.temp - (sim.cat !== 'endurance' ? { soft: 95, medium: 103, hard: 111 }[c.tyre] || 80 : 100)) > 14 && !comp.wet) return { text: c.temp < 90 ? 'Gomme fredde: spingi un po’ per portarle in temperatura.' : 'Gomme surriscaldate: passa in Gestione per qualche giro.' };
   if (c.drs) return { text: 'DRS disponibile: siamo entro un secondo, attacca!' };
   return null;
 }
@@ -649,7 +649,7 @@ function finishRace() {
 }
 
 function strategyPanel(st, w, tr, entries, q, C) {
-  const dry = w.weather.plan[0] <= 0.2 && C.id === 'formula';
+  const dry = w.weather.plan[0] <= 0.2 && (C.id === 'formula' || C.id === 'junior');
   w.plans = w.plans || {};
   const team = playerTeam(st);
   let html = `<div class="panel"><div class="panel-head"><h3>Strategia</h3><button class="btn sm ghost" data-a="lessons">${icon('info')} Lezioni</button></div>`;

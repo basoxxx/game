@@ -220,7 +220,7 @@ label.lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; 
 .version { position: absolute; bottom: 18px; left: 70px; color: var(--dim); font-size: 12px; letter-spacing: 0.1em; }
 
 /* Category select */
-.cat-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.cat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .cat-card { position: relative; border-radius: 18px; overflow: hidden; cursor: pointer; border: 1px solid var(--line2); background: #0e1218; min-height: 360px; display: flex; flex-direction: column; justify-content: flex-end; transition: transform .2s, box-shadow .2s, border-color .2s; }
 .cat-card:hover { transform: translateY(-6px); box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
 .cat-card.sel { border-color: var(--cc); box-shadow: 0 0 0 2px var(--cc), 0 30px 60px color-mix(in srgb, var(--cc) 30%, transparent); }

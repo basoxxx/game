@@ -22,7 +22,7 @@ export const TYRE_MODEL = {
 };
 
 export function tyreModel(catId, compound) {
-  return (TYRE_MODEL[catId] || TYRE_MODEL.formula)[compound];
+  return (TYRE_MODEL[catId] || TYRE_MODEL.formula)[compound] || TYRE_MODEL.formula[compound];
 }
 
 // Degradation penalty (s, at 90s-lap scale) for a tyre of given age (real laps) and life

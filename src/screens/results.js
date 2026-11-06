@@ -1,3 +1,4 @@
+import { carImg } from '../ui/garage3d.js';
 import { App, registerScreen, trackName } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { helmetSVG, flagSVG, teamBadge, carSVG } from '../ui/art.js';
@@ -42,7 +43,7 @@ registerScreen({
     const rally = st.category === 'rally';
     const pod = (r, cls) => {
       const d = st.drivers[r.driverIds[0]]; const tm = st.teams[r.teamId];
-      return `<div class="pd ${cls}"><div>${helmetSVG(d.helmet, 70)}</div><div style="font-weight:800;margin-top:6px">${esc(r.driverIds.map((id) => st.drivers[id].name).join(' / '))}</div><div class="small muted mb8">${esc(tm.name)}</div><div style="padding:0 10px;margin-bottom:-8px;position:relative;z-index:1">${carSVG(st.category, tm.car.livery, { number: d.number, sponsor: tm.sponsors[0]?.name })}</div><div class="block">${r.pos}</div></div>`;
+      return `<div class="pd ${cls}"><div>${helmetSVG(d.helmet, 70)}</div><div style="font-weight:800;margin-top:6px">${esc(r.driverIds.map((id) => st.drivers[id].name).join(' / '))}</div><div class="small muted mb8">${esc(tm.name)}</div><div style="padding:0 10px;margin-bottom:-8px;position:relative;z-index:1">${carImg(st.category, tm.car.livery, { number: d.number, sponsor: tm.sponsors[0]?.name })}</div><div class="block">${r.pos}</div></div>`;
     };
     const mine = res.classification.filter((r) => r.teamId === pt.id);
     return `<div style="position:fixed;inset:0;overflow-y:auto;padding:30px 40px">

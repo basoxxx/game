@@ -518,7 +518,14 @@ export function jobOffers(state) {
     const others = pool.filter((t) => t.id !== state.playerTeam || catId !== state.category);
     let suitable = others.filter((t) => t.rep <= rep + 30 + (catId !== state.category ? 10 : 0));
     if (suitable.length < 2) suitable = others.slice().sort((a, b) => a.rep - b.rep).slice(0, 2);
-    const chosen = shuffle(suitable).slice(0, 2);
+    let chosen = shuffle(suitable).slice(0, 2);
+    // career ladder: a strong Formula Apex 2 season earns a seat in Formula Apex
+    if (catId === 'formula' && state.category === 'junior') {
+      const myPos = state.career.history[state.career.history.length - 1]?.pos || 99;
+      const low = others.slice().sort((a, b) => a.rep - b.rep);
+      chosen = myPos === 1 ? low.slice(0, 3) : myPos <= 3 ? low.slice(0, 1) : [];
+    }
+    if (catId === 'junior' && state.category === 'formula') chosen = [];
     for (const t of chosen) offers.push({ category: catId, teamId: t.id, name: t.name, colors: t.colors, rep: t.rep });
   }
   return offers;

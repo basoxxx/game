@@ -1,3 +1,4 @@
+import { carImg } from '../ui/garage3d.js';
 import { App, registerScreen } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { carSVG, teamBadge, categoryArt, flagSVG, helmetSVG } from '../ui/art.js';
@@ -77,8 +78,8 @@ function step1() {
   return `<div class="cat-cards anim-in">${Object.values(CATEGORIES).map((c) => `
     <div class="cat-card ${W.cat === c.id ? 'sel' : ''}" style="--cc:${c.color}" data-a="pick-cat" data-id="${c.id}">
       <div class="art" style="padding-bottom:120px">${categoryArt(c.id)}</div>
-      <div class="cinfo"><div class="tiny upper" style="color:${c.color};letter-spacing:.25em;font-weight:700">${c.type === 'rally' ? 'Prove speciali' : c.id === 'endurance' ? 'Gare di durata' : 'Monoposto'}</div><h2>${c.name}</h2><div class="small muted mt8">${c.tagline}</div>
-      <div class="row mt16 small wrap" style="gap:6px"><span class="chip">${TEAMS[c.id].length} team</span><span class="chip">${c.cars} auto/team</span>${c.driversPerCar > 1 ? `<span class="chip">${c.driversPerCar} piloti/auto</span>` : ''}${c.refuel ? '<span class="chip">Rifornimenti</span>' : ''}${c.type === 'rally' ? '<span class="chip">Decisioni live</span>' : '<span class="chip">Strategia gomme</span>'}</div></div>
+      <div class="cinfo"><div class="tiny upper" style="color:${c.color};letter-spacing:.25em;font-weight:700">${c.id === 'junior' ? '★ Carriera dalla gavetta' : c.type === 'rally' ? 'Prove speciali' : c.id === 'endurance' ? 'Gare di durata' : 'Monoposto'}</div><h2>${c.name}</h2><div class="small muted mt8">${c.tagline}</div>
+      <div class="row mt16 small wrap" style="gap:6px">${c.id === 'junior' ? '<span class="chip good">Vinci per salire in Formula Apex</span>' : ''}<span class="chip">${TEAMS[c.id].length} team</span><span class="chip">${c.cars} auto/team</span>${c.driversPerCar > 1 ? `<span class="chip">${c.driversPerCar} piloti/auto</span>` : ''}${c.refuel ? '<span class="chip">Rifornimenti</span>' : ''}${c.type === 'rally' ? '<span class="chip">Decisioni live</span>' : '<span class="chip">Strategia gomme</span>'}</div></div>
     </div>`).join('')}</div>
     <div class="row mt24" style="justify-content:flex-end"><button class="btn primary xl" data-a="next">Scegli la squadra ${icon('right')}</button></div>`;
 }
@@ -92,15 +93,15 @@ function step2() {
     const [lab, cls] = teamStrengthLabel(sel, teams);
     preview = `<div class="panel glow" style="--team:${sel.colors[0] === '#f0f0f0' || sel.colors[0] === '#f2f2f2' || sel.colors[0] === '#f4f4f4' ? sel.colors[1] : sel.colors[0]}">
       <div class="row between"><div class="row">${teamBadge(sel, 46)}<div><h2>${sel.name}</h2><div class="small muted">${sel.hq} · Team Principal attuale: ${sel.principal}</div></div></div><span class="chip ${cls}">${lab}</span></div>
-      <div class="car-stage mt16" style="min-height:220px"><div class="grid-floor"></div>${carSVG(W.cat, { primary: sel.colors[0], secondary: sel.colors[1], accent: sel.colors[2], pattern: 1 }, { number: '', sponsor: sel.short })}</div>
+      <div class="car-stage mt16" style="min-height:220px"><div class="grid-floor"></div>${carImg(W.cat, { primary: sel.colors[0], secondary: sel.colors[1], accent: sel.colors[2], pattern: 1 }, { number: '', sponsor: sel.short })}</div>
       <div class="grid3 mt16"><div class="kpi"><b>${sel.base}</b><span>Valore vettura</span></div><div class="kpi"><b>€${sel.budget}M</b><span>Budget</span></div><div class="kpi"><b class="stars">${stars(sel.rep / 20)}</b><span>Prestigio</span></div></div>
-      <h3 class="mt16 mb8">Piloti</h3><div class="col" style="gap:6px">${sel.d.map((d) => `<div class="row small">${helmetSVG(null, 26)}${flagSVG(d[1])}<b>${d[0]}</b><span class="muted">${d[2]} anni</span><span class="grow"></span><span class="chip">Velocità ${d[3]}</span></div>`).join('')}</div>
+      <h3 class="mt16 mb8">Piloti</h3>${sel.gen ? '<div class="small muted">Giovani talenti generati all’inizio della carriera.</div>' : ''}<div class="col" style="gap:6px">${(sel.d || []).map((d) => `<div class="row small">${helmetSVG(null, 26)}${flagSVG(d[1])}<b>${d[0]}</b><span class="muted">${d[2]} anni</span><span class="grow"></span><span class="chip">Velocità ${d[3]}</span></div>`).join('')}</div>
     </div>`;
   } else if (W.team === 'custom') {
     const cu = W.custom;
     preview = `<div class="panel glow" style="--team:${cu.colors[0]}">
       <h2>Fonda la tua squadra</h2><div class="small muted">Prenderai il posto del team più debole, con budget ridotto. La vera sfida.</div>
-      <div class="car-stage mt16" style="min-height:200px"><div class="grid-floor"></div>${carSVG(W.cat, { primary: cu.colors[0], secondary: cu.colors[1], accent: cu.colors[2], pattern: cu.pattern }, { number: '', sponsor: cu.short })}</div>
+      <div class="car-stage mt16" style="min-height:200px"><div class="grid-floor"></div>${carImg(W.cat, { primary: cu.colors[0], secondary: cu.colors[1], accent: cu.colors[2], pattern: cu.pattern }, { number: '', sponsor: cu.short })}</div>
       <div class="grid2 mt16"><div class="col gap6"><label class="lbl">Nome squadra</label><input type="text" id="cname" value="${esc(cu.name)}" maxlength="26"></div><div class="col gap6"><label class="lbl">Sigla (3 lettere)</label><input type="text" id="cshort" value="${esc(cu.short)}" maxlength="3"></div></div>
       ${['Colore primario', 'Colore secondario', 'Dettagli'].map((lab, i) => `<div class="mt16"><label class="lbl">${lab}</label><div class="swatches mt8">${PALETTE.map((c) => `<div class="swatch ${cu.colors[i] === c ? 'sel' : ''}" style="background:${c}" data-a="c-color" data-i="${i}" data-c="${c}"></div>`).join('')}</div></div>`).join('')}
       <div class="mt16"><label class="lbl">Motivo livrea</label><div class="row wrap mt8 gap6">${PATTERNS.map((p, i) => `<button class="btn sm ${cu.pattern === i ? 'active' : ''}" data-a="c-pattern" data-p="${i}">${p}</button>`).join('')}</div></div>
