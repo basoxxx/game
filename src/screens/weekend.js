@@ -16,7 +16,7 @@ import { celebrate } from './results.js';
 import { hasPerk } from '../engine/progress.js';
 import { Race3D, webglAvailable } from '../ui/race3d.js';
 import { trackGeometry, drsZones } from '../engine/trackphys.js';
-import { planOptions, stintBar, degChartSVG, drawTelemetry, breakdownHTML, openLessons } from './engineer.js';
+import { planOptions, stintBar, degChartSVG, drawTelemetry, breakdownHTML, openLessons, wearError } from './engineer.js';
 
 const SETUP_PARAMS = [
   { id: 'aero', info: 'Più ala = più grip in curva ma meno velocità sul dritto.', name: 'Carico Aerodinamico', lo: 'Poco carico: la macchina scivola in curva', hi: 'Troppo carico: lenti sul dritto' },
@@ -141,6 +141,13 @@ registerScreen({
       to.vals = { ...from.vals }; to.q = setupQuality(to.vals, to.ideal); to.fb = null; App.refresh();
     },
     'to-quali'() { S().weekend.phase = 'quali'; App.refresh(); },
+    longrun(el) {
+      const st = S(); const w = st.weekend; w.longRuns ||= {};
+      const car = Object.values(w.cars)[0]; if (car.runs < 2) return;
+      car.runs -= 2; w.longRuns[el.dataset.c] = true; sfx.ok();
+      App.toast('Long run completato', `Dati di degrado della ${COMPOUNDS[el.dataset.c].name} acquisiti: la strategia è più precisa.`, 'good');
+      App.refresh();
+    },
     risk(el) { S().weekend.risk[el.dataset.key] = el.dataset.v; App.refresh(); },
     'run-quali'() {
       const st = S(); const w = st.weekend;
@@ -186,7 +193,7 @@ function practiceView(st, tr) {
   const keys = Object.keys(w.cars);
   const fbTxt = (p, f) => f === 'ok' ? 'Perfetto' : f === 'hi' ? 'Un po’ alto' : f === 'lo' ? 'Un po’ basso' : f === 'vhi' ? 'Troppo alto' : 'Troppo basso';
   return `<div class="row between mb16"><div><h2>Prove Libere · Assetto</h2><div class="small muted">Regola i parametri e manda il pilota in pista: ascolta il feedback per avvicinarti all’assetto ideale. Un buon assetto vale fino a mezzo secondo al giro.</div></div>
-    <div class="row"><div class="panel tight row small" style="gap:14px">${icon(w.weather.isRain ? 'rain' : 'sun')}<div><b>Previsioni gara</b><div class="muted">${w.weather.summary}</div></div>${w.qualiRain ? `<span class="chip info">Qualifiche bagnate</span>` : ''}</div><button class="btn primary lg" data-a="to-quali">${st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'} ${icon('right')}</button></div></div>
+    <div class="row">${st.category !== 'rally' ? `<div class="panel tight small"><div class="tiny upper muted mb8">Long run (simulazione di stint · 2 giri di prova)</div><div class="row gap4">${['soft', 'medium', 'hard'].map((c) => `<button class="btn sm ${w.longRuns?.[c] ? 'active' : ''}" data-a="longrun" data-c="${c}" ${w.longRuns?.[c] || Object.values(w.cars)[0].runs < 2 ? 'disabled' : ''}>${tyreBadge(c)} ${w.longRuns?.[c] ? '✓' : ''}</button>`).join('')}</div><div class="tiny ${Math.abs(wearError(st)) < 0.03 ? 'good' : 'warn'} mt8">Dati degrado: ${Math.abs(wearError(st)) < 0.03 ? 'misurati ✓' : 'stimati (±' + Math.round(Math.abs(wearError(st)) * 100 + 4) + '%)'}</div></div>` : ''}<div class="panel tight row small" style="gap:14px">${icon(w.weather.isRain ? 'rain' : 'sun')}<div><b>Previsioni gara</b><div class="muted">${w.weather.summary}</div></div>${w.qualiRain ? `<span class="chip info">Qualifiche bagnate</span>` : ''}</div><button class="btn primary lg" data-a="to-quali">${st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'} ${icon('right')}</button></div></div>
   <div class="grid2 anim-in">${entries.map((e, i) => {
     const c = w.cars[e.key]; const d = st.drivers[e.driverIds[0]];
     const other = keys.find((k) => k !== e.key);
@@ -629,7 +636,8 @@ function strategyPanel(st, w, tr, entries, q, C) {
   let html = `<div class="panel"><div class="panel-head"><h3>Strategia</h3><button class="btn sm ghost" data-a="lessons">${icon('info')} Lezioni</button></div>`;
   if (dry) {
     const d0 = st.drivers[entries[0].driverIds[0]];
-    html += `<div class="small muted mb8">Curve di degrado previste a ${esc(tr.circuit)} (asfalto ${w.weather.trackTemp}°C, usura tracciato ×${tr.wear}).</div>${degChartSVG(st, tr, w.laps, team, d0)}`;
+    const we = Math.abs(wearError(st));
+    html += `<div class="small muted mb8">Curve di degrado previste a ${esc(tr.circuit)} (asfalto ${w.weather.trackTemp}°C, usura tracciato ×${tr.wear}). <span class="${we < 0.03 ? 'good' : 'warn'}">${we < 0.03 ? 'Dati misurati con i long run.' : 'Dati stimati: senza long run l’errore può arrivare al ' + Math.round(we * 100 + 4) + '%.'}</span></div>${degChartSVG(st, tr, w.laps, team, d0)}`;
     for (const e of entries) {
       const d = st.drivers[e.driverIds[0]];
       const opts = planOptions(st, tr, w.laps, team, d, w.weather.trackTemp);

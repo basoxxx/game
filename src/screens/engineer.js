@@ -7,9 +7,16 @@ import { strategyOptions, estimateWearMult, tyreModel, degPenalty } from '../eng
 import { realLaps } from '../engine/race.js';
 import { tyreBadge } from './common.js';
 
+// estimation error on tyre wear unless measured with a long run in practice
+export function wearError(st) {
+  const w = st.weekend; if (!w) return 0;
+  if (w.wearErr == null) w.wearErr = (Math.random() - 0.5) * 0.32;
+  const known = Object.values(w.longRuns || {}).filter(Boolean).length;
+  return w.wearErr * Math.max(0, 1 - known * 0.5);
+}
 export function planOptions(st, tr, laps, team, driver, trackTemp) {
   const scale = realLaps(st, tr) / laps;
-  return strategyOptions(st.category, tr, laps, scale, estimateWearMult(team, driver, trackTemp), tr.pit || 21).slice(0, 5);
+  return strategyOptions(st.category, tr, laps, scale, estimateWearMult(team, driver, trackTemp) * (1 + wearError(st)), tr.pit || 21).slice(0, 5);
 }
 
 export function stintBar(stints, total) {
@@ -19,7 +26,7 @@ export function stintBar(stints, total) {
 // Degradation curves chart (SVG) for the planner
 export function degChartSVG(st, tr, laps, team, driver) {
   const scale = realLaps(st, tr) / laps;
-  const wm = estimateWearMult(team, driver) * tr.wear;
+  const wm = estimateWearMult(team, driver) * tr.wear * (1 + wearError(st));
   const W = 460, H = 170, P = 30;
   const comps = ['soft', 'medium', 'hard'];
   const maxL = laps;
