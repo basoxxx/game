@@ -153,6 +153,7 @@ export class CircuitSim {
     this.stintLaps = this.endurance ? Math.max(3, stintReal / this.scale) : 0;
     const smart = aiSmart(state);
     this.planCache = {};
+    this.teamOrders = {}; this.radioQ = []; this.radioId = 0;
     this.cars = grid.map((key, i) => {
       const e = byKey[key];
       const team = state.teams[e.teamId];
@@ -166,7 +167,7 @@ export class CircuitSim {
         mode: 'normal', status: 'running', reason: null, inPit: 0, pitReq: null, pitStops: 0,
         driverIdx: 0, stintCount: 0, battleT: 0, damage: 0, penalty: 0, lapTarget: track.lap, finishTime: null,
         auto: !e.isPlayer, smart: e.isPlayer ? 0.9 : clamp(smart + rand(-0.12, 0.08), 0.3, 1), aiRainReact: rand(0, 0.15), gapAhead: 9, drs: false, dirty: false,
-        stintLap: 0, plan: null, planIdx: 0,
+        stintLap: 0, plan: null, planIdx: 0, ers: 100, ersMode: 'balanced',
       };
       return car;
     });
@@ -244,6 +245,7 @@ export class CircuitSim {
     out.mode = { push: -0.32, normal: 0, save: 0.45 }[c.mode] * ls;
     out.air = (c.drs ? -0.38 : 0) * ls + (c.dirty ? 0.28 * (1 - this.track.ovt * 0.5) : 0) * ls;
     out.night = this.night && this.endurance ? (0.35 - d.attrs.exp / 400) * ls : 0;
+    out.ers = { deploy: -0.34, balanced: 0, harvest: 0.26 }[c.ersMode || 'balanced'] * ls * (this.cat === 'rally' ? 0 : 1);
     out.damage = c.damage * ls;
     out.fatigue = this.endurance && c.stintCount >= 3 ? 0.3 * (c.stintCount - 2) * ls : 0;
     return out;
@@ -267,6 +269,8 @@ export class CircuitSim {
   }
 
   setMode(key, mode) { const c = this.cars.find((x) => x.key === key); if (c && c.status === 'running') { c.mode = mode; c.lapTarget = this.computeLap(c); } }
+  setErs(key, m) { const c = this.cars.find((x) => x.key === key); if (c && c.status === 'running') { c.ersMode = m; c.lapTarget = this.computeLap(c); } }
+  setOrders(teamId, o) { this.teamOrders[teamId] = o; if (o === 'swap') this.log('📻 Ordine di scuderia: scambio di posizioni.', 'radio', null, true); else if (o === 'hold') this.log('📻 Ordine di scuderia: mantenete le posizioni.', 'radio', null, true); }
   requestPit(key, req) { const c = this.cars.find((x) => x.key === key); if (c && c.status === 'running') c.pitReq = req; }
   cancelPit(key) { const c = this.cars.find((x) => x.key === key); if (c) c.pitReq = null; }
 
@@ -316,6 +320,39 @@ export class CircuitSim {
     const dryUsed = [...c.compoundsUsed].filter((x) => !COMPOUNDS[x].wet);
     if (!this.weather.isRain && dryUsed.length === 1 && dryUsed[0] === comp) comp = comp === 'medium' ? (realLeft < 20 ? 'soft' : 'hard') : 'medium';
     return comp;
+  }
+
+  maybeRadio(c) {
+    if (this.radioQ.some((r) => r.key === c.key) || this.sc || c.lap < 2 || this.laps - c.dist < 2) return;
+    if (this._lastRadio && this.time - this._lastRadio < 90) return;
+    const d = this.driver(c); const first = d.name.split(' ')[0];
+    const mate = this.cars.find((x) => x.teamId === c.teamId && x !== c && x.status === 'running');
+    const opts = [];
+    if (c.wear > 0.78 && !c.pitReq) opts.push({ type: 'pit', w: 3, text: `${first}: «Le gomme sono finite, mi fermo questo giro?»` });
+    if (mate && mate.pos === c.pos - 1 && c.gapAhead < 1.3 && c.lapTarget < mate.lapTarget - 0.12) opts.push({ type: 'pass', w: 3, text: `${first}: «Sono più veloce di ${this.driver(mate).name.split(' ')[0]}, fatemi passare!»`, mate: mate.key });
+    if (c.wear < 0.5 && c.mode !== 'push' && c.gapAhead < 2.5) opts.push({ type: 'push', w: 1, text: `${first}: «Ho gomme buone, posso attaccare?»` });
+    const nextRain = (this.weather.plan[Math.min(this.weather.plan.length - 1, c.lap + 2)] || 0);
+    if (!COMPOUNDS[c.tyre].wet && nextRain > 0.3 && this.rain < 0.2) opts.push({ type: 'rain', w: 3, text: `${first}: «Vedo nuvole nere, inizia a piovigginare in curva 1. Che facciamo?»` });
+    if (c.ers < 15) opts.push({ type: 'ers', w: 1, text: `${first}: «Batteria a terra, la ricarico?»` });
+    if (!opts.length || !chance(0.45)) return;
+    const o = opts[Math.floor(Math.random() * opts.length)];
+    this._lastRadio = this.time;
+    this.radioQ.push({ id: ++this.radioId, key: c.key, ...o, until: this.time + 40 });
+    this.log(`📻 ${o.text}`, 'radio', c.key, true);
+  }
+
+  answerRadio(id, yes) {
+    const r = this.radioQ.find((x) => x.id === id); if (!r) return;
+    this.radioQ = this.radioQ.filter((x) => x.id !== id);
+    const c = this.cars.find((x) => x.key === r.key); if (!c || c.status !== 'running') return;
+    const d = this.driver(c);
+    const mood = (v) => { d.morale = clamp(d.morale + v, 10, 100); };
+    if (r.type === 'pit') { if (yes) { c.pitReq = { compound: this.dryChoice(c, this.laps - c.dist), fuel: true }; mood(2); } else { mood(-2); this.log(`📻 Muretto: «Resta fuori, ${d.name.split(' ')[0]}, ancora qualche giro.»`, 'radio', c.key, true); } }
+    if (r.type === 'pass') { if (yes) { this.setOrders(c.teamId, 'swap'); mood(3); const m = this.cars.find((x) => x.key === r.mate); if (m) { const dm = this.driver(m); dm.morale = clamp(dm.morale - 4, 10, 100); } } else { mood(-4); this.log('📻 Muretto: «Negativo, mantenete le posizioni.»', 'radio', c.key, true); this.setOrders(c.teamId, 'hold'); } }
+    if (r.type === 'push') { if (yes) { c.mode = 'push'; c.ersMode = 'deploy'; mood(2); } else mood(-1); }
+    if (r.type === 'rain') { if (yes) { c.pitReq = { compound: this.C.compounds.includes('inter') ? 'inter' : 'wet', fuel: true }; } else this.log(`📻 Muretto: «Resta fuori, è solo una pioggerella.»`, 'radio', c.key, true); }
+    if (r.type === 'ers') { if (yes) c.ersMode = 'harvest'; }
+    c.lapTarget = this.computeLap(c);
   }
 
   enterPit(c) {
@@ -426,6 +463,7 @@ export class CircuitSim {
     if (c.auto) { const req = this.aiThink(c); if (req) c.pitReq = req; }
     if (c.isPlayer && !c.auto && this.endurance && c.fuel < 1.05 && !c.pitReq) { c.pitReq = { compound: null, fuel: true }; this.log(`⛽ Ingegnere: ${d.name} chiamato ai box per carburante (automatico).`, 'pit', c.key, true); }
     if (c.isPlayer && !c.auto && wear > 1.1 && !c.pitReq && this.laps - c.dist > 2) this.log(`📻 Ingegnere a ${d.name.split(' ')[0]}: «Le gomme sono finite, dobbiamo fermarci!»`, 'radio', c.key, true);
+    if (c.isPlayer && !c.auto) this.maybeRadio(c);
     if (c.pitReq && c.lap < this.laps) this.enterPit(c);
     c.lapTarget = this.computeLap(c);
   }
@@ -439,6 +477,7 @@ export class CircuitSim {
     if (rain > 0.2 && this._lastRain <= 0.2) this.log('🌧 Inizia a piovere!', 'weather', null, true);
     if (rain < 0.1 && this._lastRain >= 0.1) this.log('☀ La pioggia smette, pista in asciugatura.', 'weather', null, true);
     this._lastRain = rain;
+    if (this.radioQ.length) for (const r of this.radioQ.filter((x) => this.time > x.until)) this.answerRadio(r.id, r.type === 'ers' || r.type === 'pit');
     if (this.vsc && this.time > this.vsc.until) { this.vsc = null; this.log('🟢 Fine Virtual Safety Car', 'sc', null, true); for (const c of this.cars) c.lapTarget = this.computeLap(c); }
     for (const c of running) {
       if (c.inPit > 0) { c.inPit -= dt; if (c.inPit <= 0) c.inPit = 0; continue; }
@@ -447,6 +486,13 @@ export class CircuitSim {
       c.dist += dt / lt;
       c.age += (dt / lt) * this.scale * this.track.wear * this.wearMult(c) * (this.sc || this.vsc ? 0.35 : 1) * (Math.abs(c.temp - tyreModel(this.cat, c.tyre).win) > 12 ? 1.25 : 1) * (COMPOUNDS[c.tyre].wet && rain < 0.3 ? 2.2 : 1);
       c.wear = c.age / this.life(c);
+      const lapFrac = dt / lt;
+      const rate = { deploy: -32, balanced: 3, harvest: 26 }[c.ersMode] * (this.sc || this.vsc ? 0 : 1) + (this.sc || this.vsc ? 30 : 0);
+      const before = c.ersMode;
+      c.ers = clamp(c.ers + rate * lapFrac, 0, 100);
+      if (c.ers <= 0 && c.ersMode === 'deploy') c.ersMode = 'balanced';
+      if (c.ers >= 100 && c.ersMode === 'harvest' && c.auto) c.ersMode = 'balanced';
+      if (c.ersMode !== before) c.lapTarget = this.computeLap(c);
       if (Math.floor(c.dist) > c.lap && Math.floor(c.dist) >= 1) this.onLapComplete(c, this.time - (c.dist - Math.floor(c.dist)) * lt);
     }
     // interactions
@@ -460,6 +506,24 @@ export class CircuitSim {
       const wasDrs = b.drs, wasDirty = b.dirty;
       b.drs = this.C.id === 'formula' && gapS < 1 && b.lap >= 2 && rain < 0.2 && !this.sc && !this.vsc;
       b.dirty = gapS < 1.6 && !this.sc && !this.vsc;
+      if (b.auto && !this.sc && !this.vsc) {
+        const want = (gapS < 1.0 && b.ers > 35) ? 'deploy' : b.ers < 25 ? 'harvest' : (gapS > 3 && b.ers < 70) ? 'harvest' : 'balanced';
+        if (want !== b.ersMode) { b.ersMode = want; b.lapTarget = this.computeLap(b); }
+      }
+      if (a.auto && gapS < 0.6 && a.ers > 45 && a.ersMode !== 'deploy' && !this.sc && !this.vsc) { a.ersMode = 'deploy'; a.lapTarget = this.computeLap(a); }
+      // team orders
+      if (a.teamId === b.teamId && gapS < 1.6 && !this.sc && !this.vsc) {
+        const ord = this.teamOrders[a.teamId] || 'free';
+        if (ord === 'swap' && a.status === 'running' && b.status === 'running') {
+          b.dist = a.dist + 0.0008; a.dist -= 0.006;
+          [order[i - 1], order[i]] = [b, a];
+          this.log(`🔁 ${this.driver(a).name} lascia passare il compagno ${this.driver(b).name}.`, 'radio', b.key, a.isPlayer);
+          this.teamOrders[a.teamId] = 'free';
+          if (a.isPlayer) { const da = this.driver(a); da.morale = clamp(da.morale - 3, 10, 100); }
+          continue;
+        }
+        if (ord === 'hold' && gap < MIN_GAP * 1.5) { b.dist = a.dist - MIN_GAP * 1.5; b.battleT = 0; continue; }
+      }
       if (b.drs !== wasDrs || b.dirty !== wasDirty) b.lapTarget = this.computeLap(b);
       if (gap > 0.4) continue;
       if (gap < MIN_GAP) {
@@ -469,7 +533,7 @@ export class CircuitSim {
           b.battleT = 0;
           const paceDiff = a.lapTarget - b.lapTarget;
           const da = this.driver(a), db = this.driver(b);
-          const p = clamp(0.05 + this.track.ovt * 0.42 + (paceDiff / this.ls) * 0.3 + (db.attrs.race - da.attrs.race) / 110 + (b.drs ? 0.1 : 0) + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0), 0.02, 0.9);
+          const p = clamp(0.05 + this.track.ovt * 0.42 + (paceDiff / this.ls) * 0.3 + (db.attrs.race - da.attrs.race) / 110 + (b.drs ? 0.1 : 0) + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.09 : 0) - (a.ersMode === 'deploy' ? 0.07 : 0), 0.02, 0.9);
           if (chance(p)) {
             b.dist = a.dist + 0.0012; a.dist -= 0.0012;
             [order[i - 1], order[i]] = [b, a];

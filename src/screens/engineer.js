@@ -78,6 +78,7 @@ export function breakdownHTML(sim, c) {
     ['Meteo', b.weather, ''],
     ['Ritmo pilota', b.mode, 'Attacco: più veloce ma scalda e consuma le gomme.'],
     ['Aria (DRS / scia sporca)', b.air, c.drs ? 'DRS attivo: entro 1 secondo.' : c.dirty ? 'Aria sporca: perdita di carico in curva.' : 'Aria pulita.'],
+    ['Energia (ERS)', b.ers || 0, c.ersMode === 'deploy' ? 'Override: energia elettrica extra.' : c.ersMode === 'harvest' ? 'Ricarica: si recupera energia in frenata, si perde tempo.' : 'Bilanciato.'],
     ['Danni', b.damage, ''],
   ].filter((r) => Math.abs(r[1]) > 0.004 || r[0].startsWith('Passo'));
   const total = Object.values(b).reduce((s, v) => s + v, 0);
@@ -94,6 +95,8 @@ export const LESSONS = [
   { t: 'Aria sporca e DRS', b: 'Seguire da vicino un’altra auto riduce il carico aerodinamico (aria sporca) e rende difficile restare attaccati. Entro 1 secondo però si apre il DRS sul rettilineo, che aiuta il sorpasso.' },
   { t: 'Assetto: carico vs velocità', b: 'Più ala = più velocità in curva ma meno in rettilineo. Monza vuole poco carico, Monaco e l’Ungheria il massimo. La sensibilità del tracciato ti dice quale componente conta di più.' },
   { t: 'Regola delle due mescole', b: 'In una gara asciutta devi usare almeno due mescole diverse da asciutto. Se non lo fai ricevi 10 secondi di penalità.' },
+  { t: 'Energia: ERS e Override', b: 'La batteria ibrida si scarica in Override (circa un terzo di carica a giro) e regala circa 3 decimi al giro e più possibilità di sorpasso. In Ricarica perdi qualche decimo ma ti prepari all’attacco. Usala per attaccare entro 1 secondo o per difenderti.' },
+  { t: 'Ordini di scuderia', b: 'Mantenere le posizioni evita che i tuoi piloti si danneggino a vicenda. Lo scambio fa passare il pilota più veloce, ma chi cede si arrabbia. Il morale influisce sulle prestazioni.' },
   { t: 'Endurance: stint e piloti', b: 'Nelle gare di durata il serbatoio dura circa 45 minuti. Le gomme possono fare doppio stint. Dopo 3 stint di fila il pilota si stanca e rallenta: alterna i piloti!' },
 ];
 
