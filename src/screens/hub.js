@@ -7,6 +7,7 @@ import { getTrack } from '../engine/world.js';
 import { cat, playerTeam, teamDrivers, standings, partRanking, fmtM, rdSlots, RD_TIERS, partName, freeAgents, seatsPerTeam } from '../engine/season.js';
 import { genStage, circuitPath } from '../ui/trackview.js';
 import { partSensitivity, trackStats } from '../engine/trackphys.js';
+import { ensureProgress } from '../engine/progress.js';
 import { SURFACES } from '../data/categories.js';
 import { driverChip, ovr, ratingBox, moraleChip, teamStripe } from './common.js';
 
@@ -31,9 +32,10 @@ registerScreen({
     const todo = [];
     if (myDrivers.length < seatsPerTeam(st)) todo.push(['bad', 'Sedili vuoti! Ingaggia un pilota', 'market']);
     if (sponsorSlots > 0 && st.sponsorOffers.length) todo.push(['warn', sponsorSlots === 1 ? '1 spazio sponsor libero' : `${sponsorSlots} spazi sponsor liberi`, 'finance']);
-    if (t.projects.length < rdSlots(t)) todo.push(['warn', rdSlots(t) - t.projects.length === 1 ? '1 slot R&D inattivo' : `${rdSlots(t) - t.projects.length} slot R&D inattivi`, 'car']);
+    if (t.projects.length < rdSlots(t, st)) todo.push(['warn', rdSlots(t, st) - t.projects.length === 1 ? '1 slot R&D inattivo' : `${rdSlots(t, st) - t.projects.length} slot R&D inattivi`, 'car']);
     if (st.round === 0 && t.car.concept === 'balanced' && !st._conceptSeen) todo.push(['info', 'Scegli il concetto della nuova vettura', 'car']);
     const unread = st.inbox.filter((m) => !m.read).length;
+    if (st.career.points) todo.push(['good', `${st.career.points} punti abilità da spendere`, 'career']);
     if (unread) todo.push(['info', unread === 1 ? '1 messaggio non letto' : `${unread} messaggi non letti`, 'inbox']);
 
     let hero = '';
@@ -86,6 +88,7 @@ registerScreen({
             </div>
           </div>
           <div class="col gap16">
+            ${st.objectives?.length ? `<div class="panel"><div class="panel-head"><h3>Obiettivi stagionali</h3><span class="chip">Lv ${st.career.level || 1}</span></div><div class="col gap6">${st.objectives.map((o) => `<div class="row small">${icon(o.done ? 'check' : 'target', 'ico', `style="width:16px;color:${o.done ? 'var(--good)' : 'var(--muted)'}"`)}<span class="grow ${o.done ? 'good' : ''}">${esc(o.text)}</span><span class="tiny muted">${o.xp} XP</span></div>`).join('')}</div></div>` : ''}
             ${todo.length ? `<div class="panel"><div class="panel-head"><h3>Da fare</h3></div><div class="col gap6">${todo.map(([cls, txt, to]) => `<div class="card click row" data-a="nav" data-to="${to}" style="padding:10px 12px"><span class="chip ${cls}" style="width:10px;height:10px;padding:0"></span><span class="grow small">${txt}</span>${icon('right', 'ico', 'style="width:14px;opacity:.5"')}</div>`).join('')}</div></div>` : ''}
             <div class="panel"><div class="panel-head"><h3>Classifica piloti</h3><button class="btn sm ghost" data-a="nav" data-to="standings">Tutte ${icon('right')}</button></div>
               <table class="tbl"><tbody>${s.drivers.slice(0, 6).map((x, i) => { const d = st.drivers[x.id]; const tm = st.teams[d.teamId]; return `<tr class="${d.teamId === t.id ? 'me' : ''}"><td class="pos p${i + 1}">${i + 1}</td><td>${tm ? teamStripe(tm) : ''}</td><td>${driverChip(st, d, { helmet: false })}</td><td class="right mono"><b>${x.pts}</b></td></tr>`; }).join('')}</tbody></table>
@@ -100,6 +103,7 @@ registerScreen({
   },
   mount() {
     const st = S();
+    ensureProgress(st);
     if (!st.tutorialSeen) {
       st.tutorialSeen = true;
       const C = cat(st);

@@ -74,7 +74,7 @@ registerScreen({
     if (X.decision && (e.key === 'b' || e.key === 'B' || e.key === 'ArrowRight')) decide('b');
   },
   actions: {
-    exit() { App.go('hub'); },
+    exit() { App.go(S().quick ? 'quickrace' : 'hub'); },
     slider(el) { const c = S().weekend.cars[el.dataset.key]; c.vals[el.dataset.p] = +el.value; const l = document.getElementById(`rv-${el.dataset.key}-${el.dataset.p}`); if (l) l.textContent = el.value; },
     run(el) {
       const st = S(); const c = st.weekend.cars[el.dataset.key]; if (c.runs <= 0) return;

@@ -232,6 +232,7 @@ export function createWorld({ playerName, category, teamId, difficulty, seasonLe
   const ranking = Object.values(state.teams).sort((a, b) => avgPart(b) - avgPart(a)).map((t) => t.id);
   state.board.target = Math.min(ranking.length, ranking.indexOf(teamId) + 1 + (difficulty === 'easy' ? 1 : 0));
   state.board.confidence = 70;
+  state.career.level = 1; state.career.xp = 0; state.career.points = 1; state.career.perks = [];
   return state;
 }
 

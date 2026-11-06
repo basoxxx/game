@@ -4,6 +4,7 @@ import { pointsFor } from './season.js';
 import { physicsLap } from './trackphys.js';
 import { tyreModel, degPenalty, tempPenalty, weatherFactor, strategyOptions } from './tyres.js';
 import { rand, randInt, chance, clamp, gauss, pick } from './rng.js';
+import { hasPerk } from './progress.js';
 
 export const RACE_LENGTHS = { short: 0.25, normal: 0.4, long: 0.66, full: 1 };
 
@@ -27,7 +28,7 @@ export function makeWeatherPlan(track, laps, forcedRain) {
   const isRain = forcedRain ?? chance(track.rain);
   let summary = 'Sereno';
   if (isRain) {
-    const type = pick(['shower', 'start', 'late', 'full']);
+    const type = forcedRain === true ? pick(['start', 'full', 'full', 'shower']) : pick(['shower', 'start', 'late', 'full']);
     let s, e, peak;
     if (type === 'shower') { s = randInt(2, Math.floor(laps * 0.6)); e = s + randInt(3, Math.max(4, Math.floor(laps * 0.35))); peak = rand(0.35, 0.8); }
     else if (type === 'start') { s = 0; e = randInt(Math.floor(laps * 0.25), Math.floor(laps * 0.6)); peak = rand(0.5, 0.95); }
@@ -185,6 +186,7 @@ export class CircuitSim {
     const tp = c.team.car.parts.tyre ?? 75;
     let w = (1.18 - tp / 420 - d.attrs.tyre / 520) * { push: 1.32, normal: 1, save: 0.72 }[mode];
     w *= 1 + (this.trackTemp - 32) * 0.008;
+    if (c.isPlayer && hasPerk(this.state, 'tyre_reader')) w *= 0.94;
     return w;
   }
 
@@ -324,13 +326,14 @@ export class CircuitSim {
     let slow = '';
     if (chance(0.06 * (1.25 - mech / 100) * (1.2 - crew * 0.08))) { const x = rand(2.5, 8); stat += x; slow = ` (pit stop lento +${x.toFixed(1)}s!)`; }
     if (req.swap && this.endurance) stat += 4;
+    if (c.isPlayer && hasPerk(this.state, 'fast_crew')) stat -= 0.3;
     if (!req.compound && this.endurance) stat -= 9;
     const loss = this.pitLoss * (this.sc ? 0.5 : this.vsc ? 0.65 : 1);
     if (c.damage > 0 && req.repair !== false) { stat += c.damage * 12; c.damage = 0; }
     c.inPit = loss + stat;
     c.pitStops++;
     if (c.isPlayer && !c.auto && c.plan && req.compound && c.plan[c.planIdx + 1]) c.planIdx++;
-    if (req.compound) { c.tyre = req.compound; c.age = 0; c.temp = this.endurance ? 72 : 70; c.compoundsUsed.add(req.compound); c.stintLap = 0; }
+    if (req.compound) { c.tyre = req.compound; c.age = 0; c.temp = (this.endurance ? 72 : 70) + (c.isPlayer && hasPerk(this.state, 'outlap') ? 18 : 0); c.compoundsUsed.add(req.compound); c.stintLap = 0; }
     if (this.endurance) { c.fuel = c.fuelMax; c.stintCount++; }
     if (req.swap && c.driverIds.length > 1) { c.driverIdx = (c.driverIdx + 1) % c.driverIds.length; c.stintCount = 0; }
     const d = this.driver(c);
@@ -406,6 +409,7 @@ export class CircuitSim {
     const rel = c.team.car.parts.reliability;
     let failP = 0.0012 * ((100 - rel) / 18) ** 2 * { push: 1.25, normal: 1, save: 0.8 }[c.mode] * Math.max(0.4, this.scale * 0.6);
     if (this.endurance) failP *= 0.55;
+    if (c.isPlayer && hasPerk(this.state, 'reliable')) failP *= 0.8;
     if (chance(crashP)) {
       const r = Math.random();
       if (r < 0.42) this.retire(c, pick(['Incidente', 'Contatto alla staccata', 'Fuori pista contro le barriere', 'Testacoda e muro']), true);

@@ -13,6 +13,7 @@ import { mulberry32, clamp, chance, rand } from '../engine/rng.js';
 import { tyreBadge, teamStripe, driverChip } from './common.js';
 import { sfx, engineStart, engineSet, engineStop, music } from '../ui/audio.js';
 import { celebrate } from './results.js';
+import { hasPerk } from '../engine/progress.js';
 import { Race3D, webglAvailable } from '../ui/race3d.js';
 import { trackGeometry } from '../engine/trackphys.js';
 import { planOptions, stintBar, degChartSVG, drawTelemetry, breakdownHTML, openLessons } from './engineer.js';
@@ -44,13 +45,13 @@ function initWeekend(st) {
   const t = playerTeam(st);
   const entries = buildEntries(st).filter((e) => e.isPlayer);
   const laps = raceLaps(st, tr);
-  const weather = makeWeatherPlan(tr, laps);
+  const weather = makeWeatherPlan(tr, laps, st.forceRain);
   const sim = t.facilities.simulator;
   st.weekend = {
     trackId: tr.id, phase: 'practice', laps,
     weather: { plan: weather.plan, isRain: weather.isRain, summary: weather.summary, trackTemp: weather.trackTemp },
     qualiRain: chance(tr.rain * 0.7) ? rand(0.2, 0.8) : 0,
-    cars: Object.fromEntries(entries.map((e) => [e.key, { runs: 4 + Math.floor(sim / 2), vals: Object.fromEntries(SETUP_PARAMS.map((p) => [p.id, 50])), fb: null, q: 0.3, laps: [], ideal: idealFor(st, e.key, tr.seed) }])),
+    cars: Object.fromEntries(entries.map((e) => [e.key, { runs: 4 + Math.floor(sim / 2) + (hasPerk(st, 'data') ? 1 : 0), vals: Object.fromEntries(SETUP_PARAMS.map((p) => [p.id, 50])), fb: null, q: 0.3, laps: [], ideal: idealFor(st, e.key, tr.seed) }])),
     risk: {}, startTyre: {}, quali: null,
   };
 }
@@ -69,6 +70,7 @@ registerScreen({
     const st = S();
     if (!st.weekend) { ensureSeats(st); initWeekend(st); }
     const w = st.weekend;
+    if (st.quickSkip && w.phase === 'practice') { for (const c of Object.values(w.cars)) c.q = aiSetupQuality(st, playerTeam(st)); w.phase = 'quali'; }
     if (w.phase === 'race') return raceScreen(st);
     const tr = getTrack(st.category, w.trackId);
     const steps = [['practice', 'Prove Libere'], ['quali', st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'], ['race', 'Gara']];
@@ -92,7 +94,7 @@ registerScreen({
     if (sp) { R.speed = sp; R.paused = false; updateSpeedUI(); }
   },
   actions: {
-    exit() { App.go('hub'); },
+    exit() { App.go(S().quick ? 'quickrace' : 'hub'); },
     slider(el) {
       const st = S(); const c = st.weekend.cars[el.dataset.key];
       c.vals[el.dataset.p] = +el.value;
@@ -108,7 +110,7 @@ registerScreen({
       const d = st.drivers[car.driverIds[0]];
       c.runs--;
       c.q = setupQuality(c.vals, c.ideal);
-      const tol = 5 + (100 - eng) / 12 + (100 - d.attrs.exp) / 25;
+      const tol = 5 + (100 - eng) / 12 + (100 - d.attrs.exp) / 25 - (hasPerk(st, 'data') ? 2 : 0);
       c.fb = Object.fromEntries(SETUP_PARAMS.map((p) => {
         const diff = c.vals[p.id] - c.ideal[p.id];
         const noisy = diff + rand(-tol * 0.4, tol * 0.4);
@@ -240,7 +242,7 @@ function qualiView(st, tr) {
     }).join('')}</tbody></table></div>
     <div class="col gap16">
       <div class="panel"><div class="panel-head"><h3>Meteo gara</h3></div><div class="row">${icon(w.weather.isRain ? 'rain' : 'sun', 'ico', 'style="width:36px;height:36px"')}<div><b>${w.weather.summary}</b><div class="small muted">Probabilità di pioggia stimata: ${w.weather.isRain ? Math.round(60 + Math.random() * 30) : Math.round(tr.rain * 40)}%</div></div></div>
-        <div class="weather-strip mt16">${w.weather.plan.slice(0, w.laps).map((r) => `<i style="height:${Math.max(2, r * 20)}px;opacity:${r > 0.05 ? 0.9 : 0.15}"></i>`).join('')}</div><div class="row between tiny muted"><span>Giro 1</span><span>Giro ${w.laps}</span></div>
+        <div class="weather-strip mt16">${forecast(st, w).map((r) => `<i style="height:${Math.max(2, r * 20)}px;opacity:${r > 0.05 ? 0.9 : 0.15}"></i>`).join('')}</div>${hasPerk(st, 'meteo') ? '<div class="tiny good">Radar preciso (abilità Meteorologo)</div>' : '<div class="tiny muted">Previsione indicativa: sblocca “Meteorologo” per il radar preciso.</div>'}<div class="row between tiny muted"><span>Giro 1</span><span>Giro ${w.laps}</span></div>
       </div>
       ${strategyPanel(st, w, tr, entries, q, C)}
       <button class="btn primary xl pulse" data-a="to-race">${icon('flag')} Vai in griglia</button>
@@ -556,6 +558,7 @@ function finishRace() {
   const res = sim.results();
   res.pole = st.weekend.quali ? buildEntries(st).find((e) => e.key === st.weekend.quali.grid[0])?.driverIds[0] : null;
   res.track = st.weekend.trackId;
+  res.wet = sim.weather.isRain;
   const evIdx = st.round;
   stopRace();
   R.sim = null;
@@ -563,6 +566,7 @@ function finishRace() {
   st.lastRace = { idx: evIdx };
   saveGame();
   App.go('results', { idx: evIdx });
+  if (st.quick) st.quickDone = true;
 }
 
 function strategyPanel(st, w, tr, entries, q, C) {
@@ -592,4 +596,11 @@ function tempCls(sim, c) {
   const win = { soft: 95, medium: 103, hard: 111, inter: 75, wet: 65 }[c.tyre] - (sim.endurance ? 3 : 0);
   const d = Math.abs(c.temp - win);
   return d < 7 ? 'good' : d < 14 ? 'warn' : 'bad';
+}
+
+function forecast(st, w) {
+  const plan = w.weather.plan.slice(0, w.laps);
+  if (hasPerk(st, 'meteo')) return plan;
+  if (!w._fc) { const shift = Math.round((Math.random() - 0.5) * w.laps * 0.3); w._fc = plan.map((_, i) => { const r = plan[Math.min(plan.length - 1, Math.max(0, i + shift))] || 0; return Math.max(0, Math.min(1, r * (0.6 + Math.random() * 0.7))); }); }
+  return w._fc;
 }

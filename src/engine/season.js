@@ -1,6 +1,7 @@
 import { CATEGORIES, POINTS_STD } from '../data/categories.js';
 import { ENGINE_SUPPLIERS, TEAMS } from '../data/teams.js';
 import { rand, randInt, pick, clamp, chance, shuffle, uid, gauss } from './rng.js';
+import { gainXP, checkObjectives, ensureProgress, makeObjectives, hasPerk } from './progress.js';
 import { driverOverall, salaryFor, generateRookie, generateVeteranFreeAgent, makeSponsorOffers, buildCalendar, getTrack, makeStaff, STAFF_ROLES, FACILITIES, avgPart } from './world.js';
 
 export const fmtM = (v) => `${v < 0 ? '-' : ''}€${Math.abs(v).toFixed(Math.abs(v) >= 100 ? 0 : 1)}M`;
@@ -50,14 +51,14 @@ export const RD_TIERS = {
   major: { name: 'Pacchetto Evolutivo', races: 2, cost: 5.5, gain: [2.8, 5.2], fail: 0.08, desc: 'Nuovo pacchetto, buon rapporto costo/beneficio.' },
   revolution: { name: 'Progetto Rivoluzionario', races: 3, cost: 11, gain: [5, 10.5], fail: 0.22, desc: 'Grande salto, ma può fallire.' },
 };
-export function rdSlots(team) { return 1 + Math.floor(team.facilities.factory / 2); }
-export function rdCost(state, tier) { return +(RD_TIERS[tier].cost * cat(state).budgetScale).toFixed(2); }
+export function rdSlots(team, state) { return 1 + Math.floor(team.facilities.factory / 2) + (team.isPlayer && hasPerk(state, 'rd_slot') ? 1 : 0); }
+export function rdCost(state, tier) { return +(RD_TIERS[tier].cost * cat(state).budgetScale * (hasPerk(state, 'rd_cost') ? 0.88 : 1)).toFixed(2); }
 function diminish(val) { return clamp((102 - val) / 24, 0.18, 1.35); }
 
 export function startProject(state, partId, tier) {
   const t = playerTeam(state);
   const T = RD_TIERS[tier];
-  if (t.projects.length >= rdSlots(t)) return { ok: false, msg: 'Nessuno slot R&D libero: potenzia la Fabbrica.' };
+  if (t.projects.length >= rdSlots(t, state)) return { ok: false, msg: 'Nessuno slot R&D libero: potenzia la Fabbrica.' };
   if (t.projects.some((p) => p.part === partId)) return { ok: false, msg: 'C’è già un progetto attivo su questo componente.' };
   const cost = rdCost(state, tier);
   if (t.money < cost) return { ok: false, msg: 'Fondi insufficienti.' };
@@ -79,6 +80,10 @@ function completeProject(state, team, proj) {
   let gain;
   if (chance(failP)) gain = rand(-0.5, 1);
   else gain = rand(T.gain[0], T.gain[1]) * tdF * wtF * diminish(cur);
+  if (team.isPlayer && gain > 0) {
+    if (hasPerk(state, 'rd_gain')) gain *= 1.1;
+    if (hasPerk(state, 'reverse')) { const vals = Object.values(state.teams).map((t) => t.car.parts[proj.part]).sort((a, b) => a - b); if (cur < vals[Math.floor(vals.length / 2)]) gain *= 1.2; }
+  }
   gain = +gain.toFixed(1);
   team.car.parts[proj.part] = clamp(+(cur + gain).toFixed(1), 30, 99.5);
   return gain;
@@ -169,7 +174,7 @@ export function applyRoundResults(state, results) {
       const team = state.teams[d.teamId];
       const expected = team ? 1 + overallCarRanking(state).indexOf(team.id) * 2 : 10;
       const delta = r.status === 'dnf' ? -4 : clamp((expected - r.pos) * 1.2, -8, 10);
-      d.morale = clamp(Math.round(d.morale + delta), 10, 100);
+      d.morale = clamp(Math.round(d.morale + delta + (team?.isPlayer && hasPerk(state, 'motivator') ? 2 : 0)), 10, 100);
     }
   }
   if (results.pole) { const d = state.drivers[results.pole]; if (d) d.stats.poles++; }
@@ -182,7 +187,7 @@ export function applyRoundResults(state, results) {
   const myRes = results.classification.filter((r) => r.teamId === pt.id);
   const bestPos = Math.min(...myRes.map((r) => (r.status === 'dnf' ? 99 : r.pos)));
   for (const sp of pt.sponsors) {
-    addFinance(state, `Sponsor ${sp.name}`, sp.perRace);
+    addFinance(state, `Sponsor ${sp.name}`, sp.perRace * (hasPerk(state, 'brand') ? 1.1 : 1));
     let hit = 0;
     if (sp.objective === 'points') hit = myRes.filter((r) => r.pts > 0).length;
     if (sp.objective === 'podium') hit = myRes.filter((r) => r.pos <= 3 && r.status !== 'dnf').length;
@@ -209,6 +214,8 @@ export function applyRoundResults(state, results) {
       team.projects = team.projects.filter((p) => p.racesLeft > 0);
       for (const p of done) {
         const g = completeProject(state, team, p);
+        state.career.rdDone = (state.career.rdDone || 0) + 1;
+        if (state.career.rdDone >= 5) unlock(state, 'rd5', 'Fabbrica a pieno regime', 'Completa 5 progetti R&D.');
         addMail(state, {
           from: state.staff[team.staff.td]?.name || 'Direttore Tecnico', type: g > 0.9 ? 'good' : 'bad', icon: 'rd',
           subject: g > 0.9 ? `R&D completato: ${partName(state, p.part)} +${g}` : `R&D deludente su ${partName(state, p.part)}`,
@@ -232,7 +239,7 @@ export function applyRoundResults(state, results) {
   const st = standings(state);
   const myTeamPos = st.teams.findIndex((t) => t.id === pt.id) + 1;
   const delta = clamp((state.board.target - myTeamPos) * 1.5 + (bestPos <= 3 ? 3 : 0) - (myRes.every((r) => r.status === 'dnf') ? 4 : 0), -7, 7);
-  state.board.confidence = clamp(Math.round(state.board.confidence + delta), 0, 100);
+  state.board.confidence = clamp(Math.round(state.board.confidence + (delta < 0 && hasPerk(state, 'diplomat') ? delta / 2 : delta)), 0, 100);
 
   // reputation
   pt.rep = clamp(+(pt.rep + (bestPos <= 3 ? 0.8 : bestPos <= 10 ? 0.15 : -0.2)).toFixed(1), 20, 100);
@@ -248,7 +255,24 @@ export function applyRoundResults(state, results) {
   if (myRes.some((r) => r.pos <= 3 && r.status !== 'dnf')) unlock(state, 'first_podium', 'Champagne!', 'Ottieni un podio.');
   if (myRes.filter((r) => r.pos <= 2 && r.status !== 'dnf').length >= 2) unlock(state, 'one_two', 'Doppietta', 'Primo e secondo posto nella stessa gara.');
   if (results.pole && state.drivers[results.pole]?.teamId === pt.id) unlock(state, 'pole', 'Pole Position', 'Conquista una pole.');
+  if (results.wet && myRes.some((r) => r.pos === 1 && r.status !== 'dnf')) unlock(state, 'rain_win', 'Re della pioggia', 'Vinci una gara bagnata.');
+  if (myRes.some((r) => r.pos === 1 && r.status !== 'dnf' && r.grid >= 10)) unlock(state, 'from_back', 'Rimonta epica', 'Vinci partendo dalla decima posizione o peggio.');
+  if (pt.sponsors.length >= 3) unlock(state, 'sponsor3', 'Vetrina piena', 'Firma tre sponsor.');
+  if (state.quick) unlock(state, 'quick', 'Pilota della domenica', 'Completa una gara rapida.');
 
+  // XP & objectives
+  ensureProgress(state);
+  const myPts = myRes.reduce((a, r) => a + r.pts, 0);
+  let xp = 20 + myPts * 2.5 + myRes.filter((r) => r.pos <= 3 && r.status !== 'dnf').length * 40 + (myRes.some((r) => r.pos === 1 && r.status !== 'dnf') ? 80 : 0);
+  if (results.pole && state.drivers[results.pole]?.teamId === pt.id) xp += 30;
+  if (myTeamPos <= state.board.target) xp += 15;
+  gainXP(state, xp, track.name);
+  for (const o of checkObjectives(state)) {
+    gainXP(state, o.xp, o.text);
+    addFinance(state, `Obiettivo stagionale: ${o.text}`, o.money);
+    addMail(state, { from: 'Consiglio di Amministrazione', icon: 'target', type: 'good', subject: `Obiettivo raggiunto: ${o.text}`, body: `Complimenti! Premio: ${fmtM(o.money)} e ${o.xp} XP.` });
+    state._toast = { title: '🎯 Obiettivo stagionale completato', text: o.text };
+  }
   postRoundMail(state, results, track, myTeamPos);
   state.round++;
   state.weekend = null;
@@ -295,7 +319,7 @@ export function freeAgents(state) { return Object.values(state.drivers).filter((
 
 export function driverInterest(state, d, team, salary, years) {
   const C = state.category;
-  const ask = salaryFor(d, C) * (d.teamId ? 1.15 : 1);
+  const ask = salaryFor(d, C) * (d.teamId ? 1.15 : 1) * (hasPerk(state, 'negotiator') ? 0.9 : 1);
   const ranking = overallCarRanking(state);
   const carScore = 1 - ranking.indexOf(team.id) / ranking.length; // 0..1
   const ov = driverOverall(d, C);
@@ -409,6 +433,7 @@ export function endSeason(state) {
   for (const t of Object.values(state.teams)) t.lastPos = sum.st.teams.findIndex((x) => x.id === t.id) + 1;
   sum.prize = prize;
   sum.fired = state.board.confidence < 15;
+  gainXP(state, 200 + Math.max(0, diff) * 120 + (sum.st.teams[0].id === pt.id ? 900 : 0) + (sum.champ.teamId === pt.id ? 700 : 0), `Stagione ${state.season}`);
   state.lastSummary = { season: state.season, teamPos: sum.teamPos, target: sum.target, champ: sum.champ.name, champTeam: sum.champTeam.name, constructors: sum.constructors.name, prize, fired: sum.fired };
   return sum;
 }
@@ -517,6 +542,7 @@ export function newSeason(state) {
   const ranking = overallCarRanking(state);
   const last = pt.lastPos || ranking.indexOf(pt.id) + 1;
   state.board.target = clamp(Math.round((last + ranking.indexOf(pt.id) + 1) / 2) - (last <= 3 ? 0 : 1), 1, ranking.length);
+  state.objectives = makeObjectives(state);
   addMail(state, { from: 'Consiglio di Amministrazione', icon: 'board', type: 'info', subject: `Obiettivi stagione ${state.season}`, body: `Benvenuto nella stagione ${state.season}. Il consiglio si aspetta almeno il ${state.board.target}° posto nel campionato costruttori. Progetta la nuova vettura nel Centro Tecnico prima del primo evento.` });
 }
 

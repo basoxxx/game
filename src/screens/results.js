@@ -43,7 +43,7 @@ registerScreen({
     };
     const mine = res.classification.filter((r) => r.teamId === pt.id);
     return `<div style="position:fixed;inset:0;overflow-y:auto;padding:30px 40px">
-      <div class="row between"><div class="row" style="gap:14px">${flagSVG(tr.nat, 40, 26)}<div><div class="tiny upper muted" style="letter-spacing:.3em">Risultati · Round ${ev.round}</div><h1 style="font-size:38px">${esc(tr.name)}</h1></div></div><button class="btn primary xl" data-a="done">Continua ${icon('right')}</button></div>
+      <div class="row between"><div class="row" style="gap:14px">${flagSVG(tr.nat, 40, 26)}<div><div class="tiny upper muted" style="letter-spacing:.3em">Risultati · Round ${ev.round}</div><h1 style="font-size:38px">${esc(tr.name)}</h1></div></div><button class="btn primary xl" data-a="done">${S().quick ? 'Nuova gara rapida' : 'Continua'} ${icon('right')}</button></div>
       <div class="podium">${top3[1] ? pod(top3[1], 'p2') : ''}${pod(top3[0], 'p1')}${top3[2] ? pod(top3[2], 'p3') : ''}</div>
       <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:16px">
         <div class="panel flush"><table class="tbl"><thead><tr><th>Pos</th><th></th><th>${C.driversPerCar > 1 ? 'Equipaggio' : 'Pilota'}</th><th>Team</th>${rally ? '<th class="right">PS vinte</th><th class="right">Tempo</th>' : '<th class="right">Griglia</th><th class="right">Soste</th><th class="right">Best</th>'}<th class="right">Distacco</th><th class="right">Pt</th></tr></thead><tbody>
@@ -66,6 +66,7 @@ registerScreen({
   actions: {
     done() {
       const st = S();
+      if (st.quick) { App.go('quickrace'); return; }
       if (st.round >= st.calendar.length) App.go('seasonend'); else App.go('hub');
     },
   },

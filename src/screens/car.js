@@ -83,7 +83,7 @@ registerScreen({
 });
 
 function devTab(st, t, C) {
-  const slots = rdSlots(t);
+  const slots = rdSlots(t, st);
   const td = st.staff[t.staff.td];
   return `<div class="panel"><div class="panel-head"><h3>Progetti di sviluppo</h3><div class="row"><span class="chip">${icon('factory', 'ico', 'style="width:13px"')} Slot ${t.projects.length}/${slots}</span><span class="chip">Direttore Tecnico: ${esc(td?.name)} (${td?.rating})</span><span class="chip">Galleria Lv${t.facilities.windtunnel}</span></div></div>
     <div class="grid3 mb16">${Object.entries(RD_TIERS).map(([k, T]) => `<div class="card"><div class="row between"><b>${T.name}</b><span class="chip">${fmtM(rdCost(st, k))}</span></div><div class="small muted mt8">${T.desc}</div><div class="row wrap mt8 gap6 tiny"><span class="chip">+${T.gain[0]}–${T.gain[1]}</span><span class="chip">${T.races} ${T.races > 1 ? 'eventi' : 'evento'}</span><span class="chip ${T.fail > 0.1 ? 'bad' : ''}">Rischio ${Math.round(T.fail * 100)}%</span></div></div>`).join('')}</div>

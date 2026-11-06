@@ -7,6 +7,7 @@ import { CATEGORIES } from '../data/categories.js';
 import { circuitPath, arcFrac, TrackView } from '../ui/trackview.js';
 import { TRACKS } from '../data/tracks.js';
 import { sfx } from '../ui/audio.js';
+import { openLessons } from './engineer.js';
 
 let anim = null, view = null;
 const DEMO_COLORS = [['#d40000', '#ffdd00'], ['#00d2be', '#c0c0c0'], ['#1b2a6b', '#e3002b'], ['#ff8000', '#101820'], ['#00594f', '#cedc00'], ['#005aff', '#fff'], ['#0090ff', '#ff87bc'], ['#f0f0f0', '#d00f1f'], ['#1634cc', '#fff'], ['#1a1a1a', '#ff2d2d']];
@@ -26,9 +27,11 @@ registerScreen({
         <div class="menu-list">
           ${hasSave ? `<div class="menu-item" data-a="continue-last">${icon('play')} Continua</div>` : ''}
           <div class="menu-item" data-a="nav" data-to="newgame">${icon('flag')} Nuova Carriera</div>
+          <div class="menu-item" data-a="nav" data-to="quickrace">${icon('speed')} Gara Rapida</div>
           <div class="menu-item ${hasSave ? '' : 'disabled'}" data-a="load">${icon('save')} Carica Partita</div>
           <div class="menu-item" data-a="nav" data-to="settings" data-back="menu">${icon('settings')} Impostazioni</div>
           <div class="menu-item" data-a="credits">${icon('info')} Come si gioca</div>
+          <div class="menu-item" data-a="lessons">${icon('sim')} Accademia Ingegneri</div>
           ${window.apex?.quit ? `<div class="menu-item" data-a="quit">${icon('logout')} Esci</div>` : ''}
         </div>
       </div>
@@ -61,6 +64,7 @@ registerScreen({
     },
     load() { openLoad(); },
     quit() { window.apex?.quit?.(); },
+    lessons() { openLessons(); },
     credits() {
       App.modal(`<h2>Come si gioca</h2>
       <div class="col small" style="gap:12px;line-height:1.55">

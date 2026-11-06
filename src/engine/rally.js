@@ -46,7 +46,7 @@ export class RallyEvent {
   constructor(state, ev, track, setups) {
     this.state = state; this.ev = ev; this.track = track;
     this.C = CATEGORIES.rally;
-    this.stages = ev.stages.map((s, i) => ({ ...s, idx: i, wet: s.surface !== 'snow' && chance(track.rain) }));
+    this.stages = ev.stages.map((s, i) => ({ ...s, idx: i, wet: s.surface !== 'snow' && (state.forceRain === true ? true : state.forceRain === false ? false : chance(track.rain)) }));
     this.stageIdx = 0;
     this.fast = track.fast || 1;
     this.crews = buildEntries(state).map((e) => {

@@ -8,6 +8,7 @@ import { driverOverall, salaryFor, STAFF_ROLES, FACILITIES } from '../engine/wor
 import { cat, playerTeam, teamDrivers, standings, fmtM, freeAgents, driverInterest, buyoutCost, signDriver, releaseDriver, hireStaff, facilityCost, startFacility, seatsPerTeam, addFinance } from '../engine/season.js';
 import { driverChip, ovr, ratingBox, moraleChip, attrBars, ATTR_NAMES, teamStripe } from './common.js';
 import { sfx } from '../ui/audio.js';
+import { hasPerk } from '../engine/progress.js';
 
 // --------------- DRIVERS ---------------
 registerScreen({
@@ -109,7 +110,7 @@ registerScreen({
     if (mFilter === 'team') list = list.filter((d) => d.teamId);
     const academy = t.facilities.academy;
     list.sort((a, b) => mSort === 'ovr' ? ovr(st, b) - ovr(st, a) : mSort === 'pot' ? b.pot - a.pot : mSort === 'age' ? a.age - b.age : a.salary - b.salary);
-    const showPot = (d) => academy >= 4 ? d.pot : academy >= 2 ? Math.round(d.pot / 5) * 5 : null;
+    const showPot = (d) => academy >= 4 || hasPerk(st, 'scout') ? d.pot : academy >= 2 ? Math.round(d.pot / 5) * 5 : null;
     const seatsFree = seatsPerTeam(st) - teamDrivers(st, t).length;
     return `<div class="screen-title"><div><div class="sub">${seatsFree > 0 ? `<span class="bad">${seatsFree} sedile/i libero/i</span>` : 'Tutti i sedili occupati'} · Budget ${fmtM(t.money)}</div><h1>Mercato Piloti</h1></div>
       <div class="row"><div class="tabs">${[['all', 'Tutti'], ['free', 'Svincolati'], ['team', 'Sotto contratto'], ['young', 'Giovani']].map(([k, n]) => `<div class="tab ${mFilter === k ? 'active' : ''}" data-a="filter" data-f="${k}">${n}</div>`).join('')}</div>

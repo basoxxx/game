@@ -75,6 +75,7 @@ export const App = {
     this._lastRendered = this.cur;
     s.mount?.(this.root, this.params);
     if (st?._toast) { this.toast(st._toast.title, st._toast.text, 'good'); sfx.win(); st._toast = null; }
+    if (st?._levelUp) { this.toast(`⭐ Livello manager ${st._levelUp}!`, 'Hai ottenuto un punto abilità: spendilo in Carriera.', 'good'); sfx.levelup(); st._levelUp = null; }
   },
   refresh() { this.render(); },
   shell(content) {
@@ -93,6 +94,7 @@ export const App = {
         <div class="tb-stat"><b>${seasonOver ? 'Fine' : `${st.round + 1}/${st.calendar.length}`}</b><span>Round</span></div>
         <div class="tb-stat"><b class="${t.money < 0 ? 'bad' : ''}">${fmtM(t.money)}</b><span>Budget</span></div>
         <div class="tb-stat"><b class="${conf < 30 ? 'bad' : conf > 70 ? 'good' : ''}">${conf}%</b><span>Fiducia CdA</span></div>
+        <div class="tb-stat" style="cursor:pointer" data-a="nav" data-to="career"><b>Lv ${st.career.level || 1}${st.career.points ? ` <span class="badge" style="vertical-align:2px">+${st.career.points}</span>` : ''}</b><span>Manager</span></div>
         <div class="grow"></div>
         <button class="btn icon-btn ghost" data-a="quick-save" title="Salva">${icon('save')}</button>
         <button class="btn icon-btn ghost" data-a="nav" data-to="settings" title="Impostazioni">${icon('settings')}</button>

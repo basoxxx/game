@@ -9,7 +9,8 @@ import { cat, playerTeam, standings, fmtM } from '../engine/season.js';
 import { CATEGORIES } from '../data/categories.js';
 import { driverChip, teamStripe, ratingBox, ovr } from './common.js';
 import { openLoad } from './menu.js';
-import { applyVolumes } from '../ui/audio.js';
+import { applyVolumes, sfx } from '../ui/audio.js';
+import { PERKS, xpForLevel, ensureProgress, buyPerk } from '../engine/progress.js';
 
 // ---------------- INBOX ----------------
 let selMail = null;
@@ -92,21 +93,31 @@ registerScreen({
   id: 'career',
   render() {
     const st = S();
+    ensureProgress(st);
     const c = st.career;
     const ach = Object.values(st.achievements);
-    const ALL = [['first_podium', 'Champagne!'], ['first_win', 'Prima vittoria!'], ['one_two', 'Doppietta'], ['pole', 'Pole Position'], ['signing', 'Colpo di mercato'], ['driver_title', 'Campione del Mondo'], ['team_title', 'Dinastia'], ['switch', 'Giramondo']];
-    return `<div class="screen-title"><div><div class="sub">${esc(st.playerName)}</div><h1>Carriera</h1></div></div>
+    const ALL = [['first_podium', 'Champagne!'], ['first_win', 'Prima vittoria!'], ['one_two', 'Doppietta'], ['pole', 'Pole Position'], ['signing', 'Colpo di mercato'], ['driver_title', 'Campione del Mondo'], ['team_title', 'Dinastia'], ['switch', 'Giramondo'], ['level5', 'Manager affermato'], ['level10', 'Stratega leggendario'], ['rd5', 'Fabbrica a pieno regime'], ['sponsor3', 'Vetrina piena'], ['rain_win', 'Re della pioggia'], ['from_back', 'Rimonta epica'], ['quick', 'Pilota della domenica']];
+    const need = xpForLevel(c.level);
+    return `<div class="screen-title"><div><div class="sub">${esc(st.playerName)}</div><h1>Carriera</h1></div><div class="chip ${c.points ? 'good pulse' : ''}">Punti abilità: <b>${c.points}</b></div></div>
     <div class="grid4 anim-in">
-      <div class="panel"><div class="kpi"><b>${c.reputation.toFixed ? c.reputation.toFixed(0) : c.reputation}</b><span>Reputazione manager</span></div>${bar(c.reputation, 'gold')}</div>
-      <div class="panel"><div class="kpi"><b>${c.seasonsManaged}</b><span>Stagioni completate</span></div></div>
-      <div class="panel"><div class="kpi"><b>${c.trophies.length}</b><span>Titoli vinti</span></div></div>
-      <div class="panel"><div class="kpi"><b>${ach.length}/${ALL.length}</b><span>Obiettivi</span></div></div>
+      <div class="panel"><div class="kpi"><b>Livello ${c.level}</b><span>Manager · ${c.xp}/${need} XP</span></div>${bar((c.xp / need) * 100, 'gold')}</div>
+      <div class="panel"><div class="kpi"><b>${Math.round(c.reputation)}</b><span>Reputazione</span></div>${bar(c.reputation, 'blue')}</div>
+      <div class="panel"><div class="kpi"><b>${c.trophies.length}</b><span>Titoli vinti · ${c.seasonsManaged} stagioni</span></div></div>
+      <div class="panel"><div class="kpi"><b>${ach.length}/${ALL.length}</b><span>Obiettivi sbloccati</span></div></div>
+    </div>
+    <div class="panel mt16"><div class="panel-head"><h3>Albero delle abilità</h3><span class="small muted">Guadagni XP con punti, podi, vittorie e obiettivi. Ogni livello = 1 punto abilità.</span></div>
+      <div class="grid3">${Object.entries(PERKS).map(([k, b]) => `<div class="card" style="border-top:3px solid ${b.color}"><div class="row">${icon(b.icon, 'ico', `style="width:22px;height:22px;color:${b.color}"`)}<h3>${b.name}</h3></div>
+        <div class="col gap6 mt16">${b.perks.map((p, i) => { const own = c.perks.includes(p.id); const avail = !own && (i === 0 || c.perks.includes(b.perks[i - 1].id)); return `<div class="row" style="padding:10px;border-radius:10px;border:1px solid ${own ? b.color : 'var(--line)'};background:${own ? `color-mix(in srgb, ${b.color} 14%, transparent)` : 'rgba(255,255,255,0.02)'};opacity:${own || avail ? 1 : 0.45}"><div class="grow"><b>${p.name}</b><div class="tiny muted">${p.desc}</div></div>${own ? `<span class="chip good">✓</span>` : `<button class="btn sm ${avail && c.points >= p.cost ? 'primary' : ''}" data-a="perk" data-id="${p.id}" ${avail && c.points >= p.cost ? '' : 'disabled'}>${p.cost} pt</button>`}</div>`; }).join('')}</div></div>`).join('')}</div>
     </div>
     <div class="grid2 mt16">
+      <div class="panel"><div class="panel-head"><h3>Obiettivi stagione ${st.season}</h3></div><div class="col gap6">${(st.objectives || []).map((o) => `<div class="card row">${icon(o.done ? 'check' : 'target', 'ico', `style="width:22px;height:22px;color:${o.done ? 'var(--good)' : 'var(--muted)'}"`)}<div class="grow"><b>${esc(o.text)}</b><div class="tiny muted">Premio: ${o.xp} XP · ${fmtM(o.money)}</div></div>${o.done ? '<span class="chip good">Completato</span>' : '<span class="chip">In corso</span>'}</div>`).join('')}</div></div>
       <div class="panel"><div class="panel-head"><h3>Bacheca trofei</h3></div>${c.trophies.length ? `<div class="grid3">${c.trophies.map((t) => `<div class="card" style="text-align:center">${icon('trophy', 'ico', 'style="width:40px;height:40px;color:var(--gold)"')}<div style="font-weight:800;margin-top:6px">Titolo ${t.type}</div><div class="small muted">${CATEGORIES[t.category].name} ${t.season}</div><div class="tiny">${esc(t.name)}</div></div>`).join('')}</div>` : '<div class="empty">La bacheca ti aspetta. Vinci il tuo primo titolo!</div>'}</div>
-      <div class="panel"><div class="panel-head"><h3>Obiettivi</h3></div><div class="grid2">${ALL.map(([id, n]) => { const a = st.achievements[id]; return `<div class="card row" style="${a ? '' : 'opacity:.4'}">${icon(a ? 'star' : 'shield', 'ico', `style="width:26px;height:26px;color:${a ? 'var(--gold)' : 'var(--dim)'}"`)}<div><b>${n}</b><div class="tiny muted">${a ? `Sbloccato nel ${a.season}` : 'Bloccato'}</div></div></div>`; }).join('')}</div></div>
     </div>
+    <div class="panel mt16"><div class="panel-head"><h3>Obiettivi sbloccabili</h3></div><div class="grid4" style="grid-template-columns:repeat(5,1fr)">${ALL.map(([id, n]) => { const a = st.achievements[id]; return `<div class="card row" style="${a ? '' : 'opacity:.4'}">${icon(a ? 'star' : 'shield', 'ico', `style="width:24px;height:24px;color:${a ? 'var(--gold)' : 'var(--dim)'}"`)}<div><b class="small">${n}</b><div class="tiny muted">${a ? `Sbloccato nel ${a.season}` : 'Bloccato'}</div></div></div>`; }).join('')}</div></div>
     <div class="panel mt16"><div class="panel-head"><h3>Storico</h3></div>${c.history.length ? `<table class="tbl"><thead><tr><th>Stagione</th><th>Categoria</th><th>Squadra</th><th class="right">Obiettivo</th><th class="right">Risultato</th></tr></thead><tbody>${c.history.map((h) => `<tr><td>${h.season}</td><td>${CATEGORIES[h.category].name}</td><td>${esc(h.team)}</td><td class="right">${h.target}°</td><td class="right"><b class="${h.pos <= h.target ? 'good' : 'bad'}">${h.pos}°</b></td></tr>`).join('')}</tbody></table>` : '<div class="muted small">Nessuna stagione completata.</div>'}</div>`;
+  },
+  actions: {
+    perk(el) { const r = buyPerk(S(), el.dataset.id); if (!r.ok) { App.toast('Impossibile', r.msg, 'bad'); return; } sfx.levelup(); App.toast('Abilità sbloccata!', '', 'good'); App.refresh(); },
   },
 });
 
