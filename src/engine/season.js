@@ -1,6 +1,7 @@
 import { CATEGORIES, POINTS_STD } from '../data/categories.js';
 import { ENGINE_SUPPLIERS, TEAMS } from '../data/teams.js';
 import { rand, randInt, pick, clamp, chance, shuffle, uid, gauss } from './rng.js';
+import { maybePaddockEvent } from './events.js';
 import { gainXP, checkObjectives, ensureProgress, makeObjectives, hasPerk } from './progress.js';
 import { driverOverall, salaryFor, generateRookie, generateVeteranFreeAgent, makeSponsorOffers, buildCalendar, getTrack, makeStaff, STAFF_ROLES, FACILITIES, avgPart } from './world.js';
 
@@ -275,6 +276,8 @@ export function applyRoundResults(state, results) {
   }
   postRoundMail(state, results, track, myTeamPos);
   state.round++;
+  state.pressPending = !state.quick;
+  maybePaddockEvent(state);
   state.weekend = null;
   if (pt.money < 0) addMail(state, { from: 'Direttore Finanziario', type: 'bad', icon: 'money', subject: 'Conti in rosso!', body: 'Il nostro bilancio è negativo. Il consiglio è preoccupato: riduci le spese di sviluppo o trova nuovi sponsor.' });
   if (pt.money < 0) state.board.confidence = clamp(state.board.confidence - 4, 0, 100);

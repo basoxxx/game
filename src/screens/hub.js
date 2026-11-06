@@ -8,6 +8,8 @@ import { cat, playerTeam, teamDrivers, standings, partRanking, fmtM, rdSlots, RD
 import { genStage, circuitPath, STAGE_STYLE } from '../ui/trackview.js';
 import { partSensitivity, trackStats } from '../engine/trackphys.js';
 import { ensureProgress } from '../engine/progress.js';
+import { resolvePaddockEvent } from '../engine/events.js';
+import { sfx } from '../ui/audio.js';
 import { SURFACES } from '../data/categories.js';
 import { driverChip, ovr, ratingBox, moraleChip, teamStripe } from './common.js';
 
@@ -104,6 +106,13 @@ registerScreen({
   mount() {
     const st = S();
     ensureProgress(st);
+    if (st.pendingEvent && st.tutorialSeen) {
+      const pe = st.pendingEvent;
+      App.modal(`<div class="tiny upper warn" style="letter-spacing:.3em">Decisione dal paddock · ${esc(pe.from)}</div><h2 style="margin-top:6px">${esc(pe.title)}</h2><p class="muted" style="line-height:1.6">${esc(pe.text)}</p>
+        <div class="col gap6 mt16">${pe.a.map((a, i) => `<div class="card click" data-a="choose" data-i="${i}"><b>${esc(a.t)}</b><div class="tiny muted mt8">${esc(a.note)}</div></div>`).join('')}</div>`,
+        { choose(el) { resolvePaddockEvent(st, +el.dataset.i); sfx.ok(); App.closeModal(); App.refresh(); } }, 'locked');
+      return;
+    }
     if (!st.tutorialSeen) {
       st.tutorialSeen = true;
       const C = cat(st);

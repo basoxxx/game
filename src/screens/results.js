@@ -6,6 +6,8 @@ import { S } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { cat, playerTeam, standings } from '../engine/season.js';
 import { driverChip, teamStripe, tyreBadge } from './common.js';
+import { pressQuestion } from '../engine/events.js';
+import { sfx } from '../ui/audio.js';
 
 export function celebrate(n = 150) {
   const cv = document.createElement('canvas');
@@ -62,6 +64,15 @@ registerScreen({
     const ev = st.calendar[App.params?.idx ?? st.round - 1];
     const mine = ev?.results?.classification.filter((r) => r.teamId === st.playerTeam) || [];
     if (mine.some((r) => r.pos === 1 && r.status !== 'dnf')) celebrate(220);
+    if (st.pressPending && ev?.results) {
+      st.pressPending = false;
+      const pq = pressQuestion(st, ev.results);
+      if (pq) setTimeout(() => {
+        App.modal(`<div class="tiny upper muted" style="letter-spacing:.3em">Conferenza stampa · ${esc(pq.journalist)}</div><h2 style="margin-top:6px">🎤 «${esc(pq.q)}»</h2>
+          <div class="col gap6 mt16">${pq.a.map((a, i) => `<div class="card click" data-a="answer" data-i="${i}"><b>«${esc(a.t)}»</b><div class="tiny muted mt8">${esc(a.note)}</div></div>`).join('')}</div>`,
+          { answer(el) { pq.a[+el.dataset.i].fx(); sfx.ok(); App.closeModal(); App.toast('Dichiarazione rilasciata', pq.a[+el.dataset.i].note, 'good'); } }, 'locked');
+      }, 1200);
+    }
   },
   actions: {
     done() {
