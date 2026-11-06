@@ -121,6 +121,24 @@ registerScreen({
   },
 });
 
+// ---------------- HALL OF FAME ----------------
+registerScreen({
+  id: 'halloffame',
+  render() {
+    const st = S();
+    const champs = (st.champions || []).slice().reverse();
+    const recs = Object.entries(st.records || {}).filter(([k]) => k.startsWith(st.category + ':')).map(([, v]) => v).sort((a, b) => a.track.localeCompare(b.track));
+    const legends = Object.values(st.drivers).filter((d) => d.stats.starts > 0).sort((a, b) => b.stats.titles - a.stats.titles || b.stats.wins - a.stats.wins || b.stats.podiums - a.stats.podiums).slice(0, 15);
+    return `<div class="screen-title"><div><div class="sub">${esc(cat(st).full)}</div><h1>Albo d’oro</h1></div></div>
+    <div class="grid2 anim-in">
+      <div class="panel"><div class="panel-head"><h3>Campioni</h3></div>${champs.length ? `<table class="tbl"><thead><tr><th>Stagione</th><th>Piloti</th><th>Costruttori</th></tr></thead><tbody>${champs.map((c) => `<tr class="${c.mine ? 'me' : ''}"><td><b>${c.season}</b> <span class="tiny muted">${CATEGORIES[c.category].name}</span></td><td>${icon('trophy', 'ico', 'style="width:14px;color:var(--gold);vertical-align:-2px"')} ${esc(c.driver)} <span class="tiny muted">${esc(c.dTeam)}</span></td><td>${esc(c.team)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Completa una stagione per scrivere la storia.</div>'}</div>
+      <div class="panel"><div class="panel-head"><h3>Leggende in attività</h3></div><table class="tbl small"><thead><tr><th>Pilota</th><th class="right">Titoli</th><th class="right">Vittorie</th><th class="right">Podi</th><th class="right">Pole</th><th class="right">GP</th></tr></thead><tbody>${legends.map((d) => `<tr class="${d.teamId === st.playerTeam ? 'me' : ''}"><td>${driverChip(st, d, { size: 22 })}</td><td class="right mono"><b>${d.stats.titles}</b></td><td class="right mono">${d.stats.wins}</td><td class="right mono">${d.stats.podiums}</td><td class="right mono">${d.stats.poles}</td><td class="right mono">${d.stats.starts}</td></tr>`).join('')}</tbody></table></div>
+    </div>
+    ${st.category !== 'rally' ? `<div class="panel mt16"><div class="panel-head"><h3>Record della pista (giro più veloce in gara)</h3></div>${recs.length ? `<table class="tbl"><thead><tr><th>Circuito</th><th class="right">Tempo</th><th>Pilota</th><th>Team</th><th class="right">Anno</th></tr></thead><tbody>${recs.map((r) => `<tr><td>${esc(r.track)}</td><td class="right mono"><b>${fmtLapT(r.time)}</b></td><td>${esc(r.driver || '')}</td><td class="small muted">${esc(r.team || '')}</td><td class="right">${r.season}</td></tr>`).join('')}</tbody></table>` : '<div class="muted small">Ancora nessun record: corri qualche gara!</div>'}</div>` : ''}`;
+  },
+});
+function fmtLapT(t) { const m = Math.floor(t / 60); return `${m}:${(t - m * 60).toFixed(3).padStart(6, '0')}`; }
+
 // ---------------- SETTINGS ----------------
 registerScreen({
   id: 'settings',

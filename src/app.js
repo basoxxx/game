@@ -16,9 +16,10 @@ const NAV = [
   { id: 'market', name: 'Mercato', icon: 'market' },
   { id: 'staff', name: 'Staff & Strutture', icon: 'factory' },
   { id: 'finance', name: 'Sponsor & Finanze', icon: 'money' },
-  { id: 'standings', name: 'Classifiche', icon: 'trophy' },
+  { id: 'standings', name: 'Classifiche', icon: 'chart' },
   { id: 'calendar', name: 'Calendario', icon: 'calendar' },
   { id: 'career', name: 'Carriera', icon: 'star' },
+  { id: 'halloffame', name: 'Albo d’oro', icon: 'trophy' },
 ];
 
 export const App = {

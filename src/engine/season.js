@@ -246,6 +246,18 @@ export function applyRoundResults(state, results) {
   pt.rep = clamp(+(pt.rep + (bestPos <= 3 ? 0.8 : bestPos <= 10 ? 0.15 : -0.2)).toFixed(1), 20, 100);
   state.career.reputation = clamp(+(state.career.reputation + (bestPos === 1 ? 1.5 : bestPos <= 3 ? 0.8 : bestPos <= 10 ? 0.2 : -0.3)).toFixed(1), 0, 100);
 
+  // track records (fastest race lap)
+  if (results.fastest?.key && results.fastest.time < 900) {
+    const fk = results.fastest.key; const fr = results.classification.find((r) => r.key === fk);
+    if (fr) {
+      state.records ||= {};
+      const rec = state.records[`${state.category}:${ev.trackId}`];
+      if (!rec || results.fastest.time < rec.time) {
+        state.records[`${state.category}:${ev.trackId}`] = { time: results.fastest.time, driver: state.drivers[fr.driverIds[0]]?.name, team: state.teams[fr.teamId]?.name, season: state.season, track: track.name };
+        if (rec && fr.teamId === pt.id) addNews(state, `Nuovo record della pista a ${track.name} per ${state.drivers[fr.driverIds[0]]?.name}!`);
+      }
+    }
+  }
   // news
   const win = results.classification[0];
   const wd = win.driverIds.map((id) => state.drivers[id]?.name).join(' / ');
@@ -435,6 +447,25 @@ export function endSeason(state) {
   state.board.confidence = clamp(state.board.confidence + diff * 8, 0, 100);
   for (const t of Object.values(state.teams)) t.lastPos = sum.st.teams.findIndex((x) => x.id === t.id) + 1;
   sum.prize = prize;
+  // season awards
+  const awards = [];
+  const dStats = {};
+  for (const ev of state.calendar) for (const r of ev.results?.classification || []) for (const id of r.driverIds) {
+    const x = dStats[id] ||= { gained: 0, podiums: 0, dnf: 0, pts: 0 };
+    if (r.grid && r.status !== 'dnf') x.gained += r.grid - r.pos;
+    if (r.pos <= 3 && r.status !== 'dnf') x.podiums++; if (r.status === 'dnf') x.dnf++; x.pts += r.pts;
+  }
+  const rookie = sum.st.drivers.map((x) => state.drivers[x.id]).filter((d) => d && d.age <= 23)[0];
+  if (rookie) awards.push({ name: 'Rookie dell’anno', who: rookie.name, team: state.teams[rookie.teamId]?.name, icon: 'star' });
+  const charger = Object.entries(dStats).sort((a, b) => b[1].gained - a[1].gained)[0];
+  if (charger && state.drivers[charger[0]]) awards.push({ name: 'Re delle rimonte', who: state.drivers[charger[0]].name, team: state.teams[state.drivers[charger[0]].teamId]?.name, note: `+${charger[1].gained} posizioni`, icon: 'speed' });
+  const podK = Object.entries(dStats).sort((a, b) => b[1].podiums - a[1].podiums)[0];
+  if (podK && state.drivers[podK[0]]) awards.push({ name: 'Più podi', who: state.drivers[podK[0]].name, team: state.teams[state.drivers[podK[0]].teamId]?.name, note: `${podK[1].podiums} podi`, icon: 'trophy' });
+  const mostR = Object.values(state.records || {}).filter((r) => r.season === state.season).length;
+  awards.push({ name: 'Manager dell’anno', who: (sum.teamPos <= sum.target ? state.playerName : state.teams[sum.st.teams[0].id].principal), team: sum.teamPos <= sum.target ? pt.name : state.teams[sum.st.teams[0].id].name, icon: 'board' });
+  sum.awards = awards;
+  state.champions ||= [];
+  state.champions.push({ season: state.season, category: state.category, driver: sum.champ.name, dTeam: sum.champTeam.name, team: sum.constructors.name, mine: sum.champ.teamId === pt.id || sum.st.teams[0].id === pt.id, records: mostR });
   sum.fired = state.board.confidence < 15;
   gainXP(state, 200 + Math.max(0, diff) * 120 + (sum.st.teams[0].id === pt.id ? 900 : 0) + (sum.champ.teamId === pt.id ? 700 : 0), `Stagione ${state.season}`);
   state.lastSummary = { season: state.season, teamPos: sum.teamPos, target: sum.target, champ: sum.champ.name, champTeam: sum.champTeam.name, constructors: sum.constructors.name, prize, fired: sum.fired };
