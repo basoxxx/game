@@ -354,3 +354,5 @@ label.lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; 
 .hud3d .spd { font-size: 30px; font-weight: 900; font-style: italic; min-width: 70px; text-align: right; }
 .lb-row { cursor: pointer; }
 .lb-row.focus { outline: 1px solid rgba(255,255,255,0.5); outline-offset: -1px; }
+
+.coach { position: fixed; left: 20px; bottom: 20px; z-index: 55; width: 360px; background: linear-gradient(135deg, #1b2230, #121722); border: 1px solid var(--line2); border-left: 4px solid var(--team); padding: 14px 16px; border-radius: 14px; box-shadow: var(--shadow); animation: slidein .4s cubic-bezier(.2,.9,.3,1.1); }

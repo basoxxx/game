@@ -156,3 +156,19 @@ export function teamColor(L) {
   for (const c of [L.primary, L.secondary, L.accent]) if (c && ok(c)) return c;
   return '#e10600';
 }
+
+// Contextual coaching tips (shown once per player)
+export function coach(id, title, text) {
+  let seen = {};
+  try { seen = JSON.parse(localStorage.getItem('apexdynasty_tips') || '{}'); } catch {}
+  if (seen[id]) return;
+  seen[id] = 1;
+  try { localStorage.setItem('apexdynasty_tips', JSON.stringify(seen)); } catch {}
+  document.querySelector('.coach')?.remove();
+  const el = document.createElement('div');
+  el.className = 'coach';
+  el.innerHTML = `<div class="tiny upper" style="color:var(--team);letter-spacing:.2em;font-weight:700">💡 Consiglio dell’ingegnere</div><b style="display:block;margin-top:4px">${title}</b><div class="small muted mt8" style="line-height:1.5">${text}</div><div class="row mt8" style="justify-content:flex-end"><button class="btn sm">Ho capito</button></div>`;
+  el.querySelector('button').onclick = () => el.remove();
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 16000);
+}

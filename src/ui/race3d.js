@@ -362,7 +362,8 @@ export class Race3D {
   }
 
   addCar(c) {
-    const m = buildCar(this.category, c.livery, { helmet: c.helmet, tyre: c.tyreColor, number: c.number, sponsor: c.sponsor });
+    const m = buildCar(c.category === 'rally' ? 'endurance' : this.category, c.livery, { helmet: c.helmet, tyre: c.tyreColor, number: c.number, sponsor: c.sponsor });
+    if (c.category === 'rally') m.scale.set(0.9, 0.95, 0.92);
     m.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     this.scene.add(m);
     const label = document.createElement('div');

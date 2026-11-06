@@ -1,5 +1,5 @@
 // Circuit race weekend: Practice (setup) → Qualifying → Race → Results
-import { App, registerScreen } from '../app.js';
+import { App, registerScreen, coach } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { helmetSVG, flagSVG, teamBadge, carSVG, trackSVG } from '../ui/art.js';
 import { esc, bar, fmtTime, fmtGap } from '../ui/dom.js';
@@ -85,7 +85,12 @@ registerScreen({
       <div style="flex:1;overflow-y:auto;padding:24px 30px">${w.phase === 'practice' ? practiceView(st, tr) : qualiView(st, tr)}</div>
     </div>`;
   },
-  mount() { if (S().weekend?.phase === 'race') mountRace(); },
+  mount() {
+    const w = S().weekend;
+    if (w?.phase === 'race') { mountRace(); setTimeout(() => coach('race', 'Sei al muretto box', 'Clicca un pilota in classifica per seguirlo. Usa <b>Override</b> quando sei entro 1 secondo per sorpassare, gestisci le gomme con il <b>ritmo</b> e chiama i box al giro giusto. Rispondi alle <b>chiamate radio</b>!'), 7000); }
+    else if (w?.phase === 'practice') coach('practice', 'Trova l’assetto', 'Sposta un parametro alla volta e premi <b>Giro di prova</b>: il pilota ti dice se è troppo alto o troppo basso. Più verde = più veloce. Oppure lascia fare all’ingegnere.');
+    else if (w?.phase === 'quali' && w.quali) coach('strategy', 'Scegli la strategia', 'Il grafico mostra quanto rallenta ogni mescola. La linea tratteggiata indica il <b>cliff</b>: fermati prima! La strategia “OTTIMA” è calcolata per la tua auto.');
+  },
   unmount() { stopRace(); },
   onKey(e) {
     if (!R.sim) return;
@@ -327,7 +332,7 @@ function enable3D(cam) {
     const div = document.createElement('div'); div.className = 'r3d'; rv.prepend(div);
     try {
       R.r3d = new Race3D(div, { cid: sim.track.cid, street: sim.track.street || 0, night: !!sim.track.night && !sim.endurance, category: st.category,
-        cars: sim.cars.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: sim.driver(c).helmet.c1, tyreColor: COMPOUNDS[c.tyre].color, isPlayer: c.isPlayer, number: sim.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })) });
+        cars: [...sim.cars.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: sim.driver(c).helmet.c1, tyreColor: COMPOUNDS[c.tyre].color, isPlayer: c.isPlayer, number: sim.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })), ...(sim.traffic || []).map((g) => ({ key: g.key, livery: { primary: g.colors[0], secondary: g.colors[1], accent: '#111111' }, tyreColor: '#ffd400', number: g.num, sponsor: 'LMGT3', category: 'rally' }))] });
       if (sim.time < 1) R.r3d.startIntro(4.5);
     } catch (e) { console.warn('3D non disponibile', e); div.remove(); R.view3d = null; renderViewBtns(); return; }
   }
@@ -353,6 +358,7 @@ function update3D(dt) {
     const show = c.isPlayer || c.key === R.focus || c.pos <= 3;
     return { key: c.key, pos: c.pos, gap: c.status === 'running' && c.inPit <= 0 ? c.gapAhead : null, s: frac * g.N, speed, inPit: c.inPit > 0, close: c.gapAhead < 1, tyreColor: COMPOUNDS[c.tyre].color, label: show ? `P${c.pos} ${shortName(sim.driver(c).name)}` : `${c.pos}` };
   });
+  for (const g of sim.traffic || []) states.push({ key: g.key, s: arcFrac(sim.cat, sim.track.cid, g.dist, sim.track.lap) * g2N(sim), speed: speedAtTimeFrac(sim.cat, sim.track.cid, g.dist, g.lt, sim.track.lap) / 3.6, label: '' });
   r.focusKey = R.focus;
   r.setRain(sim.rain);
   if (sim.endurance && sim.track.night) { R.nightLvl = (R.nightLvl ?? 0) + ((sim.night ? 1 : 0) - (R.nightLvl ?? 0)) * Math.min(1, dt * 0.3); r.setNight(Math.round(R.nightLvl * 20) / 20); }
@@ -390,6 +396,7 @@ function draw() {
   const style = sim.C.id === 'endurance' ? 'endurance' : 'formula';
   v.frame((c) => {
     let pitIdx = 0;
+    for (const g of sim.traffic || []) { const q = v.pointAt(arcFrac(sim.cat, sim.track.cid, g.dist, sim.track.lap)); v.drawCar(q.x, q.y, q.ang, g.colors[0], g.colors[1], { style, len: 9 }); }
     const cars = sim.cars.filter((x) => x.status !== 'dnf').sort((a, b) => (a.isPlayer ? 1 : 0) - (b.isPlayer ? 1 : 0));
     for (const car of cars) {
       const L = car.team.car.livery;
@@ -614,3 +621,5 @@ function forecast(st, w) {
   if (!w._fc) { const shift = Math.round((Math.random() - 0.5) * w.laps * 0.3); w._fc = plan.map((_, i) => { const r = plan[Math.min(plan.length - 1, Math.max(0, i + shift))] || 0; return Math.max(0, Math.min(1, r * (0.6 + Math.random() * 0.7))); }); }
   return w._fc;
 }
+
+function g2N(sim) { return trackGeometry(sim.track.cid).N; }

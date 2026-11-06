@@ -182,6 +182,12 @@ export class CircuitSim {
       c.lapTarget = this.computeLap(c);
       this.history[c.key] = [];
     }
+    // Endurance: slower LMGT3 class traffic to lap
+    this.traffic = [];
+    if (this.endurance) {
+      const GT = [['#0b6e4f', '#f2c14e'], ['#1d3557', '#e63946'], ['#ffffff', '#ff5400'], ['#2b2d42', '#8d99ae'], ['#ffb703', '#023047'], ['#6a040f', '#ffba08'], ['#3a86ff', '#ffbe0b'], ['#14213d', '#fca311'], ['#e9ecef', '#212529'], ['#7209b7', '#f72585'], ['#008000', '#ffffff'], ['#d00000', '#000000']];
+      GT.forEach((col, i) => this.traffic.push({ key: `gt#${i}`, dist: -0.15 - i * 0.012, lt: track.lap * (1.115 + Math.random() * 0.03), colors: col, num: 20 + i * 7 }));
+    }
     this.log(`Partenza! ${this.laps} giri a ${track.circuit}. Temperatura asfalto ${this.trackTemp}°C.`, 'start', null, true);
   }
 
@@ -497,6 +503,29 @@ export class CircuitSim {
       if (c.ers >= 100 && c.ersMode === 'harvest' && c.auto) c.ersMode = 'balanced';
       if (c.ersMode !== before) c.lapTarget = this.computeLap(c);
       if (Math.floor(c.dist) > c.lap && Math.floor(c.dist) >= 1) this.onLapComplete(c, this.time - (c.dist - Math.floor(c.dist)) * lt);
+    }
+    // GT traffic
+    if (this.traffic.length) {
+      const slow = this.sc ? 1.38 : this.vsc ? 1.32 : 1;
+      for (const g of this.traffic) g.dist += dt / (g.lt * (slow > 1 ? slow / 1.12 : 1));
+      if (!this.sc && !this.vsc) for (const c of running) {
+        if (c.inPit > 0) continue;
+        const cf = ((c.dist % 1) + 1) % 1;
+        for (const g of this.traffic) {
+          const gf = ((g.dist % 1) + 1) % 1;
+          let d = gf - cf; if (d < -0.5) d += 1;
+          if (d > 0 && d < 0.0022) {
+            const tag = g.key + ':' + Math.floor(c.dist);
+            if (c._tr === tag) continue;
+            c._tr = tag;
+            const dr = this.driver(c);
+            const loss = (0.15 + Math.random() * 0.9) * (1.35 - dr.attrs.race / 100) * (this.night ? 1.4 : 1) * (this.rain > 0.3 ? 1.5 : 1);
+            c.dist -= loss / this.track.lap;
+            if (c.isPlayer && loss > 0.7 && chance(0.35)) this.log(`🚦 Traffico GT: ${dr.name} perde ${loss.toFixed(1)}s nel doppiaggio.`, 'warn', c.key, true);
+            if (chance(0.0025 * (1.4 - dr.attrs.cons / 100))) { c.damage += rand(0.3, 0.8); this.log(`⚠ Contatto con una GT per ${dr.name}: danni!`, 'warn', c.key, true); }
+          }
+        }
+      }
     }
     // interactions
     const order = this.cars.filter((c) => c.status === 'running' && c.inPit <= 0).sort((a, b) => b.dist - a.dist);

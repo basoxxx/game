@@ -1,5 +1,5 @@
 // Rally event: Shakedown → stages (prep, run with live decisions) → service → results
-import { App, registerScreen } from '../app.js';
+import { App, registerScreen, coach } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { helmetSVG, flagSVG, trackSVG } from '../ui/art.js';
 import { esc, bar, fmtLong, fmtGap } from '../ui/dom.js';
@@ -64,7 +64,7 @@ registerScreen({
       <div style="flex:1;overflow-y:auto;padding:24px 30px">${w.phase === 'shakedown' ? shakedown(st, tr) : w.phase === 'prep' ? prep(st, tr) : w.phase === 'stageres' ? stageResults(st, tr) : w.phase === 'service' ? service(st) : w.phase === 'final' ? finalView(st) : ''}</div>
     </div>`;
   },
-  mount() { if (S().weekend?.phase === 'run') mountRun(); },
+  mount() { const ph = S().weekend?.phase; if (ph === 'run') { mountRun(); coach('rallyrun', 'Prova speciale in corso', 'Quando il copilota ti chiama, hai pochi secondi per decidere (tasti <b>A</b>/<b>B</b>). Rischiare fa guadagnare tempo ma può costare il rally!'); } else if (ph === 'prep') coach('rallyprep', 'Gomme e ritmo', 'Scegli le gomme adatte alla superficie e al meteo. Sulle prove lunghe le morbide si consumano. Il ritmo Attacco è più veloce ma molto più rischioso.'); },
   unmount() { stopRun(); },
   onKey(e) {
     if (S().weekend?.phase !== 'run') return;

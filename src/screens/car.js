@@ -1,4 +1,4 @@
-import { App, registerScreen } from '../app.js';
+import { App, registerScreen, coach } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { carSVG, teamBadge } from '../ui/art.js';
 import { esc, bar } from '../ui/dom.js';
@@ -46,6 +46,7 @@ registerScreen({
     <div class="mt16 anim-in">${tab === 'dev' ? devTab(st, t, C) : tab === 'design' ? designTab(st, t, C) : compareTab(st, t, C)}</div>`;
   },
   mount() {
+    coach('car', 'Centro Tecnico', 'Avvia progetti R&D sui componenti chiave dei prossimi circuiti. Più un componente è sviluppato, minore è il guadagno: a volte conviene migliorare i punti deboli.');
     garage?.destroy(); garage = null;
     const el = document.getElementById('garage3d');
     if (el && show3d && webglAvailable()) {
