@@ -133,7 +133,7 @@ function step3() {
     <div class="panel"><div class="panel-head"><h3>Durata stagione</h3></div>
       <div class="grid3">${opt('len', 'short', 'Corta', 'Meno eventi')}${opt('len', 'normal', 'Standard', 'Consigliata')}${opt('len', 'full', 'Completa', 'Tutto il calendario')}</div>
       <div class="panel-head mt24"><h3>Durata ${W.cat === 'rally' ? 'rally' : 'gare'}</h3></div>
-      <div class="grid3">${opt('race', 'short', 'Sprint', '~60% giri')}${opt('race', 'normal', 'Standard', 'Bilanciata')}${opt('race', 'long', 'Lunga', 'Più strategia')}</div>
+      <div class="grid4" style="grid-template-columns:repeat(4,1fr)">${opt('race', 'short', 'Sprint', W.cat === 'formula' ? '25% dei giri' : 'Gare brevi')}${opt('race', 'normal', 'Standard', W.cat === 'formula' ? '40% dei giri' : 'Consigliata')}${opt('race', 'long', 'Lunga', W.cat === 'formula' ? '66% dei giri' : 'Più stint')}${opt('race', 'full', 'Reale', W.cat === 'formula' ? '100% dei giri' : 'Massima durata')}</div>
       <div class="row mt24" style="justify-content:flex-end"><button class="btn primary xl pulse" data-a="start">${icon('flag')} Inizia la Carriera</button></div>
     </div>
   </div>`;

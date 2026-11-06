@@ -4,7 +4,8 @@ import { logoMark, carSVG, teamBadge } from '../ui/art.js';
 import { esc } from '../ui/dom.js';
 import { listSaves, loadGame, deleteSave, importSave, saveGame, SLOTS } from '../engine/state.js';
 import { CATEGORIES } from '../data/categories.js';
-import { genCircuit, TrackView } from '../ui/trackview.js';
+import { circuitPath, arcFrac, TrackView } from '../ui/trackview.js';
+import { TRACKS } from '../data/tracks.js';
 import { sfx } from '../ui/audio.js';
 
 let anim = null, view = null;
@@ -39,13 +40,15 @@ registerScreen({
   },
   mount() {
     const cv = document.getElementById('menu-cv');
-    view = new TrackView(cv, genCircuit(Math.floor(Math.random() * 999), 0), { pad: 80, glow: 'rgba(225,6,0,0.5)' });
-    const cars = DEMO_COLORS.map((c, i) => ({ p: -i * 0.018, v: 0.034 + Math.random() * 0.004, c }));
+    const demo = TRACKS.formula[Math.floor(Math.random() * TRACKS.formula.length)];
+    view = new TrackView(cv, circuitPath(demo.cid), { pad: 80, glow: 'rgba(225,6,0,0.5)' });
+    view.demoName = demo.circuit;
+    const cars = DEMO_COLORS.map((c, i) => ({ p: -i * 0.012, v: 0.06 + Math.random() * 0.002, c }));
     let last = performance.now();
     const loop = (t) => {
       const dt = Math.min(0.05, (t - last) / 1000); last = t;
       for (const car of cars) { car.p += car.v * dt * (0.95 + Math.sin(t / 1000 + car.v * 100) * 0.08); }
-      view.frame((c, v) => { for (const car of cars) { const q = v.pointAt(car.p); v.drawCar(q.x, q.y, q.ang, car.c[0], car.c[1], { glow: car.c[0] }); } });
+      view.frame((c, v) => { for (const car of cars) { const q = v.pointAt(arcFrac('formula', demo.cid, car.p)); v.drawCar(q.x, q.y, q.ang, car.c[0], car.c[1], { glow: car.c[0] }); } });
       anim = requestAnimationFrame(loop);
     };
     anim = requestAnimationFrame(loop);

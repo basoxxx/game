@@ -8,7 +8,7 @@ import { getTrack } from '../engine/world.js';
 import { cat, playerTeam, teamDrivers, applyRoundResults, standings, seatsPerTeam, aiFillSeats, addMail } from '../engine/season.js';
 import { buildEntries, runQualifying, makeWeatherPlan, raceLaps, CircuitSim, aiSetupQuality } from '../engine/race.js';
 import { COMPOUNDS } from '../data/categories.js';
-import { genCircuit, TrackView } from '../ui/trackview.js';
+import { circuitPath, arcFrac, speedAtTimeFrac, TrackView } from '../ui/trackview.js';
 import { mulberry32, clamp, chance, rand } from '../engine/rng.js';
 import { tyreBadge, teamStripe, driverChip } from './common.js';
 import { sfx, engineStart, engineSet, engineStop } from '../ui/audio.js';
@@ -216,7 +216,7 @@ function qualiView(st, tr) {
         <div class="small muted">Al limite: tempi migliori ma più rischio di errore. ${w.qualiRain ? '<span class="info">Pista bagnata in qualifica!</span>' : ''}</div>
         <button class="btn primary xl mt16" style="width:100%" data-a="run-quali">${icon('play')} Avvia ${st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'}</button>
       </div>
-      <div class="panel" style="display:flex;align-items:center;justify-content:center">${trackSVG(genCircuit(tr.seed, tr.street || 0), { w: 480, h: 320, glow: 'var(--team)' })}</div>
+      <div class="panel" style="display:flex;align-items:center;justify-content:center">${trackSVG(circuitPath(tr.cid), { w: 480, h: 320, glow: 'var(--team)' })}</div>
     </div>`;
   }
   const q = w.quali;
@@ -274,7 +274,7 @@ function mountRace() {
   R.sim = new CircuitSim(st, tr, { grid: w.quali.grid, setups, weather: { plan: w.weather.plan, isRain: w.weather.isRain }, laps: w.laps });
   for (const c of R.sim.cars) if (c.isPlayer) { c.tyre = w.startTyre[c.key] || c.tyre; c.compoundsUsed = new Set([c.tyre]); c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c); }
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {};
-  R.view = new TrackView(document.getElementById('race-cv'), genCircuit(tr.seed, tr.street || 0), { pad: 50, glow: 'rgba(255,255,255,0.12)' });
+  R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, glow: 'rgba(255,255,255,0.12)' });
   R.last = performance.now(); R.uiT = 0;
   updateAll(true);
   // start lights
@@ -323,7 +323,7 @@ function draw() {
       const L = car.team.car.livery;
       let q;
       if (car.inPit > 0 && v.pitPos) q = v.pitPos(pitIdx++);
-      else q = v.pointAt(car.status === 'finished' ? car.finishLap : car.dist);
+      else q = v.pointAt(arcFrac(sim.cat, sim.track.cid, car.status === 'finished' ? car.finishLap : car.dist));
       const d = sim.driver(car);
       v.drawCar(q.x, q.y, q.ang, L.primary, L.secondary, { style, glow: car.isPlayer ? L.primary : null, outline: car.isPlayer, label: car.isPlayer || car.pos <= 3 ? `${car.pos} ${shortName(d.name)}` : null, labelBg: car.isPlayer ? L.primary : 'rgba(0,0,0,0.75)' });
     }

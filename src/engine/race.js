@@ -1,14 +1,25 @@
-// Circuit race simulation (Formula & Endurance)
+// Circuit race simulation (Formula & Endurance) driven by the physics lap model
 import { CATEGORIES, COMPOUNDS } from '../data/categories.js';
-import { carPerf, pointsFor } from './season.js';
+import { pointsFor } from './season.js';
+import { physicsLap } from './trackphys.js';
+import { tyreModel, degPenalty, tempPenalty, weatherFactor, strategyOptions } from './tyres.js';
 import { rand, randInt, chance, clamp, gauss, pick } from './rng.js';
 
+export const RACE_LENGTHS = { short: 0.25, normal: 0.4, long: 0.66, full: 1 };
+
+export function realLaps(state, track) {
+  if (track.laps) return track.laps;
+  // endurance: laps in the real race
+  return Math.round((track.hours * 3600) / (track.lap * 1.07));
+}
+
 export function raceLaps(state, track) {
-  const C = CATEGORIES[state.category];
-  const L = { short: 0.62, normal: 1, long: 1.6 }[state.raceLength] || 1;
-  let laps = Math.round(C.lapsDefault * L);
-  if (track.double) laps = Math.round(laps * 1.5);
-  return laps;
+  if (state.category === 'endurance') {
+    const base = { short: 26, normal: 40, long: 64, full: 90 }[state.raceLength] || 40;
+    return track.double ? Math.round(base * 1.6) : track.hours >= 8 ? Math.round(base * 1.2) : base;
+  }
+  const f = RACE_LENGTHS[state.raceLength] ?? 0.4;
+  return Math.max(8, Math.round(track.laps * f));
 }
 
 export function makeWeatherPlan(track, laps, forcedRain) {
@@ -18,7 +29,7 @@ export function makeWeatherPlan(track, laps, forcedRain) {
   if (isRain) {
     const type = pick(['shower', 'start', 'late', 'full']);
     let s, e, peak;
-    if (type === 'shower') { s = randInt(2, Math.floor(laps * 0.6)); e = s + randInt(3, Math.floor(laps * 0.35)); peak = rand(0.35, 0.8); }
+    if (type === 'shower') { s = randInt(2, Math.floor(laps * 0.6)); e = s + randInt(3, Math.max(4, Math.floor(laps * 0.35))); peak = rand(0.35, 0.8); }
     else if (type === 'start') { s = 0; e = randInt(Math.floor(laps * 0.25), Math.floor(laps * 0.6)); peak = rand(0.5, 0.95); }
     else if (type === 'late') { s = randInt(Math.floor(laps * 0.5), Math.floor(laps * 0.8)); e = laps + 1; peak = rand(0.4, 0.9); }
     else { s = 0; e = laps + 1; peak = rand(0.4, 0.75); }
@@ -30,7 +41,8 @@ export function makeWeatherPlan(track, laps, forcedRain) {
     }
     summary = type === 'full' ? 'Pioggia per tutta la gara' : type === 'start' ? 'Pioggia iniziale, poi in asciugatura' : type === 'late' ? 'Pioggia attesa nel finale' : 'Possibili rovesci a metà gara';
   }
-  return { plan, isRain, summary };
+  const trackTemp = Math.round(isRain ? rand(16, 24) : rand(24, 48) + (track.night ? -8 : 0));
+  return { plan, isRain, summary, trackTemp };
 }
 
 export function buildEntries(state) {
@@ -51,27 +63,45 @@ export function aiSetupQuality(state, team) {
   return clamp(0.42 + eng / 100 * 0.38 + (team.facilities.simulator - 3) * 0.03 + rand(-0.12, 0.12), 0.2, 0.97);
 }
 
+const aiSmart = (state) => ({ easy: 0.55, normal: 0.8, hard: 0.97 }[state.difficulty] ?? 0.8);
+
+// Base dry lap (s) for a team car on a track: physics from parts, calibrated to real laps
+export function teamBaseLap(state, team, track) {
+  return physicsLap(state.category, track, team.car.parts);
+}
+
+// weekend form: each driver/car has a small random form for the event (same in quali and race)
+export function weekendForm(state, d) {
+  const key = `${state.season}-${state.round}`;
+  if (!d._form || d._form.k !== key) d._form = { k: key, v: gauss(0, 0.0021) };
+  return d._form.v;
+}
+function driverFactor(d, rain, state) {
+  const pace = d.attrs.pace * (1 - rain) + d.attrs.wet * rain;
+  return 1 - (pace - 80) * 0.00048 - (d.morale - 70) * 0.00005 + (state ? weekendForm(state, d) : 0);
+}
+
 // ------------------ QUALIFYING ------------------
 export function runQualifying(state, track, setups, rainLevel = 0, playerRisk = {}) {
   const entries = buildEntries(state);
   const C = CATEGORIES[state.category];
+  const cat = state.category;
+  const soft = tyreModel(cat, rainLevel > 0.55 ? 'wet' : rainLevel > 0.2 && C.compounds.includes('inter') ? 'inter' : 'soft');
   const laps = entries.map((e) => {
     const team = state.teams[e.teamId];
     const d = state.drivers[e.driverIds[0]];
-    const perf = carPerf(state, team, track);
     const sq = setups[e.key] ?? aiSetupQuality(state, team);
-    const pace = d.attrs.pace * (1 - rainLevel) + d.attrs.wet * rainLevel;
-    const risk = playerRisk[e.key] || (e.isPlayer ? 'normal' : 'normal');
-    const base = track.lap - (perf - 80) * 0.05 - (pace - 80) * 0.045 - sq * 0.4 + rainLevel * 9 - 0.8;
+    const risk = playerRisk[e.key] || 'normal';
+    const base = teamBaseLap(state, team, track) * driverFactor(d, rainLevel, state) * (1 - sq * 0.005) * (soft.wet ? weatherFactor(rainLevel > 0.55 ? 'wet' : 'inter', rainLevel) : weatherFactor('soft', rainLevel)) + soft.pace * track.lap / 90;
     const lap = () => {
-      let t = base + gauss(0, 0.22 * (1.45 - d.attrs.cons / 100));
-      if (risk === 'push') t -= 0.18;
-      if (risk === 'safe') t += 0.15;
+      let t = base * (1 + gauss(0, 0.0022 * (1.45 - d.attrs.cons / 100)));
+      if (risk === 'push') t -= 0.14 * track.lap / 90;
+      if (risk === 'safe') t += 0.12 * track.lap / 90;
       const errP = (risk === 'push' ? 0.12 : risk === 'safe' ? 0.02 : 0.05) * (1.3 - d.attrs.cons / 100) * (1 + rainLevel);
-      if (chance(errP)) t += rand(0.6, 3);
+      if (chance(errP)) t += rand(0.4, 2.5) * track.lap / 90;
       return t;
     };
-    return { ...e, perf, sq, lap };
+    return { ...e, sq, lap };
   });
   const sessions = [];
   if (state.category === 'formula' && entries.length > 14) {
@@ -79,7 +109,7 @@ export function runQualifying(state, track, setups, rainLevel = 0, playerRisk = 
     const n = pool.length;
     const cut1 = n - Math.round(n * 0.27), cut2 = 10;
     const run = (list, name) => {
-      const res = list.map((c) => { const t = Math.min(c.lap(), c.lap()); return { key: c.key, time: t }; }).sort((a, b) => a.time - b.time);
+      const res = list.map((c) => ({ key: c.key, time: Math.min(c.lap(), c.lap()) })).sort((a, b) => a.time - b.time);
       sessions.push({ name, results: res });
       return res;
     };
@@ -88,9 +118,7 @@ export function runQualifying(state, track, setups, rainLevel = 0, playerRisk = 
     const r2 = run(pool, 'Q2');
     pool = pool.filter((c) => r2.slice(0, cut2).some((x) => x.key === c.key));
     const r3 = run(pool, 'Q3');
-    // grid: Q3 order, then Q2 eliminated by their Q2 time, then Q1 eliminated by Q1 time
-    const q2el = r2.slice(cut2), q1el = r1.slice(cut1);
-    const fullGrid = [...r3, ...q2el, ...q1el];
+    const fullGrid = [...r3, ...r2.slice(cut2), ...r1.slice(cut1)];
     return { sessions, grid: fullGrid.map((x) => x.key), times: Object.fromEntries(fullGrid.map((x) => [x.key, x.time])) };
   }
   const res = laps.map((c) => ({ key: c.key, time: Math.min(c.lap(), c.lap(), c.lap()) })).sort((a, b) => a.time - b.time);
@@ -105,41 +133,78 @@ export class CircuitSim {
   constructor(state, track, { grid, setups, weather, laps }) {
     this.state = state; this.track = track;
     this.C = CATEGORIES[state.category];
+    this.cat = state.category;
     this.endurance = this.C.refuel;
     this.laps = laps; this.weather = weather;
+    this.trackTemp = weather.trackTemp ?? 32;
+    this.realLaps = realLaps(state, track);
+    this.scale = this.realLaps / laps; // real laps per sim lap
+    this.ls = track.lap / 90;
+    this.pitLoss = track.pit || this.C.pitLoss;
     this.time = 0; this.finished = false; this.leaderFinished = false;
-    this.events = []; this.sc = null; this.scCount = 0;
+    this.events = []; this.sc = null; this.vsc = null; this.scCount = 0;
     this.fastest = { time: 999, key: null };
+    this.history = {}; // key -> [{lap, time, pos, tyre, wear}]
     const entries = buildEntries(state);
     const byKey = Object.fromEntries(entries.map((e) => [e.key, e]));
-    const stints = Math.max(2, Math.round((track.hours || 6) * (track.double ? 0.5 : 1) * 1.0));
-    this.stintLaps = this.endurance ? Math.max(4, laps / (track.double ? 12 : stints)) : 0;
+    // endurance stint length: ~45 minutes of real running
+    const stintReal = 2700 / track.lap;
+    this.stintLaps = this.endurance ? Math.max(3, stintReal / this.scale) : 0;
+    const smart = aiSmart(state);
+    this.planCache = {};
     this.cars = grid.map((key, i) => {
       const e = byKey[key];
       const team = state.teams[e.teamId];
-      const startCompound = this.pickStartCompound(e.isPlayer);
-      const effEff = this.endurance ? 0.85 + (team.car.parts.efficiency || 70) / 100 * 0.3 : 1;
-      return {
+      const effEff = this.endurance ? 0.86 + (team.car.parts.efficiency || 70) / 100 * 0.28 : 1;
+      const car = {
         ...e, team, grid: i + 1, pos: i + 1,
         dist: -i * 0.0045 - 0.002, lap: 0, lapStart: 0, lastLap: null, bestLap: null,
-        tyre: startCompound, wear: 0, compoundsUsed: new Set([startCompound]),
+        tyre: 'medium', age: 0, temp: 80, wear: 0, compoundsUsed: new Set(),
         fuelMax: this.endurance ? this.stintLaps * effEff : 1, fuel: this.endurance ? this.stintLaps * effEff : 1,
-        perf: carPerf(state, team, track), setupQ: setups[key] ?? aiSetupQuality(state, team),
+        baseLap: teamBaseLap(state, team, track), setupQ: setups[key] ?? aiSetupQuality(state, team),
         mode: 'normal', status: 'running', reason: null, inPit: 0, pitReq: null, pitStops: 0,
         driverIdx: 0, stintCount: 0, battleT: 0, damage: 0, penalty: 0, lapTarget: track.lap, finishTime: null,
-        auto: !e.isPlayer, aiPitWear: rand(0.6, 0.78), aiRainReact: rand(0, 0.15), lostTime: 0, totalStint: 0,
+        auto: !e.isPlayer, smart: e.isPlayer ? 0.9 : clamp(smart + rand(-0.12, 0.08), 0.3, 1), aiRainReact: rand(0, 0.15), gapAhead: 9, drs: false, dirty: false,
+        stintLap: 0, plan: null, planIdx: 0,
       };
+      return car;
     });
-    for (const c of this.cars) c.lapTarget = this.computeLap(c);
-    this.log(`Partenza! ${this.laps} giri al ${track.circuit}.`, 'start', null, true);
+    for (const c of this.cars) {
+      c.plan = this.makePlan(c);
+      c.tyre = c.plan ? c.plan[0].c : this.pickStartCompound();
+      c.compoundsUsed.add(c.tyre);
+      c.temp = this.endurance ? 85 : 82;
+      c.lapTarget = this.computeLap(c);
+      this.history[c.key] = [];
+    }
+    this.log(`Partenza! ${this.laps} giri a ${track.circuit}. Temperatura asfalto ${this.trackTemp}°C.`, 'start', null, true);
   }
 
-  pickStartCompound(isPlayer) {
+  wearMult(c, mode = c.mode) {
+    const d = this.driver(c);
+    const tp = c.team.car.parts.tyre ?? 75;
+    let w = (1.18 - tp / 420 - d.attrs.tyre / 520) * { push: 1.32, normal: 1, save: 0.72 }[mode];
+    w *= 1 + (this.trackTemp - 32) * 0.008;
+    return w;
+  }
+
+  makePlan(c) {
+    if (this.weather.plan[0] > 0.2) return null;
+    if (this.endurance) return null;
+    const key = c.teamId;
+    if (!this.planCache[key]) this.planCache[key] = strategyOptions(this.cat, this.track, this.laps, this.scale, this.wearMult(c, 'normal'), this.pitLoss);
+    const opts = this.planCache[key];
+    // smarter AIs pick near-optimal strategies; weaker ones gamble
+    const k = Math.min(opts.length - 1, Math.floor((1 - c.smart) * 6 * Math.random()));
+    const o = opts[k];
+    return o.stints.map((s) => ({ c: s.c, laps: Math.max(1, Math.round(s.laps + gauss(0, 1 - c.smart))) }));
+  }
+
+  pickStartCompound() {
     const r = this.weather.plan[0];
     if (r > 0.55) return 'wet';
     if (r > 0.2) return this.C.compounds.includes('inter') ? 'inter' : 'wet';
-    if (this.endurance) return 'medium';
-    return pick(['soft', 'medium', 'medium', 'hard']);
+    return 'medium';
   }
 
   get rain() {
@@ -150,47 +215,53 @@ export class CircuitSim {
     return a + (b - a) * f;
   }
   get night() {
-    if (!this.track.night || !this.endurance) return this.track.night && !this.endurance ? 0 : 0;
+    if (!this.track.night) return 0;
+    if (!this.endurance) return 1;
     const p = this.progress;
-    // night segment roughly 40%-70% of race
     return p > 0.38 && p < 0.72 ? 1 : 0;
   }
   get progress() { const leader = Math.max(...this.cars.map((c) => c.dist)); return clamp(leader / this.laps, 0, 1); }
 
   driver(c) { return this.state.drivers[c.driverIds[c.driverIdx]] || this.state.drivers[c.driverIds[0]]; }
+  life(c) { return tyreModel(this.cat, c.tyre).life / (this.track.wear * this.wearMult(c, 'normal')); }
+
+  // breakdown used by telemetry
+  lapBreakdown(c) {
+    const d = this.driver(c);
+    const rain = this.rain;
+    const m = tyreModel(this.cat, c.tyre);
+    const ls = this.ls;
+    const base = c.baseLap * driverFactor(d, rain, this.state) * (1 - c.setupQ * 0.005);
+    const out = { base };
+    out.compound = m.pace * ls;
+    out.deg = degPenalty(m, c.age, this.life(c)) * ls;
+    out.temp = tempPenalty(m, c.temp) * ls;
+    out.fuel = this.endurance ? (c.fuel / c.fuelMax) * 1.6 * ls : (1 - clamp(c.dist / this.laps, 0, 1)) * 3.1 * ls;
+    out.evo = -Math.min(1, this.progress * 2.5) * 0.45 * ls;
+    out.weather = base * (weatherFactor(c.tyre, rain) - 1) + (rain > 0.05 && !m.wet ? 0 : 0);
+    out.mode = { push: -0.32, normal: 0, save: 0.45 }[c.mode] * ls;
+    out.air = (c.drs ? -0.38 : 0) * ls + (c.dirty ? 0.28 * (1 - this.track.ovt * 0.5) : 0) * ls;
+    out.night = this.night && this.endurance ? (0.35 - d.attrs.exp / 400) * ls : 0;
+    out.damage = c.damage * ls;
+    out.fatigue = this.endurance && c.stintCount >= 3 ? 0.3 * (c.stintCount - 2) * ls : 0;
+    return out;
+  }
 
   computeLap(c) {
+    if (this.sc) return this.track.lap * 1.38;
+    if (this.vsc) return this.track.lap * 1.32;
+    const b = this.lapBreakdown(c);
+    let t = 0;
+    for (const v of Object.values(b)) t += v;
     const d = this.driver(c);
-    const tr = this.track;
-    const rain = this.rain;
-    const comp = COMPOUNDS[c.tyre];
-    let t = tr.lap;
-    t -= (c.perf - 80) * 0.05;
-    const pace = d.attrs.pace * (1 - rain) + d.attrs.wet * rain;
-    t -= (pace - 80) * 0.04 + (d.morale - 70) * 0.004;
-    t -= c.setupQ * 0.4;
-    t += comp.pace * (this.endurance ? 0.7 : 1);
-    t += c.wear * 1.5 + Math.max(0, c.wear - 0.72) * 10;
-    if (this.endurance) t += (c.fuel / c.fuelMax) * 0.5;
-    else t += (1 - clamp(c.dist / this.laps, 0, 1)) * 1.1;
-    // weather vs tyre
-    if (!comp.wet) t += rain * 14 + (rain > 0.3 ? rain * 6 : 0);
-    else if (c.tyre === 'inter') t += rain > 0.75 ? (rain - 0.75) * 12 : rain < 0.25 ? (0.25 - rain) * 14 : 0;
-    else t += rain < 0.5 ? (0.5 - rain) * 10 : 0;
-    if (rain > 0) t += rain * 3.5;
-    t += { push: -0.38, normal: 0, save: 0.5 }[c.mode];
-    if (this.night) t += 0.3 - d.attrs.exp / 500;
-    t += c.damage;
-    if (this.endurance && c.stintCount >= 3) t += 0.35 * (c.stintCount - 2);
-    t += gauss(0, 0.2 * (1.45 - d.attrs.cons / 100));
-    if (this.sc) t = tr.lap * 1.38;
+    t += gauss(0, 0.0022 * (1.45 - d.attrs.cons / 100) * this.track.lap);
     return t;
   }
 
   log(text, type = 'info', key = null, important = false) {
-    const lap = Math.max(1, Math.min(this.laps, Math.floor(Math.max(...this.cars?.map?.((c) => c.dist) || [0])) + 1));
+    const lap = Math.max(1, Math.min(this.laps, Math.floor(Math.max(...(this.cars?.map?.((c) => c.dist) || [0]))) + 1));
     this.events.push({ t: this.time, lap, text, type, key, important });
-    if (this.events.length > 300) this.events.shift();
+    if (this.events.length > 400) this.events.shift();
   }
 
   setMode(key, mode) { const c = this.cars.find((x) => x.key === key); if (c && c.status === 'running') { c.mode = mode; c.lapTarget = this.computeLap(c); } }
@@ -201,61 +272,64 @@ export class CircuitSim {
     const rain = this.rain;
     const lapsLeft = this.laps - c.dist;
     const comp = COMPOUNDS[c.tyre];
-    let need = null;
-    const wantWet = rain > 0.62 ? 'wet' : rain > 0.22 + c.aiRainReact * 0.5 ? (this.C.compounds.includes('inter') ? 'inter' : 'wet') : null;
-    if (wantWet && c.tyre !== wantWet && lapsLeft > 1.5) need = wantWet;
-    if (!wantWet && comp.wet && rain < 0.12 - c.aiRainReact * 0.3 && lapsLeft > 2) need = this.dryChoice(c, lapsLeft);
-    if (!need && !comp.wet && c.wear > c.aiPitWear && lapsLeft > 2.5) need = this.dryChoice(c, lapsLeft);
-    if (!need && comp.wet && c.wear > 0.82 && lapsLeft > 3) need = c.tyre;
+    const wetC = this.C.compounds.includes('inter') ? 'inter' : 'wet';
+    const wantWet = rain > 0.62 ? 'wet' : rain > 0.22 + c.aiRainReact * (1.2 - c.smart) ? wetC : null;
+    if (wantWet && c.tyre !== wantWet && lapsLeft > 1.5) return this.req(c, wantWet);
+    if (!wantWet && comp.wet && rain < 0.12 - c.aiRainReact * 0.3 * (1.2 - c.smart) && lapsLeft > 2) {
+      c.plan = null; return this.req(c, this.dryChoice(c, lapsLeft));
+    }
     if (this.endurance) {
       if (c.fuel < 1.25 && lapsLeft > 0.9) {
-        const tyre = c.wear > 0.5 ? (wantWet || this.dryChoice(c, lapsLeft)) : null;
-        return { compound: tyre || need, fuel: true, swap: c.stintCount >= 2 };
+        const wear = c.age / this.life(c);
+        const tyre = wear > 0.55 ? (wantWet || this.dryChoice(c, lapsLeft)) : null;
+        return { compound: tyre, fuel: true, swap: c.stintCount >= 2 };
       }
-      if (need) return { compound: need, fuel: true, swap: c.stintCount >= 2 };
       return null;
     }
-    if (need) return { compound: need };
-    // mandatory compound rule (dry races)
-    if (!this.weather.isRain && c.compoundsUsed.size < 2 && lapsLeft < 4 && lapsLeft > 1.2) return { compound: c.tyre === 'medium' ? 'hard' : 'medium' };
-    if (this.sc && !comp.wet && c.wear > 0.42 && lapsLeft > 4 && chance(0.6)) return { compound: this.dryChoice(c, lapsLeft) };
+    const wear = c.age / this.life(c);
+    // follow the plan
+    if (c.plan && !comp.wet) {
+      const st = c.plan[c.planIdx];
+      const isLast = c.planIdx >= c.plan.length - 1;
+      if (!isLast && (c.stintLap >= st.laps || wear > 0.98) && lapsLeft > 2) {
+        c.planIdx++;
+        return this.req(c, c.plan[c.planIdx].c);
+      }
+      // safety car opportunity
+      if ((this.sc || this.vsc) && !isLast && c.stintLap >= st.laps * 0.65 && chance(0.4 + c.smart * 0.5)) { c.planIdx++; return this.req(c, c.plan[c.planIdx].c); }
+      if (isLast && wear > 1.05 && lapsLeft > 4) return this.req(c, this.dryChoice(c, lapsLeft));
+      return null;
+    }
+    if (!comp.wet && wear > 0.9 && lapsLeft > 2.5) return this.req(c, this.dryChoice(c, lapsLeft));
+    if (comp.wet && wear > 0.95 && lapsLeft > 3) return this.req(c, c.tyre);
+    if (!this.weather.isRain && c.compoundsUsed.size < 2 && lapsLeft < 4 && lapsLeft > 1.2 && !comp.wet) return this.req(c, c.tyre === 'medium' ? 'hard' : 'medium');
     return null;
   }
+  req(c, compound) { return { compound, fuel: true, swap: this.endurance && c.stintCount >= 2 }; }
 
   dryChoice(c, lapsLeft) {
-    if (this.endurance) return lapsLeft < this.stintLaps * 1.2 ? 'soft' : c.wear > 0 && chance(0.5) ? 'hard' : 'medium';
-    const frac = lapsLeft / this.laps;
-    let comp = frac < 0.33 ? 'soft' : frac < 0.6 ? 'medium' : 'hard';
-    if (!this.weather.isRain && c.compoundsUsed.size < 2 && c.compoundsUsed.has(comp)) comp = comp === 'medium' ? (frac < 0.45 ? 'soft' : 'hard') : 'medium';
+    const realLeft = lapsLeft * this.scale * this.track.wear * this.wearMult(c, 'normal');
+    if (this.endurance) return lapsLeft < this.stintLaps * 1.2 ? 'soft' : 'medium';
+    let comp = realLeft < 16 ? 'soft' : realLeft < 27 ? 'medium' : 'hard';
+    const dryUsed = [...c.compoundsUsed].filter((x) => !COMPOUNDS[x].wet);
+    if (!this.weather.isRain && dryUsed.length === 1 && dryUsed[0] === comp) comp = comp === 'medium' ? (realLeft < 20 ? 'soft' : 'hard') : 'medium';
     return comp;
-  }
-
-  wearRate(c) {
-    const d = this.driver(c);
-    const comp = COMPOUNDS[c.tyre];
-    const base = this.endurance ? 0.72 / (this.stintLaps * 2.1) : 1.3 / this.laps;
-    const tyrePart = c.team.car.parts.tyre ?? 70;
-    let w = base * this.track.wear * comp.wear * (1.28 - tyrePart / 220 - d.attrs.tyre / 260);
-    w *= { push: 1.4, normal: 1, save: 0.7 }[c.mode];
-    if (comp.wet) w *= this.rain < 0.3 ? 2.2 : 0.8;
-    if (this.sc) w *= 0.3;
-    return w;
   }
 
   enterPit(c) {
     const req = c.pitReq || {};
     const mech = this.state.staff[c.team.staff.mechanic]?.rating || 65;
     const crew = c.team.facilities.pitcrew;
-    let stat = this.endurance ? 26 + rand(0, 6) - mech / 30 - crew * 0.6 : 2.2 + rand(0, 0.6) + (100 - mech) / 90 - crew * 0.08;
+    let stat = this.endurance ? 26 + rand(0, 6) - mech / 30 - crew * 0.6 : 2.15 + rand(0, 0.5) + (100 - mech) / 95 - crew * 0.08;
     let slow = '';
     if (chance(0.06 * (1.25 - mech / 100) * (1.2 - crew * 0.08))) { const x = rand(2.5, 8); stat += x; slow = ` (pit stop lento +${x.toFixed(1)}s!)`; }
     if (req.swap && this.endurance) stat += 4;
     if (!req.compound && this.endurance) stat -= 9;
-    let loss = this.C.pitLoss * (this.sc ? 0.5 : 1);
+    const loss = this.pitLoss * (this.sc ? 0.5 : this.vsc ? 0.65 : 1);
     if (c.damage > 0 && req.repair !== false) { stat += c.damage * 12; c.damage = 0; }
     c.inPit = loss + stat;
     c.pitStops++;
-    if (req.compound) { c.tyre = req.compound; c.wear = 0; c.compoundsUsed.add(req.compound); }
+    if (req.compound) { c.tyre = req.compound; c.age = 0; c.temp = this.endurance ? 72 : 70; c.compoundsUsed.add(req.compound); c.stintLap = 0; }
     if (this.endurance) { c.fuel = c.fuelMax; c.stintCount++; }
     if (req.swap && c.driverIds.length > 1) { c.driverIdx = (c.driverIdx + 1) % c.driverIds.length; c.stintCount = 0; }
     const d = this.driver(c);
@@ -264,18 +338,27 @@ export class CircuitSim {
     this.log(`BOX: ${d.name} si ferma – ${tyreTxt}${req.swap ? ', cambio pilota' : ''}. Sosta ${stat.toFixed(1)}s${slow}`, 'pit', c.key, c.isPlayer);
     c.pitReq = null;
     c.lastStop = stat;
+    this.onPit?.(c, stat);
   }
 
   retire(c, reason, crash) {
     c.status = 'dnf'; c.reason = reason;
     const d = this.driver(c);
     this.log(`${crash ? '💥' : '🔧'} RITIRO: ${d.name} (${c.team.name}) – ${reason}`, crash ? 'crash' : 'fail', c.key, true);
-    if (crash && !this.sc && chance(0.65) && c.dist < this.laps - 1.5) this.deploySC();
+    if (!this.sc && !this.vsc && c.dist < this.laps - 1.5) {
+      if (crash && chance(0.6)) this.deploySC();
+      else if (chance(crash ? 0.5 : 0.35)) this.deployVSC();
+    }
   }
   deploySC() {
-    this.sc = { laps: randInt(2, 3), startLap: Math.floor(this.progress * this.laps) };
+    this.sc = { laps: randInt(2, 4), startLap: Math.floor(this.progress * this.laps) };
     this.scCount++;
     this.log('🚨 SAFETY CAR in pista!', 'sc', null, true);
+    for (const c of this.cars) c.lapTarget = this.computeLap(c);
+  }
+  deployVSC() {
+    this.vsc = { until: this.time + rand(50, 110) };
+    this.log('🟡 VIRTUAL SAFETY CAR', 'sc', null, true);
     for (const c of this.cars) c.lapTarget = this.computeLap(c);
   }
 
@@ -283,10 +366,12 @@ export class CircuitSim {
     const lapTime = crossT - c.lapStart;
     c.lapStart = crossT;
     c.lap++;
+    c.stintLap++;
     if (c.lap > 0 && lapTime > 20) {
       c.lastLap = lapTime;
       if (!c.bestLap || lapTime < c.bestLap) c.bestLap = lapTime;
-      if (lapTime < this.fastest.time && !this.sc && c.lap > 1) { this.fastest = { time: lapTime, key: c.key }; }
+      if (lapTime < this.fastest.time && !this.sc && !this.vsc && c.lap > 1) { this.fastest = { time: lapTime, key: c.key }; }
+      this.history[c.key].push({ lap: c.lap, time: lapTime, tyre: c.tyre, wear: c.age / this.life(c), temp: c.temp, pos: c.pos, sc: !!(this.sc || this.vsc) });
     }
     if (this.endurance) {
       c.fuel -= 1;
@@ -294,30 +379,36 @@ export class CircuitSim {
     }
     // finish
     if (this.leaderFinished || c.lap >= this.laps) {
-      if (!this.leaderFinished) { this.leaderFinished = true; this.log(`🏁 ${this.driver(c).name} vince il ${this.track.name}!`, 'finish', c.key, true); }
+      if (!this.leaderFinished) { this.leaderFinished = true; this.log(`🏁 ${this.driver(c).name} taglia per primo il traguardo!`, 'finish', c.key, true); }
       if (this.C.id === 'formula' && !this.weather.isRain && [...c.compoundsUsed].filter((x) => !COMPOUNDS[x].wet).length < 2) {
         c.penalty += 10; this.log(`⚖ ${this.driver(c).name}: +10s di penalità (una sola mescola utilizzata)`, 'warn', c.key, c.isPlayer);
       }
       c.status = 'finished'; c.finishTime = crossT + c.penalty; c.finishLap = c.lap;
       return;
     }
+    // tyre temperature: approaches an equilibrium set by pace, track temp and compound
+    const m = tyreModel(this.cat, c.tyre);
+    const rain = this.rain;
+    const teq = 92 + { push: 14, normal: 4, save: -8 }[c.mode] + (this.trackTemp - 32) * 0.55 - rain * 35 + (this.sc || this.vsc ? -18 : 0) + (c.dirty ? 4 : 0);
+    c.temp += (teq - c.temp) * 0.45;
     // incidents
     const d = this.driver(c);
-    const rain = this.rain;
     const comp = COMPOUNDS[c.tyre];
-    let crashP = 0.0011 * { push: 1.9, normal: 1, save: 0.6 }[c.mode] * (1.35 - d.attrs.cons / 100);
+    const wear = c.age / this.life(c);
+    let crashP = 0.0011 * { push: 1.9, normal: 1, save: 0.6 }[c.mode] * (1.35 - d.attrs.cons / 100) * Math.max(0.4, this.scale * 0.6);
     if (!comp.wet && rain > 0.25) crashP *= 1 + rain * 14;
     if (rain > 0) crashP *= 1 + rain * 1.5;
-    if (this.night) crashP *= 1.4;
-    if (c.wear > 0.9) crashP *= 4;
-    if (this.sc) crashP *= 0.1;
+    if (this.night && this.endurance) crashP *= 1.4;
+    if (wear > 1.05) crashP *= 4;
+    if (Math.abs(c.temp - m.win) > 25) crashP *= 1.8;
+    if (this.sc || this.vsc) crashP *= 0.1;
     const rel = c.team.car.parts.reliability;
-    let failP = 0.0012 * ((100 - rel) / 18) ** 2 * { push: 1.25, normal: 1, save: 0.8 }[c.mode];
+    let failP = 0.0012 * ((100 - rel) / 18) ** 2 * { push: 1.25, normal: 1, save: 0.8 }[c.mode] * Math.max(0.4, this.scale * 0.6);
     if (this.endurance) failP *= 0.55;
     if (chance(crashP)) {
       const r = Math.random();
-      if (r < 0.45) this.retire(c, pick(['Incidente', 'Contatto alla prima curva', 'Fuori pista contro le barriere', 'Testacoda e muro']), true);
-      else if (r < 0.75) { c.damage = rand(0.4, 1.4); this.log(`⚠ ${d.name} tocca le barriere: danno all’ala!`, 'warn', c.key, c.isPlayer); }
+      if (r < 0.42) this.retire(c, pick(['Incidente', 'Contatto alla staccata', 'Fuori pista contro le barriere', 'Testacoda e muro']), true);
+      else if (r < 0.72) { c.damage = rand(0.4, 1.4); this.log(`⚠ ${d.name} tocca le barriere: danno all’ala!`, 'warn', c.key, c.isPlayer); }
       else { const loss = rand(4, 12); c.dist -= loss / this.track.lap; this.log(`↺ Testacoda di ${d.name}! Perde ${loss.toFixed(0)} secondi.`, 'warn', c.key, c.isPlayer); }
       if (c.status === 'dnf') return;
     }
@@ -326,12 +417,10 @@ export class CircuitSim {
       if (r < 0.55) { this.retire(c, pick(['Power unit', 'Cambio', 'Idraulica', 'Freni', 'Perdita olio', 'Elettronica', 'Sospensione']), false); return; }
       c.damage += rand(0.2, 0.7); this.log(`🔧 Problema tecnico per ${d.name}: perde potenza.`, 'warn', c.key, c.isPlayer);
     }
-    if (c.wear > 0.97 && !comp.wet) { c.damage += 0.6; c.pitReq = c.pitReq || { compound: this.dryChoice(c, this.laps - c.dist), fuel: true }; this.log(`💥 Foratura per ${d.name}! Rientra ai box lentamente.`, 'warn', c.key, true); c.dist -= 0.15; }
-    // pit decision
-    if (c.auto || !c.pitReq) {
-      if (c.auto) { const req = this.aiThink(c); if (req) c.pitReq = req; }
-    }
+    if (wear > 1.12 && !comp.wet && chance(0.25)) { c.damage += 0.6; c.pitReq = c.pitReq || { compound: this.dryChoice(c, this.laps - c.dist), fuel: true }; this.log(`💥 Foratura per ${d.name}! Gomme oltre il limite.`, 'warn', c.key, true); c.dist -= 0.15; }
+    if (c.auto) { const req = this.aiThink(c); if (req) c.pitReq = req; }
     if (c.isPlayer && !c.auto && this.endurance && c.fuel < 1.05 && !c.pitReq) { c.pitReq = { compound: null, fuel: true }; this.log(`⛽ Ingegnere: ${d.name} chiamato ai box per carburante (automatico).`, 'pit', c.key, true); }
+    if (c.isPlayer && !c.auto && wear > 1.1 && !c.pitReq && this.laps - c.dist > 2) this.log(`📻 Ingegnere a ${d.name.split(' ')[0]}: «Le gomme sono finite, dobbiamo fermarci!»`, 'radio', c.key, true);
     if (c.pitReq && c.lap < this.laps) this.enterPit(c);
     c.lapTarget = this.computeLap(c);
   }
@@ -341,51 +430,60 @@ export class CircuitSim {
     this.time += dt;
     const running = this.cars.filter((c) => c.status === 'running');
     const rain = this.rain;
-    if (!this._lastRain) this._lastRain = 0;
+    if (this._lastRain == null) this._lastRain = 0;
     if (rain > 0.2 && this._lastRain <= 0.2) this.log('🌧 Inizia a piovere!', 'weather', null, true);
     if (rain < 0.1 && this._lastRain >= 0.1) this.log('☀ La pioggia smette, pista in asciugatura.', 'weather', null, true);
     this._lastRain = rain;
+    if (this.vsc && this.time > this.vsc.until) { this.vsc = null; this.log('🟢 Fine Virtual Safety Car', 'sc', null, true); for (const c of this.cars) c.lapTarget = this.computeLap(c); }
     for (const c of running) {
-      if (c.inPit > 0) { c.inPit -= dt; if (c.inPit <= 0) { c.inPit = 0; } continue; }
+      if (c.inPit > 0) { c.inPit -= dt; if (c.inPit <= 0) c.inPit = 0; continue; }
       const prev = c.dist;
-      let lt = c.lapTarget;
+      const lt = c.lapTarget;
       c.dist += dt / lt;
-      c.wear = clamp(c.wear + this.wearRate(c) * dt / lt, 0, 1);
+      c.age += (dt / lt) * this.scale * this.track.wear * this.wearMult(c) * (this.sc || this.vsc ? 0.35 : 1) * (Math.abs(c.temp - tyreModel(this.cat, c.tyre).win) > 12 ? 1.25 : 1) * (COMPOUNDS[c.tyre].wet && rain < 0.3 ? 2.2 : 1);
+      c.wear = c.age / this.life(c);
       if (Math.floor(c.dist) > c.lap && Math.floor(c.dist) >= 1) this.onLapComplete(c, this.time - (c.dist - Math.floor(c.dist)) * lt);
     }
     // interactions
     const order = this.cars.filter((c) => c.status === 'running' && c.inPit <= 0).sort((a, b) => b.dist - a.dist);
+    if (order[0]) { order[0].gapAhead = 9; order[0].drs = false; order[0].dirty = false; }
     for (let i = 1; i < order.length; i++) {
       const a = order[i - 1], b = order[i];
       const gap = a.dist - b.dist;
+      const gapS = gap * this.track.lap;
+      b.gapAhead = gapS;
+      const wasDrs = b.drs, wasDirty = b.dirty;
+      b.drs = this.C.id === 'formula' && gapS < 1 && b.lap >= 2 && rain < 0.2 && !this.sc && !this.vsc;
+      b.dirty = gapS < 1.6 && !this.sc && !this.vsc;
+      if (b.drs !== wasDrs || b.dirty !== wasDirty) b.lapTarget = this.computeLap(b);
       if (gap > 0.4) continue;
       if (gap < MIN_GAP) {
-        if (this.sc || b.dist < 0.3) { b.dist = a.dist - MIN_GAP * (this.sc ? 3 : 1.2); continue; }
+        if (this.sc || this.vsc || b.dist < 0.3) { if (this.sc || b.dist < 0.3) b.dist = a.dist - MIN_GAP * (this.sc ? 3 : 1.2); continue; }
         b.battleT += dt;
         if (b.battleT >= 2.2) {
           b.battleT = 0;
           const paceDiff = a.lapTarget - b.lapTarget;
           const da = this.driver(a), db = this.driver(b);
-          const drs = this.C.id === 'formula' && rain < 0.2 ? 0.1 : 0;
-          const p = clamp(0.06 + this.track.ovt * 0.42 + paceDiff * 0.32 + (db.attrs.race - da.attrs.race) / 110 + drs + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0), 0.02, 0.9);
+          const p = clamp(0.05 + this.track.ovt * 0.42 + (paceDiff / this.ls) * 0.3 + (db.attrs.race - da.attrs.race) / 110 + (b.drs ? 0.1 : 0) + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0), 0.02, 0.9);
           if (chance(p)) {
             b.dist = a.dist + 0.0012; a.dist -= 0.0012;
             [order[i - 1], order[i]] = [b, a];
             if (a.isPlayer || b.isPlayer || i <= 3) this.log(`⇄ ${db.name} sorpassa ${da.name} per la P${i}!`, 'overtake', b.key, b.isPlayer || a.isPlayer);
             if (b.isPlayer && chance(0.35)) this.log(`📻 ${db.name.split(' ')[0]}: «${pick(['Sììì! Che sorpasso!', 'Fatto! Avanti il prossimo.', 'Era mio, era mio!', 'Ho più passo, continuo così.'])}»`, 'radio', b.key, true);
             else if (a.isPlayer && chance(0.3)) this.log(`📻 ${da.name.split(' ')[0]}: «${pick(['Non ho grip, le gomme sono andate!', 'Mi ha sorpreso alla staccata...', 'Non riesco a difendermi!'])}»`, 'radio', a.key, true);
-            // contact risk
-            if (chance(0.012 * (1.5 - db.attrs.race / 100))) { this.retire(a, 'Contatto in duello', true); }
+            this.onOvertake?.(b, a);
+            if (chance(0.006 * (1.5 - db.attrs.race / 100))) {
+              if (chance(0.3)) this.retire(a, 'Contatto in duello', true);
+              else { a.damage += rand(0.3, 0.9); this.log(`⚠ Contatto tra ${db.name} e ${da.name}: ala danneggiata!`, 'warn', a.key, a.isPlayer || b.isPlayer); a.lapTarget = this.computeLap(a); }
+            }
           } else b.dist = a.dist - MIN_GAP;
         } else b.dist = a.dist - MIN_GAP;
       } else b.battleT = Math.max(0, b.battleT - dt * 0.3);
     }
-    // SC management
     if (this.sc) {
       const leaderLap = Math.floor(Math.max(...running.map((c) => c.dist)));
       if (leaderLap - this.sc.startLap >= this.sc.laps) { this.sc = null; this.log('🟢 Safety car rientra: si riparte!', 'sc', null, true); for (const c of this.cars) c.lapTarget = this.computeLap(c); }
       else {
-        // bunch up
         const scStep = dt / (this.track.lap * 1.38);
         for (let i = 1; i < order.length; i++) {
           const a = order[i - 1], b = order[i];
@@ -394,11 +492,9 @@ export class CircuitSim {
         }
       }
     }
-    // standings positions
     const all = this.classification();
     all.forEach((c, i) => (c.pos = i + 1));
     if (this.leaderFinished && this.cars.every((c) => c.status !== 'running')) { this.finished = true; this.log('Bandiera a scacchi. Gara conclusa.', 'finish', null, true); }
-    // safety: if no one running
     if (!this.cars.some((c) => c.status === 'running')) this.finished = true;
   }
 
@@ -406,6 +502,7 @@ export class CircuitSim {
     return this.cars.slice().sort((a, b) => {
       const sa = a.status === 'dnf' ? 1 : 0, sb = b.status === 'dnf' ? 1 : 0;
       if (sa !== sb) return sa - sb;
+      if (sa && sb) return b.dist - a.dist;
       if (a.status === 'finished' && b.status === 'finished') return (b.finishLap - a.finishLap) || (a.finishTime - b.finishTime);
       if (a.status === 'finished') return b.dist >= a.finishLap ? 1 : -1;
       if (b.status === 'finished') return a.dist >= b.finishLap ? -1 : 1;
@@ -424,7 +521,7 @@ export class CircuitSim {
     return d * this.track.lap;
   }
 
-  runToEnd(maxSteps = 200000) {
+  runToEnd(maxSteps = 400000) {
     let n = 0;
     while (!this.finished && n++ < maxSteps) this.step(0.5);
   }
@@ -437,9 +534,8 @@ export class CircuitSim {
       const pos = i + 1;
       const pts = c.status === 'dnf' ? 0 : pointsFor(pos, double);
       const gap = this.gapToLeader(c, leader);
-      return { key: c.key, teamId: c.teamId, driverIds: c.driverIds, pos, status: c.status === 'dnf' ? 'dnf' : 'fin', reason: c.reason, pts, gap, bestLap: c.bestLap, pitStops: c.pitStops, grid: c.grid, laps: c.status === 'finished' ? c.finishLap : Math.floor(Math.max(0, c.dist)) };
+      return { key: c.key, teamId: c.teamId, driverIds: c.driverIds, pos, status: c.status === 'dnf' ? 'dnf' : 'fin', reason: c.reason, pts, gap, bestLap: c.bestLap, pitStops: c.pitStops, grid: c.grid, laps: c.status === 'finished' ? c.finishLap : Math.floor(Math.max(0, c.dist)), tyres: [...c.compoundsUsed] };
     });
-    // fastest lap bonus? (not in 2026 rules) – just record
     return { classification: out, fastest: this.fastest, scCount: this.scCount };
   }
 }

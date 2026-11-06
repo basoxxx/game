@@ -5,7 +5,8 @@ import { esc, bar } from '../ui/dom.js';
 import { S } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { cat, playerTeam, teamDrivers, standings, partRanking, fmtM, rdSlots, RD_TIERS, partName, freeAgents, seatsPerTeam } from '../engine/season.js';
-import { genCircuit, genStage } from '../ui/trackview.js';
+import { genStage, circuitPath } from '../ui/trackview.js';
+import { partSensitivity, trackStats } from '../engine/trackphys.js';
 import { SURFACES } from '../data/categories.js';
 import { driverChip, ovr, ratingBox, moraleChip, teamStripe } from './common.js';
 
@@ -38,10 +39,16 @@ registerScreen({
     let hero = '';
     if (info) {
       const { ev, tr } = info;
-      const path = st.category === 'rally' ? genStage(tr.seed) : genCircuit(tr.seed, tr.street || 0);
+      const path = st.category === 'rally' ? genStage(tr.seed) : circuitPath(tr.cid);
       const sub = st.category === 'rally' ? `${ev.stages.length} prove speciali · ${ev.stages.reduce((a, b) => a + b.km, 0)} km` : `${tr.circuit}${tr.hours ? ` · ${tr.hours} ore` : ''}`;
       const surfaces = st.category === 'rally' ? [...new Set(ev.stages.map((x) => x.surface))].map((x) => `<span class="chip" style="border-color:${SURFACES[x].color}">${SURFACES[x].name}</span>`).join('') : '';
-      const traits = st.category !== 'rally' ? Object.entries(tr.w).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => `<span class="chip">Chiave: ${partName(st, k)}</span>`).join('') : '';
+      let traits = '';
+      if (st.category !== 'rally') {
+        const sens = partSensitivity(st.category, tr);
+        const ts = trackStats(st.category, tr);
+        const key = Object.entries(sens).sort((a, b) => b[1] - a[1])[0][0];
+        traits = `<span class="chip">${(ts.len / 1000).toFixed(3)} km · ${ts.corners} curve</span><span class="chip">V. max ${Math.round(ts.vmax)} km/h</span><span class="chip warn">Chiave: ${partName(st, key)}</span>`;
+      }
       hero = `<div class="hero">
         <div>
           <div class="row"><span class="chip">Round ${ev.round} di ${st.calendar.length}</span>${tr.night ? `<span class="chip info">${icon('moon', 'ico', 'style="width:13px"')} Notturna</span>` : ''}${tr.double ? '<span class="chip warn">Punti doppi</span>' : ''}</div>

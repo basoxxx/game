@@ -213,3 +213,30 @@ export class TrackView {
 export function roundRect(c, x, y, w, h, r) {
   c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
 }
+
+// Real circuit path in TrackView format + time->arc mapping from the physics profile
+import { trackGeometry, referenceProfile, sampleAtTimeFrac } from '../engine/trackphys.js';
+const pathCache = {};
+export function circuitPath(cid) {
+  if (pathCache[cid]) return pathCache[cid];
+  const g = trackGeometry(cid);
+  if (!g) return genCircuit(7, 0);
+  const pts = [];
+  for (let i = 0; i < g.N; i += 2) pts.push([g.x[i], g.y[i]]);
+  const p = buildPath(pts, true);
+  p.geo = g;
+  pathCache[cid] = p;
+  return p;
+}
+// Converts a lap fraction measured in TIME into a fraction of track DISTANCE
+export function arcFrac(catId, cid, timeFrac) {
+  const prof = referenceProfile(catId, cid);
+  const g = trackGeometry(cid);
+  return sampleAtTimeFrac(prof, timeFrac) / g.N;
+}
+export function speedAtTimeFrac(catId, cid, timeFrac, lapTime) {
+  const prof = referenceProfile(catId, cid);
+  const g = trackGeometry(cid);
+  const i = Math.floor(sampleAtTimeFrac(prof, timeFrac)) % g.N;
+  return prof.v[i] * (prof.lap / lapTime) * 3.6;
+}
