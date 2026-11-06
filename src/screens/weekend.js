@@ -107,6 +107,7 @@ registerScreen({
   unmount() { stopRace(); },
   onKey(e) {
     if (!R.sim) return;
+    if (R.moment && /^Digit[1-3]$/.test(e.code)) { resolveMomentUI(+e.code.slice(5) - 1); return; }
     if (e.code === 'Space') { e.preventDefault(); R.paused = !R.paused; updateSpeedUI(); }
     const sp = { Digit1: 2, Digit2: 4, Digit3: 8, Digit4: 16, Digit5: 32 }[e.code];
     if (sp) { R.speed = sp; R.paused = false; updateSpeedUI(); }
@@ -186,6 +187,8 @@ registerScreen({
     mode(el) { R.sim?.setMode(el.dataset.key, el.dataset.m); updateControls(true); },
     ers(el) { R.sim?.setErs(el.dataset.key, el.dataset.m); updateControls(true); },
     orders(el) { const st = S(); R.sim?.setOrders(st.playerTeam, el.dataset.o); updateControls(true); },
+    moment(el) { resolveMomentUI(+el.dataset.i); },
+    'moments-off'() { if (R.sim) { R.sim.momentsOn = false; R.sim.moments = []; } document.getElementById('moment')?.remove(); R.moment = null; R.last = performance.now(); },
     radio(el) { R.sim?.answerRadio(+el.dataset.id, el.dataset.y === '1'); sfx.radio(); updateControls(true); },
     pitsel(el) { R.pitSel[el.dataset.key] = el.dataset.c; updateControls(true); },
     pit(el) { const k = el.dataset.key; const c = R.sim.cars.find((x) => x.key === k); if (c.pitReq) R.sim.cancelPit(k); else R.sim.requestPit(k, { compound: R.pitSel[k] === 'none' ? null : R.pitSel[k], fuel: true, swap: !!R.swap[k] }); updateControls(true); },
@@ -193,7 +196,7 @@ registerScreen({
     auto(el) { const c = R.sim.cars.find((x) => x.key === el.dataset.key); c.auto = !c.auto; updateControls(true); },
     speed(el) { R.speed = +el.dataset.v; R.paused = false; updateSpeedUI(); },
     pause() { R.paused = !R.paused; updateSpeedUI(); },
-    'sim-end'() { App.confirm('Simulare fino alla fine?', 'La strategia dei tuoi piloti passerà all’ingegnere.', () => { R.sim.cars.forEach((c) => { if (c.isPlayer) c.auto = true; }); R.sim.runToEnd(); }); },
+    'sim-end'() { App.confirm('Simulare fino alla fine?', 'La strategia dei tuoi piloti passerà all’ingegnere.', () => { R.sim.cars.forEach((c) => { if (c.isPlayer) c.auto = true; }); R.sim.momentsOn = false; R.sim.moments = []; document.getElementById('moment')?.remove(); R.moment = null; R.sim.runToEnd(); }); },
     'finish-race'() { finishRace(); },
   },
 });
@@ -339,9 +342,10 @@ function mountRace() {
   startLights(() => { R.paused = false; R.last = performance.now(); updateSpeedUI(); engineStart(st.category); });
   const loop = (t) => {
     const dt = Math.min(0.1, (t - R.last) / 1000); R.last = t;
-    if (!R.paused && !R.sim.finished && !R.replay) {
+    if (!R.paused && !R.sim.finished && !R.replay && !R.moment) {
       let rem = dt * R.speed;
-      while (rem > 0) { const d = Math.min(0.5, rem); R.sim.step(d); rem -= d; }
+      while (rem > 0 && !R.sim.moments.length) { const d = Math.min(0.5, rem); R.sim.step(d); rem -= d; }
+      if (R.sim.moments.length) showMoment(R.sim.moments[0]);
     }
     if (R.replay) playReplay(dt); else if (R.r3d) update3D(dt); else draw();
     if (R.r3d) draw();
@@ -354,7 +358,7 @@ function mountRace() {
   R.raf = requestAnimationFrame(loop);
   updateSpeedUI();
 }
-function stopRace() { R.replay = null; R.rbuf = []; cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = null; R.r3d?.destroy(); R.r3d = null; engineStop(); }
+function stopRace() { R.moment = null; R.replay = null; R.rbuf = []; cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = null; R.r3d?.destroy(); R.r3d = null; engineStop(); }
 
 function renderViewBtns() {
   const el = document.getElementById('view-btns'); if (!el) return;
@@ -712,4 +716,29 @@ function playReplay(dt) {
   const states = a.st.map((sa) => { const sb = b.st.find((x) => x.key === sa.key) || sa; if (sa.hidden) return sa; let ds = sb.s - sa.s; if (ds < -N / 2) ds += N; if (ds > N / 2) ds -= N; return { ...sa, s: (sa.s + ds * f + N) % N, speed: sa.speed + (sb.speed - sa.speed) * f }; });
   r.focusKey = rp.focus;
   r.update(states, dt);
+}
+
+// ---------------- KEY MOMENTS ----------------
+function showMoment(m) {
+  if (R.moment) return;
+  R.moment = m;
+  sfx.notify();
+  if (m.key && m.key !== 'all') { R.focus = m.key; if (R.r3d) { R.r3d.director = false; R.r3d.camMode = m.type === 'sc' ? 'heli' : 'chase'; R.r3d._cut = true; R.r3d.focusKey = m.key; } }
+  const ov = document.getElementById('finish-overlay'); if (!ov) return;
+  const col = { sc: 'var(--warn)', rain: 'var(--info)', attack: 'var(--bad)', defend: 'var(--bad)', undercut: 'var(--warn)' }[m.type] || 'var(--team)';
+  ov.insertAdjacentHTML('beforeend', `<div id="moment" class="decision" style="border-color:${col};width:min(620px,92%)"><div class="tiny upper" style="color:${col};letter-spacing:.25em;font-weight:800">Momento chiave · gara in pausa</div>
+    <div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:26px;text-transform:uppercase;margin-top:4px">${esc(m.title)}</div>
+    <div class="small mt8" style="line-height:1.55">${esc(m.text)}</div>
+    <div class="col gap6 mt16">${m.options.map((o, i) => `<div class="opt" data-a="moment" data-i="${i}"><div class="row between"><b>${esc(o.label)}</b><span class="kbd">${i + 1}</span></div><div class="small muted mt8">${esc(o.desc)}</div></div>`).join('')}</div>
+    <div class="row between mt16"><span class="tiny muted">Puoi disattivare queste pause nelle impostazioni del muretto.</span><button class="btn sm ghost" data-a="moments-off">Non chiedere più in questa gara</button></div></div>`);
+}
+function resolveMomentUI(i) {
+  const m = R.moment; if (!m) return;
+  R.sim.resolveMoment(m.id, i);
+  document.getElementById('moment')?.remove();
+  R.moment = null;
+  sfx.radio?.();
+  if (R.r3d && R.view3d === 'auto') R.r3d.director = true;
+  R.last = performance.now();
+  updateControls(true);
 }
