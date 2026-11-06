@@ -9,7 +9,7 @@ import { playerTeam, applyRoundResults, teamDrivers, seatsPerTeam, aiFillSeats }
 import { RallyEvent, PACE_MODES, bestTyreFor, repairMinutes } from '../engine/rally.js';
 import { buildEntries, aiSetupQuality } from '../engine/race.js';
 import { RALLY_TYRES, SURFACES } from '../data/categories.js';
-import { genStage, TrackView } from '../ui/trackview.js';
+import { genStage, TrackView, STAGE_STYLE } from '../ui/trackview.js';
 import { mulberry32, clamp, rand } from '../engine/rng.js';
 import { tyreBadge, teamStripe, driverChip } from './common.js';
 import { sfx, engineStart, engineSet, engineStop, music } from '../ui/audio.js';
@@ -156,13 +156,13 @@ function overallTable(st, limit = 14) {
 
 function prep(st, tr) {
   const ev = X.ev; const stg = ev.stage;
-  const path = genStage(tr.seed + stg.idx * 101);
+  const path = genStage(tr.seed + stg.idx * 101, STAGE_STYLE[tr.id]);
   const mine = ev.crews.filter((c) => c.isPlayer);
   const tyres = Object.entries(RALLY_TYRES);
   return `<div style="display:grid;grid-template-columns:1.2fr 1fr;gap:16px" class="anim-in">
     <div class="col gap16">
       <div class="panel glow"><div class="row between"><div><div class="tiny upper muted">Prova speciale ${stg.idx + 1} di ${ev.stages.length}${stg.power ? ' · <span class="warn">POWER STAGE (punti bonus)</span>' : ''}</div><h2 style="font-size:30px;font-style:italic">${esc(stg.name)}</h2></div>
-        <div class="row"><span class="chip" style="border-color:${SURFACES[stg.surface].color}">${SURFACES[stg.surface].name}</span><span class="chip">${stg.km} km</span><span class="chip ${stg.wet ? 'info' : ''}">${icon(stg.wet ? 'rain' : 'sun', 'ico', 'style="width:13px"')} ${stg.wet ? 'Bagnato' : stg.surface === 'snow' ? 'Neve/Ghiaccio' : 'Asciutto'}</span></div></div>
+        <div class="row"><span class="chip" style="border-color:${SURFACES[stg.surface].color}">${SURFACES[stg.surface].name}</span><span class="chip">${stg.km} km</span><span class="chip">${{ fast: 'Veloce e scorrevole', twisty: 'Tornanti di montagna', rough: 'Tecnica' }[STAGE_STYLE[tr.id] || 'rough']}</span><span class="chip ${stg.wet ? 'info' : ''}">${icon(stg.wet ? 'rain' : 'sun', 'ico', 'style="width:13px"')} ${stg.wet ? 'Bagnato' : stg.surface === 'snow' ? 'Neve/Ghiaccio' : 'Asciutto'}</span></div></div>
         <div class="mt16" style="display:flex;justify-content:center">${trackSVG(path, { w: 640, h: 220, glow: SURFACES[stg.surface].color, color: '#e9edf3', width: 4 })}</div>
       </div>
       ${mine.map((c) => { const d = ev.driver(c); const ch = X.choices[c.key]; const dmg = Object.entries(c.damage).filter(([, v]) => v > 0.02); return `<div class="panel"><div class="row">${helmetSVG(d.helmet, 40)}<div class="grow"><b>${esc(d.name)}</b><div class="small muted">${c.status === 'out' ? '<span class="bad">Ritirato</span>' : c.retiredLeg ? '<span class="warn">Fuori fino all’assistenza (Super Rally)</span>' : `${ev.overall().indexOf(c) + 1}° assoluto`}</div></div>${dmg.length ? `<span class="chip bad">Danni: ${dmg.map(([k]) => ({ engine: 'motore', suspension: 'sospensioni', gearbox: 'cambio', body: 'carrozzeria' }[k])).join(', ')}</span>` : '<span class="chip good">Auto integra</span>'}</div>
@@ -195,8 +195,8 @@ function runScreen(st, tr) {
 
 function mountRun() {
   const st = S(); const tr = getTrack('rally', st.weekend.trackId); const stg = X.ev.stage;
-  X.view = new TrackView(document.getElementById('rally-cv'), genStage(tr.seed + stg.idx * 101), { pad: 50, rally: true, surface: stg.surface, glow: SURFACES[stg.surface].color + '55' });
-  X.geo = stageGeometry(tr.seed + stg.idx * 101, stg.km);
+  X.view = new TrackView(document.getElementById('rally-cv'), genStage(tr.seed + stg.idx * 101, STAGE_STYLE[tr.id]), { pad: 50, rally: true, surface: stg.surface, glow: SURFACES[stg.surface].color + '55' });
+  X.geo = stageGeometry(tr.seed + stg.idx * 101, stg.km, STAGE_STYLE[tr.id]);
   X.focus = X.ev.crews.find((c) => c.isPlayer && c.plan)?.key || X.ev.crews.find((c) => c.isPlayer)?.key;
   X.view3d = getSettings().view3d !== false && webglAvailable() ? (X.cam || 'chase') : null;
   rallyViewBtns();

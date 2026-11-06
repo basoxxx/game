@@ -8,7 +8,7 @@ import { TEAMS } from '../data/teams.js';
 import { TRACKS } from '../data/tracks.js';
 import { createWorld, buildCalendar } from '../engine/world.js';
 import { setState } from '../engine/state.js';
-import { circuitPath, genStage } from '../ui/trackview.js';
+import { circuitPath, genStage, STAGE_STYLE } from '../ui/trackview.js';
 import { trackStats } from '../engine/trackphys.js';
 
 const Q = { cat: 'formula', track: 'ita', team: 'ferrani', len: 'normal', weather: 'auto', skip: false };
@@ -20,7 +20,7 @@ registerScreen({
     if (!tracks.find((t) => t.id === Q.track)) Q.track = tracks[0].id;
     if (!TEAMS[Q.cat].find((t) => t.id === Q.team)) Q.team = TEAMS[Q.cat][0].id;
     const tr = tracks.find((t) => t.id === Q.track);
-    const path = Q.cat === 'rally' ? genStage(tr.seed) : circuitPath(tr.cid);
+    const path = Q.cat === 'rally' ? genStage(tr.seed, STAGE_STYLE[tr.id]) : circuitPath(tr.cid);
     const stats = Q.cat !== 'rally' ? trackStats(Q.cat, tr) : null;
     const opt = (k, v, label) => `<button class="btn sm ${Q[k] === v ? 'active' : ''}" data-a="opt" data-k="${k}" data-v="${v}">${label}</button>`;
     return `<div style="position:fixed;inset:0;overflow-y:auto;padding:34px 50px">

@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { trackGeometry, speedProfile, sampleAtTimeFrac } from '../engine/trackphys.js';
-import { genStage } from './trackview.js';
+import { genStage, STAGE_STYLE } from './trackview.js';
 import { getSettings } from '../engine/state.js';
 import { buildCar, setTyreColor } from './cars3d.js';
 
@@ -376,6 +376,16 @@ export class Race3D {
   // states: [{key, s (0..N sample float), speed (m/s), inPit, tyreColor, label, show}]
   update(states, dt) {
     const N = this.geo.N;
+    // adaptive quality: drop resolution/shadows when the framerate is low
+    this._fpsT = (this._fpsT || 0) + dt; this._fpsN = (this._fpsN || 0) + 1;
+    if (this._fpsT > 4) {
+      const fps = this._fpsN / this._fpsT; this._fpsT = 0; this._fpsN = 0;
+      if (fps < 26 && !this._degraded) {
+        this._degraded = true; this.renderer.setPixelRatio(1); this.renderer.shadowMap.enabled = false;
+        this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
+        this.resize();
+      }
+    }
     let focus = null;
     for (const st of states) {
       const car = this.cars.get(st.key); if (!car) continue;
@@ -474,10 +484,10 @@ export class Race3D {
 
 // Rally stage geometry (open road), length in meters, with a rally-car speed profile
 const stageCache = {};
-export function stageGeometry(seed, km) {
-  const key = seed + ':' + km;
+export function stageGeometry(seed, km, style) {
+  const key = seed + ':' + km + ':' + style;
   if (stageCache[key]) return stageCache[key];
-  const path = genStage(seed);
+  const path = genStage(seed, style);
   const total = km * 1000;
   const raw = path.len[path.len.length - 1];
   const sx = path.aspect, sy = 1;

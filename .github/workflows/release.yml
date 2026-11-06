@@ -3,7 +3,7 @@ name: Build desktop (macOS · Windows · Linux)
 on:
   push:
     tags: ['v*']
-    branches: ['claude/**', main]
+    branches: [main]
     paths: ['package.json']
   workflow_dispatch:
 

@@ -36,16 +36,24 @@ export function genCircuit(seed, street = 0) {
   return buildPath(catmull(pts, true, street > 0.5 ? 8 : 16), true);
 }
 
-export function genStage(seed) {
+// Rally stage road. style: 'fast' (long flowing bends), 'twisty' (mountain hairpins), 'rough' (technical, medium)
+export const STAGE_STYLE = { fin: 'fast', swe: 'fast', ita: 'rough', por: 'rough', ken: 'rough', gre: 'rough', chi: 'fast', gbr: 'rough', mc: 'twisty', cro: 'twisty', eur: 'twisty', jpn: 'twisty' };
+export function genStage(seed, style = 'rough') {
   const r = mulberry32(seed * 104729 + 7);
+  const P = { fast: { turn: 0.7, step: [1.0, 1.8], hair: 0.02, n: 24 }, rough: { turn: 1.4, step: [0.6, 1.4], hair: 0.07, n: 28 }, twisty: { turn: 1.8, step: [0.45, 1.0], hair: 0.16, n: 34 } }[style] || { turn: 1.4, step: [0.6, 1.4], hair: 0.07, n: 28 };
   const pts = [];
   let x = 0, y = 0, a = r() * 0.6 - 0.3;
-  const n = 26;
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < P.n; i++) {
     pts.push([x, y]);
-    a += (r() - 0.5) * 1.5;
-    a = Math.max(-1.3, Math.min(1.3, a));
-    const step = 0.6 + r() * 0.8;
+    if (r() < P.hair && i > 2 && i < P.n - 3) {
+      // hairpin: tight 150-180 degree turn built from short steps
+      const dir = r() < 0.5 ? 1 : -1;
+      for (let k = 0; k < 4; k++) { a += dir * 0.78; x += Math.cos(a) * 0.28; y += Math.sin(a) * 0.28; pts.push([x, y]); }
+      continue;
+    }
+    a += (r() - 0.5) * P.turn;
+    a = Math.max(-1.6, Math.min(1.6, a));
+    const step = P.step[0] + r() * (P.step[1] - P.step[0]);
     x += Math.cos(a) * step; y += Math.sin(a) * step;
   }
   return buildPath(catmull(pts, false, 10), false);

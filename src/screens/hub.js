@@ -5,7 +5,7 @@ import { esc, bar } from '../ui/dom.js';
 import { S } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { cat, playerTeam, teamDrivers, standings, partRanking, fmtM, rdSlots, RD_TIERS, partName, freeAgents, seatsPerTeam } from '../engine/season.js';
-import { genStage, circuitPath } from '../ui/trackview.js';
+import { genStage, circuitPath, STAGE_STYLE } from '../ui/trackview.js';
 import { partSensitivity, trackStats } from '../engine/trackphys.js';
 import { ensureProgress } from '../engine/progress.js';
 import { SURFACES } from '../data/categories.js';
@@ -41,7 +41,7 @@ registerScreen({
     let hero = '';
     if (info) {
       const { ev, tr } = info;
-      const path = st.category === 'rally' ? genStage(tr.seed) : circuitPath(tr.cid);
+      const path = st.category === 'rally' ? genStage(tr.seed, STAGE_STYLE[tr.id]) : circuitPath(tr.cid);
       const sub = st.category === 'rally' ? `${ev.stages.length} prove speciali · ${ev.stages.reduce((a, b) => a + b.km, 0)} km` : `${tr.circuit}${tr.hours ? ` · ${tr.hours} ore` : ''}`;
       const surfaces = st.category === 'rally' ? [...new Set(ev.stages.map((x) => x.surface))].map((x) => `<span class="chip" style="border-color:${SURFACES[x].color}">${SURFACES[x].name}</span>`).join('') : '';
       let traits = '';

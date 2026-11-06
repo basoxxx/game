@@ -8,6 +8,7 @@ import { circuitPath, arcFrac, TrackView } from '../ui/trackview.js';
 import { TRACKS } from '../data/tracks.js';
 import { sfx } from '../ui/audio.js';
 import { openLessons } from './engineer.js';
+import { migrateSave } from '../engine/migrate.js';
 
 let anim = null, view = null;
 const DEMO_COLORS = [['#d40000', '#ffdd00'], ['#00d2be', '#c0c0c0'], ['#1b2a6b', '#e3002b'], ['#ff8000', '#101820'], ['#00594f', '#cedc00'], ['#005aff', '#fff'], ['#0090ff', '#ff87bc'], ['#f0f0f0', '#d00f1f'], ['#1634cc', '#fff'], ['#1a1a1a', '#ff2d2d']];
@@ -60,7 +61,7 @@ registerScreen({
   actions: {
     'continue-last'() {
       const s = listSaves().filter((x) => !x.empty).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0];
-      if (s && loadGame(s.slot)) { sfx.ok(); App.go('hub'); }
+      if (s && loadGame(s.slot)) { migrateSave(window.__apex.S()); sfx.ok(); App.go('hub'); }
     },
     load() { openLoad(); },
     quit() { window.apex?.quit?.(); },
@@ -93,12 +94,12 @@ export function openLoad(saveMode = false) {
     <div class="row mt16 between"><div class="row"><label class="btn sm ghost">${icon('upload')} Importa file<input type="file" accept=".json,application/json" data-change="import" hidden></label></div><button class="btn ghost" data-a="close-modal">Chiudi</button></div>`;
   };
   const actions = {
-    'load-slot'(el) { if (loadGame(+el.dataset.slot)) { App.closeModal(); sfx.ok(); App.go('hub'); } },
+    'load-slot'(el) { if (loadGame(+el.dataset.slot)) { migrateSave(window.__apex.S()); App.closeModal(); sfx.ok(); App.go('hub'); } },
     'save-slot'(el) { saveGame(+el.dataset.slot); App.toast('Partita salvata', `Slot ${el.dataset.slot}`, 'good'); App.closeModal(); },
     'del-slot'(el) { deleteSave(+el.dataset.slot); document.querySelector('.modal').innerHTML = render(); },
     import(el) {
       const f = el.files?.[0]; if (!f) return;
-      f.text().then((t) => { try { const s = importSave(t); s.slot = s.slot || 1; saveGame(s.slot); App.closeModal(); App.go('hub'); } catch (e) { App.toast('Import fallito', e.message, 'bad'); } });
+      f.text().then((t) => { try { const s = migrateSave(importSave(t)); s.slot = s.slot || 1; saveGame(s.slot); App.closeModal(); App.go('hub'); } catch (e) { App.toast('Import fallito', e.message, 'bad'); } });
     },
   };
   App.modal(render(), actions);
