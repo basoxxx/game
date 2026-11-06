@@ -53,6 +53,7 @@ export class Race3D {
     container.appendChild(this.labels);
     this.buildEnv(street);
     if (this.open) this.buildStage(); else { this.buildTrack(street); this.buildScenery(street); }
+    this.buildRacingLine();
     this.cars = new Map();
     for (const c of cars) this.addCar(c);
     this.camPos = new THREE.Vector3(0, 50, 0);
@@ -249,6 +250,22 @@ export class Race3D {
     if (this.scene.fog) { this.scene.fog.near = 150; this.scene.fog.far = 1400; }
   }
 
+  buildRacingLine() {
+    const { N, k } = this.geo; const half = this.TW / 2 - 1.6;
+    const inside = new Float64Array(N);
+    for (let i = 0; i < N; i++) inside[i] = Math.max(-1, Math.min(1, k[i] * 160));
+    const at = (i) => this.open ? inside[Math.max(0, Math.min(N - 1, i))] : inside[(i + N) % N];
+    const line = new Float64Array(N);
+    for (let i = 0; i < N; i++) {
+      // inside at the apex, outside on entry and exit
+      let v = at(i) - 0.55 * at(i - 24) - 0.55 * at(i + 24);
+      line[i] = Math.max(-1, Math.min(1, v)) * half;
+    }
+    const sm = new Float64Array(N);
+    for (let i = 0; i < N; i++) { let a = 0, n = 0; for (let q = -8; q <= 8; q++) { const j = this.open ? Math.max(0, Math.min(N - 1, i + q)) : (i + q + N) % N; a += line[j]; n++; } sm[i] = a / n; }
+    this.line = sm;
+  }
+
   placeAt(obj, i, off, y = 0, rot = 0) {
     const N = this.geo.N; i = ((Math.round(i) % N) + N) % N;
     const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
@@ -277,6 +294,14 @@ export class Race3D {
       const roof = new THREE.Mesh(new THREE.BoxGeometry(40, 0.6, 16), roofMat); roof.position.y = 13; st.add(roof);
       body.castShadow = true;
       this.placeAt(st, k * 9, -(W / 2 + (street > 0.7 ? 14 : 34)), 0);
+      this.scene.add(st);
+    }
+    const big = this.geo.corners.slice().sort((a, b) => a.r - b.r).slice(0, 4);
+    for (const cn of big) {
+      const st = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(30, 9, 10), standMat); body.position.y = 4.5; body.castShadow = true; st.add(body);
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(32, 0.5, 12), roofMat); roof.position.y = 10; st.add(roof);
+      this.placeAt(st, cn.i, -cn.dir * (W / 2 + (street > 0.7 ? 12 : 30)), 0);
       this.scene.add(st);
     }
     const pit = new THREE.Mesh(new THREE.BoxGeometry(260, 9, 18), new THREE.MeshStandardMaterial({ color: 0xc9ced6, roughness: 0.5, metalness: 0.2 }));
@@ -396,8 +421,8 @@ export class Race3D {
       const i0 = this.open ? Math.min(N - 2, Math.max(0, Math.floor(s))) : Math.floor(s) % N, i1 = this.open ? i0 + 1 : (i0 + 1) % N, f = this.open ? Math.min(1, Math.max(0, s - i0)) : s - Math.floor(s);
       let hd = this.geo.hdg[i1] - this.geo.hdg[i0]; while (hd > Math.PI) hd -= 2 * Math.PI; while (hd < -Math.PI) hd += 2 * Math.PI;
       const h = this.geo.hdg[i0] + hd * f;
-      let lane = st.inPit ? this.TW / 2 + 10 : car.lane * (st.close ? 1 : 0.6);
-      car.laneCur = car.laneCur == null ? lane : car.laneCur + (lane - car.laneCur) * Math.min(1, dt * 1.5);
+      let lane = st.inPit ? this.TW / 2 + 10 : (this.line ? this.line[i0] : 0) + car.lane * (st.close ? 0.9 : 0.25);
+      car.laneCur = car.laneCur == null ? lane : car.laneCur + (lane - car.laneCur) * Math.min(1, dt * 6);
       const nx = -Math.sin(h), nz = Math.cos(h);
       const x = this.geo.x[i0] + (this.geo.x[i1] - this.geo.x[i0]) * f + nx * car.laneCur;
       const z = this.geo.y[i0] + (this.geo.y[i1] - this.geo.y[i0]) * f + nz * car.laneCur;
