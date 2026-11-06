@@ -427,7 +427,7 @@ export class Race3D {
       const i0 = this.open ? Math.min(N - 2, Math.max(0, Math.floor(s))) : Math.floor(s) % N, i1 = this.open ? i0 + 1 : (i0 + 1) % N, f = this.open ? Math.min(1, Math.max(0, s - i0)) : s - Math.floor(s);
       let hd = this.geo.hdg[i1] - this.geo.hdg[i0]; while (hd > Math.PI) hd -= 2 * Math.PI; while (hd < -Math.PI) hd += 2 * Math.PI;
       const h = this.geo.hdg[i0] + hd * f;
-      let lane = st.inPit ? this.TW / 2 + 10 : (this.line ? this.line[i0] : 0) + car.lane * (st.close ? 0.9 : 0.25);
+      let lane = st.inPit ? this.TW / 2 + 10 : (this.line ? this.line[i0] * (st.close ? 0.4 : 1) : 0) + (st.close && st.pos ? (st.pos % 2 ? 2.4 : -2.4) : car.lane * 0.25);
       car.laneCur = car.laneCur == null ? lane : car.laneCur + (lane - car.laneCur) * Math.min(1, dt * 6);
       const nx = -Math.sin(h), nz = Math.cos(h);
       const x = this.geo.x[i0] + (this.geo.x[i1] - this.geo.x[i0]) * f + nx * car.laneCur;

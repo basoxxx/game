@@ -256,7 +256,7 @@ function qualiView(st, tr) {
 // ---------------- RACE ----------------
 document.addEventListener('mousedown', () => { R.holding = true; });
 document.addEventListener('mouseup', () => { setTimeout(() => { R.holding = false; }, 30); });
-const R = { sim: null, view: null, raf: 0, speed: 8, paused: false, last: 0, uiT: 0, pitSel: {}, swap: {}, feedN: 0, lastEvt: 0 };
+const R = window.__race = { sim: null, view: null, raf: 0, speed: 8, paused: false, last: 0, uiT: 0, pitSel: {}, swap: {}, feedN: 0, lastEvt: 0 };
 
 function raceScreen(st) {
   const tr = getTrack(st.category, st.weekend.trackId);
