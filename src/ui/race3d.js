@@ -4,6 +4,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { trackGeometry, speedProfile, sampleAtTimeFrac } from '../engine/trackphys.js';
 import { genStage, STAGE_STYLE } from './trackview.js';
 import { getSettings } from '../engine/state.js';
+import { passBy } from './audio.js';
 import { buildCar, setTyreColor } from './cars3d.js';
 
 function canvasTex(w, h, draw, repeat) {
@@ -457,6 +458,16 @@ export class Race3D {
     }
     if (!focus) focus = [...this.cars.values()].find((c) => c.mesh.visible);
     this.updateCamera(focus, dt);
+    // pass-by sounds for cars close to a fixed (TV) camera
+    if (this.camMode === 'tv' && !this.introT) {
+      for (const car of this.cars.values()) {
+        if (!car.mesh.visible) continue;
+        const d = car.mesh.position.distanceTo(this.camera.position);
+        if (car._d != null && car._d < 45 && d > car._d && !car._passed) { car._passed = true; passBy(Math.max(0.3, 1 - car._d / 45), this.category === 'rally' ? 'rally' : this.category); }
+        if (d > 70) car._passed = false;
+        car._d = d;
+      }
+    }
     if (this.rain && this.rain.visible) {
       const p = this.rain.geometry.attributes.position;
       for (let i = 0; i < p.count; i++) { let y = p.getY(i) - dt * 40; if (y < 0) y += 60; p.setY(i, y); }

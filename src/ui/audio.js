@@ -194,3 +194,19 @@ const music = {
   stop() { if (this.gain && ctx) this.gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.5); this.mood = null; },
 };
 export { music };
+
+// Pass-by: a short engine "whoosh" with a doppler pitch drop
+let lastPass = 0;
+export function passBy(intensity = 1, cat = 'formula') {
+  const st = getSettings(); if (!st.sound || !st.engineSound) return;
+  const c = ac(); if (!c) return;
+  const now = c.currentTime; if (now - lastPass < 0.35) return; lastPass = now;
+  const P = ENG[cat] || ENG.formula;
+  const f0 = (P.red * 0.85 / 60) * (P.cyl / 2) / 2;
+  const o = c.createOscillator(); o.type = 'sawtooth';
+  o.frequency.setValueAtTime(f0 * 1.12, now); o.frequency.exponentialRampToValueAtTime(f0 * 0.82, now + 0.7);
+  const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(3200, now); f.frequency.exponentialRampToValueAtTime(900, now + 0.7);
+  const g = c.createGain(); g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.06 * intensity, now + 0.25); g.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
+  o.connect(f); f.connect(g); g.connect(engBus); o.start(now); o.stop(now + 0.85);
+  noise(0.6, 0.03 * intensity, 'bandpass', 1500, 1, 0.05, engBus, -900);
+}
