@@ -6,7 +6,8 @@ import { S } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { cat, playerTeam, teamDrivers, standings, partRanking, fmtM, rdSlots, RD_TIERS, partName, freeAgents, seatsPerTeam } from '../engine/season.js';
 import { genStage, circuitPath, STAGE_STYLE } from '../ui/trackview.js';
-import { partSensitivity, trackStats } from '../engine/trackphys.js';
+import { partSensitivity, trackStats, physicsLap } from '../engine/trackphys.js';
+import { teamBaseLap } from '../engine/race.js';
 import { ensureProgress } from '../engine/progress.js';
 import { resolvePaddockEvent } from '../engine/events.js';
 import { sfx } from '../ui/audio.js';
@@ -81,6 +82,7 @@ registerScreen({
         </div>
         <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px">
           <div class="col gap16">
+            ${info && st.category !== 'rally' ? insightPanel(st, info.tr, t) : ''}
             <div class="panel"><div class="panel-head"><h3>I tuoi piloti</h3><button class="btn sm ghost" data-a="nav" data-to="drivers">Dettagli ${icon('right')}</button></div>
               <div class="grid2">${myDrivers.map((d) => { const p = s.drivers.findIndex((x) => x.id === d.id) + 1; const pts = s.drivers.find((x) => x.id === d.id)?.pts || 0; return `<div class="card row" style="gap:12px">${helmetSVG(d.helmet, 54)}<div class="grow"><div class="row">${flagSVG(d.nat)}<b>${esc(d.name)}</b></div><div class="small muted mt8">#${d.number} · ${d.age} anni · ${p}° (${pts} pt)</div><div class="mt8">${moraleChip(d.morale)}</div></div>${ratingBox(ovr(st, d), false)}</div>`; }).join('') || '<div class="muted">Nessun pilota</div>'}</div>
             </div>
@@ -126,3 +128,16 @@ registerScreen({
   },
   actions: {},
 });
+
+function insightPanel(st, tr, t) {
+  const laps = Object.values(st.teams).map((x) => ({ t: x, lap: teamBaseLap(st, x, tr) })).sort((a, b) => a.lap - b.lap);
+  const myI = laps.findIndex((x) => x.t.id === t.id);
+  const gap = laps[myI].lap - laps[0].lap;
+  const sens = partSensitivity(st.category, tr);
+  const maxS = Math.max(...Object.values(sens));
+  const rows = laps.slice(0, Math.min(laps.length, 11)).map((x, i) => `<div class="row small" style="gap:8px"><span class="mono muted" style="width:22px">${i + 1}</span><span class="teamstripe" style="background:${x.t.colors[0]}"></span><span class="grow ${x.t.id === t.id ? '' : 'muted'}" style="${x.t.id === t.id ? 'font-weight:700;color:#fff' : ''}">${esc(x.t.name)}</span><span class="mono ${i ? '' : 'good'}">${i ? '+' + (x.lap - laps[0].lap).toFixed(3) : 'riferimento'}</span></div>`).join('');
+  return `<div class="panel"><div class="panel-head"><h3>Analisi ingegneri · ${esc(tr.circuit)}</h3><span class="chip ${myI < 3 ? 'good' : myI < 6 ? 'warn' : 'bad'}">Passo previsto: ${myI + 1}ª forza (+${gap.toFixed(2)}s)</span></div>
+    <div class="grid2" style="gap:18px"><div><div class="tiny upper muted mb8">Simulazione giro (vettura, asciutto)</div><div class="col gap4">${rows}</div></div>
+    <div><div class="tiny upper muted mb8">Cosa conta su questa pista (+5 punti valgono…)</div>${Object.entries(sens).map(([k, v]) => `<div class="stat" style="grid-template-columns:110px 1fr 60px"><span class="muted small">${partName(st, k)}</span>${bar((v / maxS) * 100, 'gold')}<b class="right mono small">-${v.toFixed(2)}s</b></div>`).join('')}
+    <div class="small muted mt16" style="line-height:1.5">Suggerimento: sviluppa <b style="color:#fff">${partName(st, Object.entries(sens).sort((a, b) => b[1] - a[1])[0][0])}</b> per il prossimo GP. I valori vengono dalla fisica del tracciato reale.</div></div></div></div>`;
+}
