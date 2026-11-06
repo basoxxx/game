@@ -89,3 +89,8 @@ export function strategyOptions(catId, track, simLaps, scale, wearMult = 1, pitL
   const seen = new Set();
   return opts.filter((o) => { const k = o.stints.map((s) => s.c).join('-'); if (seen.has(k)) return false; seen.add(k); return true; });
 }
+
+export function estimateWearMult(team, driver, trackTemp = 32) {
+  const tp = team.car.parts.tyre ?? 75;
+  return (1.18 - tp / 420 - driver.attrs.tyre / 520) * (1 + (trackTemp - 32) * 0.008);
+}

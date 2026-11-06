@@ -329,6 +329,7 @@ export class CircuitSim {
     if (c.damage > 0 && req.repair !== false) { stat += c.damage * 12; c.damage = 0; }
     c.inPit = loss + stat;
     c.pitStops++;
+    if (c.isPlayer && !c.auto && c.plan && req.compound && c.plan[c.planIdx + 1]) c.planIdx++;
     if (req.compound) { c.tyre = req.compound; c.age = 0; c.temp = this.endurance ? 72 : 70; c.compoundsUsed.add(req.compound); c.stintLap = 0; }
     if (this.endurance) { c.fuel = c.fuelMax; c.stintCount++; }
     if (req.swap && c.driverIds.length > 1) { c.driverIdx = (c.driverIdx + 1) % c.driverIds.length; c.stintCount = 0; }

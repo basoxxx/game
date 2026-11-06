@@ -270,7 +270,7 @@ label.lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; 
 .rank { font-family: var(--display); font-weight: 800; font-style: italic; }
 
 /* Race screen */
-.race-screen { position: fixed; inset: 0; display: grid; grid-template-columns: 380px 1fr 360px; grid-template-rows: 58px 1fr 200px; background: #06080b; }
+.race-screen { position: fixed; inset: 0; display: grid; grid-template-columns: 380px 1fr 360px; grid-template-rows: 58px 1fr 250px; background: #06080b; }
 .race-top { grid-column: 1 / 4; display: flex; align-items: center; gap: 16px; padding: 0 16px; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, #0d1118, #0a0d12); }
 .race-board { grid-row: 2 / 4; border-right: 1px solid var(--line); overflow-y: auto; background: rgba(10,13,18,0.9); }
 .race-view { position: relative; min-width: 0; min-height: 0; }

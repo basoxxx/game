@@ -13,6 +13,7 @@ import { mulberry32, clamp, chance, rand } from '../engine/rng.js';
 import { tyreBadge, teamStripe, driverChip } from './common.js';
 import { sfx, engineStart, engineSet, engineStop } from '../ui/audio.js';
 import { celebrate } from './results.js';
+import { planOptions, stintBar, degChartSVG, drawTelemetry, breakdownHTML, openLessons } from './engineer.js';
 
 const SETUP_PARAMS = [
   { id: 'aero', name: 'Carico Aerodinamico', lo: 'Poco carico: la macchina scivola in curva', hi: 'Troppo carico: lenti sul dritto' },
@@ -45,7 +46,7 @@ function initWeekend(st) {
   const sim = t.facilities.simulator;
   st.weekend = {
     trackId: tr.id, phase: 'practice', laps,
-    weather: { plan: weather.plan, isRain: weather.isRain, summary: weather.summary },
+    weather: { plan: weather.plan, isRain: weather.isRain, summary: weather.summary, trackTemp: weather.trackTemp },
     qualiRain: chance(tr.rain * 0.7) ? rand(0.2, 0.8) : 0,
     cars: Object.fromEntries(entries.map((e) => [e.key, { runs: 4 + Math.floor(sim / 2), vals: Object.fromEntries(SETUP_PARAMS.map((p) => [p.id, 50])), fb: null, q: 0.3, laps: [], ideal: idealFor(st, e.key, tr.seed) }])),
     risk: {}, startTyre: {}, quali: null,
@@ -142,6 +143,10 @@ registerScreen({
     },
     'skip-quali'() { const w = S().weekend; w.qualiAnim = false; App.refresh(); },
     'start-tyre'(el) { S().weekend.startTyre[el.dataset.key] = el.dataset.c; App.refresh(); },
+    'pick-plan'(el) { const st = S(); const w = st.weekend; const tr = getTrack(st.category, w.trackId); const team = playerTeam(st); const e = buildEntries(st).find((x) => x.key === el.dataset.key); const o = planOptions(st, tr, w.laps, team, st.drivers[e.driverIds[0]], w.weather.trackTemp)[+el.dataset.i]; w.plans[el.dataset.key] = o.stints; w.startTyre[el.dataset.key] = o.stints[0].c; App.refresh(); },
+    lessons() { openLessons(); },
+    'tele-tab'(el) { R.tab = el.dataset.t; updateFeed(true); },
+    'tele-car'(el) { R.teleKey = el.dataset.key; updateFeed(true); },
     'to-race'() { const w = S().weekend; w.phase = 'race'; saveGame(); App.refresh(); },
     // race controls
     mode(el) { R.sim?.setMode(el.dataset.key, el.dataset.m); updateControls(true); },
@@ -232,10 +237,7 @@ function qualiView(st, tr) {
       <div class="panel"><div class="panel-head"><h3>Meteo gara</h3></div><div class="row">${icon(w.weather.isRain ? 'rain' : 'sun', 'ico', 'style="width:36px;height:36px"')}<div><b>${w.weather.summary}</b><div class="small muted">Probabilità di pioggia stimata: ${w.weather.isRain ? Math.round(60 + Math.random() * 30) : Math.round(tr.rain * 40)}%</div></div></div>
         <div class="weather-strip mt16">${w.weather.plan.slice(0, w.laps).map((r) => `<i style="height:${Math.max(2, r * 20)}px;opacity:${r > 0.05 ? 0.9 : 0.15}"></i>`).join('')}</div><div class="row between tiny muted"><span>Giro 1</span><span>Giro ${w.laps}</span></div>
       </div>
-      <div class="panel"><div class="panel-head"><h3>Gomme di partenza</h3></div>
-        ${entries.map((e) => { const d = st.drivers[e.driverIds[0]]; const pos = q.grid.indexOf(e.key) + 1; const sel = w.startTyre[e.key] || (w.weather.plan[0] > 0.55 ? 'wet' : w.weather.plan[0] > 0.2 ? (C.compounds.includes('inter') ? 'inter' : 'wet') : 'medium'); w.startTyre[e.key] = sel; return `<div class="card mb8"><div class="row"><span class="pos">P${pos}</span><b class="grow">${esc(d.name)}</b></div><div class="row gap6 mt8">${C.compounds.map((cp) => `<button class="btn sm ${sel === cp ? 'active' : ''}" data-a="start-tyre" data-key="${e.key}" data-c="${cp}">${tyreBadge(cp)} ${COMPOUNDS[cp].name}</button>`).join('')}</div></div>`; }).join('')}
-        <div class="small muted">${C.id === 'formula' ? 'Regola: in gara asciutta devi usare almeno due mescole diverse.' : 'In endurance gestisci carburante, gomme e cambi pilota.'}</div>
-      </div>
+      ${strategyPanel(st, w, tr, entries, q, C)}
       <button class="btn primary xl pulse" data-a="to-race">${icon('flag')} Vai in griglia</button>
     </div>
   </div>`;
@@ -263,7 +265,7 @@ function raceScreen(st) {
     <div class="race-board" id="board"></div>
     <div class="race-view"><canvas id="race-cv"></canvas><div id="finish-overlay"></div></div>
     <div class="race-side" id="side"></div>
-    <div class="race-feed" id="feed"></div>
+    <div class="race-feed"><div class="row gap4 mb8" id="feed-tabs"></div><div id="feed" style="height:calc(100% - 34px);overflow-y:auto"></div></div>
   </div>`;
 }
 
@@ -271,8 +273,8 @@ function mountRace() {
   const st = S(); const w = st.weekend;
   const tr = getTrack(st.category, w.trackId);
   const setups = Object.fromEntries(Object.entries(w.cars).map(([k, c]) => [k, c.q]));
-  R.sim = new CircuitSim(st, tr, { grid: w.quali.grid, setups, weather: { plan: w.weather.plan, isRain: w.weather.isRain }, laps: w.laps });
-  for (const c of R.sim.cars) if (c.isPlayer) { c.tyre = w.startTyre[c.key] || c.tyre; c.compoundsUsed = new Set([c.tyre]); c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c); }
+  R.sim = new CircuitSim(st, tr, { grid: w.quali.grid, setups, weather: { plan: w.weather.plan, isRain: w.weather.isRain, trackTemp: w.weather.trackTemp }, laps: w.laps });
+  for (const c of R.sim.cars) if (c.isPlayer) { c.tyre = w.startTyre[c.key] || c.tyre; c.compoundsUsed = new Set([c.tyre]); c.plan = w.plans?.[c.key] ? w.plans[c.key].map((x) => ({ ...x })) : null; c.planIdx = 0; c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c); }
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {};
   R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, glow: 'rgba(255,255,255,0.12)' });
   R.last = performance.now(); R.uiT = 0;
@@ -299,6 +301,7 @@ function stopRace() { cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = n
 
 function defaultPitTyre(c) {
   const comps = R.sim.C.compounds;
+  if (c.plan && c.plan[c.planIdx + 1]) return c.plan[c.planIdx + 1].c;
   return c.tyre === 'medium' ? 'hard' : comps.includes('medium') ? 'medium' : comps[0];
 }
 
@@ -356,7 +359,7 @@ function updateBoard() {
       <span class="pos p${i + 1}" style="font-size:14px">${i + 1}</span>${teamStripe(c.team)}
       <span class="nm">${esc(d.name)} ${posDelta > 0 ? `<span class="good tiny">▲${posDelta}</span>` : posDelta < 0 ? `<span class="bad tiny">▼${-posDelta}</span>` : ''}</span>
       <span>${c.status === 'dnf' ? '' : tyreBadge(c.tyre)}</span>
-      <div>${c.status === 'dnf' ? `<span class="tiny bad">${esc(c.reason || '')}</span>` : c.inPit > 0 ? '<span class="chip warn tiny">BOX</span>' : `<div class="wear"><i style="width:${(1 - c.wear) * 100}%;background:${c.wear > 0.7 ? 'var(--bad)' : c.wear > 0.45 ? 'var(--warn)' : 'var(--good)'}"></i></div>`}</div>
+      <div>${c.status === 'dnf' ? `<span class="tiny bad">${esc(c.reason || '')}</span>` : c.inPit > 0 ? '<span class="chip warn tiny">BOX</span>' : `<div class="wear"><i style="width:${Math.max(0, 1 - c.wear) * 100}%;background:${c.wear > 0.8 ? 'var(--bad)' : c.wear > 0.55 ? 'var(--warn)' : 'var(--good)'}"></i></div>`}</div>
       <span class="gap">${gap}</span></div>`;
   }).join('');
   const b = document.getElementById('board');
@@ -375,14 +378,14 @@ function updateControls(force) {
     const gA = ahead && c.status === 'running' ? (ahead.dist - c.dist) * sim.track.lap : null;
     const gB = behind && behind.status === 'running' && c.status === 'running' ? (c.dist - behind.dist) * sim.track.lap : null;
     const lapsLeft = Math.max(0, sim.laps - c.dist);
-    const wearTxt = Math.round((1 - c.wear) * 100);
+    const wearTxt = Math.max(0, Math.round((1 - c.wear) * 100));
     const advice = engineerAdvice(sim, c);
     const pitSel = R.pitSel[c.key];
     return `<div class="ctrl-card" style="border-top-color:${c.team.car.livery.primary}">
       <div class="row">${helmetSVG(d.helmet, 34)}<div class="grow"><b>${esc(d.name)}</b><div class="tiny muted">${c.status === 'dnf' ? `<span class="bad">Ritirato: ${esc(c.reason)}</span>` : c.status === 'finished' ? 'Arrivato' : `P${i + 1} · Partito P${c.grid} · Soste ${c.pitStops}`}</div></div><span class="pos p${i + 1}" style="font-size:26px">P${i + 1}</span></div>
       ${c.status === 'running' ? `
       <div class="grid2 mt8 small" style="gap:6px"><div class="muted">Davanti <b style="color:#fff" class="mono">${gA != null && gA < 60 ? '-' + Math.max(0, gA).toFixed(1) + 's' : '—'}</b></div><div class="muted right">Dietro <b style="color:#fff" class="mono">${gB != null && gB < 60 ? '+' + Math.max(0, gB).toFixed(1) + 's' : '—'}</b></div></div>
-      <div class="row mt8">${tyreBadge(c.tyre)}<div class="grow"><div class="row between tiny"><span>${COMPOUNDS[c.tyre].name}</span><span class="${c.wear > 0.7 ? 'bad' : ''}">${wearTxt}%</span></div><div class="wear" style="height:6px"><i style="width:${wearTxt}%;background:${c.wear > 0.7 ? 'var(--bad)' : c.wear > 0.45 ? 'var(--warn)' : 'var(--good)'}"></i></div></div></div>
+      <div class="row mt8">${tyreBadge(c.tyre)}<div class="grow"><div class="row between tiny"><span>${COMPOUNDS[c.tyre].name} · ${c.stintLap} giri</span><span class="${tempCls(sim, c)}">${Math.round(c.temp)}°C</span><span class="${c.wear > 0.75 ? 'bad' : ''}">${wearTxt}%</span></div><div class="wear" style="height:6px"><i style="width:${wearTxt}%;background:${c.wear > 0.7 ? 'var(--bad)' : c.wear > 0.45 ? 'var(--warn)' : 'var(--good)'}"></i></div></div></div>
       ${sim.endurance ? `<div class="row mt8">${icon('fuel', 'ico', 'style="width:18px"')}<div class="grow"><div class="row between tiny"><span>Carburante</span><span class="${c.fuel < 1.5 ? 'bad' : ''}">${c.fuel.toFixed(1)} giri</span></div><div class="wear" style="height:6px"><i style="width:${(c.fuel / c.fuelMax) * 100}%;background:var(--info)"></i></div></div></div><div class="tiny muted mt8">Stint pilota: ${c.stintCount + 1}${c.stintCount >= 2 ? ' <span class="warn">(affaticato)</span>' : ''}</div>` : ''}
       ${c.damage > 0.05 ? `<div class="chip bad mt8">Danni: +${c.damage.toFixed(1)}s/giro</div>` : ''}
       <div class="tiny upper muted mt8 mb8">Ritmo</div>
@@ -415,26 +418,55 @@ function engineerAdvice(sim, c) {
   if (!comp.wet && r > 0.3) return { text: 'Pioggia forte! Servono gomme da bagnato SUBITO.', urgent: true };
   if (comp.wet && r < 0.1 && lapsLeft > 2) return { text: 'La pista si asciuga: valuta le slick.', urgent: true };
   if (sim.endurance && c.fuel < 2.2 && lapsLeft > 1) return { text: `Carburante per ${c.fuel.toFixed(1)} giri: prepara la sosta.`, urgent: c.fuel < 1.4 };
-  if (c.wear > 0.72 && lapsLeft > 2) return { text: 'Gomme finite, stiamo perdendo molto tempo.', urgent: true };
-  if (sim.sc && c.wear > 0.35 && lapsLeft > 4) return { text: 'Safety car: è il momento ideale per fermarsi!', urgent: true };
-  if (!sim.endurance && !sim.weather.isRain && c.compoundsUsed.size < 2 && lapsLeft < 6) return { text: 'Regolamento: devi ancora montare una seconda mescola!', urgent: true };
-  if (c.wear > 0.55 && lapsLeft > 3) return { text: 'Degrado in aumento: finestra di pit stop aperta.' };
+  if (c.wear > 0.95 && lapsLeft > 2) return { text: 'Siamo nel cliff delle gomme: perdiamo secondi ogni giro!', urgent: true };
+  if ((sim.sc || sim.vsc) && c.wear > 0.35 && lapsLeft > 4) return { text: `${sim.sc ? 'Safety car' : 'VSC'}: la sosta costa meno, è il momento ideale per fermarsi!`, urgent: true };
+  if (!sim.endurance && !sim.weather.isRain && [...c.compoundsUsed].filter((x) => !COMPOUNDS[x].wet).length < 2 && lapsLeft < 6) return { text: 'Regolamento: devi ancora montare una seconda mescola!', urgent: true };
+  if (c.plan && !comp.wet && c.plan[c.planIdx + 1]) {
+    const st = c.plan[c.planIdx]; const left = st.laps - c.stintLap;
+    if (left <= 1) return { text: `Piano: box ADESSO per ${COMPOUNDS[c.plan[c.planIdx + 1].c].name}.`, urgent: true };
+    if (left <= 4) return { text: `Piano: sosta tra ${left} giri (${COMPOUNDS[c.plan[c.planIdx + 1].c].name}). Valuta l’undercut sul rivale davanti.` };
+  }
+  if (c.wear > 0.75 && lapsLeft > 3) return { text: 'Usura alta: siamo vicini al cliff, finestra di pit aperta.' };
+  if (Math.abs(c.temp - (sim.cat === 'formula' ? { soft: 95, medium: 103, hard: 111 }[c.tyre] || 80 : 100)) > 14 && !comp.wet) return { text: c.temp < 90 ? 'Gomme fredde: spingi un po’ per portarle in temperatura.' : 'Gomme surriscaldate: passa in Gestione per qualche giro.' };
+  if (c.drs) return { text: 'DRS disponibile: siamo entro un secondo, attacca!' };
   return null;
 }
 
-function updateFeed() {
+function updateFeed(force) {
   const sim = R.sim;
   const evs = sim.events;
-  if (evs.length === R.feedN) return;
+  const changed = evs.length !== R.feedN;
   const newOnes = evs.slice(R.feedN);
   R.feedN = evs.length;
   for (const e of newOnes) {
     if (e.type === 'crash') sfx.crash();
     else if (e.type === 'sc') sfx.notify();
     else if (e.type === 'overtake' && e.important) sfx.overtake();
+    else if (e.type === 'radio') sfx.radio?.();
+    if (e.type === 'sc' && !R.lessonSC) { R.lessonSC = true; App.toast('Lezione: safety car', 'Ai box si perde circa metà del tempo: spesso conviene fermarsi ora.', ''); }
   }
+  const tab = R.tab || 'feed';
+  const head = document.getElementById('feed-tabs');
+  if (head) head.innerHTML = [['feed', 'Cronaca'], ['tele', 'Telemetria'], ['lap', 'Analisi giro']].map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="tele-tab" data-t="${k}" style="padding:4px 12px;font-size:11px">${n}</div>`).join('') + `<div class="grow"></div><button class="btn sm ghost" data-a="lessons" style="padding:3px 10px">${icon('info')} Lezioni</button>`;
   const f = document.getElementById('feed');
-  if (f) f.innerHTML = evs.slice(-60).reverse().filter((e) => e.important || e.type !== 'overtake' || Math.random() < 1).map((e) => `<div class="feed-item ${e.type} ${e.key && sim.cars.find((c) => c.key === e.key)?.isPlayer ? 'player' : ''}"><span class="lap">G${e.lap}</span><span>${esc(e.text)}</span></div>`).join('');
+  if (!f) return;
+  if (tab === 'feed') {
+    if (!changed && !force && f.dataset.mode === 'feed') return;
+    f.dataset.mode = 'feed';
+    f.innerHTML = evs.slice(-60).reverse().map((e) => `<div class="feed-item ${e.type} ${e.key && sim.cars.find((c) => c.key === e.key)?.isPlayer ? 'player' : ''}"><span class="lap">G${e.lap}</span><span>${esc(e.text)}</span></div>`).join('');
+  } else if (tab === 'tele') {
+    if (f.dataset.mode !== 'tele') { f.dataset.mode = 'tele'; f.innerHTML = '<canvas id="tele-cv" style="width:100%;height:100%"></canvas>'; }
+    const mine = sim.cars.filter((c) => c.isPlayer);
+    const leader = sim.classification()[0];
+    const keys = [...mine.map((c) => c.key), ...(leader.isPlayer ? [] : [leader.key])];
+    const cols = [...mine.map((c, i) => (i ? '#ffffff' : c.team.car.livery.primary)), '#ffcc33'];
+    drawTelemetry(document.getElementById('tele-cv'), sim, keys, cols);
+  } else {
+    f.dataset.mode = 'lap';
+    const mine = sim.cars.filter((c) => c.isPlayer);
+    const sel = mine.find((c) => c.key === R.teleKey) || mine[0];
+    f.innerHTML = `<div class="row gap6 mb8">${mine.map((c) => `<button class="btn sm ${c === sel ? 'active' : ''}" data-a="tele-car" data-key="${c.key}">${esc(sim.driver(c).name)}</button>`).join('')}<span class="tiny muted">Come l’ingegnere calcola il prossimo giro</span></div>${breakdownHTML(sim, sel)}`;
+  }
 }
 
 function updateSpeedUI() {
@@ -467,4 +499,33 @@ function finishRace() {
   st.lastRace = { idx: evIdx };
   saveGame();
   App.go('results', { idx: evIdx });
+}
+
+function strategyPanel(st, w, tr, entries, q, C) {
+  const dry = w.weather.plan[0] <= 0.2 && C.id === 'formula';
+  w.plans = w.plans || {};
+  const team = playerTeam(st);
+  let html = `<div class="panel"><div class="panel-head"><h3>Strategia</h3><button class="btn sm ghost" data-a="lessons">${icon('info')} Lezioni</button></div>`;
+  if (dry) {
+    const d0 = st.drivers[entries[0].driverIds[0]];
+    html += `<div class="small muted mb8">Curve di degrado previste a ${esc(tr.circuit)} (asfalto ${w.weather.trackTemp}°C, usura tracciato ×${tr.wear}).</div>${degChartSVG(st, tr, w.laps, team, d0)}`;
+    for (const e of entries) {
+      const d = st.drivers[e.driverIds[0]];
+      const opts = planOptions(st, tr, w.laps, team, d, w.weather.trackTemp);
+      if (!w.plans[e.key]) { w.plans[e.key] = opts[0].stints; w.startTyre[e.key] = opts[0].stints[0].c; }
+      const cur = w.plans[e.key].map((x) => x.c).join('-');
+      html += `<div class="card mt8"><div class="row"><span class="pos">P${q.grid.indexOf(e.key) + 1}</span><b class="grow">${esc(d.name)}</b><span class="tiny muted">Piano scelto</span></div><div class="col gap4 mt8">${opts.map((o, i) => `<div class="row" style="gap:8px;cursor:pointer;padding:4px;border-radius:8px;${o.stints.map((x) => x.c).join('-') === cur ? 'background:color-mix(in srgb, var(--team) 18%, transparent);outline:1px solid var(--team)' : ''}" data-a="pick-plan" data-key="${e.key}" data-i="${i}"><span class="tiny mono" style="width:56px">${i === 0 ? '<b class="good">OTTIMA</b>' : '+' + (o.time - opts[0].time).toFixed(1) + 's'}</span><div class="grow">${stintBar(o.stints, w.laps)}</div><span class="tiny muted" style="width:44px">${o.stints.length - 1} ${o.stints.length === 2 ? 'sosta' : 'soste'}</span></div>`).join('')}</div></div>`;
+    }
+    html += `<div class="small muted mt8">L’ingegnere ti avviserà quando arriva il giro di sosta previsto. Puoi sempre cambiare idea in gara (safety car, pioggia, undercut…). Regola: almeno due mescole diverse.</div>`;
+  } else {
+    html += entries.map((e) => { const d = st.drivers[e.driverIds[0]]; const pos = q.grid.indexOf(e.key) + 1; const sel = w.startTyre[e.key] || (w.weather.plan[0] > 0.55 ? 'wet' : w.weather.plan[0] > 0.2 ? (C.compounds.includes('inter') ? 'inter' : 'wet') : 'medium'); w.startTyre[e.key] = sel; return `<div class="card mb8"><div class="row"><span class="pos">P${pos}</span><b class="grow">${esc(d.name)}</b></div><div class="row gap6 mt8 wrap">${C.compounds.map((cp) => `<button class="btn sm ${sel === cp ? 'active' : ''}" data-a="start-tyre" data-key="${e.key}" data-c="${cp}">${tyreBadge(cp)} ${COMPOUNDS[cp].name}</button>`).join('')}</div></div>`; }).join('');
+    html += `<div class="small muted">${C.id === 'endurance' ? 'Endurance: uno stint dura circa 45 minuti di carburante. Le gomme possono fare doppio stint; alterna i piloti per evitare la fatica.' : 'Pioggia prevista: scegli le gomme in base all’intensità (intermedie per pioggia leggera, full wet per diluvio).'}</div>`;
+  }
+  return html + '</div>';
+}
+
+function tempCls(sim, c) {
+  const win = { soft: 95, medium: 103, hard: 111, inter: 75, wet: 65 }[c.tyre] - (sim.endurance ? 3 : 0);
+  const d = Math.abs(c.temp - win);
+  return d < 7 ? 'good' : d < 14 ? 'warn' : 'bad';
 }
