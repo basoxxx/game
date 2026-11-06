@@ -344,8 +344,8 @@ function update3D(dt) {
   const states = sim.cars.map((c) => {
     if (c.status === 'dnf') return { key: c.key, hidden: true };
     const d = c.status === 'finished' ? c.finishLap + (sim.time - c.finishTime) / sim.track.lap * 0.3 : c.dist;
-    const frac = arcFrac(sim.cat, sim.track.cid, d);
-    const speed = c.inPit > 0 ? 0 : speedAtTimeFrac(sim.cat, sim.track.cid, d, c.lapTarget) / 3.6;
+    const frac = arcFrac(sim.cat, sim.track.cid, d, sim.track.lap);
+    const speed = c.inPit > 0 ? 0 : speedAtTimeFrac(sim.cat, sim.track.cid, d, c.lapTarget, sim.track.lap) / 3.6;
     const show = c.isPlayer || c.key === R.focus || c.pos <= 3;
     return { key: c.key, s: frac * g.N, speed, inPit: c.inPit > 0, close: c.gapAhead < 1, tyreColor: COMPOUNDS[c.tyre].color, label: show ? `P${c.pos} ${shortName(sim.driver(c).name)}` : `${c.pos}` };
   });
@@ -391,7 +391,7 @@ function draw() {
       const L = car.team.car.livery;
       let q;
       if (car.inPit > 0 && v.pitPos) q = v.pitPos(pitIdx++);
-      else q = v.pointAt(arcFrac(sim.cat, sim.track.cid, car.status === 'finished' ? car.finishLap : car.dist));
+      else q = v.pointAt(arcFrac(sim.cat, sim.track.cid, car.status === 'finished' ? car.finishLap : car.dist, sim.track.lap));
       const d = sim.driver(car);
       v.drawCar(q.x, q.y, q.ang, L.primary, L.secondary, { style, glow: car.isPlayer ? L.primary : null, outline: car.isPlayer, label: car.isPlayer || car.pos <= 3 ? `${car.pos} ${shortName(d.name)}` : null, labelBg: car.isPlayer ? L.primary : 'rgba(0,0,0,0.75)' });
     }

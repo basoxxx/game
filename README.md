@@ -7,6 +7,17 @@
 
 ![Gara](site-src/shots/race.jpg)
 
+## Novità della versione 2.0
+
+- **24 circuiti reali** (geometria open data) + Sarthe e Fuji per l'Endurance, con lunghezze e tempi sul giro reali
+- **Fisica del giro**: velocità in curva da raggio, carico aerodinamico, grip, potenza e resistenza; sensibilità della pista calcolata
+- **Gare in 3D** (Three.js) con telecamere TV, camera car, onboard ed elicottero, pioggia e notte dinamica, oppure **mappa 2D**
+- **Modello gomme realistico**: vita, degrado, cliff, temperatura, carburante, evoluzione pista, scia sporca, DRS, SC e VSC
+- **Strumenti da ingegnere di pista**: pianificatore strategico, telemetria, analisi del giro, lezioni
+- **Colonna sonora generativa** e motori sintetizzati con cambio marce
+- **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
+- **Gara Rapida** e **garage 3D**
+
 ## Caratteristiche
 
 - **3 categorie**, ognuna con regole e simulazione proprie
@@ -57,4 +68,6 @@ Le build desktop vengono create automaticamente da GitHub Actions (`.github/work
 - `src/ui/` – grafica procedurale (auto, caschi, bandiere, piste), audio sintetizzato
 - `electron/` – wrapper desktop
 
-Tecnologie: JavaScript, Vite, Canvas/SVG, Web Audio, Electron, electron-builder.
+Tecnologie: JavaScript, Vite, Three.js, Canvas/SVG, Web Audio, Electron, electron-builder.
+
+Geometria dei circuiti: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT License).

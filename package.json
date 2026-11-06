@@ -1,7 +1,7 @@
 {
   "name": "apex-dynasty",
   "productName": "Apex Dynasty",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Apex Dynasty - Motorsport Manager multi-categoria (Formula, Rally, Endurance)",
   "author": "Apex Dynasty Team",
   "license": "MIT",
@@ -31,7 +31,7 @@
   "build": {
     "appId": "com.apexdynasty.game",
     "productName": "Apex Dynasty",
-    "copyright": "Apex Dynasty – gioco di fantasia",
+    "copyright": "Apex Dynasty \u2013 gioco di fantasia",
     "directories": {
       "output": "release",
       "buildResources": "build"

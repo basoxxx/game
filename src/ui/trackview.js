@@ -229,13 +229,13 @@ export function circuitPath(cid) {
   return p;
 }
 // Converts a lap fraction measured in TIME into a fraction of track DISTANCE
-export function arcFrac(catId, cid, timeFrac) {
-  const prof = referenceProfile(catId, cid);
+export function arcFrac(catId, cid, timeFrac, realLap) {
+  const prof = referenceProfile(catId, cid, realLap);
   const g = trackGeometry(cid);
   return sampleAtTimeFrac(prof, timeFrac) / g.N;
 }
-export function speedAtTimeFrac(catId, cid, timeFrac, lapTime) {
-  const prof = referenceProfile(catId, cid);
+export function speedAtTimeFrac(catId, cid, timeFrac, lapTime, realLap) {
+  const prof = referenceProfile(catId, cid, realLap);
   const g = trackGeometry(cid);
   const i = Math.floor(sampleAtTimeFrac(prof, timeFrac)) % g.N;
   return prof.v[i] * (prof.lap / lapTime) * 3.6;

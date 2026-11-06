@@ -68,12 +68,13 @@ registerScreen({
     credits() {
       App.modal(`<h2>Come si gioca</h2>
       <div class="col small" style="gap:12px;line-height:1.55">
-        <p><b>Sei il Team Principal.</b> Scegli una categoria (Formula, Rally o Endurance) e una squadra, oppure fondane una tua.</p>
-        <p><b>Centro Tecnico:</b> scegli il concetto della vettura, disegna la livrea e avvia progetti di sviluppo sui componenti. I progetti richiedono denaro e alcuni weekend di lavoro.</p>
-        <p><b>Weekend:</b> nelle prove libere trova l’assetto ideale ascoltando il feedback dei piloti, poi qualifica e gara. In gara decidi ritmo, pit stop e gomme in tempo reale. Occhio al meteo!</p>
-        <p><b>Rally:</b> per ogni prova speciale scegli gomme e ritmo. Durante la prova il copilota ti chiederà decisioni rapide. In assistenza ripari i danni entro 45 minuti.</p>
-        <p><b>Gestione:</b> firma sponsor, ingaggia piloti e staff, potenzia le strutture. Rispetta gli obiettivi del Consiglio, o rischi il posto. A fine stagione puoi ricevere offerte anche da altre categorie.</p>
-        <p class="muted">Scorciatoie in gara: <span class="kbd">Spazio</span> pausa · <span class="kbd">1-5</span> velocità · <span class="kbd">F11</span> schermo intero (app desktop).</p>
+        <p><b>Sei il Team Principal.</b> Scegli Formula, Rally o Endurance e una squadra (o fondane una tua). In alternativa lanciati in una <b>Gara Rapida</b>.</p>
+        <p><b>Circuiti reali e fisica:</b> i 24 tracciati della Formula usano la geometria reale. La velocità in ogni curva deriva da raggio, carico aerodinamico, grip e potenza: per questo Monza premia il motore e Monaco il carico.</p>
+        <p><b>Centro Tecnico:</b> concetto della vettura, livrea (con garage 3D) e progetti R&D con rischi e rendimenti decrescenti.</p>
+        <p><b>Weekend:</b> trova l’assetto ascoltando il pilota, qualificati, poi scegli la strategia con il pianificatore (curve di degrado, soste ottimali). In gara gestisci ritmo, gomme, temperature, DRS, safety car e meteo. Segui la gara in <b>3D</b> (TV, camera car, onboard, elicottero) o sulla mappa 2D, con telemetria e analisi del giro.</p>
+        <p><b>Rally:</b> gomme e ritmo per ogni prova, decisioni live del copilota, parco assistenza a tempo.</p>
+        <p><b>Carriera:</b> guadagni XP e livelli manager, sblocchi abilità, completi obiettivi stagionali, ricevi offerte anche da altre categorie. Attento alla fiducia del consiglio!</p>
+        <p class="muted">Scorciatoie in gara: <span class="kbd">Spazio</span> pausa · <span class="kbd">1-5</span> velocità · clic su un pilota in classifica per seguirlo · <span class="kbd">F11</span> schermo intero (desktop).</p>
       </div><div class="row mt24" style="justify-content:flex-end"><button class="btn primary" data-a="close-modal">Ho capito</button></div>`);
     },
   },

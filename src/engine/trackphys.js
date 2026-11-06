@@ -125,20 +125,42 @@ export function speedProfile(geo, cp) {
 }
 
 const profCache = {};
-export function referenceProfile(catId, cid) {
-  const key = catId + ':' + cid;
+const gripCache = {};
+// Per-track grip calibration: finds the grip multiplier (asphalt/line/temperature) so the
+// reference car laps in the real reference time while top speeds stay physical.
+export function trackGrip(catId, cid, realLap) {
+  const key = catId + ':' + cid + ':' + realLap;
+  if (gripCache[key]) return gripCache[key];
+  const geo = trackGeometry(cid);
+  const base = carParams(catId, null);
+  if (!realLap) return 1;
+  let lo = 0.5, hi = 2.2;
+  for (let it = 0; it < 22; it++) {
+    const m = (lo + hi) / 2;
+    const lap = speedProfile(geo, { ...base, mu: base.mu * m, kA: base.kA * m, brakeMu: base.brakeMu * m }).lap;
+    if (lap > realLap) lo = m; else hi = m;
+  }
+  gripCache[key] = (lo + hi) / 2;
+  return gripCache[key];
+}
+function gripped(cp, m) { return { ...cp, mu: cp.mu * m, kA: cp.kA * m, brakeMu: cp.brakeMu * m }; }
+
+export function referenceProfile(catId, cid, realLap) {
+  const key = catId + ':' + cid + ':' + (realLap || 0);
   if (profCache[key]) return profCache[key];
   const geo = trackGeometry(cid);
-  const pr = speedProfile(geo, carParams(catId, null));
+  const m = realLap ? trackGrip(catId, cid, realLap) : 1;
+  const pr = speedProfile(geo, gripped(carParams(catId, null), m));
   profCache[key] = pr;
   return pr;
 }
 
-// lap time (s) for given parts, calibrated so a reference car (all parts 85) does refLap
+// lap time (s) for given parts on a track (reference car with all parts at 85 = real lap)
 export function physicsLap(catId, track, parts, extra) {
   const geo = trackGeometry(track.cid);
-  const ref = referenceProfile(catId, track.cid);
-  const pr = speedProfile(geo, carParams(catId, parts, extra));
+  const m = trackGrip(catId, track.cid, track.lap);
+  const ref = referenceProfile(catId, track.cid, track.lap);
+  const pr = speedProfile(geo, gripped(carParams(catId, parts, extra), m));
   return track.lap * (pr.lap / ref.lap);
 }
 
@@ -167,7 +189,7 @@ export function sampleAtTimeFrac(prof, frac) {
 
 export function trackStats(catId, track) {
   const geo = trackGeometry(track.cid);
-  const pr = referenceProfile(catId, track.cid);
+  const pr = referenceProfile(catId, track.cid, track.lap);
   const scale = pr.lap / track.lap;
   let vmax = 0, vmin = 999, full = 0;
   for (let i = 0; i < geo.N; i++) { const v = pr.v[i] * scale; vmax = Math.max(vmax, v); vmin = Math.min(vmin, v); }
