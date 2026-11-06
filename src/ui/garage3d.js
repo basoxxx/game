@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { buildCar } from './cars3d.js';
+import { applyHDRI } from './gfx.js';
 
 export class Garage3D {
   constructor(container, category, livery, opts = {}) {
@@ -15,10 +16,12 @@ export class Garage3D {
     container.appendChild(this.renderer.domElement);
     Object.assign(this.renderer.domElement.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', cursor: 'grab' });
     this.scene = new THREE.Scene();
-    try { const pm = new THREE.PMREMGenerator(this.renderer); this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; this.scene.environmentIntensity = 0.9; } catch {}
+    try { const pm = new THREE.PMREMGenerator(this.renderer); this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; this.scene.environmentIntensity = 0.6; } catch {}
+    applyHDRI(this.renderer, this.scene, 'day', { background: false, intensity: 0.9 });
+    this.renderer.toneMappingExposure = 1.0;
     this.camera = new THREE.PerspectiveCamera(32, 1, 0.1, 200);
-    this.scene.add(new THREE.HemisphereLight(0xdde6ff, 0x111318, 1.1));
-    const key = new THREE.SpotLight(0xffffff, 260, 40, 0.6, 0.5); key.position.set(4, 9, 5); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); this.scene.add(key);
+    this.scene.add(new THREE.HemisphereLight(0xdde6ff, 0x111318, 0.4));
+    const key = new THREE.SpotLight(0xffffff, 320, 40, 0.6, 0.6); key.position.set(4, 9, 5); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0002; this.scene.add(key);
     const rim = new THREE.SpotLight(new THREE.Color(opts.accent || '#ff3b30'), 120, 40, 0.7, 0.6); rim.position.set(-6, 4, -5); this.scene.add(rim);
     const fill = new THREE.DirectionalLight(0x9fb8ff, 0.6); fill.position.set(-4, 3, 6); this.scene.add(fill);
     const fc = document.createElement('canvas'); fc.width = fc.height = 256; const fg = fc.getContext('2d');
@@ -50,7 +53,7 @@ export class Garage3D {
     const d = this.dist;
     this.camera.position.set(Math.cos(this.angle) * d * Math.cos(this.pitch), 0.6 + Math.sin(this.pitch) * d, Math.sin(this.angle) * d * Math.cos(this.pitch));
     this.camera.lookAt(0, 0.5, 0);
-    for (const w of this.car.userData.wheels) for (const sp of w.userData.spin) sp.rotation.y += 0.02;
+    for (const w of this.car.userData.wheels) for (const sp of w.userData.spin) sp.rotation.z -= 0.02;
     this.renderer.render(this.scene, this.camera);
   }
   destroy() { cancelAnimationFrame(this.raf); this._ro?.disconnect(); this.renderer.dispose(); this.renderer.domElement.remove(); }

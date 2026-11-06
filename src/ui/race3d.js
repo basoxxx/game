@@ -6,6 +6,28 @@ import { genStage, STAGE_STYLE } from './trackview.js';
 import { getSettings } from '../engine/state.js';
 import { passBy } from './audio.js';
 import { buildCar, setTyreColor } from './cars3d.js';
+import { pbr, applyHDRI, makeComposer } from './gfx.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+
+// Tree geometry (origin at the base, height 1) with vertex colours: trunk + layered foliage
+function colorize(g, hex) { const c = new THREE.Color(hex); const n = g.attributes.position.count; const a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const k = 0.85 + Math.random() * 0.3; a[i * 3] = c.r * k; a[i * 3 + 1] = c.g * k; a[i * 3 + 2] = c.b * k; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; }
+let _treeGeo = null, _bushGeo = null;
+function treeGeo() {
+  if (_treeGeo) return _treeGeo;
+  const parts = [colorize(new THREE.CylinderGeometry(0.05, 0.08, 0.3, 6).translate(0, 0.15, 0), '#5a3d25')];
+  for (let i = 0; i < 4; i++) { const r = 0.48 - i * 0.1, y = 0.25 + i * 0.18; parts.push(colorize(new THREE.ConeGeometry(r, 0.36, 8).translate(0, y + 0.18, 0), i % 2 ? '#2f5d2a' : '#27502a')); }
+  _treeGeo = mergeGeometries(parts.map((g) => g.toNonIndexed()));
+  _treeGeo.computeVertexNormals();
+  return _treeGeo;
+}
+function bushGeo() {
+  if (_bushGeo) return _bushGeo;
+  const parts = [colorize(new THREE.CylinderGeometry(0.05, 0.07, 0.35, 6).translate(0, 0.17, 0), '#5a3d25')];
+  for (const [x, y, z, r] of [[0, 0.55, 0, 0.32], [0.18, 0.48, 0.1, 0.24], [-0.16, 0.5, -0.08, 0.25], [0.02, 0.72, 0.05, 0.22]]) parts.push(colorize(new THREE.IcosahedronGeometry(r, 1).translate(x, y, z), '#3f6b2e'));
+  _bushGeo = mergeGeometries(parts.map((g) => g.toNonIndexed()));
+  _bushGeo.computeVertexNormals();
+  return _bushGeo;
+}
 
 function canvasTex(w, h, draw, repeat) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -37,7 +59,7 @@ export class Race3D {
     this.camMode = 'tv';
     this.focusKey = null;
     this.low = getSettings().gfx === 'low';
-    this.renderer = new THREE.WebGLRenderer({ antialias: !this.low, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ antialias: !this.low, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
     this.renderer.setPixelRatio(this.low ? 1 : Math.min(1.5, window.devicePixelRatio || 1));
     this.renderer.shadowMap.enabled = !this.low;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -55,6 +77,8 @@ export class Race3D {
     this.buildEnv(street);
     if (this.open) this.buildStage(); else { this.buildTrack(street); this.buildScenery(street); }
     this.buildRacingLine();
+    applyHDRI(this.renderer, this.scene, night ? 'night' : (this.surface === 'snow' ? 'day' : 'day'), { intensity: night ? 0.35 : 0.9 }).then((ok) => { if (ok && this.skyDome) { this.skyDome.visible = false; if (this.clouds) this.clouds.visible = false; this.hdr = true; } });
+    this.composer = makeComposer(this.renderer, this.scene, this.camera, { bloom: night ? 0.45 : 0.18, low: this.low });
     this.cars = new Map();
     for (const c of cars) this.addCar(c);
     this.camPos = new THREE.Vector3(0, 50, 0);
@@ -78,6 +102,7 @@ export class Race3D {
     const r = this.container.getBoundingClientRect();
     if (!r.width) return;
     this.renderer.setSize(r.width, r.height, false);
+    this.composer?.setSize(r.width, r.height);
     this.camera.aspect = r.width / r.height;
     this.camera.updateProjectionMatrix();
     this.W = r.width; this.H = r.height;
@@ -87,10 +112,10 @@ export class Race3D {
     const night = this.night;
     const sky = night ? 0x070b18 : 0x8fc2ff;
     this.scene.background = new THREE.Color(sky);
-    this.scene.fog = new THREE.Fog(night ? 0x070b18 : 0xb8d4f0, 400, 2600);
-    const hemi = new THREE.HemisphereLight(night ? 0x334466 : 0xdfefff, night ? 0x0b0d10 : 0x4a6a3a, night ? 0.9 : 1.1);
+    this.scene.fog = new THREE.Fog(night ? 0x070b18 : 0xc8d6e2, 500, 3200);
+    const hemi = new THREE.HemisphereLight(night ? 0x334466 : 0xdfefff, night ? 0x0b0d10 : 0x4a6a3a, night ? 0.6 : 0.45);
     this.scene.add(hemi); this.hemi = hemi;
-    const sun = new THREE.DirectionalLight(night ? 0xbfd4ff : 0xfff1dc, night ? 0.9 : 2.6);
+    const sun = new THREE.DirectionalLight(night ? 0xbfd4ff : 0xfff1dc, night ? 0.7 : 2.2);
     sun.position.set(300, 500, 200);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -144,23 +169,22 @@ export class Race3D {
   buildTrack(street) {
     const W = street > 0.7 ? 11 : 13;
     this.TW = W;
-    const asphalt = canvasTex(256, 256, (c, w, h) => {
-      noise(c, w, h, '#3b3e44', 255, 9000, 2);
-      c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(w * 0.38, 0, w * 0.24, h); // racing line rubber
-      c.fillStyle = '#f2f2f2'; c.fillRect(0, 0, 6, h); c.fillRect(w - 6, 0, 6, h);
-    });
-    this.asphaltMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.82, metalness: 0.05 });
-    const runoffMat = new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (c, w, h) => noise(c, w, h, street > 0.7 ? '#55585e' : '#7c7f86', 255, 3000, 2)), roughness: 0.9 });
-    const grass = canvasTex(256, 256, (c, w, h) => { noise(c, w, h, '#3f7a34', 255, 12000, 3); for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)'; c.fillRect(0, i * h / 8, w, h / 8); } }, [400, 400]);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(12000, 12000), new THREE.MeshStandardMaterial({ map: grass, roughness: 1, color: street > 0.7 ? 0x9a9a9a : 0xffffff }));
-    ground.rotation.x = -Math.PI / 2; ground.position.set((this.geo.bbox[0] + this.geo.bbox[2]) / 2, -0.05, (this.geo.bbox[1] + this.geo.bbox[3]) / 2);
+    this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x3b3e44, roughness: 0.85 }) : pbr('asphalt_02', { color: 0x9a9a9a, roughness: 0.95, normalScale: 0.8 });
+    const runoffMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x777b82, roughness: 0.9 }) : pbr('concrete_floor_worn_001', { color: street > 0.7 ? 0x8a8a8a : 0xb8b8b8 });
+    const groundMat = this.low ? new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x5d6066 : 0x3f7a34, roughness: 1 }) : pbr(street > 0.7 ? 'concrete_floor_worn_001' : 'aerial_grass_rock', { repeat: [1400, 1400], color: street > 0.7 ? 0x777777 : 0x8db86a });
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(12000, 12000), groundMat);
+    ground.rotation.x = -Math.PI / 2; ground.position.set((this.geo.bbox[0] + this.geo.bbox[2]) / 2, -0.25, (this.geo.bbox[1] + this.geo.bbox[3]) / 2);
     ground.receiveShadow = true;
-    if (street > 0.7) ground.material.map = canvasTex(256, 256, (c, w, h) => noise(c, w, h, '#5d6066', 255, 8000, 2), [600, 600]);
     this.scene.add(ground);
     const runoff = street > 0.7 ? 3 : 16;
-    this.scene.add(this.ribbon(W / 2, W / 2 + runoff, 0.01, runoffMat, 0.05));
-    this.scene.add(this.ribbon(-W / 2 - runoff, -W / 2, 0.01, runoffMat, 0.05));
-    this.scene.add(this.ribbon(-W / 2, W / 2, 0.03, this.asphaltMat, 0.06));
+    this.scene.add(this.ribbon(W / 2, W / 2 + runoff, 0.01, runoffMat, 1 / 5, 1, runoff / 5));
+    this.scene.add(this.ribbon(-W / 2 - runoff, -W / 2, 0.01, runoffMat, 1 / 5, 1, runoff / 5));
+    // white edge lines + rubbered racing line
+    const lineMat = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.6 });
+    this.scene.add(this.ribbon(W / 2 - 0.35, W / 2 - 0.1, 0.045, lineMat, 0.05));
+    this.scene.add(this.ribbon(-W / 2 + 0.1, -W / 2 + 0.35, 0.045, lineMat, 0.05));
+    this.rubberMat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.6, transparent: true, opacity: 0.32, depthWrite: false });
+    this.scene.add(this.ribbon(-W / 2, W / 2, 0.03, this.asphaltMat, 1 / 6, 1, W / 6));
     // kerbs on corners
     const kerbTex = canvasTex(64, 64, (c, w, h) => { for (let i = 0; i < 2; i++) { c.fillStyle = i ? '#f4f4f4' : '#d0161c'; c.fillRect(0, i * h / 2, w, h / 2); } });
     const kerbMat = new THREE.MeshStandardMaterial({ map: kerbTex, roughness: 0.6 });
@@ -213,15 +237,16 @@ export class Race3D {
     this.TW = W;
     const cols = { gravel: ['#8b6a43', '#6d5232'], rough: ['#7a5534', '#5a3d22'], tarmac: ['#3d4046', '#2e3035'], snow: ['#e9f2f8', '#c7d7e3'] }[surf];
     const road = canvasTex(256, 256, (c, w, h) => { noise(c, w, h, cols[0], 255, 14000, 3); c.fillStyle = 'rgba(0,0,0,0.12)'; c.fillRect(w * 0.25, 0, w * 0.12, h); c.fillRect(w * 0.63, 0, w * 0.12, h); if (surf === 'tarmac') { c.fillStyle = '#e8e8e8'; for (let y = 0; y < h; y += 64) c.fillRect(w / 2 - 2, y, 4, 32); } });
-    this.asphaltMat = new THREE.MeshStandardMaterial({ map: road, roughness: surf === 'snow' ? 0.5 : 0.95 });
-    const vergeMat = new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (c, w, h) => noise(c, w, h, cols[1], 255, 5000, 3)), roughness: 1 });
+    const roadId = { tarmac: 'asphalt_02', gravel: 'gravel_floor', rough: 'rocky_trail', snow: 'snow_02' }[surf];
+    this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ map: road, roughness: surf === 'snow' ? 0.5 : 0.95 }) : pbr(roadId, { color: surf === 'tarmac' ? 0x9a9a9a : surf === 'gravel' ? 0xd8c2a0 : 0xffffff, roughness: surf === 'snow' ? 0.6 : 1 });
+    const vergeMat = this.low ? new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (c, w, h) => noise(c, w, h, cols[1], 255, 5000, 3)), roughness: 1 }) : pbr(surf === 'snow' ? 'snow_02' : 'rocky_trail', { color: surf === 'snow' ? 0xffffff : 0xa89a80 });
     const groundCol = surf === 'snow' ? '#dfe9f1' : surf === 'tarmac' ? '#4f6b3a' : '#5d6b38';
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(30000, 30000), new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (c, w, h) => noise(c, w, h, groundCol, 255, 12000, 3), [600, 600]), roughness: 1 }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(30000, 30000), this.low ? new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (c, w, h) => noise(c, w, h, groundCol, 255, 12000, 3), [600, 600]), roughness: 1 }) : pbr(surf === 'snow' ? 'snow_02' : 'aerial_grass_rock', { repeat: [3000, 3000], color: surf === 'snow' ? 0xffffff : 0xb5c99a }));
     ground.rotation.x = -Math.PI / 2; ground.position.set((this.geo.bbox[0] + this.geo.bbox[2]) / 2, -0.05, (this.geo.bbox[1] + this.geo.bbox[3]) / 2); ground.receiveShadow = true;
     this.scene.add(ground);
-    this.scene.add(this.ribbon(W / 2, W / 2 + 2.5, 0.01, vergeMat, 0.05));
-    this.scene.add(this.ribbon(-W / 2 - 2.5, -W / 2, 0.01, vergeMat, 0.05));
-    this.scene.add(this.ribbon(-W / 2, W / 2, 0.03, this.asphaltMat, 0.08));
+    this.scene.add(this.ribbon(W / 2, W / 2 + 2.5, 0.01, vergeMat, 1 / 4, 1, 0.6));
+    this.scene.add(this.ribbon(-W / 2 - 2.5, -W / 2, 0.01, vergeMat, 1 / 4, 1, 0.6));
+    this.scene.add(this.ribbon(-W / 2, W / 2, 0.03, this.asphaltMat, 1 / 5, 1, W / 5));
     if (surf === 'snow') {
       const bankMat = new THREE.MeshStandardMaterial({ color: 0xf4f8fb, roughness: 0.6 });
       for (const side of [1, -1]) { const m = this.ribbon(side * (W / 2 + 2.4), side * (W / 2 + 3.4), 0.5, bankMat, 0.05, 2); this.scene.add(m); }
@@ -229,9 +254,10 @@ export class Race3D {
     // dense forest along the road
     const N = this.geo.N;
     const count = this.low ? 600 : 1800;
-    const cone = new THREE.ConeGeometry(1, 1, 7);
-    const treeMat = new THREE.MeshStandardMaterial({ color: surf === 'snow' ? 0x2c4a36 : surf === 'rough' ? 0x6f7d3a : 0x2d5527, roughness: 0.9 });
+    const cone = surf === 'rough' ? bushGeo() : treeGeo();
+    const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
     const inst = new THREE.InstancedMesh(cone, treeMat, count);
+    const tint = new THREE.Color();
     const dummy = new THREE.Object3D();
     let placed = 0;
     for (let k = 0; k < count * 3 && placed < count; k++) {
@@ -244,7 +270,8 @@ export class Race3D {
       if (!ok) continue;
       const h = surf === 'rough' ? 4 + Math.random() * 5 : 9 + Math.random() * 14; const wd = surf === 'rough' ? 3 + Math.random() * 3 : 2.2 + Math.random() * 2;
       const baseH = this.geo.h ? this.geo.h[i] * 0.85 : 0;
-      dummy.position.set(px, baseH + h / 2, pz); dummy.scale.set(wd, h, wd); dummy.rotation.y = Math.random() * 3; dummy.updateMatrix();
+      dummy.position.set(px, baseH, pz); dummy.scale.set(wd * 2, h, wd * 2); dummy.rotation.y = Math.random() * 6; dummy.updateMatrix();
+      tint.setHSL(surf === 'rough' ? 0.16 : 0.27, surf === 'snow' ? 0.15 : 0.35, surf === 'snow' ? 0.9 : 0.7 + Math.random() * 0.4); inst.setColorAt(placed, tint);
       inst.setMatrixAt(placed++, dummy.matrix);
     }
     inst.count = placed; inst.castShadow = true;
@@ -275,6 +302,12 @@ export class Race3D {
     const sm = new Float64Array(N);
     for (let i = 0; i < N; i++) { let a = 0, n = 0; for (let q = -8; q <= 8; q++) { const j = this.open ? Math.max(0, Math.min(N - 1, i + q)) : (i + q + N) % N; a += line[j]; n++; } sm[i] = a / n; }
     this.line = sm;
+    if (this.rubberMat && !this.open) {
+      const { x, y, hdg } = this.geo; const pos = [], idx = [];
+      for (let i = 0; i <= N; i++) { const j = i % N; const nx = -Math.sin(hdg[j]), nz = Math.cos(hdg[j]); const o = sm[j]; pos.push(x[j] + nx * (o - 1.6), 0.04, y[j] + nz * (o - 1.6), x[j] + nx * (o + 1.6), 0.04, y[j] + nz * (o + 1.6)); if (i < N) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); } }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+      this.scene.add(new THREE.Mesh(g, this.rubberMat));
+    }
   }
 
   placeAt(obj, i, off, y = 0, rot = 0) {
@@ -321,9 +354,10 @@ export class Race3D {
     this.scene.add(pit);
     // trees / buildings instanced
     const count = Math.round((street > 0.7 ? 260 : 700) * (this.low ? 0.35 : 1));
-    const geo = street > 0.7 ? new THREE.BoxGeometry(1, 1, 1) : new THREE.ConeGeometry(1, 1, 7);
-    const m = street > 0.7 ? new THREE.MeshStandardMaterial({ color: 0xb0b4bc, roughness: 0.8 }) : new THREE.MeshStandardMaterial({ color: 0x2f5e2a, roughness: 0.9 });
+    const geo = street > 0.7 ? new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0) : Math.random() < 0.5 ? treeGeo() : bushGeo();
+    const m = street > 0.7 ? new THREE.MeshStandardMaterial({ color: 0xb0b4bc, roughness: 0.8 }) : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
     const inst = new THREE.InstancedMesh(geo, m, count);
+    const tint = new THREE.Color();
     const dummy = new THREE.Object3D();
     for (let k = 0; k < count; k++) {
       const i = Math.floor(Math.random() * N);
@@ -335,10 +369,11 @@ export class Race3D {
       let ok = true;
       for (let j = 0; j < N; j += 6) { const dx = this.geo.x[j] - px, dz = this.geo.y[j] - pz; if (dx * dx + dz * dz < (street > 0.7 ? 18 * 18 : 30 * 30)) { ok = false; break; } }
       if (!ok) continue;
-      const h = street > 0.7 ? 12 + Math.random() * 50 : 8 + Math.random() * 12;
-      const wd = street > 0.7 ? 10 + Math.random() * 18 : 3 + Math.random() * 2.5;
-      dummy.position.set(px, h / 2, pz); dummy.scale.set(wd, h, wd); dummy.rotation.y = Math.random() * 3; dummy.updateMatrix();
+      const h = street > 0.7 ? 12 + Math.random() * 50 : 9 + Math.random() * 13;
+      const wd = street > 0.7 ? 10 + Math.random() * 18 : h * (0.75 + Math.random() * 0.35);
+      dummy.position.set(px, 0, pz); dummy.scale.set(wd, h, wd); dummy.rotation.y = Math.random() * 6; dummy.updateMatrix();
       inst.setMatrixAt(k, dummy.matrix);
+      if (street <= 0.7) { tint.setHSL(0.22 + Math.random() * 0.1, 0.35 + Math.random() * 0.25, 0.75 + Math.random() * 0.35); inst.setColorAt(k, tint); }
     }
     inst.castShadow = true;
     this.scene.add(inst);
@@ -399,7 +434,7 @@ export class Race3D {
     this.skyMat.uniforms.top.value.copy(day.top).lerp(nite.top, n);
     this.skyMat.uniforms.bot.value.copy(day.bot).lerp(nite.bot, n);
     this.scene.fog.color.copy(day.fog).lerp(nite.fog, n);
-    this.scene.background = this.scene.fog.color.clone();
+    if (!this.hdr) this.scene.background = this.scene.fog.color.clone(); else { this.scene.backgroundIntensity = 1 - n * 0.85; this.scene.environmentIntensity = 0.9 - n * 0.6; }
     this.hemi.intensity = 1.1 - n * 0.55; this.sun.intensity = 2.6 - n * 2.0;
     this.renderer.toneMappingExposure = 1.05 - n * 0.2;
   }
@@ -463,7 +498,7 @@ export class Race3D {
       const k = this.geo.k[i0];
       m.rotation.x = Math.max(-0.04, Math.min(0.04, k * (st.speed || 0) ** 2 * 0.0012));
       const spin = (st.speed || 0) * dt / 0.34;
-      for (const w of m.userData.wheels) for (const sp of w.userData.spin) sp.rotation.y += spin;
+      for (const w of m.userData.wheels) for (const sp of w.userData.spin) sp.rotation.z -= spin;
       if (st.tyreColor && st.tyreColor !== car.tyre) { car.tyre = st.tyreColor; setTyreColor(m, st.tyreColor); }
       car.state = st;
       if (st.key === this.focusKey) focus = car;
@@ -486,11 +521,11 @@ export class Race3D {
       p.needsUpdate = true;
       this.rain.position.set(this.camera.position.x, 0, this.camera.position.z);
     }
-    this.renderer.render(this.scene, this.camera);
+    if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
     this.updateLabels();
   }
 
-  startIntro(sec = 5) { this.introT = sec; this.introDur = sec; }
+  startIntro(sec = 5) { this.introT = sec; this.introDur = sec; this.introStart = performance.now(); }
 
   pickBattle() {
     // auto director: find the closest fight among running cars, prefer player cars
@@ -505,7 +540,8 @@ export class Race3D {
 
   updateCamera(focus, dt) {
     if (this.introT > 0) {
-      this.introT -= dt;
+      this.introT = this.introDur - (performance.now() - this.introStart) / 1000;
+      if (this.introT <= 0) { this.introT = 0; this._cut = true; }
       const k = 1 - this.introT / this.introDur;
       const [x0, y0, x1, y1] = this.geo.bbox; const cx = (x0 + x1) / 2, cz = (y0 + y1) / 2; const R = Math.max(x1 - x0, y1 - y0);
       const ang = k * 1.6 + 0.4;
