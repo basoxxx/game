@@ -289,7 +289,7 @@ function mountRace() {
   R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, glow: 'rgba(255,255,255,0.12)' });
   R.last = performance.now(); R.uiT = 0;
   R.focus = R.sim.cars.find((c) => c.isPlayer)?.key;
-  R.view3d = getSettings().view3d !== false && webglAvailable() ? (R.cam || 'tv') : null;
+  R.view3d = getSettings().view3d !== false && webglAvailable() ? (R.cam || 'auto') : null;
   renderViewBtns();
   if (R.view3d) enable3D(R.view3d);
   updateAll(true);
@@ -318,7 +318,7 @@ function stopRace() { cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = n
 function renderViewBtns() {
   const el = document.getElementById('view-btns'); if (!el) return;
   const can3d = webglAvailable();
-  el.innerHTML = [['2d', 'Mappa 2D'], ['tv', 'TV 3D'], ['chase', 'Camera car'], ['onboard', 'Onboard'], ['heli', 'Elicottero']].map(([k, n]) => `<button class="btn sm ${((R.view3d || '2d') === k) ? 'active' : ''}" data-a="${k === '2d' ? 'view2d' : 'cam'}" data-c="${k}" ${k !== '2d' && !can3d ? 'disabled' : ''}>${n}</button>`).join('');
+  el.innerHTML = [['2d', 'Mappa 2D'], ['auto', 'Regia'], ['tv', 'TV 3D'], ['chase', 'Camera car'], ['onboard', 'Onboard'], ['heli', 'Elicottero']].map(([k, n]) => `<button class="btn sm ${((R.view3d || '2d') === k) ? 'active' : ''}" data-a="${k === '2d' ? 'view2d' : 'cam'}" data-c="${k}" ${k !== '2d' && !can3d ? 'disabled' : ''}>${n}</button>`).join('');
 }
 function enable3D(cam) {
   const st = S(); const sim = R.sim;
@@ -327,10 +327,11 @@ function enable3D(cam) {
     const div = document.createElement('div'); div.className = 'r3d'; rv.prepend(div);
     try {
       R.r3d = new Race3D(div, { cid: sim.track.cid, street: sim.track.street || 0, night: !!sim.track.night && !sim.endurance, category: st.category,
-        cars: sim.cars.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: sim.driver(c).helmet.c1, tyreColor: COMPOUNDS[c.tyre].color, isPlayer: c.isPlayer })) });
+        cars: sim.cars.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: sim.driver(c).helmet.c1, tyreColor: COMPOUNDS[c.tyre].color, isPlayer: c.isPlayer, number: sim.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })) });
+      if (sim.time < 1) R.r3d.startIntro(4.5);
     } catch (e) { console.warn('3D non disponibile', e); div.remove(); R.view3d = null; renderViewBtns(); return; }
   }
-  R.r3d.camMode = cam; R.r3d.focusKey = R.focus; R.r3d._cut = true;
+  R.r3d.director = cam === 'auto'; R.r3d.camMode = cam === 'auto' ? 'tv' : cam; R.r3d.dirT = 0; R.r3d.focusKey = R.focus; R.r3d._cut = true;
   rv.classList.add('mode3d');
   document.getElementById('hud3d')?.classList.remove('hidden');
   R.view?.resize();
@@ -350,13 +351,13 @@ function update3D(dt) {
     const frac = arcFrac(sim.cat, sim.track.cid, d, sim.track.lap);
     const speed = c.inPit > 0 ? 0 : speedAtTimeFrac(sim.cat, sim.track.cid, d, c.lapTarget, sim.track.lap) / 3.6;
     const show = c.isPlayer || c.key === R.focus || c.pos <= 3;
-    return { key: c.key, s: frac * g.N, speed, inPit: c.inPit > 0, close: c.gapAhead < 1, tyreColor: COMPOUNDS[c.tyre].color, label: show ? `P${c.pos} ${shortName(sim.driver(c).name)}` : `${c.pos}` };
+    return { key: c.key, pos: c.pos, gap: c.status === 'running' && c.inPit <= 0 ? c.gapAhead : null, s: frac * g.N, speed, inPit: c.inPit > 0, close: c.gapAhead < 1, tyreColor: COMPOUNDS[c.tyre].color, label: show ? `P${c.pos} ${shortName(sim.driver(c).name)}` : `${c.pos}` };
   });
   r.focusKey = R.focus;
   r.setRain(sim.rain);
   if (sim.endurance && sim.track.night) { R.nightLvl = (R.nightLvl ?? 0) + ((sim.night ? 1 : 0) - (R.nightLvl ?? 0)) * Math.min(1, dt * 0.3); r.setNight(Math.round(R.nightLvl * 20) / 20); }
   r.update(states, dt);
-  const fc = sim.cars.find((c) => c.key === R.focus);
+  const fc = sim.cars.find((c) => c.key === (r.director && r.dirFocus ? r.dirFocus : R.focus));
   const hud = document.getElementById('hud3d');
   if (hud && fc) {
     const st = states.find((x) => x.key === fc.key);

@@ -107,6 +107,12 @@ export class Race3D {
     });
     this.skyDome = new THREE.Mesh(g, skyMat); this.skyMat = skyMat;
     this.scene.add(this.skyDome);
+    // clouds
+    const cloudTex = canvasTex(256, 128, (c, w, h) => { c.clearRect(0, 0, w, h); for (let i = 0; i < 18; i++) { const x = w * (0.2 + Math.random() * 0.6), y = h * (0.4 + Math.random() * 0.25), r = 20 + Math.random() * 34; const g2 = c.createRadialGradient(x, y, 0, x, y, r); g2.addColorStop(0, 'rgba(255,255,255,0.85)'); g2.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g2; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); } });
+    const cloudMat = new THREE.SpriteMaterial({ map: cloudTex, transparent: true, opacity: night ? 0.12 : 0.85, depthWrite: false, fog: false });
+    this.clouds = new THREE.Group();
+    for (let i = 0; i < 26; i++) { const sp = new THREE.Sprite(cloudMat); const a = Math.random() * Math.PI * 2, d = 900 + Math.random() * 1800; sp.position.set(Math.cos(a) * d, 260 + Math.random() * 260, Math.sin(a) * d); const sc = 500 + Math.random() * 700; sp.scale.set(sc, sc / 2, 1); this.clouds.add(sp); }
+    this.scene.add(this.clouds);
   }
 
   // ribbon along the centerline from offset a to b (meters, + = left)
@@ -356,7 +362,7 @@ export class Race3D {
   }
 
   addCar(c) {
-    const m = buildCar(this.category, c.livery, { helmet: c.helmet, tyre: c.tyreColor });
+    const m = buildCar(this.category, c.livery, { helmet: c.helmet, tyre: c.tyreColor, number: c.number, sponsor: c.sponsor });
     m.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     this.scene.add(m);
     const label = document.createElement('div');
@@ -449,7 +455,49 @@ export class Race3D {
     this.updateLabels();
   }
 
+  startIntro(sec = 5) { this.introT = sec; this.introDur = sec; }
+
+  pickBattle() {
+    // auto director: find the closest fight among running cars, prefer player cars
+    let best = null, bs = Infinity;
+    for (const car of this.cars.values()) {
+      const st = car.state; if (!st || !car.mesh.visible || st.gap == null) continue;
+      const score = st.gap - (car.isPlayer ? 0.6 : 0) + (st.pos || 20) * 0.03;
+      if (st.gap < 1.4 && score < bs) { bs = score; best = st.key; }
+    }
+    return best;
+  }
+
   updateCamera(focus, dt) {
+    if (this.introT > 0) {
+      this.introT -= dt;
+      const k = 1 - this.introT / this.introDur;
+      const [x0, y0, x1, y1] = this.geo.bbox; const cx = (x0 + x1) / 2, cz = (y0 + y1) / 2; const R = Math.max(x1 - x0, y1 - y0);
+      const ang = k * 1.6 + 0.4;
+      const tgt = focus ? focus.mesh.position : new THREE.Vector3(cx, 0, cz);
+      const far = new THREE.Vector3(cx + Math.cos(ang) * R * 0.7, R * 0.45 * (1 - k) + 25, cz + Math.sin(ang) * R * 0.7);
+      const near = tgt.clone().add(new THREE.Vector3(-30, 14, 22));
+      const e = k * k * (3 - 2 * k);
+      this.camera.position.copy(far.lerp(near, e));
+      this.camera.fov = 50; this.camera.updateProjectionMatrix();
+      this.camera.lookAt(new THREE.Vector3(cx, 0, cz).lerp(tgt, e));
+      this.camPos.copy(this.camera.position);
+      this.skyDome.position.copy(this.camera.position);
+      return;
+    }
+    if (this.director) {
+      this.dirT = (this.dirT || 0) - dt;
+      if (this.dirT <= 0) {
+        this.dirT = 7 + Math.random() * 6;
+        const b = this.pickBattle();
+        this.dirFocus = b || this.focusKey;
+        const modes = ['tv', 'tv', 'chase', 'heli', 'tv', 'onboard'];
+        this.camMode = modes[Math.floor(Math.random() * modes.length)];
+        this._cut = true;
+      }
+      const df = this.cars.get(this.dirFocus);
+      if (df && df.mesh.visible) focus = df;
+    }
     if (!focus) return;
     const m = focus.mesh;
     const fwd = new THREE.Vector3(Math.cos(-m.rotation.y), 0, -Math.sin(-m.rotation.y));
@@ -489,6 +537,7 @@ export class Race3D {
     this.sun.position.copy(target).add(new THREE.Vector3(150, 300, 100));
     this.sun.target.position.copy(target);
     this.skyDome.position.copy(this.camera.position);
+    if (this.clouds) this.clouds.position.set(this.camera.position.x, 0, this.camera.position.z);
   }
 
   updateLabels() {

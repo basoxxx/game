@@ -50,7 +50,7 @@ registerScreen({
     const el = document.getElementById('garage3d');
     if (el && show3d && webglAvailable()) {
       const st = S(); const t = playerTeam(st); const ds = teamDrivers(st, t);
-      try { garage = new Garage3D(el, st.category, t.car.livery, { helmet: ds[0]?.helmet.c1, accent: teamColor(t.car.livery) }); } catch (e) { console.warn(e); }
+      try { garage = new Garage3D(el, st.category, t.car.livery, { helmet: ds[0]?.helmet.c1, accent: teamColor(t.car.livery), number: ds[0]?.number, sponsor: t.sponsors[0]?.name || t.short }); } catch (e) { console.warn(e); }
     }
   },
   unmount() { garage?.destroy(); garage = null; },

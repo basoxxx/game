@@ -66,6 +66,24 @@ function prof(points, width, m, bevel = 0.08, z = 0) {
 }
 const glass = () => mat('#0b1017', { rough: 0.05, metal: 0.9 });
 
+function decal(text, w, h, color = '#ffffff', bg = null, font = 'italic 900 90px "Exo 2", sans-serif') {
+  const c = document.createElement('canvas'); c.width = 256; c.height = Math.round(256 * h / w);
+  const g = c.getContext('2d');
+  if (bg) { g.fillStyle = bg; g.beginPath(); g.roundRect ? g.roundRect(4, 4, c.width - 8, c.height - 8, 18) : g.rect(4, 4, c.width - 8, c.height - 8); g.fill(); }
+  g.fillStyle = color; g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle';
+  let size = parseInt(font.match(/(\d+)px/)[1]);
+  while (g.measureText(text).width > c.width * 0.9 && size > 10) { size -= 4; g.font = font.replace(/\d+px/, size + 'px'); }
+  g.fillText(text, c.width / 2, c.height / 2 + 4);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+}
+function addDecal(car, mat, w, h, x, y, z, side) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+  m.position.set(x, y, z * side); m.rotation.y = side > 0 ? 0 : Math.PI;
+  car.add(m);
+}
+function luma(hex) { const n = parseInt((hex || '#000').slice(1), 16); return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; }
+
 export function buildCar(category, livery, opts = {}) {
   const L = { primary: '#e10600', secondary: '#ffffff', accent: '#111111', ...livery };
   const P = mat(L.primary, { rough: 0.22, metal: 0.4 });
@@ -112,6 +130,17 @@ export function buildCar(category, livery, opts = {}) {
     helmet.position.set(-0.05, 0.84, 0); car.add(helmet);
     for (const x of [1.45, -1.45]) for (const z of [0.45, -0.45]) car.add(box(0.05, 0.03, 0.6, carbon(), x, 0.33, z * 1.25));
     for (const [x, z, r, w] of [[1.5, 0.84, 0.33, 0.33], [1.5, -0.84, 0.33, 0.33], [-1.62, 0.8, 0.36, 0.42], [-1.62, -0.8, 0.36, 0.42]]) { const wh = wheel(r, w, opts.tyre || '#ffd400'); wh.position.set(x, r, z); car.add(wh); wheels.push(wh); }
+  }
+  // decals: race number and title sponsor on both sides
+  if (opts.number != null || opts.sponsor) {
+    const ink = luma(L.primary) > 0.6 ? '#111111' : '#ffffff';
+    const numMat = opts.number != null ? decal(String(opts.number), 1, 0.6, category === 'formula' ? ink : '#111111', category === 'formula' ? null : '#ffffff') : null;
+    const spMat = opts.sponsor ? decal(String(opts.sponsor).toUpperCase(), 3, 0.6, ink, null, '800 70px "Exo 2", sans-serif') : null;
+    for (const side of [1, -1]) {
+      if (category === 'formula') { if (numMat) addDecal(car, numMat, 0.42, 0.26, 1.05, 0.5, 0.33, side); if (spMat) addDecal(car, spMat, 1.1, 0.22, -0.35, 0.5, 0.86, side); }
+      else if (category === 'endurance') { if (numMat) addDecal(car, numMat, 0.6, 0.36, 0.3, 0.62, 1.02, side); if (spMat) addDecal(car, spMat, 1.3, 0.26, -1.2, 0.62, 1.02, side); }
+      else { if (numMat) addDecal(car, numMat, 0.55, 0.33, -0.1, 0.78, 1.02, side); if (spMat) addDecal(car, spMat, 1.2, 0.24, 1.2, 0.72, 0.98, side); }
+    }
   }
   car.userData.wheels = wheels;
   return car;

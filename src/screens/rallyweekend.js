@@ -231,7 +231,7 @@ function rallyEnable3D(cam) {
   if (!X.r3d) {
     const div = document.createElement('div'); div.className = 'r3d'; rv.prepend(div);
     try {
-      X.r3d = new Race3D(div, { geo: X.geo, category: 'rally', surface: stg.surface, wet: stg.wet, cars: X.ev.crews.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: X.ev.driver(c).helmet.c1, tyreColor: '#888', isPlayer: c.isPlayer })) });
+      X.r3d = new Race3D(div, { geo: X.geo, category: 'rally', surface: stg.surface, wet: stg.wet, cars: X.ev.crews.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: X.ev.driver(c).helmet.c1, tyreColor: '#888', isPlayer: c.isPlayer, number: X.ev.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })) });
     } catch (e) { console.warn(e); div.remove(); X.view3d = null; rallyViewBtns(); return; }
   }
   X.r3d.camMode = cam; X.r3d._cut = true; rv.classList.add('mode3d');
