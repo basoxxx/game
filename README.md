@@ -18,6 +18,15 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 2.1
+
+- **ERS/Override**: gestione della batteria ibrida in gara
+- **Radio dei piloti** con richieste a cui rispondere e **ordini di scuderia**
+- **Conferenze stampa** ed **eventi del paddock** con scelte e conseguenze
+- **Regia TV automatica** e **intro cinematografica** in 3D, numeri e sponsor sulle vetture
+- **Mappa 2D** con zone DRS e settori, partenze scaglionate nel rally
+- **Gala di fine stagione** e **Albo d'oro** con record della pista
+
 ## Caratteristiche
 
 - **3 categorie**, ognuna con regole e simulazione proprie
