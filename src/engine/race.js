@@ -288,9 +288,16 @@ export class CircuitSim {
     const lapsLeft = this.laps - c.dist;
     const comp = COMPOUNDS[c.tyre];
     const wetC = this.C.compounds.includes('inter') ? 'inter' : 'wet';
-    const wantWet = rain > 0.62 ? 'wet' : rain > 0.22 + c.aiRainReact * (1.2 - c.smart) ? wetC : null;
-    if (wantWet && c.tyre !== wantWet && lapsLeft > 1.5) return this.req(c, wantWet);
-    if (!wantWet && comp.wet && rain < 0.12 - c.aiRainReact * 0.3 * (1.2 - c.smart) && lapsLeft > 2) {
+    const hasInter = wetC === 'inter';
+    const react = c.aiRainReact * (1.2 - c.smart);
+    // weather calls with hysteresis: avoid flip-flopping between compounds
+    let wantWet = null;
+    if (!comp.wet) { if (rain > 0.25 + react) wantWet = rain > 0.72 ? 'wet' : wetC; }
+    else if (c.tyre === 'inter') { if (rain > 0.78) wantWet = 'wet'; }
+    else if (c.tyre === 'wet' && hasInter && rain < 0.42) wantWet = 'inter';
+    const urgent = !comp.wet && rain > 0.4;
+    if (wantWet && c.tyre !== wantWet && lapsLeft > 1.5 && (c.stintLap >= 2 || urgent)) return this.req(c, wantWet);
+    if (comp.wet && rain < 0.1 - react * 0.3 && lapsLeft > 2 && c.stintLap >= 2) {
       c.plan = null; return this.req(c, this.dryChoice(c, lapsLeft));
     }
     if (this.endurance) {

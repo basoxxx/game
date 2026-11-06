@@ -113,6 +113,7 @@ export function buildCalendar(cat, length) {
   }
   return chosen.map((t, i) => {
     const ev = { trackId: t.id, round: i + 1, done: false, weather: null, results: null };
+    if (cat === 'formula' && ['chn', 'mia', 'can', 'gbr', 'ned', 'sgp'].includes(t.id)) ev.sprint = true;
     if (cat === 'rally') {
       const r = mulberry32(t.seed + i);
       const names = shuffle(STAGE_NAMES);

@@ -139,6 +139,10 @@ export function standings(state) {
       tp[r.teamId] = (tp[r.teamId] || 0) + r.pts;
       if (r.pos === 1) tWins[r.teamId] = (tWins[r.teamId] || 0) + 1;
     }
+    for (const r of ev.results.sprint || []) {
+      for (const did of r.driverIds) dp[did] = (dp[did] || 0) + r.pts;
+      tp[r.teamId] = (tp[r.teamId] || 0) + r.pts;
+    }
   }
   const drivers = Object.keys(dp).map((id) => ({ id, pts: dp[id], wins: dWins[id] || 0, best: dBest[id] || 99 }))
     .sort((a, b) => b.pts - a.pts || b.wins - a.wins || a.best - b.best);

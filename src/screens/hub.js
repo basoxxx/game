@@ -55,7 +55,7 @@ registerScreen({
       }
       hero = `<div class="hero">
         <div>
-          <div class="row"><span class="chip">Round ${ev.round} di ${st.calendar.length}</span>${tr.night ? `<span class="chip info">${icon('moon', 'ico', 'style="width:13px"')} Notturna</span>` : ''}${tr.double ? '<span class="chip warn">Punti doppi</span>' : ''}</div>
+          <div class="row"><span class="chip">Round ${ev.round} di ${st.calendar.length}</span>${ev.sprint ? '<span class="chip warn">⚡ Weekend Sprint</span>' : ''}${tr.night ? `<span class="chip info">${icon('moon', 'ico', 'style="width:13px"')} Notturna</span>` : ''}${tr.double ? '<span class="chip warn">Punti doppi</span>' : ''}</div>
           <div class="row mt16" style="gap:14px">${flagSVG(tr.nat, 46, 30)}<div class="evname">${esc(tr.name)}</div></div>
           <div class="muted mt8 upper small">${esc(sub)}</div>
           <div class="row wrap mt16 gap6">${surfaces}${traits}<span class="chip ${tr.rain > 0.35 ? 'info' : ''}">${icon(tr.rain > 0.35 ? 'rain' : 'sun', 'ico', 'style="width:13px"')} Pioggia ${Math.round(tr.rain * 100)}%</span>${tr.ovt != null ? `<span class="chip">Sorpassi: ${tr.ovt > 0.6 ? 'facili' : tr.ovt > 0.3 ? 'medi' : 'difficili'}</span>` : ''}</div>

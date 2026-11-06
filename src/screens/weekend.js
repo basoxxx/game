@@ -48,7 +48,7 @@ function initWeekend(st) {
   const weather = makeWeatherPlan(tr, laps, st.forceRain);
   const sim = t.facilities.simulator;
   st.weekend = {
-    trackId: tr.id, phase: 'practice', laps,
+    trackId: tr.id, phase: 'practice', laps, sprint: !!ev.sprint && !st.quick, sprintLaps: Math.max(5, Math.round(laps * 0.36)),
     weather: { plan: weather.plan, isRain: weather.isRain, summary: weather.summary, trackTemp: weather.trackTemp },
     qualiRain: chance(tr.rain * 0.7) ? rand(0.2, 0.8) : 0,
     cars: Object.fromEntries(entries.map((e) => [e.key, { runs: 4 + Math.floor(sim / 2) + (hasPerk(st, 'data') ? 1 : 0), vals: Object.fromEntries(SETUP_PARAMS.map((p) => [p.id, 50])), fb: null, q: 0.3, laps: [], ideal: idealFor(st, e.key, tr.seed) }])),
@@ -73,7 +73,7 @@ registerScreen({
     if (st.quickSkip && w.phase === 'practice') { for (const c of Object.values(w.cars)) c.q = aiSetupQuality(st, playerTeam(st)); w.phase = 'quali'; }
     if (w.phase === 'race') return raceScreen(st);
     const tr = getTrack(st.category, w.trackId);
-    const steps = [['practice', 'Prove Libere'], ['quali', st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'], ['race', 'Gara']];
+    const steps = [['practice', 'Prove Libere'], ['quali', st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'], ...(w.sprint ? [['sprint', 'Sprint']] : []), ['race', 'Gara']];
     const idx = steps.findIndex((s) => s[0] === w.phase);
     return `<div style="position:fixed;inset:0;display:flex;flex-direction:column">
       <div class="race-top" style="height:64px">
@@ -87,7 +87,7 @@ registerScreen({
   },
   mount() {
     const w = S().weekend;
-    if (w?.phase === 'race') { mountRace(); setTimeout(() => coach('race', 'Sei al muretto box', 'Clicca un pilota in classifica per seguirlo. Usa <b>Override</b> quando sei entro 1 secondo per sorpassare, gestisci le gomme con il <b>ritmo</b> e chiama i box al giro giusto. Rispondi alle <b>chiamate radio</b>!'), 7000); }
+    if (w?.phase === 'race') { mountRace(); setTimeout(() => App.cur === 'weekend' && coach('race', 'Sei al muretto box', 'Clicca un pilota in classifica per seguirlo. Usa <b>Override</b> quando sei entro 1 secondo per sorpassare, gestisci le gomme con il <b>ritmo</b> e chiama i box al giro giusto. Rispondi alle <b>chiamate radio</b>!'), 7000); }
     else if (w?.phase === 'practice') coach('practice', 'Trova l’assetto', 'Sposta un parametro alla volta e premi <b>Giro di prova</b>: il pilota ti dice se è troppo alto o troppo basso. Più verde = più veloce. Oppure lascia fare all’ingegnere.');
     else if (w?.phase === 'quali' && w.quali) coach('strategy', 'Scegli la strategia', 'Il grafico mostra quanto rallenta ogni mescola. La linea tratteggiata indica il <b>cliff</b>: fermati prima! La strategia “OTTIMA” è calcolata per la tua auto.');
   },
@@ -288,8 +288,11 @@ function mountRace() {
   const st = S(); const w = st.weekend;
   const tr = getTrack(st.category, w.trackId);
   const setups = Object.fromEntries(Object.entries(w.cars).map(([k, c]) => [k, c.q]));
-  R.sim = new CircuitSim(st, tr, { grid: w.quali.grid, setups, weather: { plan: w.weather.plan, isRain: w.weather.isRain, trackTemp: w.weather.trackTemp }, laps: w.laps });
-  for (const c of R.sim.cars) if (c.isPlayer) { c.tyre = w.startTyre[c.key] || c.tyre; c.compoundsUsed = new Set([c.tyre]); c.plan = w.plans?.[c.key] ? w.plans[c.key].map((x) => ({ ...x })) : null; c.planIdx = 0; c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c); }
+  const isSprint = w.sprint && !w.sprintDone;
+  R.sim = new CircuitSim(st, tr, { grid: isSprint || !w.sprintGrid ? w.quali.grid : w.quali.grid, setups, weather: { plan: w.weather.plan, isRain: w.weather.isRain, trackTemp: w.weather.trackTemp }, laps: isSprint ? w.sprintLaps : w.laps });
+  R.sim.isSprint = isSprint;
+  if (isSprint) R.sim.log('⚡ SPRINT: gara breve, punti ai primi 8 (8-7-6-5-4-3-2-1).', 'start', null, true);
+  for (const c of R.sim.cars) if (c.isPlayer) { c.tyre = w.startTyre[c.key] || c.tyre; c.compoundsUsed = new Set([c.tyre]); c.plan = !isSprint && w.plans?.[c.key] ? w.plans[c.key].map((x) => ({ ...x })) : null; c.planIdx = 0; c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c); }
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {};
   R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' ? drsZones('formula', tr) : [] });
   R.last = performance.now(); R.uiT = 0;
@@ -565,7 +568,7 @@ function onRaceFinished() {
   const best = Math.min(...mine.map((r) => (r.status === 'dnf' ? 99 : r.pos)));
   if (best <= 3) { sfx.win(); celebrate(best === 1 ? 260 : 120); music.setMood('win'); }
   const ov = document.getElementById('finish-overlay');
-  if (ov) ov.innerHTML = `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);z-index:3"><div class="panel glow" style="text-align:center;padding:30px 40px;animation:pop .4s"><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:44px">🏁 GARA FINITA</div><div class="muted mt8">${esc(st.drivers[res.classification[0].driverIds[0]].name)} vince · Il tuo miglior risultato: ${best === 99 ? 'Ritiro' : 'P' + best}</div><button class="btn primary xl mt16" data-a="finish-race">Vai ai risultati ${icon('right')}</button></div></div>`;
+  if (ov) ov.innerHTML = `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);z-index:3"><div class="panel glow" style="text-align:center;padding:30px 40px;animation:pop .4s"><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:44px">🏁 ${R.sim.isSprint ? 'SPRINT FINITA' : 'GARA FINITA'}</div><div class="muted mt8">${esc(st.drivers[res.classification[0].driverIds[0]].name)} vince · Il tuo miglior risultato: ${best === 99 ? 'Ritiro' : 'P' + best}</div><button class="btn primary xl mt16" data-a="finish-race">Vai ai risultati ${icon('right')}</button></div></div>`;
 }
 
 function finishRace() {
@@ -573,6 +576,20 @@ function finishRace() {
   const sim = R.sim;
   if (!sim.finished) sim.runToEnd();
   const res = sim.results();
+  const w = st.weekend;
+  if (sim.isSprint) {
+    const SP = [8, 7, 6, 5, 4, 3, 2, 1];
+    w.sprintRes = res.classification.map((r) => ({ key: r.key, teamId: r.teamId, driverIds: r.driverIds, pos: r.pos, status: r.status, pts: r.status === 'dnf' ? 0 : SP[r.pos - 1] || 0 }));
+    w.sprintDone = true;
+    stopRace(); R.sim = null;
+    const win = st.drivers[w.sprintRes[0].driverIds[0]];
+    const mine = w.sprintRes.filter((r) => r.teamId === st.playerTeam).map((r) => `${st.drivers[r.driverIds[0]].name}: ${r.status === 'dnf' ? 'RIT' : 'P' + r.pos}${r.pts ? ` (+${r.pts})` : ''}`).join(' · ');
+    saveGame();
+    App.refresh();
+    App.modal(`<div class="tiny upper muted" style="letter-spacing:.3em">Sprint conclusa</div><h2>⚡ Vince ${esc(win.name)}</h2><p class="muted">${esc(mine)}</p><p class="small muted">Ora il Gran Premio: la griglia è quella delle qualifiche. Gomme e carburante tornano nuovi.</p><div class="row mt16" style="justify-content:flex-end"><button class="btn primary" data-a="close-modal">Vai al Gran Premio</button></div>`);
+    return;
+  }
+  if (w.sprintRes) res.sprint = w.sprintRes;
   res.pole = st.weekend.quali ? buildEntries(st).find((e) => e.key === st.weekend.quali.grid[0])?.driverIds[0] : null;
   res.track = st.weekend.trackId;
   res.wet = sim.weather.isRain;
