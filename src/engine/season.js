@@ -106,7 +106,12 @@ function aiDevelopment(state, team) {
     const p = pick(parts);
     const g = i === n - 1 ? remaining : remaining * rand(0.3, 0.7);
     remaining -= g;
-    team.car.parts[p] = clamp(+(team.car.parts[p] + g * diminish(team.car.parts[p])).toFixed(1), 30, 99.5);
+    const gg = g * diminish(team.car.parts[p]);
+    team.car.parts[p] = clamp(+(team.car.parts[p] + gg).toFixed(1), 30, 99.5);
+    if (gg > 1.25 && Math.random() < 0.6) {
+      const what = { aero: pick(['un nuovo fondo', 'un’ala anteriore rivista', 'nuove pance laterali']), engine: pick(['un’evoluzione della power unit', 'una nuova mappatura ibrida']), chassis: pick(['una sospensione posteriore inedita', 'un telaio alleggerito']), tyre: 'un nuovo sistema di raffreddamento freni', reliability: 'componenti più robusti', suspension: 'nuovi ammortizzatori', gearbox: 'un nuovo differenziale', efficiency: 'una mappatura a basso consumo' }[p] || 'aggiornamenti';
+      addNews(state, `${team.name} porta ${what} (+${gg.toFixed(1)} ${partName(state, p)}).`);
+    }
   }
 }
 
