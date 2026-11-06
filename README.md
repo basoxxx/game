@@ -18,6 +18,14 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 2.2
+
+- **Sfide** con medaglie oro/argento/bronzo (8 scenari)
+- **Weekend Sprint**, **traffico GT** nell'Endurance, **replay 3D**
+- **Rally 3D** con dislivelli e salti, **menu con vettura 3D**
+- **Long run** in prova libera per misurare il degrado
+- Opzioni di **realismo** (guasti, danni, aggressività AI), consigli contestuali
+
 ## Novità della versione 2.1
 
 - **ERS/Override**: gestione della batteria ibrida in gara
