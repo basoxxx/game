@@ -187,7 +187,7 @@ export function applyRoundResults(state, results) {
   // ----- finances for player -----
   const n = state.calendar.length;
   const repF = 0.7 + pt.rep / 300;
-  const commercial = +(pt.baseBudget * 0.62 / n * repF).toFixed(2);
+  const commercial = +(pt.baseBudget * 0.55 / n * repF).toFixed(2);
   addFinance(state, `Diritti commerciali – ${track.name}`, commercial);
   const myRes = results.classification.filter((r) => r.teamId === pt.id);
   const bestPos = Math.min(...myRes.map((r) => (r.status === 'dnf' ? 99 : r.pos)));
