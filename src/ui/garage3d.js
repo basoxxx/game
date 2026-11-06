@@ -1,0 +1,54 @@
+// 3D showroom: turntable with studio lighting and drag-to-rotate
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { buildCar } from './cars3d.js';
+
+export class Garage3D {
+  constructor(container, category, livery, opts = {}) {
+    this.container = container;
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    container.appendChild(this.renderer.domElement);
+    Object.assign(this.renderer.domElement.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', cursor: 'grab' });
+    this.scene = new THREE.Scene();
+    try { const pm = new THREE.PMREMGenerator(this.renderer); this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; this.scene.environmentIntensity = 0.9; } catch {}
+    this.camera = new THREE.PerspectiveCamera(32, 1, 0.1, 200);
+    this.scene.add(new THREE.HemisphereLight(0xdde6ff, 0x111318, 1.1));
+    const key = new THREE.SpotLight(0xffffff, 260, 40, 0.6, 0.5); key.position.set(4, 9, 5); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); this.scene.add(key);
+    const rim = new THREE.SpotLight(new THREE.Color(opts.accent || '#ff3b30'), 120, 40, 0.7, 0.6); rim.position.set(-6, 4, -5); this.scene.add(rim);
+    const fill = new THREE.DirectionalLight(0x9fb8ff, 0.6); fill.position.set(-4, 3, 6); this.scene.add(fill);
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(4.4, 64), new THREE.MeshStandardMaterial({ color: 0x14171d, roughness: 0.35, metalness: 0.6 }));
+    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; this.scene.add(floor);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(4.3, 4.42, 96), new THREE.MeshBasicMaterial({ color: new THREE.Color(opts.accent || '#e10600') }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.005; this.scene.add(ring);
+    this.car = buildCar(category, livery, opts);
+    this.car.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    this.scene.add(this.car);
+    this.angle = -0.6; this.vel = 0.004; this.pitch = 0.32;
+    this.dist = category === 'rally' ? 9.5 : 11;
+    let drag = null;
+    const el = this.renderer.domElement;
+    el.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, a: this.angle, p: this.pitch }; el.setPointerCapture(e.pointerId); el.style.cursor = 'grabbing'; });
+    el.addEventListener('pointermove', (e) => { if (!drag) return; this.angle = drag.a + (e.clientX - drag.x) * 0.01; this.pitch = Math.max(0.05, Math.min(1.1, drag.p + (e.clientY - drag.y) * 0.005)); this.vel = 0; });
+    el.addEventListener('pointerup', () => { drag = null; el.style.cursor = 'grab'; this.vel = 0.0025; });
+    el.addEventListener('wheel', (e) => { e.preventDefault(); this.dist = Math.max(6, Math.min(18, this.dist + e.deltaY * 0.01)); }, { passive: false });
+    this.resize();
+    this._ro = new ResizeObserver(() => this.resize()); this._ro.observe(container);
+    const loop = () => { this.raf = requestAnimationFrame(loop); this.render(); };
+    loop();
+  }
+  resize() { const r = this.container.getBoundingClientRect(); if (!r.width) return; this.renderer.setSize(r.width, r.height, false); this.camera.aspect = r.width / r.height; this.camera.updateProjectionMatrix(); }
+  render() {
+    this.angle += this.vel;
+    const d = this.dist;
+    this.camera.position.set(Math.cos(this.angle) * d * Math.cos(this.pitch), 0.6 + Math.sin(this.pitch) * d, Math.sin(this.angle) * d * Math.cos(this.pitch));
+    this.camera.lookAt(0, 0.5, 0);
+    for (const w of this.car.userData.wheels) for (const sp of w.userData.spin) sp.rotation.y += 0.02;
+    this.renderer.render(this.scene, this.camera);
+  }
+  destroy() { cancelAnimationFrame(this.raf); this._ro?.disconnect(); this.renderer.dispose(); this.renderer.domElement.remove(); }
+}

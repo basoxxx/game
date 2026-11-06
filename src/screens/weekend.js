@@ -13,6 +13,8 @@ import { mulberry32, clamp, chance, rand } from '../engine/rng.js';
 import { tyreBadge, teamStripe, driverChip } from './common.js';
 import { sfx, engineStart, engineSet, engineStop } from '../ui/audio.js';
 import { celebrate } from './results.js';
+import { Race3D, webglAvailable } from '../ui/race3d.js';
+import { trackGeometry } from '../engine/trackphys.js';
 import { planOptions, stintBar, degChartSVG, drawTelemetry, breakdownHTML, openLessons } from './engineer.js';
 
 const SETUP_PARAMS = [
@@ -145,6 +147,9 @@ registerScreen({
     'start-tyre'(el) { S().weekend.startTyre[el.dataset.key] = el.dataset.c; App.refresh(); },
     'pick-plan'(el) { const st = S(); const w = st.weekend; const tr = getTrack(st.category, w.trackId); const team = playerTeam(st); const e = buildEntries(st).find((x) => x.key === el.dataset.key); const o = planOptions(st, tr, w.laps, team, st.drivers[e.driverIds[0]], w.weather.trackTemp)[+el.dataset.i]; w.plans[el.dataset.key] = o.stints; w.startTyre[el.dataset.key] = o.stints[0].c; App.refresh(); },
     lessons() { openLessons(); },
+    cam(el) { R.view3d = el.dataset.c; R.cam = R.view3d; enable3D(R.view3d); renderViewBtns(); },
+    view2d() { disable3D(); renderViewBtns(); },
+    focus(el) { R.focus = el.dataset.key; updateBoard(); },
     'tele-tab'(el) { R.tab = el.dataset.t; updateFeed(true); },
     'tele-car'(el) { R.teleKey = el.dataset.key; updateFeed(true); },
     'to-race'() { const w = S().weekend; w.phase = 'race'; saveGame(); App.refresh(); },
@@ -263,7 +268,7 @@ function raceScreen(st) {
       <button class="btn sm ghost" data-a="sim-end">${icon('ff')} Fine gara</button>
     </div>
     <div class="race-board" id="board"></div>
-    <div class="race-view"><canvas id="race-cv"></canvas><div id="finish-overlay"></div></div>
+    <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div id="finish-overlay"></div></div>
     <div class="race-side" id="side"></div>
     <div class="race-feed"><div class="row gap4 mb8" id="feed-tabs"></div><div id="feed" style="height:calc(100% - 34px);overflow-y:auto"></div></div>
   </div>`;
@@ -278,6 +283,10 @@ function mountRace() {
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {};
   R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, glow: 'rgba(255,255,255,0.12)' });
   R.last = performance.now(); R.uiT = 0;
+  R.focus = R.sim.cars.find((c) => c.isPlayer)?.key;
+  R.view3d = getSettings().view3d !== false && webglAvailable() ? (R.cam || 'tv') : null;
+  renderViewBtns();
+  if (R.view3d) enable3D(R.view3d);
   updateAll(true);
   // start lights
   startLights(() => { R.paused = false; R.last = performance.now(); updateSpeedUI(); engineStart(); });
@@ -287,17 +296,69 @@ function mountRace() {
       let rem = dt * R.speed;
       while (rem > 0) { const d = Math.min(0.5, rem); R.sim.step(d); rem -= d; }
     }
-    draw();
+    if (R.r3d) update3D(dt); else draw();
+    if (R.r3d) draw();
     R.uiT += dt;
     if (R.uiT > 0.25) { R.uiT = 0; updateAll(); }
     if (R.sim.finished && !R.done) { R.done = true; updateAll(true); onRaceFinished(); }
-    engineSet(R.paused || R.sim.finished ? 0 : Math.min(1, R.speed / 16) * 0.6 + 0.3 + Math.sin(t / 300) * 0.05);
+    engineSet(R.paused || R.sim.finished ? 0 : R.r3d && R.focusSpeed != null ? Math.min(1, R.focusSpeed / 330) : Math.min(1, R.speed / 16) * 0.6 + 0.3 + Math.sin(t / 300) * 0.05);
     R.raf = requestAnimationFrame(loop);
   };
   R.raf = requestAnimationFrame(loop);
   updateSpeedUI();
 }
-function stopRace() { cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = null; engineStop(); }
+function stopRace() { cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = null; R.r3d?.destroy(); R.r3d = null; engineStop(); }
+
+function renderViewBtns() {
+  const el = document.getElementById('view-btns'); if (!el) return;
+  const can3d = webglAvailable();
+  el.innerHTML = [['2d', 'Mappa 2D'], ['tv', 'TV 3D'], ['chase', 'Camera car'], ['onboard', 'Onboard'], ['heli', 'Elicottero']].map(([k, n]) => `<button class="btn sm ${((R.view3d || '2d') === k) ? 'active' : ''}" data-a="${k === '2d' ? 'view2d' : 'cam'}" data-c="${k}" ${k !== '2d' && !can3d ? 'disabled' : ''}>${n}</button>`).join('');
+}
+function enable3D(cam) {
+  const st = S(); const sim = R.sim;
+  const rv = document.getElementById('race-view');
+  if (!R.r3d) {
+    const div = document.createElement('div'); div.className = 'r3d'; rv.prepend(div);
+    try {
+      R.r3d = new Race3D(div, { cid: sim.track.cid, street: sim.track.street || 0, night: !!sim.track.night && !sim.endurance, category: st.category,
+        cars: sim.cars.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: sim.driver(c).helmet.c1, tyreColor: COMPOUNDS[c.tyre].color, isPlayer: c.isPlayer })) });
+    } catch (e) { console.warn('3D non disponibile', e); div.remove(); R.view3d = null; renderViewBtns(); return; }
+  }
+  R.r3d.camMode = cam; R.r3d.focusKey = R.focus; R.r3d._cut = true;
+  rv.classList.add('mode3d');
+  document.getElementById('hud3d')?.classList.remove('hidden');
+  R.view?.resize();
+}
+function disable3D() {
+  R.r3d?.destroy(); R.r3d = null; R.view3d = null;
+  const rv = document.getElementById('race-view'); rv?.classList.remove('mode3d'); rv?.querySelector('.r3d')?.remove();
+  document.getElementById('hud3d')?.classList.add('hidden');
+  setTimeout(() => R.view?.resize(), 30);
+}
+function update3D(dt) {
+  const sim = R.sim, r = R.r3d; if (!r) return;
+  const g = trackGeometry(sim.track.cid);
+  const states = sim.cars.map((c) => {
+    if (c.status === 'dnf') return { key: c.key, hidden: true };
+    const d = c.status === 'finished' ? c.finishLap + (sim.time - c.finishTime) / sim.track.lap * 0.3 : c.dist;
+    const frac = arcFrac(sim.cat, sim.track.cid, d);
+    const speed = c.inPit > 0 ? 0 : speedAtTimeFrac(sim.cat, sim.track.cid, d, c.lapTarget) / 3.6;
+    const show = c.isPlayer || c.key === R.focus || c.pos <= 3;
+    return { key: c.key, s: frac * g.N, speed, inPit: c.inPit > 0, close: c.gapAhead < 1, tyreColor: COMPOUNDS[c.tyre].color, label: show ? `P${c.pos} ${shortName(sim.driver(c).name)}` : `${c.pos}` };
+  });
+  r.focusKey = R.focus;
+  r.setRain(sim.rain);
+  r.update(states, dt);
+  const fc = sim.cars.find((c) => c.key === R.focus);
+  const hud = document.getElementById('hud3d');
+  if (hud && fc) {
+    const st = states.find((x) => x.key === fc.key);
+    const kmh = Math.round((st?.speed || 0) * 3.6);
+    const gear = kmh < 5 ? 'N' : Math.min(8, 1 + Math.floor(kmh / 42));
+    hud.innerHTML = `<span class="tiny muted upper">${esc(sim.driver(fc).name)}</span><span class="pos">P${fc.pos}</span><span class="spd">${kmh}</span><span class="tiny muted">km/h</span><span style="font-size:22px;font-weight:900">${gear}</span>${fc.drs ? '<span class="chip good">DRS</span>' : ''}${tyreBadge(fc.tyre)}`;
+    R.focusSpeed = kmh;
+  }
+}
 
 function defaultPitTyre(c) {
   const comps = R.sim.C.compounds;
@@ -310,8 +371,8 @@ function startLights(done) {
   let n = 0;
   ov.innerHTML = `<div style="position:absolute;top:30px;left:50%;transform:translateX(-50%);display:flex;gap:12px;background:rgba(0,0,0,.8);padding:14px 20px;border-radius:14px;border:1px solid var(--line2);z-index:3" id="lights">${[0, 1, 2, 3, 4].map((i) => `<div id="l${i}" style="width:34px;height:34px;border-radius:50%;background:#222;box-shadow:inset 0 0 8px #000"></div>`).join('')}</div>`;
   const iv = setInterval(() => {
-    if (n < 5) { const l = document.getElementById(`l${n}`); if (l) { l.style.background = '#ff1a1a'; l.style.boxShadow = '0 0 20px #f00'; } sfx.beep(); n++; }
-    else { clearInterval(iv); setTimeout(() => { document.querySelectorAll('#lights > div').forEach((l) => { l.style.background = '#222'; l.style.boxShadow = 'none'; }); sfx.go(); setTimeout(() => { const L = document.getElementById('lights'); if (L) L.remove(); }, 600); done(); }, 300 + Math.random() * 900); }
+    if (n < 5) { const l = document.getElementById(`l${n}`); if (l) { l.style.background = '#ff1a1a'; l.style.boxShadow = '0 0 20px #f00'; } sfx.beep(); n++; R.r3d?.setStartLights(n, false); }
+    else { clearInterval(iv); setTimeout(() => { document.querySelectorAll('#lights > div').forEach((l) => { l.style.background = '#222'; l.style.boxShadow = 'none'; }); sfx.go(); R.r3d?.setStartLights(0, true); setTimeout(() => { const L = document.getElementById('lights'); if (L) L.remove(); }, 600); done(); }, 300 + Math.random() * 900); }
   }, 520);
 }
 
@@ -355,7 +416,7 @@ function updateBoard() {
     const gap = c.status === 'dnf' ? 'RIT' : i === 0 ? (c.status === 'finished' ? '🏁' : 'Leader') : fmtGap(sim.gapToLeader(c, leader));
     const comp = COMPOUNDS[c.tyre];
     const posDelta = c.grid - (i + 1);
-    return `<div class="lb-row ${c.isPlayer ? 'me' : ''} ${c.status === 'dnf' ? 'dnf' : ''} ${c.inPit > 0 ? 'pit' : ''}">
+    return `<div class="lb-row ${c.isPlayer ? 'me' : ''} ${c.status === 'dnf' ? 'dnf' : ''} ${c.inPit > 0 ? 'pit' : ''} ${c.key === R.focus ? 'focus' : ''}" data-a="focus" data-key="${c.key}">
       <span class="pos p${i + 1}" style="font-size:14px">${i + 1}</span>${teamStripe(c.team)}
       <span class="nm">${esc(d.name)} ${posDelta > 0 ? `<span class="good tiny">▲${posDelta}</span>` : posDelta < 0 ? `<span class="bad tiny">▼${-posDelta}</span>` : ''}</span>
       <span>${c.status === 'dnf' ? '' : tyreBadge(c.tyre)}</span>

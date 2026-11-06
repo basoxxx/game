@@ -7,6 +7,10 @@ import { cat, playerTeam, teamDrivers, partRanking, fmtM, rdSlots, rdCost, RD_TI
 import { ENGINE_SUPPLIERS } from '../data/teams.js';
 import { avgPart } from '../engine/world.js';
 import { sfx } from '../ui/audio.js';
+import { Garage3D } from '../ui/garage3d.js';
+import { webglAvailable } from '../ui/race3d.js';
+import { teamColor } from '../app.js';
+let garage = null, show3d = true;
 
 const PALETTE = ['#e10600', '#d40000', '#ff8000', '#ffd400', '#cedc00', '#22d37a', '#00594f', '#00d2be', '#00c2ff', '#005aff', '#1b2a6b', '#0a2a66', '#9b30ff', '#ff4fa3', '#ffffff', '#c0c0c0', '#6b6b6b', '#1a1a1a', '#6b3e1e', '#c9a227'];
 const PATTERNS = ['Classica', 'Banda', 'Bicolore', 'Frecce', 'Sfumata', 'Retrò'];
@@ -27,7 +31,9 @@ registerScreen({
       <div class="car-stage" style="min-height:300px"><div class="grid-floor"></div>
         <div style="position:absolute;left:20px;top:16px;z-index:2"><div class="tiny upper muted">Valore complessivo</div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:46px;line-height:1">${avgPart(t).toFixed(1)}</div><div class="small ${rank <= 3 ? 'good' : rank > 6 ? 'bad' : 'warn'}">${rank}ª vettura del gruppo</div></div>
         <div style="position:absolute;right:20px;top:16px;z-index:2" class="chip">Concetto: <b>${C.concepts.find((c) => c.id === t.car.concept)?.name}</b></div>
-        ${carSVG(st.category, t.car.livery, { number: ds[0]?.number, sponsor: t.sponsors[0]?.name || t.short, helmet: ds[0]?.helmet.c1 })}
+        <div style="position:absolute;right:20px;bottom:14px;z-index:3" class="row gap4"><button class="btn sm ${show3d ? 'active' : ''}" data-a="v3d">3D</button><button class="btn sm ${show3d ? '' : 'active'}" data-a="v2d">2D</button></div>
+        <div id="garage3d" style="position:absolute;inset:0;z-index:1"></div>
+        ${show3d && webglAvailable() ? '<div class="tiny muted" style="position:absolute;left:20px;bottom:14px;z-index:3">Trascina per ruotare · rotella per lo zoom</div>' : carSVG(st.category, t.car.livery, { number: ds[0]?.number, sponsor: t.sponsors[0]?.name || t.short, helmet: ds[0]?.helmet.c1 })}
       </div>
       <div class="panel"><div class="panel-head"><h3>Componenti</h3><span class="small muted">Classifica tra i ${Object.keys(st.teams).length} team</span></div>
         <div class="col gap16">${C.parts.map((p) => {
@@ -39,7 +45,18 @@ registerScreen({
     </div>
     <div class="mt16 anim-in">${tab === 'dev' ? devTab(st, t, C) : tab === 'design' ? designTab(st, t, C) : compareTab(st, t, C)}</div>`;
   },
+  mount() {
+    garage?.destroy(); garage = null;
+    const el = document.getElementById('garage3d');
+    if (el && show3d && webglAvailable()) {
+      const st = S(); const t = playerTeam(st); const ds = teamDrivers(st, t);
+      try { garage = new Garage3D(el, st.category, t.car.livery, { helmet: ds[0]?.helmet.c1, accent: teamColor(t.car.livery) }); } catch (e) { console.warn(e); }
+    }
+  },
+  unmount() { garage?.destroy(); garage = null; },
   actions: {
+    v3d() { show3d = true; App.refresh(); },
+    v2d() { show3d = false; App.refresh(); },
     tab(el) { tab = el.dataset.t; App.refresh(); },
     start(el) {
       const st = S();

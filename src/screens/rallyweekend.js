@@ -15,6 +15,7 @@ import { tyreBadge, teamStripe, driverChip } from './common.js';
 import { sfx, engineStart, engineSet, engineStop } from '../ui/audio.js';
 import { celebrate } from './results.js';
 import { shortName } from './weekend.js';
+import { Race3D, webglAvailable, stageGeometry, stageSampleAt } from '../ui/race3d.js';
 
 const RP = [
   { id: 'susp', name: 'Escursione Sospensioni', lo: 'Troppo rigida: rimbalza sulle buche', hi: 'Troppo morbida: imprecisa nei cambi di direzione' },
@@ -91,6 +92,9 @@ registerScreen({
     speed(el) { X.speed = +el.dataset.v; X.paused = false; speedUI(); },
     pause() { X.paused = !X.paused; speedUI(); },
     decide(el) { decide(el.dataset.c); },
+    rcam(el) { X.view3d = el.dataset.c; X.cam = X.view3d; rallyEnable3D(X.view3d); rallyViewBtns(); },
+    rview2d() { rallyDisable3D(); rallyViewBtns(); },
+    rfocus(el) { X.focus = el.dataset.key; },
     'stage-done'() { afterStage(); },
     'skip-stage'() { skipStage(); },
     repair(el) { const k = el.dataset.key, comp = el.dataset.c; const arr = X.repairs[k] ||= []; const i = arr.indexOf(comp); if (i >= 0) arr.splice(i, 1); else arr.push(comp); App.refresh(); },
@@ -183,7 +187,7 @@ function runScreen(st, tr) {
       <button class="btn sm ghost" data-a="skip-stage">${icon('ff')} Fine prova</button>
     </div>
     <div class="race-board" id="board"></div>
-    <div class="race-view"><canvas id="rally-cv"></canvas><div id="decision"></div></div>
+    <div class="race-view" id="race-view"><canvas id="rally-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div id="decision"></div></div>
     <div class="race-side" id="side"></div>
     <div class="race-feed" id="feed"></div>
   </div>`;
@@ -192,6 +196,11 @@ function runScreen(st, tr) {
 function mountRun() {
   const st = S(); const tr = getTrack('rally', st.weekend.trackId); const stg = X.ev.stage;
   X.view = new TrackView(document.getElementById('rally-cv'), genStage(tr.seed + stg.idx * 101), { pad: 50, rally: true, surface: stg.surface, glow: SURFACES[stg.surface].color + '55' });
+  X.geo = stageGeometry(tr.seed + stg.idx * 101, stg.km);
+  X.focus = X.ev.crews.find((c) => c.isPlayer && c.plan)?.key || X.ev.crews.find((c) => c.isPlayer)?.key;
+  X.view3d = getSettings().view3d !== false && webglAvailable() ? (X.cam || 'chase') : null;
+  rallyViewBtns();
+  if (X.view3d) rallyEnable3D(X.view3d);
   X.t = 0; X.paused = false; X.decision = null; X.last = performance.now(); X.speed = Math.max(8, Math.min(64, (getSettings().raceSpeed || 8) * 2)); X.finished = false;
   engineStart();
   const loop = (t) => {
@@ -202,15 +211,47 @@ function mountRun() {
       if (X.ev.allDone()) { X.finished = true; engineStop(); sfx.notify(); renderUI(true); }
     }
     if (X.decision) { X.decT -= dt; const bar = document.getElementById('dectimer'); if (bar) bar.style.width = `${Math.max(0, X.decT / 9) * 100}%`; if (X.decT <= 0) decide('b'); }
+    if (X.r3d) rallyUpdate3D(dt);
     drawRally();
-    engineSet(X.paused || X.decision || X.finished ? 0.05 : 0.55 + Math.sin(t / 200) * 0.1);
+    engineSet(X.paused || X.decision || X.finished ? 0.05 : X.r3d && X.focusSpeed != null ? Math.min(1, X.focusSpeed / 190) : 0.55 + Math.sin(t / 200) * 0.1);
     X.uiT += dt; if (X.uiT > 0.25) { X.uiT = 0; renderUI(); }
     X.raf = requestAnimationFrame(loop);
   };
   renderUI(true); speedUI();
   X.raf = requestAnimationFrame(loop);
 }
-function stopRun() { cancelAnimationFrame(X.raf); X.view?.destroy(); X.view = null; engineStop(); }
+function stopRun() { cancelAnimationFrame(X.raf); X.view?.destroy(); X.view = null; X.r3d?.destroy(); X.r3d = null; engineStop(); }
+function rallyViewBtns() {
+  const el = document.getElementById('view-btns'); if (!el) return;
+  el.innerHTML = [['2d', 'Mappa 2D'], ['chase', 'Camera car'], ['onboard', 'Onboard'], ['tv', 'TV'], ['heli', 'Elicottero']].map(([k, n]) => `<button class="btn sm ${((X.view3d || '2d') === k) ? 'active' : ''}" data-a="${k === '2d' ? 'rview2d' : 'rcam'}" data-c="${k}" ${k !== '2d' && !webglAvailable() ? 'disabled' : ''}>${n}</button>`).join('');
+}
+function rallyEnable3D(cam) {
+  const st = S(); const stg = X.ev.stage; const rv = document.getElementById('race-view');
+  if (!X.r3d) {
+    const div = document.createElement('div'); div.className = 'r3d'; rv.prepend(div);
+    try {
+      X.r3d = new Race3D(div, { geo: X.geo, category: 'rally', surface: stg.surface, wet: stg.wet, cars: X.ev.crews.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: X.ev.driver(c).helmet.c1, tyreColor: '#888', isPlayer: c.isPlayer })) });
+    } catch (e) { console.warn(e); div.remove(); X.view3d = null; rallyViewBtns(); return; }
+  }
+  X.r3d.camMode = cam; X.r3d._cut = true; rv.classList.add('mode3d');
+  document.getElementById('hud3d')?.classList.remove('hidden');
+  X.view?.resize();
+}
+function rallyDisable3D() { X.r3d?.destroy(); X.r3d = null; X.view3d = null; const rv = document.getElementById('race-view'); rv?.classList.remove('mode3d'); rv?.querySelector('.r3d')?.remove(); document.getElementById('hud3d')?.classList.add('hidden'); setTimeout(() => X.view?.resize(), 30); }
+function rallyUpdate3D(dt) {
+  const r = X.r3d; if (!r) return; const geo = X.geo;
+  const states = X.ev.crews.map((c) => {
+    if (!c.plan && c.stageResult == null) return { key: c.key, hidden: true };
+    const i = stageSampleAt(geo, c.progress || 0);
+    const pc = c.pieces?.[c.pieceIdx];
+    const moving = !c.done && pc && pc.type === 'move';
+    const speed = moving ? geo.profile.v[Math.floor(i)] * (geo.profile.lap / (c.plan?.base || geo.profile.lap)) : 0;
+    return { key: c.key, s: i, speed, label: c.isPlayer || c.key === X.focus ? shortName(X.ev.driver(c).name) : '' };
+  });
+  r.focusKey = X.focus; r.setRain(X.ev.stage.wet ? 0.6 : 0); r.update(states, dt);
+  const fc = X.ev.crews.find((c) => c.key === X.focus); const hud = document.getElementById('hud3d');
+  if (hud && fc) { const stt = states.find((x) => x.key === fc.key); const kmh = Math.round((stt?.speed || 0) * 3.6); X.focusSpeed = kmh; hud.innerHTML = `<span class="tiny muted upper">${esc(X.ev.driver(fc).name)}</span><span class="spd">${kmh}</span><span class="tiny muted">km/h</span><span class="tiny muted">${((fc.progress || 0) * X.ev.stage.km).toFixed(1)} / ${X.ev.stage.km} km</span>`; }
+}
 
 function drawRally() {
   const v = X.view; if (!v) return;
@@ -218,7 +259,7 @@ function drawRally() {
     const crews = X.ev.crews.filter((c) => c.plan || c.stageResult != null).sort((a, b) => (a.isPlayer ? 1 : 0) - (b.isPlayer ? 1 : 0));
     for (const c of crews) {
       if (c.status === 'out' && !c.plan) continue;
-      const q = v.pointAt(c.progress || 0);
+      const q = v.pointAt(stageSampleAt(X.geo, c.progress || 0) / X.geo.N);
       const L = c.team.car.livery; const d = X.ev.driver(c);
       v.drawCar(q.x, q.y, q.ang, L.primary, L.secondary, { style: 'rally', len: 16, glow: c.isPlayer ? L.primary : null, outline: c.isPlayer, label: c.isPlayer ? shortName(d.name) : null, labelBg: L.primary });
     }
@@ -236,7 +277,7 @@ function liveBoard(st) {
     const d = ev.driver(c);
     const st2 = c.stageResult != null ? `<span class="good tiny">Arrivato</span>` : c.done ? '<span class="bad tiny">Fermo</span>' : !c.plan ? '<span class="dim tiny">—</span>' : `<div class="wear"><i style="width:${c.progress * 100}%;background:var(--info)"></i></div>`;
     const time = c.stageResult != null ? (c.stageResult === best ? fmtLong(c.stageResult) : fmtGap(c.stageResult - best)) : c.splitTimes?.[0.66] ? `S2 ${fmtLong(c.splitTimes[0.66])}` : c.splitTimes?.[0.33] ? `S1 ${fmtLong(c.splitTimes[0.33])}` : c.plan ? fmtLong(c.stageT) : '';
-    return `<div class="lb-row ${c.isPlayer ? 'me' : ''}" style="grid-template-columns:30px 6px 1fr 70px 80px"><span class="pos p${i + 1}" style="font-size:14px">${i + 1}</span>${teamStripe(c.team)}<span class="nm">${esc(d.name)}</span><div>${st2}</div><span class="gap">${time}</span></div>`;
+    return `<div class="lb-row ${c.isPlayer ? 'me' : ''} ${c.key === X.focus ? 'focus' : ''}" data-a="rfocus" data-key="${c.key}" style="grid-template-columns:30px 6px 1fr 70px 80px"><span class="pos p${i + 1}" style="font-size:14px">${i + 1}</span>${teamStripe(c.team)}<span class="nm">${esc(d.name)}</span><div>${st2}</div><span class="gap">${time}</span></div>`;
   }).join('');
 }
 
