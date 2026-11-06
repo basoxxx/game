@@ -159,6 +159,21 @@ export class TrackView {
     c.beginPath(); pl.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.strokeStyle = '#1e2128'; c.lineWidth = 8; c.stroke();
     c.setLineDash([3, 4]); c.strokeStyle = 'rgba(255,176,32,0.5)'; c.lineWidth = 1; c.stroke(); c.setLineDash([]);
     this.pitPos = (k) => { const q = this.pointAt(-0.03 + (k % 12) * 0.005); return { x: q.x + Math.cos(q.ang + Math.PI / 2) * (tw + 10), y: q.y + Math.sin(q.ang + Math.PI / 2) * (tw + 10), ang: q.ang }; };
+    // DRS zones (dashed green) and sector boundaries
+    const off = (p, o) => { const q = this.pointAt(p); return [q.x + Math.cos(q.ang + Math.PI / 2) * o, q.y + Math.sin(q.ang + Math.PI / 2) * o]; };
+    for (const [a, b] of this.opts.drs || []) {
+      c.beginPath();
+      for (let p = a; p <= b; p += 0.002) { const [x, y] = off(p, -(tw / 2 + 6)); p === a ? c.moveTo(x, y) : c.lineTo(x, y); }
+      c.setLineDash([6, 5]); c.strokeStyle = 'rgba(34,211,122,0.85)'; c.lineWidth = 3; c.stroke(); c.setLineDash([]);
+      const [lx, ly] = off(a, -(tw / 2 + 16)); c.fillStyle = '#22d37a'; c.font = '800 9px Exo 2'; c.textAlign = 'center'; c.fillText('DRS', lx, ly);
+    }
+    if (this.opts.sectors) {
+      ['S1', 'S2', 'S3'].forEach((n, i) => {
+        const p = i / 3; const q = this.pointAt(p);
+        if (i) { c.save(); c.translate(q.x, q.y); c.rotate(q.ang + Math.PI / 2); c.fillStyle = ['#ff3b5c', '#3aa0ff', '#ffcc33'][i]; c.fillRect(-tw / 2 - 3, -1.5, tw + 6, 3); c.restore(); }
+        const [lx, ly] = off(p + 1 / 6, tw / 2 + 18); c.fillStyle = ['#ff3b5c', '#3aa0ff', '#ffcc33'][i]; c.font = '800 10px Exo 2'; c.textAlign = 'center'; c.globalAlpha = 0.85; c.fillText(n, lx, ly); c.globalAlpha = 1;
+      });
+    }
     // start line (chequered)
     const s = this.pointAt(0);
     c.save(); c.translate(s.x, s.y); c.rotate(s.ang + Math.PI / 2);
@@ -187,6 +202,12 @@ export class TrackView {
     }
     if (opts.outline) { c.strokeStyle = '#fff'; c.lineWidth = 1.5; c.beginPath(); c.arc(0, 0, L * 0.75, 0, 7); c.stroke(); }
     c.restore();
+    if (opts.num != null && !opts.label) {
+      c.font = '800 8px Exo 2'; c.textAlign = 'center';
+      c.fillStyle = 'rgba(0,0,0,0.75)'; c.beginPath(); c.arc(x, y - L * 0.9, 6.5, 0, 7); c.fill();
+      c.strokeStyle = col1; c.lineWidth = 1.5; c.stroke();
+      c.fillStyle = '#fff'; c.fillText(String(opts.num), x, y - L * 0.9 + 3);
+    }
     if (opts.label) {
       c.font = '800 10.5px Exo 2'; c.textAlign = 'center';
       const tw = c.measureText(opts.label).width + 8;

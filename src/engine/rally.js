@@ -133,10 +133,15 @@ export class RallyEvent {
   }
 
   buildPieces() {
+    // start order: overall classification, 20s apart (visual only, does not affect stage times)
+    const order = this.overall().filter((c) => c.plan);
+    const startIdx = new Map(order.map((c, i) => [c, i]));
     for (const c of this.crews) {
       if (!c.plan) { c.stageResult = null; c.progress = 0; c.splitTimes = {}; continue; }
       const pieces = [];
       let p = 0;
+      const delay = (startIdx.get(c) || 0) * 20;
+      if (delay) pieces.push({ type: 'wait', p0: 0, p1: 0, dur: delay });
       const marks = c.plan.stops.map((s) => ({ ...s, type: 'stop' }));
       if (c.plan.decision && !c.plan.decision.done) marks.push({ p: c.plan.decision.p, type: 'decision' });
       marks.sort((a, b) => a.p - b.p);
@@ -170,7 +175,8 @@ export class RallyEvent {
         }
         const remain = pc.dur - c.pieceT;
         const use = Math.min(left, remain);
-        c.pieceT += use; c.stageT += use; left -= use;
+        c.pieceT += use; if (pc.type !== 'wait') c.stageT += use; left -= use;
+        c.waiting = pc.type === 'wait';
         if (pc.type === 'move') c.progress = pc.p0 + (pc.p1 - pc.p0) * (pc.dur ? c.pieceT / pc.dur : 1);
         if (pc.type === 'stop' && !pc.logged) {
           pc.logged = true;

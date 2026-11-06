@@ -197,3 +197,17 @@ export function trackStats(catId, track) {
   for (let i = 0; i < geo.N; i++) if (pr.v[(i + 1) % geo.N] >= pr.v[i] - 0.01) full++;
   return { vmax: vmax * 3.6, vmin: vmin * 3.6, full: full / geo.N, corners: geo.corners.length, len: geo.len };
 }
+
+// DRS zones: the longest full-throttle straights (fractions of lap distance)
+export function drsZones(catId, track, max = 2) {
+  const geo = trackGeometry(track.cid); const pr = referenceProfile(catId, track.cid, track.lap);
+  const N = geo.N; const zones = []; let start = -1;
+  const accel = (i) => pr.v[(i + 1) % N] >= pr.v[i] - 0.02;
+  for (let i = 0; i < N * 2; i++) {
+    const j = i % N;
+    if (accel(j) && Math.abs(geo.k[j]) < 1 / 500) { if (start < 0) start = i; }
+    else if (start >= 0) { if (i - start > 0) zones.push([start, i]); start = -1; if (i >= N) break; }
+  }
+  return zones.filter((z) => z[0] < N).sort((a, b) => (b[1] - b[0]) - (a[1] - a[0])).slice(0, max)
+    .map(([a, b]) => [a / N + (b - a) / N * 0.25, b / N]);
+}

@@ -276,7 +276,7 @@ function liveBoard(st) {
   const best = Math.min(...crews.filter((c) => c.stageResult != null).map((c) => c.stageResult));
   return `<div class="lb-row" style="color:var(--muted);font-size:10px;letter-spacing:.12em;text-transform:uppercase;grid-template-columns:30px 6px 1fr 70px 80px"><span>Pos</span><span></span><span>Equipaggio</span><span>Stato</span><span class="right">Tempo</span></div>` + list.map((c, i) => {
     const d = ev.driver(c);
-    const st2 = c.stageResult != null ? `<span class="good tiny">Arrivato</span>` : c.done ? '<span class="bad tiny">Fermo</span>' : !c.plan ? '<span class="dim tiny">—</span>' : `<div class="wear"><i style="width:${c.progress * 100}%;background:var(--info)"></i></div>`;
+    const st2 = c.stageResult != null ? `<span class="good tiny">Arrivato</span>` : c.done ? '<span class="bad tiny">Fermo</span>' : !c.plan ? '<span class="dim tiny">—</span>' : c.waiting ? '<span class="tiny muted">In partenza</span>' : `<div class="wear"><i style="width:${c.progress * 100}%;background:var(--info)"></i></div>`;
     const time = c.stageResult != null ? (c.stageResult === best ? fmtLong(c.stageResult) : fmtGap(c.stageResult - best)) : c.splitTimes?.[0.66] ? `S2 ${fmtLong(c.splitTimes[0.66])}` : c.splitTimes?.[0.33] ? `S1 ${fmtLong(c.splitTimes[0.33])}` : c.plan ? fmtLong(c.stageT) : '';
     return `<div class="lb-row ${c.isPlayer ? 'me' : ''} ${c.key === X.focus ? 'focus' : ''}" data-a="rfocus" data-key="${c.key}" style="grid-template-columns:30px 6px 1fr 70px 80px"><span class="pos p${i + 1}" style="font-size:14px">${i + 1}</span>${teamStripe(c.team)}<span class="nm">${esc(d.name)}</span><div>${st2}</div><span class="gap">${time}</span></div>`;
   }).join('');
