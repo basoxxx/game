@@ -293,6 +293,15 @@ function mountRace() {
   const isSprint = w.sprint && !w.sprintDone;
   R.sim = new CircuitSim(st, tr, { grid: isSprint || !w.sprintGrid ? w.quali.grid : w.quali.grid, setups, weather: { plan: w.weather.plan, isRain: w.weather.isRain, trackTemp: w.weather.trackTemp }, laps: isSprint ? w.sprintLaps : w.laps });
   R.sim.isSprint = isSprint;
+  R.sim.onPit = (c, stat) => {
+    if (!c.isPlayer) return;
+    sfx.pit();
+    const ov = document.getElementById('finish-overlay'); if (!ov) return;
+    document.getElementById('pit-ov')?.remove();
+    const col = stat < 2.6 ? 'var(--good)' : stat < 3.5 ? 'var(--warn)' : 'var(--bad)';
+    ov.insertAdjacentHTML('beforeend', `<div id="pit-ov" style="position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(0,0,0,.82);border:1px solid var(--line2);border-left:4px solid ${col};padding:10px 18px;border-radius:12px;text-align:center;animation:pop .3s"><div class="tiny upper muted">Pit stop · ${esc(R.sim.driver(c).name)}</div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:34px;color:${col}">${stat.toFixed(2)}s</div><div class="tiny muted">${c.tyre ? COMPOUNDS[c.tyre].name : ''}</div></div>`);
+    setTimeout(() => document.getElementById('pit-ov')?.remove(), 3500);
+  };
   if (isSprint) R.sim.log('⚡ SPRINT: gara breve, punti ai primi 8 (8-7-6-5-4-3-2-1).', 'start', null, true);
   for (const c of R.sim.cars) if (c.isPlayer) { c.tyre = w.startTyre[c.key] || c.tyre; c.compoundsUsed = new Set([c.tyre]); c.plan = !isSprint && w.plans?.[c.key] ? w.plans[c.key].map((x) => ({ ...x })) : null; c.planIdx = 0; c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c); }
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {};
