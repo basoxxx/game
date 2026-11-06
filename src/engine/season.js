@@ -48,26 +48,40 @@ export function overallCarRanking(state) {
 
 // ---------- R&D ----------
 export const RD_TIERS = {
-  base: { name: 'Aggiornamento', races: 1, cost: 2.2, gain: [1.2, 2.6], fail: 0.02, desc: 'Piccolo passo avanti, rapido e sicuro.' },
-  major: { name: 'Pacchetto Evolutivo', races: 2, cost: 5.5, gain: [2.8, 5.2], fail: 0.08, desc: 'Nuovo pacchetto, buon rapporto costo/beneficio.' },
-  revolution: { name: 'Progetto Rivoluzionario', races: 3, cost: 11, gain: [5, 10.5], fail: 0.22, desc: 'Grande salto, ma può fallire.' },
+  base: { name: 'Aggiornamento', races: 1, cost: 3.4, gain: [1.2, 2.6], fail: 0.02, desc: 'Piccolo passo avanti, rapido e sicuro.' },
+  major: { name: 'Pacchetto Evolutivo', races: 2, cost: 8.5, gain: [2.8, 5.2], fail: 0.08, desc: 'Nuovo pacchetto, buon rapporto costo/beneficio.' },
+  revolution: { name: 'Progetto Rivoluzionario', races: 3, cost: 16, gain: [5, 10.5], fail: 0.22, desc: 'Grande salto, ma può fallire.' },
 };
 export function rdSlots(team, state) { return 1 + Math.floor(team.facilities.factory / 2) + (team.isPlayer && hasPerk(state, 'rd_slot') ? 1 : 0); }
 export function rdCost(state, tier) { return +(RD_TIERS[tier].cost * cat(state).budgetScale * (hasPerk(state, 'rd_cost') ? 0.88 : 1)).toFixed(2); }
 function diminish(val) { return clamp((102 - val) / 24, 0.18, 1.35); }
 
-export function startProject(state, partId, tier) {
+export function startProject(state, partId, tier, nextYear = false) {
   const t = playerTeam(state);
   const T = RD_TIERS[tier];
   if (t.projects.length >= rdSlots(t, state)) return { ok: false, msg: 'Nessuno slot R&D libero: potenzia la Fabbrica.' };
-  if (t.projects.some((p) => p.part === partId)) return { ok: false, msg: 'C’è già un progetto attivo su questo componente.' };
+  if (t.projects.some((p) => p.part === partId && !!p.next === nextYear)) return { ok: false, msg: 'C’è già un progetto attivo su questo componente.' };
   const cost = rdCost(state, tier);
   if (t.money < cost) return { ok: false, msg: 'Fondi insufficienti.' };
+  if (state.category === 'formula' && capSpent(state) + cost > costCap(state) && !state._capOk) return { ok: false, msg: `Supereresti il budget cap (${fmtM(costCap(state))}). Sforarlo costa una multa e punti in classifica: conferma di nuovo per procedere.`, cap: true };
+  if (nextYear && state.round < Math.floor(state.calendar.length * 0.25)) return { ok: false, msg: 'Lo sviluppo della vettura del prossimo anno si apre dopo il primo quarto di stagione.' };
   const td = state.staff[t.staff.td];
   const races = Math.max(1, T.races - (td && td.rating > 88 && tier !== 'base' ? 1 : 0) - (t.facilities.factory >= 5 && tier === 'revolution' ? 1 : 0));
   addFinance(state, `R&D: ${T.name} (${partName(state, partId)})`, -cost);
-  t.projects.push({ id: uid('p'), part: partId, tier, racesLeft: races, total: races });
+  t.projects.push({ id: uid('p'), part: partId, tier, racesLeft: races, total: races, next: nextYear });
+  state._capOk = false;
   return { ok: true };
+}
+// Wind tunnel allocation (ATR): the further back in last year's standings, the more development
+export function atrFactor(state, team) {
+  const n = Object.keys(state.teams).length;
+  const pos = team.lastPos || (overallCarRanking(state).indexOf(team.id) + 1);
+  const pen = team.isPlayer && state.capPenalty?.season === state.season ? state.capPenalty.aeroMult : 1;
+  return +((0.72 + ((pos - 1) / Math.max(1, n - 1)) * 0.43) * pen).toFixed(2); // 1st 72% → last 115%
+}
+export function costCap(state) { return +(92 * cat(state).budgetScale).toFixed(1); }
+export function capSpent(state) {
+  return -state.finance.filter((f) => f.season === state.season && f.amount < 0 && (f.label.startsWith('R&D') || f.label.startsWith('Cantiere') || f.label.startsWith('Produzione'))).reduce((a, b) => a + b.amount, 0);
 }
 export function partName(state, id) { return cat(state).parts.find((p) => p.id === id)?.name || id; }
 
@@ -80,24 +94,25 @@ function completeProject(state, team, proj) {
   const cur = team.car.parts[proj.part];
   let gain;
   if (chance(failP)) gain = rand(-0.5, 1);
-  else gain = rand(T.gain[0], T.gain[1]) * tdF * wtF * diminish(cur);
+  else gain = rand(T.gain[0], T.gain[1]) * tdF * wtF * diminish(cur) * atrFactor(state, team);
   if (team.isPlayer && gain > 0) {
     if (hasPerk(state, 'rd_gain')) gain *= 1.1;
     if (hasPerk(state, 'reverse')) { const vals = Object.values(state.teams).map((t) => t.car.parts[proj.part]).sort((a, b) => a - b); if (cur < vals[Math.floor(vals.length / 2)]) gain *= 1.2; }
   }
   gain = +gain.toFixed(1);
+  if (proj.next) { team.nextYear ||= {}; team.nextYear[proj.part] = +((team.nextYear[proj.part] || 0) + gain * 1.35).toFixed(1); return gain; }
   team.car.parts[proj.part] = clamp(+(cur + gain).toFixed(1), 30, 99.5);
   return gain;
 }
 
 function aiDevelopment(state, team) {
-  const diff = { easy: 0.8, normal: 1, hard: 1.25 }[state.difficulty] || 1;
+  const diff = { easy: 0.85, normal: 1.15, hard: 1.45 }[state.difficulty] || 1.15;
   const C = cat(state);
   const td = state.staff[team.staff.td];
   const all = Object.values(state.teams);
   const avgB = all.reduce((s, t) => s + t.baseBudget, 0) / all.length;
   const budgetF = Math.sqrt(team.baseBudget / avgB);
-  const total = rand(0.9, 2.6) * diff * clamp(budgetF, 0.75, 1.25) * (0.8 + (td?.rating || 70) / 250) * (1 + (team.facilities.windtunnel - 3) * 0.05);
+  const total = rand(0.9, 2.6) * diff * atrFactor(state, team) * clamp(budgetF, 0.75, 1.25) * (0.8 + (td?.rating || 70) / 250) * (1 + (team.facilities.windtunnel - 3) * 0.05);
   // distribute
   const parts = C.parts.map((p) => p.id);
   let remaining = total;
@@ -192,7 +207,7 @@ export function applyRoundResults(state, results) {
   // ----- finances for player -----
   const n = state.calendar.length;
   const repF = 0.7 + pt.rep / 300;
-  const commercial = +(pt.baseBudget * 0.55 / n * repF).toFixed(2);
+  const commercial = +(pt.baseBudget * 0.46 / n * repF).toFixed(2);
   addFinance(state, `Diritti commerciali – ${track.name}`, commercial);
   const myRes = results.classification.filter((r) => r.teamId === pt.id);
   const bestPos = Math.min(...myRes.map((r) => (r.status === 'dnf' ? 99 : r.pos)));
@@ -228,8 +243,8 @@ export function applyRoundResults(state, results) {
         if (state.career.rdDone >= 5) unlock(state, 'rd5', 'Fabbrica a pieno regime', 'Completa 5 progetti R&D.');
         addMail(state, {
           from: state.staff[team.staff.td]?.name || 'Direttore Tecnico', type: g > 0.9 ? 'good' : 'bad', icon: 'rd',
-          subject: g > 0.9 ? `R&D completato: ${partName(state, p.part)} +${g}` : `R&D deludente su ${partName(state, p.part)}`,
-          body: g > 0.9 ? `Il ${RD_TIERS[p.tier].name.toLowerCase()} su ${partName(state, p.part)} ha portato un guadagno di +${g} punti. Ora siamo a ${team.car.parts[p.part].toFixed(1)}. Il componente è già montato sulle vetture.`
+          subject: p.next ? `Progetto ${state.season + 1} completato: ${partName(state, p.part)}` : g > 0.9 ? `R&D completato: ${partName(state, p.part)} +${g}` : `R&D deludente su ${partName(state, p.part)}`,
+          body: p.next ? `Il lavoro sulla vettura ${state.season + 1} ha prodotto +${(g * 1.35).toFixed(1)} punti su ${partName(state, p.part)}, che verranno applicati al nuovo progetto (senza perdite di inizio stagione).` : g > 0.9 ? `Il ${RD_TIERS[p.tier].name.toLowerCase()} su ${partName(state, p.part)} ha portato un guadagno di +${g} punti. Ora siamo a ${team.car.parts[p.part].toFixed(1)}. Il componente è già montato sulle vetture.`
             : `Purtroppo il ${RD_TIERS[p.tier].name.toLowerCase()} su ${partName(state, p.part)} non ha dato i risultati sperati (${g >= 0 ? '+' : ''}${g}). I dati della galleria non hanno trovato riscontro in pista.`,
         });
       }
@@ -442,6 +457,17 @@ export function endSeason(state) {
   const sum = seasonSummary(state);
   const pt = playerTeam(state);
   const n = Object.keys(state.teams).length;
+  // budget cap check (Formula)
+  if (state.category === 'formula') {
+    const over = capSpent(state) - costCap(state);
+    if (over > 0) {
+      const fine = +(over * 1.5).toFixed(1);
+      addFinance(state, 'Multa per sforamento del budget cap', -fine);
+      state.capPenalty = { season: state.season + 1, aeroMult: 0.85 };
+      addMail(state, { from: 'Federazione Internazionale', icon: 'rules', type: 'bad', subject: 'Sforamento del budget cap', body: `Hai superato il budget cap di ${fmtM(over)}. Multa: ${fmtM(fine)} e riduzione del 15% delle ore di galleria del vento per la prossima stagione.` });
+      state.board.confidence = clamp(state.board.confidence - 10, 0, 100);
+    }
+  }
   // prize money
   const prize = +(Math.max(1, C.prizeTop - (sum.teamPos - 1) * C.prizeStep)).toFixed(1);
   addFinance(state, `Montepremi costruttori (${sum.teamPos}°)`, prize);
@@ -565,6 +591,8 @@ export function newSeason(state) {
       if (reg && reg.id === p.id) v = v * 0.85 + 70 * 0.15 + rand(-4, 4);
       t.car.parts[p.id] = clamp(+v.toFixed(1), 35, 97);
     }
+    if (t.nextYear) { for (const [k, v] of Object.entries(t.nextYear)) if (t.car.parts[k] != null) t.car.parts[k] = clamp(+(t.car.parts[k] + v).toFixed(1), 35, 99); t.nextYear = null; }
+    else if (!t.isPlayer) { for (const p of C.parts) t.car.parts[p.id] = clamp(+(t.car.parts[p.id] + rand(0, 2.2) * (t.baseBudget / 120)).toFixed(1), 35, 99); }
     t.car.concept = 'balanced';
     t.projects = [];
     // AI picks a concept

@@ -207,7 +207,7 @@ registerScreen({
       <div class="col gap16">
         <div class="panel"><div class="panel-head"><h3>Previsione per evento</h3></div>
           <div class="col gap6 small">
-            <div class="row between"><span class="muted">Diritti commerciali</span><b class="good">+${fmtM(t.baseBudget * 0.55 / n * (0.7 + t.rep / 300))}</b></div>
+            <div class="row between"><span class="muted">Diritti commerciali</span><b class="good">+${fmtM(t.baseBudget * 0.46 / n * (0.7 + t.rep / 300))}</b></div>
             <div class="row between"><span class="muted">Sponsor (base)</span><b class="good">+${fmtM(sponsorIncome)}</b></div>
             <div class="row between"><span class="muted">Stipendi</span><b class="bad">-${fmtM(salaries / n)}</b></div>
             <div class="row between"><span class="muted">Operativi</span><b class="bad">-${fmtM((t.baseBudget * 0.1 + Object.values(t.facilities).reduce((a, b) => a + b, 0) * 0.4 * cat(st).budgetScale) / n)}</b></div>

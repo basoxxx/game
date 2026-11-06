@@ -79,7 +79,7 @@ export function makeSponsorOffers(rep, cat, n = 4) {
     const s = pool[i];
     const tierMult = s.tier === 3 ? 2.4 : s.tier === 2 ? 1.4 : 0.7;
     if (s.tier === 3 && rep < 70 && Math.random() < 0.7) continue;
-    const perRace = +(tierMult * (0.5 + rep / 80) * scale * rand(0.75, 1.25)).toFixed(2);
+    const perRace = +(tierMult * (0.35 + rep / 120) * scale * rand(0.75, 1.2)).toFixed(2);
     const objectives = [
       { id: 'points', text: 'Bonus per ogni gara a punti', bonus: +(perRace * 0.35).toFixed(2) },
       { id: 'podium', text: 'Bonus per ogni podio', bonus: +(perRace * 1.6).toFixed(2) },
