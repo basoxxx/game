@@ -11,13 +11,13 @@ export const ENGINE_SUPPLIERS = [
 
 export const TEAMS = {
   formula: [
-    { id: 'ferrani', name: 'Scuderia Ferrani', short: 'FER', colors: ['#d40000', '#ffdd00', '#111111'], engine: 'ferrani', works: true, rep: 96, budget: 150, base: 85, bias: { aero: -1, engine: 1, chassis: 0, tyre: -2, reliability: 1 }, principal: 'Federico Vasseur', hq: 'Maranello, ITA',
+    { id: 'ferrani', name: 'Scuderia Ferrani', short: 'FER', colors: ['#d40000', '#ffdd00', '#111111'], engine: 'ferrani', works: true, rep: 96, budget: 150, base: 87, bias: { aero: -1, engine: 1, chassis: 1, tyre: -1, reliability: 1 }, principal: 'Federico Vasseur', hq: 'Maranello, ITA',
       d: [['Charles Leclair', 'MON', 28, 93, 85, 89, 88, 84, 80, 94], ['Lewis Hammerton', 'GBR', 41, 90, 90, 93, 95, 90, 99, 90]] },
-    { id: 'mercator', name: 'Mercator Silver Arrows', short: 'MER', colors: ['#00d2be', '#c0c0c0', '#101010'], engine: 'mercator', works: true, rep: 95, budget: 150, base: 90, bias: { aero: 0, engine: 3, chassis: 0, tyre: 0, reliability: 2 }, principal: 'Toto Wolfgang', hq: 'Brackley, GBR',
+    { id: 'mercator', name: 'Mercator Silver Arrows', short: 'MER', colors: ['#00d2be', '#c0c0c0', '#101010'], engine: 'mercator', works: true, rep: 95, budget: 150, base: 88, bias: { aero: 0, engine: 2, chassis: 0, tyre: 0, reliability: 2 }, principal: 'Toto Wolfgang', hq: 'Brackley, GBR',
       d: [['George Rossel', 'GBR', 28, 91, 90, 88, 89, 87, 82, 92], ['Kimi Antonetti', 'ITA', 20, 87, 78, 84, 83, 79, 45, 97]] },
-    { id: 'redbison', name: 'Red Bison Racing', short: 'RBR', colors: ['#1b2a6b', '#e3002b', '#ffcc00'], engine: 'bisonford', works: true, rep: 94, budget: 145, base: 86, bias: { aero: 3, engine: -1, chassis: 1, tyre: 0, reliability: -3 }, principal: 'Laurent Mekiès', hq: 'Milton Keynes, GBR',
+    { id: 'redbison', name: 'Red Bison Racing', short: 'RBR', colors: ['#1b2a6b', '#e3002b', '#ffcc00'], engine: 'bisonford', works: true, rep: 94, budget: 145, base: 88, bias: { aero: 2, engine: -1, chassis: 1, tyre: 0, reliability: -3 }, principal: 'Laurent Mekiès', hq: 'Milton Keynes, GBR',
       d: [['Max Verstapper', 'NED', 29, 97, 92, 96, 95, 88, 90, 98], ['Isack Hajer', 'FRA', 22, 85, 79, 83, 80, 78, 50, 91]] },
-    { id: 'mclarsen', name: 'McLarsen Racing', short: 'MCL', colors: ['#ff8000', '#101820', '#47c7fc'], engine: 'mercator', works: false, rep: 93, budget: 145, base: 88, bias: { aero: 2, engine: 0, chassis: 1, tyre: 3, reliability: 0 }, principal: 'Andrea Stelli', hq: 'Woking, GBR',
+    { id: 'mclarsen', name: 'McLarsen Racing', short: 'MCL', colors: ['#ff8000', '#101820', '#47c7fc'], engine: 'mercator', works: false, rep: 93, budget: 145, base: 88, bias: { aero: 1, engine: 0, chassis: 0, tyre: 1, reliability: 0 }, principal: 'Andrea Stelli', hq: 'Woking, GBR',
       d: [['Lando Norrish', 'GBR', 27, 94, 87, 88, 90, 86, 78, 95], ['Oscar Piastrelli', 'AUS', 25, 93, 91, 87, 85, 89, 68, 95]] },
     { id: 'astonmarvin', name: 'Aston Marvin', short: 'AMR', colors: ['#00594f', '#cedc00', '#0a0a0a'], engine: 'hondaro', works: false, rep: 85, budget: 140, base: 79, bias: { aero: 2, engine: 0, chassis: -1, tyre: 0, reliability: -1 }, principal: 'Adrian Newley', hq: 'Silverstone, GBR',
       d: [['Fernando Alonzo', 'ESP', 45, 88, 92, 95, 91, 92, 99, 88], ['Lance Strollo', 'CAN', 28, 79, 76, 78, 84, 78, 72, 81]] },

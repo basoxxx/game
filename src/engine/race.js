@@ -68,13 +68,16 @@ const aiSmart = (state) => ({ easy: 0.55, normal: 0.8, hard: 0.97 }[state.diffic
 
 // Base dry lap (s) for a team car on a track: physics from parts, calibrated to real laps
 export function teamBaseLap(state, team, track) {
-  return physicsLap(state.category, track, team.car.parts);
+  // track affinity: small, consistent per team/track/season (car "likes" some circuits)
+  let h = 0; for (const ch of team.id + track.id + state.season) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const aff = ((h % 1000) / 1000 - 0.5) * 0.006;
+  return physicsLap(state.category, track, team.car.parts) * (1 + aff);
 }
 
 // weekend form: each driver/car has a small random form for the event (same in quali and race)
 export function weekendForm(state, d) {
   const key = `${state.season}-${state.round}`;
-  if (!d._form || d._form.k !== key) d._form = { k: key, v: gauss(0, 0.0021) };
+  if (!d._form || d._form.k !== key) d._form = { k: key, v: gauss(0, 0.0026) };
   return d._form.v;
 }
 function driverFactor(d, rain, state) {
@@ -245,7 +248,7 @@ export class CircuitSim {
     out.mode = { push: -0.32, normal: 0, save: 0.45 }[c.mode] * ls;
     out.air = (c.drs ? -0.38 : 0) * ls + (c.dirty ? 0.28 * (1 - this.track.ovt * 0.5) : 0) * ls;
     out.night = this.night && this.endurance ? (0.35 - d.attrs.exp / 400) * ls : 0;
-    out.ers = { deploy: -0.34, balanced: 0, harvest: 0.26 }[c.ersMode || 'balanced'] * ls * (this.cat === 'rally' ? 0 : 1);
+    out.ers = { deploy: -0.4, balanced: 0, harvest: 0.15 }[c.ersMode || 'balanced'] * ls * (this.cat === 'rally' ? 0 : 1);
     out.damage = c.damage * ls;
     out.fatigue = this.endurance && c.stintCount >= 3 ? 0.3 * (c.stintCount - 2) * ls : 0;
     return out;
@@ -506,11 +509,11 @@ export class CircuitSim {
       const wasDrs = b.drs, wasDirty = b.dirty;
       b.drs = this.C.id === 'formula' && gapS < 1 && b.lap >= 2 && rain < 0.2 && !this.sc && !this.vsc;
       b.dirty = gapS < 1.6 && !this.sc && !this.vsc;
-      if (b.auto && !this.sc && !this.vsc) {
-        const want = (gapS < 1.0 && b.ers > 35) ? 'deploy' : b.ers < 25 ? 'harvest' : (gapS > 3 && b.ers < 70) ? 'harvest' : 'balanced';
+      if (b.auto && !b.noErs && !this.sc && !this.vsc) {
+        const want = (gapS < 0.7 && b.ers > 35) ? 'deploy' : b.ers < 20 ? 'harvest' : (gapS > 4 && b.ers < 45) ? 'harvest' : 'balanced';
         if (want !== b.ersMode) { b.ersMode = want; b.lapTarget = this.computeLap(b); }
       }
-      if (a.auto && gapS < 0.6 && a.ers > 45 && a.ersMode !== 'deploy' && !this.sc && !this.vsc) { a.ersMode = 'deploy'; a.lapTarget = this.computeLap(a); }
+      if (a.auto && !a.noErs && gapS < 0.4 && a.ers > 45 && a.ersMode !== 'deploy' && !this.sc && !this.vsc) { a.ersMode = 'deploy'; a.lapTarget = this.computeLap(a); }
       // team orders
       if (a.teamId === b.teamId && gapS < 1.6 && !this.sc && !this.vsc) {
         const ord = this.teamOrders[a.teamId] || 'free';
@@ -533,7 +536,7 @@ export class CircuitSim {
           b.battleT = 0;
           const paceDiff = a.lapTarget - b.lapTarget;
           const da = this.driver(a), db = this.driver(b);
-          const p = clamp(0.05 + this.track.ovt * 0.42 + (paceDiff / this.ls) * 0.3 + (db.attrs.race - da.attrs.race) / 110 + (b.drs ? 0.1 : 0) + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.09 : 0) - (a.ersMode === 'deploy' ? 0.07 : 0), 0.02, 0.9);
+          const p = clamp(0.05 + this.track.ovt * 0.42 + (paceDiff / this.ls) * 0.3 + (db.attrs.race - da.attrs.race) / 110 + (b.drs ? 0.1 : 0) + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.16 : 0) - (a.ersMode === 'deploy' ? 0.1 : 0), 0.02, 0.9);
           if (chance(p)) {
             b.dist = a.dist + 0.0012; a.dist -= 0.0012;
             [order[i - 1], order[i]] = [b, a];
