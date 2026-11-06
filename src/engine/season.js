@@ -541,7 +541,10 @@ export function newSeason(state) {
   // new board target
   const ranking = overallCarRanking(state);
   const last = pt.lastPos || ranking.indexOf(pt.id) + 1;
-  state.board.target = clamp(Math.round((last + ranking.indexOf(pt.id) + 1) / 2) - (last <= 3 ? 0 : 1), 1, ranking.length);
+  const prevTarget = state.board.target;
+  const base = Math.round((last + ranking.indexOf(pt.id) + 1) / 2);
+  state.board.target = clamp(base - (last <= prevTarget && last > 1 ? 1 : 0) + (state.difficulty === 'easy' ? 1 : 0), 1, ranking.length);
+  if (state.board.confidence < 30) state.board.confidence = 30;
   state.objectives = makeObjectives(state);
   addMail(state, { from: 'Consiglio di Amministrazione', icon: 'board', type: 'info', subject: `Obiettivi stagione ${state.season}`, body: `Benvenuto nella stagione ${state.season}. Il consiglio si aspetta almeno il ${state.board.target}° posto nel campionato costruttori. Progetta la nuova vettura nel Centro Tecnico prima del primo evento.` });
 }

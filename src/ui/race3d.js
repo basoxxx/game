@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { trackGeometry, speedProfile, sampleAtTimeFrac } from '../engine/trackphys.js';
 import { genStage } from './trackview.js';
+import { getSettings } from '../engine/state.js';
 import { buildCar, setTyreColor } from './cars3d.js';
 
 function canvasTex(w, h, draw, repeat) {
@@ -34,9 +35,10 @@ export class Race3D {
     this.night = night;
     this.camMode = 'tv';
     this.focusKey = null;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1));
-    this.renderer.shadowMap.enabled = true;
+    this.low = getSettings().gfx === 'low';
+    this.renderer = new THREE.WebGLRenderer({ antialias: !this.low, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(this.low ? 1 : Math.min(1.5, window.devicePixelRatio || 1));
+    this.renderer.shadowMap.enabled = !this.low;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = night ? 0.9 : 1.05;
@@ -217,7 +219,7 @@ export class Race3D {
     }
     // dense forest along the road
     const N = this.geo.N;
-    const count = 1800;
+    const count = this.low ? 600 : 1800;
     const cone = new THREE.ConeGeometry(1, 1, 7);
     const treeMat = new THREE.MeshStandardMaterial({ color: surf === 'snow' ? 0x2c4a36 : surf === 'rough' ? 0x6f7d3a : 0x2d5527, roughness: 0.9 });
     const inst = new THREE.InstancedMesh(cone, treeMat, count);
@@ -282,7 +284,7 @@ export class Race3D {
     this.placeAt(pit, 0, W / 2 + (street > 0.7 ? 16 : 40), 4.5);
     this.scene.add(pit);
     // trees / buildings instanced
-    const count = street > 0.7 ? 260 : 700;
+    const count = Math.round((street > 0.7 ? 260 : 700) * (this.low ? 0.35 : 1));
     const geo = street > 0.7 ? new THREE.BoxGeometry(1, 1, 1) : new THREE.ConeGeometry(1, 1, 7);
     const m = street > 0.7 ? new THREE.MeshStandardMaterial({ color: 0xb0b4bc, roughness: 0.8 }) : new THREE.MeshStandardMaterial({ color: 0x2f5e2a, roughness: 0.9 });
     const inst = new THREE.InstancedMesh(geo, m, count);

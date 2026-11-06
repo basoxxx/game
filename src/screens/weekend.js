@@ -19,11 +19,11 @@ import { trackGeometry } from '../engine/trackphys.js';
 import { planOptions, stintBar, degChartSVG, drawTelemetry, breakdownHTML, openLessons } from './engineer.js';
 
 const SETUP_PARAMS = [
-  { id: 'aero', name: 'Carico Aerodinamico', lo: 'Poco carico: la macchina scivola in curva', hi: 'Troppo carico: lenti sul dritto' },
-  { id: 'susp', name: 'Rigidezza Sospensioni', lo: 'Troppo morbida: rollio eccessivo', hi: 'Troppo rigida: salta sui cordoli' },
-  { id: 'height', name: 'Altezza da Terra', lo: 'Troppo bassa: tocca il fondo', hi: 'Troppo alta: perdiamo carico' },
-  { id: 'gear', name: 'Rapporti Cambio', lo: 'Rapporti corti: limitatore in rettilineo', hi: 'Rapporti lunghi: poca spinta in uscita' },
-  { id: 'brake', name: 'Bilanciamento Freni', lo: 'Troppo dietro: il posteriore si scompone', hi: 'Troppo avanti: blocca l’anteriore' },
+  { id: 'aero', info: 'Più ala = più grip in curva ma meno velocità sul dritto.', name: 'Carico Aerodinamico', lo: 'Poco carico: la macchina scivola in curva', hi: 'Troppo carico: lenti sul dritto' },
+  { id: 'susp', info: 'Rigida = reattiva, morbida = sfrutta i cordoli.', name: 'Rigidezza Sospensioni', lo: 'Troppo morbida: rollio eccessivo', hi: 'Troppo rigida: salta sui cordoli' },
+  { id: 'height', info: 'Bassa = più effetto suolo, ma rischio di toccare.', name: 'Altezza da Terra', lo: 'Troppo bassa: tocca il fondo', hi: 'Troppo alta: perdiamo carico' },
+  { id: 'gear', info: 'Lunghi per i rettilinei, corti per la trazione.', name: 'Rapporti Cambio', lo: 'Rapporti corti: limitatore in rettilineo', hi: 'Rapporti lunghi: poca spinta in uscita' },
+  { id: 'brake', info: 'Ripartizione della frenata tra anteriore e posteriore.', name: 'Bilanciamento Freni', lo: 'Troppo dietro: il posteriore si scompone', hi: 'Troppo avanti: blocca l’anteriore' },
 ];
 
 function shortName(n) { const p = n.split(' '); return (p[p.length - 1] || n).replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase(); }
@@ -183,7 +183,7 @@ function practiceView(st, tr) {
     return `<div class="panel">
       <div class="row" style="gap:12px">${helmetSVG(d.helmet, 48)}<div class="grow"><div class="tiny upper muted">Auto #${d.number}${e.driverIds.length > 1 ? ' · ' + e.driverIds.map((id) => st.drivers[id].name.split(' ').pop()).join(' / ') : ''}</div><h3 style="font-size:19px">${esc(d.name)}</h3></div>
         <div style="width:220px"><div class="row between small"><span class="muted">Fiducia assetto</span><b>${Math.round(c.q * 100)}%</b></div>${bar(c.q * 100, c.q > 0.8 ? 'green' : c.q > 0.55 ? 'gold' : 'red')}</div></div>
-      <div class="mt16">${SETUP_PARAMS.map((p) => { const f = c.fb?.[p.id]; return `<div class="setup-slider"><div><div style="font-weight:600;font-size:13.5px">${p.name}</div>${f && f !== 'ok' ? `<div class="tiny muted">${f.endsWith('lo') ? p.lo : p.hi}</div>` : ''}</div><div class="row"><span class="tiny dim">MIN</span><input type="range" min="0" max="100" value="${c.vals[p.id]}" data-input="slider" data-key="${e.key}" data-p="${p.id}"><span class="tiny dim">MAX</span><b class="mono" id="v-${e.key}-${p.id}" style="width:28px;text-align:right">${c.vals[p.id]}</b></div><div class="fb ${f || 'unk'}">${f ? fbTxt(p, f) : 'Nessun dato'}</div></div>`; }).join('')}</div>
+      <div class="mt16">${SETUP_PARAMS.map((p) => { const f = c.fb?.[p.id]; return `<div class="setup-slider"><div><div style="font-weight:600;font-size:13.5px" title="${p.info}">${p.name}</div><div class="tiny ${f && f !== 'ok' ? 'warn' : 'dim'}">${f && f !== 'ok' ? (f.endsWith('lo') ? p.lo : p.hi) : p.info}</div></div><div class="row"><span class="tiny dim">MIN</span><input type="range" min="0" max="100" value="${c.vals[p.id]}" data-input="slider" data-key="${e.key}" data-p="${p.id}"><span class="tiny dim">MAX</span><b class="mono" id="v-${e.key}-${p.id}" style="width:28px;text-align:right">${c.vals[p.id]}</b></div><div class="fb ${f || 'unk'}">${f ? fbTxt(p, f) : 'Nessun dato'}</div></div>`; }).join('')}</div>
       <div class="row mt16 between"><div class="row gap6"><button class="btn primary" data-a="run" data-key="${e.key}" ${c.runs <= 0 ? 'disabled' : ''}>${icon('play')} Giro di prova (${c.runs})</button><button class="btn sm ghost" data-a="autosetup" data-key="${e.key}" ${c.runs < 2 ? 'disabled' : ''} title="L’ingegnere imposta un assetto (costa 2 giri)">${icon('wrench')} Ingegnere</button>${other ? `<button class="btn sm ghost" data-a="copy" data-from="${other}" data-to="${e.key}" title="Copia l’assetto del compagno">${icon('swap')} Copia</button>` : ''}</div>
       <div class="small muted">${c.laps.length ? `Ultimo: <b class="mono" style="color:#fff">${fmtTime(c.laps[c.laps.length - 1])}</b> · Best ${fmtTime(Math.min(...c.laps))}` : 'Nessun giro'}</div></div>
     </div>`;
