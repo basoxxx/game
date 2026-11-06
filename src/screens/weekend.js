@@ -15,7 +15,7 @@ import { sfx, engineStart, engineSet, engineStop, music } from '../ui/audio.js';
 import { celebrate } from './results.js';
 import { hasPerk } from '../engine/progress.js';
 import { Race3D, webglAvailable } from '../ui/race3d.js';
-import { trackGeometry, drsZones } from '../engine/trackphys.js';
+import { trackGeometry, drsZones, partSensitivity, trackStats } from '../engine/trackphys.js';
 import { planOptions, stintBar, degChartSVG, drawTelemetry, breakdownHTML, openLessons, wearError } from './engineer.js';
 
 const SETUP_PARAMS = [
@@ -29,9 +29,22 @@ const SETUP_PARAMS = [
 function shortName(n) { const p = n.split(' '); return (p[p.length - 1] || n).replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase(); }
 export { shortName };
 
-function idealFor(st, key, trackSeed) {
+function trackSetupBase(st, tr) {
+  if (st.category === 'rally') return null;
+  const sens = partSensitivity(st.category, tr); const ts = trackStats(st.category, tr);
+  const aeroShare = sens.aero / (sens.aero + sens.engine);
+  return {
+    aero: 15 + aeroShare * 85 * 1.15 - 10,
+    gear: 25 + Math.max(0, Math.min(1, (ts.vmax - 310) / 40)) * 55,
+    height: 30 + (tr.street || 0) * 35,
+    susp: 60 - (tr.street || 0) * 25 + (sens.chassis > 0.17 ? 10 : 0),
+    brake: 50,
+  };
+}
+function idealFor(st, key, trackSeed, tr) {
   const r = mulberry32((trackSeed * 31 + key.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 17 + st.season) >>> 0);
-  return Object.fromEntries(SETUP_PARAMS.map((p) => [p.id, Math.round(15 + r() * 70)]));
+  const base = tr ? trackSetupBase(st, tr) : null;
+  return Object.fromEntries(SETUP_PARAMS.map((p) => [p.id, Math.round(Math.max(8, Math.min(92, base ? base[p.id] + (r() - 0.5) * 26 : 15 + r() * 70)))]));
 }
 function setupQuality(vals, ideal) {
   const diffs = SETUP_PARAMS.map((p) => Math.abs(vals[p.id] - ideal[p.id]));
@@ -51,7 +64,7 @@ function initWeekend(st) {
     trackId: tr.id, phase: 'practice', laps, sprint: !!ev.sprint && !st.quick, sprintLaps: Math.max(5, Math.round(laps * 0.36)),
     weather: { plan: weather.plan, isRain: weather.isRain, summary: weather.summary, trackTemp: weather.trackTemp },
     qualiRain: chance(tr.rain * 0.7) ? rand(0.2, 0.8) : 0,
-    cars: Object.fromEntries(entries.map((e) => [e.key, { runs: 4 + Math.floor(sim / 2) + (hasPerk(st, 'data') ? 1 : 0), vals: Object.fromEntries(SETUP_PARAMS.map((p) => [p.id, 50])), fb: null, q: 0.3, laps: [], ideal: idealFor(st, e.key, tr.seed) }])),
+    cars: Object.fromEntries(entries.map((e) => [e.key, { runs: 4 + Math.floor(sim / 2) + (hasPerk(st, 'data') ? 1 : 0), vals: Object.fromEntries(SETUP_PARAMS.map((p) => [p.id, 50])), fb: null, q: 0.3, laps: [], ideal: idealFor(st, e.key, tr.seed, tr) }])),
     risk: {}, startTyre: {}, quali: null,
   };
 }
@@ -192,7 +205,9 @@ function practiceView(st, tr) {
   const team = playerTeam(st);
   const keys = Object.keys(w.cars);
   const fbTxt = (p, f) => f === 'ok' ? 'Perfetto' : f === 'hi' ? 'Un po’ alto' : f === 'lo' ? 'Un po’ basso' : f === 'vhi' ? 'Troppo alto' : 'Troppo basso';
-  return `<div class="row between mb16"><div><h2>Prove Libere · Assetto</h2><div class="small muted">Regola i parametri e manda il pilota in pista: ascolta il feedback per avvicinarti all’assetto ideale. Un buon assetto vale fino a mezzo secondo al giro.</div></div>
+  const sb = trackSetupBase(st, tr);
+  const hint = sb ? `${sb.aero > 60 ? 'pista da <b>alto carico</b>: parti con ali alte' : sb.aero < 40 ? 'pista veloce: <b>ali scariche</b>' : 'carico <b>medio</b>'}, ${sb.gear > 55 ? '<b>rapporti lunghi</b> per i rettilinei' : 'rapporti <b>corti</b> per la trazione'}${sb.height > 50 ? ', <b>altezza da terra alta</b> per sconnessioni e cordoli' : ''}.` : '';
+  return `<div class="row between mb16"><div><h2>Prove Libere · Assetto</h2><div class="small muted">Regola i parametri e manda il pilota in pista: ascolta il feedback per avvicinarti all’assetto ideale. Un buon assetto vale fino a mezzo secondo al giro.</div>${hint ? `<div class="small mt8">${icon('info', 'ico', 'style="width:13px;vertical-align:-2px"')} Ingegnere: ${hint}</div>` : ''}</div>
     <div class="row">${st.category !== 'rally' ? `<div class="panel tight small"><div class="tiny upper muted mb8">Long run (simulazione di stint · 2 giri di prova)</div><div class="row gap4">${['soft', 'medium', 'hard'].map((c) => `<button class="btn sm ${w.longRuns?.[c] ? 'active' : ''}" data-a="longrun" data-c="${c}" ${w.longRuns?.[c] || Object.values(w.cars)[0].runs < 2 ? 'disabled' : ''}>${tyreBadge(c)} ${w.longRuns?.[c] ? '✓' : ''}</button>`).join('')}</div><div class="tiny ${Math.abs(wearError(st)) < 0.03 ? 'good' : 'warn'} mt8">Dati degrado: ${Math.abs(wearError(st)) < 0.03 ? 'misurati ✓' : 'stimati (±' + Math.round(Math.abs(wearError(st)) * 100 + 4) + '%)'}</div></div>` : ''}<div class="panel tight row small" style="gap:14px">${icon(w.weather.isRain ? 'rain' : 'sun')}<div><b>Previsioni gara</b><div class="muted">${w.weather.summary}</div></div>${w.qualiRain ? `<span class="chip info">Qualifiche bagnate</span>` : ''}</div><button class="btn primary lg" data-a="to-quali">${st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'} ${icon('right')}</button></div></div>
   <div class="grid2 anim-in">${entries.map((e, i) => {
     const c = w.cars[e.key]; const d = st.drivers[e.driverIds[0]];
