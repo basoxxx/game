@@ -116,7 +116,7 @@ export class Race3D {
   }
 
   // ribbon along the centerline from offset a to b (meters, + = left)
-  ribbon(a, b, y, material, vScale = 0.05, step = 1, uSpan = 1) {
+  ribbon(a, b, y, material, vScale = 0.05, step = 1, uSpan = 1, flat = false) {
     const { N, x, y: Y, hdg } = this.geo;
     const pos = [], uv = [], idx = [];
     let v = 0;
@@ -124,7 +124,8 @@ export class Race3D {
     for (let n = 0; n < count; n++) {
       const i = this.open ? Math.min(N - 1, n * step) : (n * step) % N;
       const nx = -Math.sin(hdg[i]), nz = Math.cos(hdg[i]);
-      pos.push(x[i] + nx * a, y, Y[i] + nz * a, x[i] + nx * b, y, Y[i] + nz * b);
+      const hh = this.geo.h ? this.geo.h[i] : 0;
+      pos.push(x[i] + nx * a, y + hh, Y[i] + nz * a, x[i] + nx * b, y + hh, Y[i] + nz * b);
       uv.push(0, v, uSpan, v);
       v += this.geo.ds * step * vScale;
       if (n < count - 1) { const k = n * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
@@ -241,7 +242,8 @@ export class Race3D {
       for (let j = Math.max(0, i - 400); j < Math.min(N, i + 400); j += 5) { const dx = this.geo.x[j] - px, dz = this.geo.y[j] - pz; if (dx * dx + dz * dz < (W / 2 + 5) ** 2) { ok = false; break; } }
       if (!ok) continue;
       const h = surf === 'rough' ? 4 + Math.random() * 5 : 9 + Math.random() * 14; const wd = surf === 'rough' ? 3 + Math.random() * 3 : 2.2 + Math.random() * 2;
-      dummy.position.set(px, h / 2, pz); dummy.scale.set(wd, h, wd); dummy.rotation.y = Math.random() * 3; dummy.updateMatrix();
+      const baseH = this.geo.h ? this.geo.h[i] * 0.85 : 0;
+      dummy.position.set(px, baseH + h / 2, pz); dummy.scale.set(wd, h, wd); dummy.rotation.y = Math.random() * 3; dummy.updateMatrix();
       inst.setMatrixAt(placed++, dummy.matrix);
     }
     inst.count = placed; inst.castShadow = true;
@@ -251,8 +253,10 @@ export class Race3D {
       const g = new THREE.Group(); const m = new THREE.MeshStandardMaterial({ color: col, roughness: 0.5 });
       for (const zz of [W / 2 + 1, -W / 2 - 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.4, 5, 0.4), m); p.position.set(0, 2.5, zz); g.add(p); }
       const beam = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, W + 2.8), m); beam.position.y = 5; g.add(beam);
-      this.placeAt(g, i, 0); this.scene.add(g);
+      this.placeAt(g, i, 0, this.geo.h ? this.geo.h[i] : 0); this.scene.add(g);
     }
+    // terrain skirt under the road so the hills look solid
+    if (this.geo.h) for (const side of [1, -1]) { const m = this.ribbon(side * (W / 2 + 2.5), side * (W / 2 + 40), -0.3, new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (c, w, hgt) => noise(c, w, hgt, groundCol, 255, 4000, 3)), roughness: 1 }), 0.05, 2); this.scene.add(m); }
     if (this.scene.fog) { this.scene.fog.near = 150; this.scene.fog.far = 1400; }
   }
 
@@ -433,7 +437,14 @@ export class Race3D {
       const nx = -Math.sin(h), nz = Math.cos(h);
       const x = this.geo.x[i0] + (this.geo.x[i1] - this.geo.x[i0]) * f + nx * car.laneCur;
       const z = this.geo.y[i0] + (this.geo.y[i1] - this.geo.y[i0]) * f + nz * car.laneCur;
-      m.position.set(x, 0.02, z);
+      let yy = 0.02;
+      if (this.geo.h) {
+        const h0 = this.geo.h[i0], h1 = this.geo.h[i1]; yy += h0 + (h1 - h0) * f;
+        // airborne over crests: ballistic arc proportional to speed
+        for (const ci of this.geo.crests || []) { const dd = s - ci; if (dd > 0 && dd < 10 && (st.speed || 0) > 22) { yy += Math.sin((dd / 10) * Math.PI) * Math.min(1.6, (st.speed - 22) / 14); } }
+        m.rotation.z = Math.atan2(h1 - h0, this.geo.ds) * 0.9;
+      }
+      m.position.set(x, yy, z);
       m.rotation.y = -h;
       // body roll/pitch from curvature and acceleration
       const k = this.geo.k[i0];
@@ -583,7 +594,14 @@ export function stageGeometry(seed, km, style) {
   for (let i = 0; i < N; i++) { const a = Math.max(0, i - 3), b = Math.min(N - 1, i + 3); let d = hdg[b] - hdg[a]; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; k[i] = d / ((b - a) * ds || 1); }
   let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity;
   for (let i = 0; i < N; i++) { minx = Math.min(minx, x[i]); maxx = Math.max(maxx, x[i]); miny = Math.min(miny, y[i]); maxy = Math.max(maxy, y[i]); }
-  const geo = { open: true, N, ds, len: total, x, y, hdg, k, corners: [], bbox: [minx, miny, maxx, maxy] };
+  // elevation: rolling hills plus a few sharp crests (jumps)
+  const h = new Float64Array(N);
+  let rs = seed * 9301 + 49297; const rnd = () => { rs = (rs * 9301 + 49297) % 233280; return rs / 233280; };
+  const waves = [0, 1, 2].map(() => ({ a: 6 + rnd() * 14, f: (1 + rnd() * 3) * 2 * Math.PI / total, p: rnd() * 6 }));
+  const crests = Array.from({ length: style === 'fast' ? 6 : 3 }, () => ({ c: (0.08 + rnd() * 0.84) * total, w: 18 + rnd() * 14, a: 1.6 + rnd() * 1.6 }));
+  const w0 = waves.reduce((a, w) => a + w.a * Math.sin(w.p), 0);
+  for (let i = 0; i < N; i++) { const d = i * (total / N); let v = -w0; for (const w of waves) v += w.a * Math.sin(d * w.f + w.p); for (const c of crests) { const t = (d - c.c) / c.w; if (Math.abs(t) < 1) v += c.a * (1 - t * t) * (t < 0 ? 1 : 0.3); } h[i] = v; }
+  const geo = { open: true, N, ds, len: total, x, y, hdg, k, h, crests: crests.map((c) => Math.round(c.c / (total / N))), corners: [], bbox: [minx, miny, maxx, maxy] };
   geo.profile = speedProfile(geo, { mu: 1.1, kA: 0.00006, P: 420, cd: 0.0009, brakeMu: 1.15 });
   stageCache[key] = geo;
   return geo;

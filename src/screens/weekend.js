@@ -97,6 +97,7 @@ registerScreen({
     if (e.code === 'Space') { e.preventDefault(); R.paused = !R.paused; updateSpeedUI(); }
     const sp = { Digit1: 2, Digit2: 4, Digit3: 8, Digit4: 16, Digit5: 32 }[e.code];
     if (sp) { R.speed = sp; R.paused = false; updateSpeedUI(); }
+    if (e.code === 'KeyR' && R.r3d) { if (R.replay) stopReplay(); else startReplay(R.lastHighlight && R.sim.time - R.lastHighlight.t < 12 ? R.lastHighlight.key : R.focus); }
   },
   actions: {
     exit() { App.go(S().quick ? 'quickrace' : 'hub'); },
@@ -156,6 +157,7 @@ registerScreen({
     lessons() { openLessons(); },
     cam(el) { R.view3d = el.dataset.c; R.cam = R.view3d; enable3D(R.view3d); renderViewBtns(); },
     view2d() { disable3D(); renderViewBtns(); },
+    replay() { if (R.replay) stopReplay(); else { if (!R.r3d) { R.view3d = 'chase'; enable3D('chase'); renderViewBtns(); } startReplay(R.lastHighlight && R.sim.time - R.lastHighlight.t < 12 ? R.lastHighlight.key : R.focus); } },
     focus(el) { R.focus = el.dataset.key; updateBoard(); },
     'tele-tab'(el) { R.tab = el.dataset.t; updateFeed(true); },
     'tele-car'(el) { R.teleKey = el.dataset.key; updateFeed(true); },
@@ -306,11 +308,11 @@ function mountRace() {
   startLights(() => { R.paused = false; R.last = performance.now(); updateSpeedUI(); engineStart(st.category); });
   const loop = (t) => {
     const dt = Math.min(0.1, (t - R.last) / 1000); R.last = t;
-    if (!R.paused && !R.sim.finished) {
+    if (!R.paused && !R.sim.finished && !R.replay) {
       let rem = dt * R.speed;
       while (rem > 0) { const d = Math.min(0.5, rem); R.sim.step(d); rem -= d; }
     }
-    if (R.r3d) update3D(dt); else draw();
+    if (R.replay) playReplay(dt); else if (R.r3d) update3D(dt); else draw();
     if (R.r3d) draw();
     R.uiT += dt;
     if (R.uiT > 0.25) { R.uiT = 0; updateAll(); }
@@ -321,12 +323,12 @@ function mountRace() {
   R.raf = requestAnimationFrame(loop);
   updateSpeedUI();
 }
-function stopRace() { cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = null; R.r3d?.destroy(); R.r3d = null; engineStop(); }
+function stopRace() { R.replay = null; R.rbuf = []; cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = null; R.r3d?.destroy(); R.r3d = null; engineStop(); }
 
 function renderViewBtns() {
   const el = document.getElementById('view-btns'); if (!el) return;
   const can3d = webglAvailable();
-  el.innerHTML = [['2d', 'Mappa 2D'], ['auto', 'Regia'], ['tv', 'TV 3D'], ['chase', 'Camera car'], ['onboard', 'Onboard'], ['heli', 'Elicottero']].map(([k, n]) => `<button class="btn sm ${((R.view3d || '2d') === k) ? 'active' : ''}" data-a="${k === '2d' ? 'view2d' : 'cam'}" data-c="${k}" ${k !== '2d' && !can3d ? 'disabled' : ''}>${n}</button>`).join('');
+  el.innerHTML = (can3d ? `<button class="btn sm" data-a="replay" title="Rivedi gli ultimi 10 secondi">⟲ Replay</button>` : '') + [['2d', 'Mappa 2D'], ['auto', 'Regia'], ['tv', 'TV 3D'], ['chase', 'Camera car'], ['onboard', 'Onboard'], ['heli', 'Elicottero']].map(([k, n]) => `<button class="btn sm ${((R.view3d || '2d') === k) ? 'active' : ''}" data-a="${k === '2d' ? 'view2d' : 'cam'}" data-c="${k}" ${k !== '2d' && !can3d ? 'disabled' : ''}>${n}</button>`).join('');
 }
 function enable3D(cam) {
   const st = S(); const sim = R.sim;
@@ -365,6 +367,13 @@ function update3D(dt) {
   r.focusKey = R.focus;
   r.setRain(sim.rain);
   if (sim.endurance && sim.track.night) { R.nightLvl = (R.nightLvl ?? 0) + ((sim.night ? 1 : 0) - (R.nightLvl ?? 0)) * Math.min(1, dt * 0.3); r.setNight(Math.round(R.nightLvl * 20) / 20); }
+  // replay buffer (last ~14s of race time)
+  if (!R.replay) {
+    R.rbuf = R.rbuf || [];
+    const last = R.rbuf[R.rbuf.length - 1];
+    if (!last || sim.time - last.t > 0.05 || R.rbuf.length < 3) R.rbuf.push({ t: sim.time, st: states.map((x) => ({ ...x })) });
+    while (R.rbuf.length && sim.time - R.rbuf[0].t > 14) R.rbuf.shift();
+  }
   r.update(states, dt);
   const fc = sim.cars.find((c) => c.key === (r.director && r.dirFocus ? r.dirFocus : R.focus));
   const hud = document.getElementById('hud3d');
@@ -528,6 +537,7 @@ function updateFeed(force) {
     else if (e.type === 'pit' && e.important) sfx.pit();
     else if (e.type === 'sc') sfx.notify();
     else if (e.type === 'overtake' && e.important) sfx.overtake();
+    if ((e.type === 'overtake' || e.type === 'crash') && e.key) R.lastHighlight = { key: e.key, t: e.t };
     else if (e.type === 'radio') sfx.radio?.();
     if (e.type === 'sc' && !R.lessonSC) { R.lessonSC = true; App.toast('Lezione: safety car', 'Ai box si perde circa metà del tempo: spesso conviene fermarsi ora.', ''); }
   }
@@ -640,3 +650,34 @@ function forecast(st, w) {
 }
 
 function g2N(sim) { return trackGeometry(sim.track.cid).N; }
+
+// ---------------- REPLAY ----------------
+function startReplay(focusKey) {
+  const r = R.r3d; if (!r || !R.rbuf || R.rbuf.length < 3) { App.toast('Replay non disponibile', 'Attiva la vista 3D e lascia scorrere la gara qualche secondo.', ''); return; }
+  const t1 = R.rbuf[R.rbuf.length - 1].t, t0 = Math.max(R.rbuf[0].t, t1 - 10);
+  R.replay = { t0, t1, t: t0, focus: focusKey || R.focus, prevCam: r.camMode, prevDir: r.director, wasPaused: R.paused };
+  r.director = false; r.camMode = 'chase'; r._cut = true; r.focusKey = R.replay.focus;
+  const ov = document.getElementById('finish-overlay');
+  if (ov) ov.insertAdjacentHTML('beforeend', '<div id="replay-badge" style="position:absolute;top:16px;left:16px;z-index:6" class="chip bad pulse" >⟲ REPLAY · <span id="rp-cam">camera car</span></div>');
+}
+function stopReplay() {
+  const r = R.r3d, rp = R.replay; if (!rp) return;
+  if (r) { r.camMode = rp.prevCam; r.director = rp.prevDir; r._cut = true; r.focusKey = R.focus; }
+  R.replay = null; document.getElementById('replay-badge')?.remove();
+  R.last = performance.now();
+}
+function playReplay(dt) {
+  const rp = R.replay, r = R.r3d; if (!r) { R.replay = null; return; }
+  rp.t += dt * 1.0; // real-time playback of race time
+  const k = (rp.t - rp.t0) / (rp.t1 - rp.t0);
+  const cams = ['chase', 'tv', 'heli', 'onboard'];
+  const ci = Math.min(cams.length - 1, Math.floor(k * cams.length));
+  if (r.camMode !== cams[ci]) { r.camMode = cams[ci]; r._cut = true; const lab = document.getElementById('rp-cam'); if (lab) lab.textContent = { chase: 'camera car', tv: 'TV', heli: 'elicottero', onboard: 'onboard' }[cams[ci]]; }
+  if (rp.t >= rp.t1) { stopReplay(); return; }
+  const buf = R.rbuf; let i = 1; while (i < buf.length - 1 && buf[i].t < rp.t) i++;
+  const a = buf[i - 1], b = buf[i]; const f = Math.max(0, Math.min(1, (rp.t - a.t) / ((b.t - a.t) || 1)));
+  const N = trackGeometry(R.sim.track.cid).N;
+  const states = a.st.map((sa) => { const sb = b.st.find((x) => x.key === sa.key) || sa; if (sa.hidden) return sa; let ds = sb.s - sa.s; if (ds < -N / 2) ds += N; if (ds > N / 2) ds -= N; return { ...sa, s: (sa.s + ds * f + N) % N, speed: sa.speed + (sb.speed - sa.speed) * f }; });
+  r.focusKey = rp.focus;
+  r.update(states, dt);
+}

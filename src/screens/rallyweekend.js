@@ -94,7 +94,7 @@ registerScreen({
     decide(el) { decide(el.dataset.c); },
     rcam(el) { X.view3d = el.dataset.c; X.cam = X.view3d; rallyEnable3D(X.view3d); rallyViewBtns(); },
     rview2d() { rallyDisable3D(); rallyViewBtns(); },
-    rfocus(el) { X.focus = el.dataset.key; },
+    rfocus(el) { X.focus = el.dataset.key; X.userFocus = true; },
     'stage-done'() { afterStage(); },
     'skip-stage'() { skipStage(); },
     repair(el) { const k = el.dataset.key, comp = el.dataset.c; const arr = X.repairs[k] ||= []; const i = arr.indexOf(comp); if (i >= 0) arr.splice(i, 1); else arr.push(comp); App.refresh(); },
@@ -201,7 +201,7 @@ function mountRun() {
   X.view3d = getSettings().view3d !== false && webglAvailable() ? (X.cam || 'chase') : null;
   rallyViewBtns();
   if (X.view3d) rallyEnable3D(X.view3d);
-  X.t = 0; X.paused = false; X.decision = null; X.last = performance.now(); X.speed = Math.max(8, Math.min(64, (getSettings().raceSpeed || 8) * 2)); X.finished = false;
+  X.t = 0; X.paused = false; X.userFocus = false; X.decision = null; X.last = performance.now(); X.speed = Math.max(8, Math.min(64, (getSettings().raceSpeed || 8) * 2)); X.finished = false;
   music.setMood('race');
   engineStart('rally');
   const loop = (t) => {
@@ -249,6 +249,16 @@ function rallyUpdate3D(dt) {
     const speed = moving ? geo.profile.v[Math.floor(i)] * (geo.profile.lap / (c.plan?.base || geo.profile.lap)) : 0;
     return { key: c.key, s: i, speed, label: c.isPlayer || c.key === X.focus ? shortName(X.ev.driver(c).name) : '' };
   });
+  // follow a car that is actually on the stage: prefer the player's, else the closest running one
+  const onStage = (c) => c.plan && !c.done && !c.waiting;
+  const fcur = X.ev.crews.find((c) => c.key === X.focus);
+  const mineNow = X.ev.crews.find((c) => c.isPlayer && onStage(c));
+  if (!X.userFocus && mineNow && fcur && !fcur.isPlayer) X.focus = mineNow.key;
+  if (!X.userFocus && (!fcur || !onStage(fcur))) {
+    const mine = X.ev.crews.find((c) => c.isPlayer && onStage(c));
+    const any = X.ev.crews.filter(onStage).sort((a, b) => (b.progress || 0) - (a.progress || 0))[0];
+    if (mine || any) X.focus = (mine || any).key;
+  }
   r.focusKey = X.focus; r.setRain(X.ev.stage.wet ? 0.6 : 0); r.update(states, dt);
   const fc = X.ev.crews.find((c) => c.key === X.focus); const hud = document.getElementById('hud3d');
   if (hud && fc) { const stt = states.find((x) => x.key === fc.key); const kmh = Math.round((stt?.speed || 0) * 3.6); X.focusSpeed = kmh; hud.innerHTML = `<span class="tiny muted upper">${esc(X.ev.driver(fc).name)}</span><span class="spd">${kmh}</span><span class="tiny muted">km/h</span><span class="tiny muted">${((fc.progress || 0) * X.ev.stage.km).toFixed(1)} / ${X.ev.stage.km} km</span>`; }
