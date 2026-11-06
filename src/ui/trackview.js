@@ -93,11 +93,12 @@ export class TrackView {
     this.cv.width = r.width * dpr; this.cv.height = r.height * dpr;
     this.bg.width = this.cv.width; this.bg.height = this.cv.height;
     const pad = this.opts.pad ?? 60;
-    const aw = r.width - pad * 2, ah = r.height - pad * 2 - (this.opts.padBottom || 0);
+    const pt = this.opts.padTop || 0;
+    const aw = r.width - pad * 2, ah = r.height - pad * 2 - (this.opts.padBottom || 0) - pt;
     const asp = this.path.aspect;
     let w = aw, h = aw / asp;
     if (h > ah) { h = ah; w = ah * asp; }
-    this.ox = (r.width - w) / 2; this.oy = (r.height - h) / 2 - (this.opts.padBottom || 0) / 2; this.sw = w; this.sh = h;
+    this.ox = (r.width - w) / 2; this.oy = (r.height - h) / 2 - (this.opts.padBottom || 0) / 2 + pt / 2; this.sw = w; this.sh = h;
     this.screen = this.path.pts.map(([x, y]) => [this.ox + x * w, this.oy + y * h]);
     this.drawBg();
   }

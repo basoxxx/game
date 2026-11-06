@@ -107,7 +107,7 @@ h3 { font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacin
 .brand { display: flex; align-items: center; gap: 10px; width: 196px; font-family: var(--display); font-weight: 900; font-style: italic; font-size: 19px; letter-spacing: 0.04em; text-transform: uppercase; }
 .brand .mark { width: 30px; height: 30px; }
 .brand small { display: block; font-size: 9px; letter-spacing: 0.32em; color: var(--muted); font-style: normal; font-weight: 600; margin-top: -3px; }
-.tb-team { display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 6px; border-radius: 999px; background: rgba(255,255,255,0.04); border: 1px solid var(--line); }
+.tb-team { white-space: nowrap; display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 6px; border-radius: 999px; background: rgba(255,255,255,0.04); border: 1px solid var(--line); }
 .tb-stat { display: flex; flex-direction: column; line-height: 1.1; padding: 0 12px; border-left: 1px solid var(--line); }
 .tb-stat b { font-family: var(--display); font-size: 16px; font-weight: 800; }
 .tb-stat span { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }

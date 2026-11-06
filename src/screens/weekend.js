@@ -327,7 +327,7 @@ function mountRace() {
   if (isSprint) R.sim.log('⚡ SPRINT: gara breve, punti ai primi 8 (8-7-6-5-4-3-2-1).', 'start', null, true);
   for (const c of R.sim.cars) if (c.isPlayer) { c.tyre = w.startTyre[c.key] || c.tyre; c.compoundsUsed = new Set([c.tyre]); c.plan = !isSprint && w.plans?.[c.key] ? w.plans[c.key].map((x) => ({ ...x })) : null; c.planIdx = 0; c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c); }
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {};
-  R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' ? drsZones('formula', tr) : [] });
+  R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, padTop: 40, glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' ? drsZones('formula', tr) : [] });
   R.last = performance.now(); R.uiT = 0;
   R.focus = R.sim.cars.find((c) => c.isPlayer)?.key;
   R.view3d = getSettings().view3d !== false && webglAvailable() ? (R.cam || 'auto') : null;
