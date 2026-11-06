@@ -8,6 +8,10 @@ import { circuitPath, arcFrac, TrackView } from '../ui/trackview.js';
 import { TRACKS } from '../data/tracks.js';
 import { sfx } from '../ui/audio.js';
 import { openLessons } from './engineer.js';
+import { Garage3D } from '../ui/garage3d.js';
+import { webglAvailable } from '../ui/race3d.js';
+import { TEAMS } from '../data/teams.js';
+let garage = null;
 import { migrateSave } from '../engine/migrate.js';
 
 let anim = null, view = null;
@@ -37,7 +41,9 @@ registerScreen({
         </div>
       </div>
       <div class="menu-right"><canvas id="menu-cv"></canvas>
-        <div style="position:absolute;right:40px;bottom:40px;width:46%;opacity:.95;filter:drop-shadow(0 30px 30px rgba(0,0,0,.7))" class="anim-in"><div>${carSVG('formula', { primary: '#e10600', secondary: '#fff', accent: '#111', pattern: 1 }, { number: 1, sponsor: 'Apex Dynasty' })}</div></div>
+        <div id="menu-3d" style="position:absolute;right:0;bottom:0;width:72%;height:64%;"></div>
+        ${webglAvailable() ? '' : `<div style="position:absolute;right:40px;bottom:40px;width:46%;opacity:.95;filter:drop-shadow(0 30px 30px rgba(0,0,0,.7))" class="anim-in"><div>${carSVG('formula', { primary: '#e10600', secondary: '#fff', accent: '#111', pattern: 1 }, { number: 1, sponsor: 'Apex Dynasty' })}</div></div>`}
+        <div id="menu-track" class="tiny upper muted" style="position:absolute;left:40px;top:30px;letter-spacing:.3em"></div>
       </div>
       <div class="version">v${__APP_VERSION__} · Gioco di fantasia: nomi e marchi sono parodie e non affiliati</div>
     </div>`;
@@ -47,6 +53,16 @@ registerScreen({
     const demo = TRACKS.formula[Math.floor(Math.random() * TRACKS.formula.length)];
     view = new TrackView(cv, circuitPath(demo.cid), { pad: 80, glow: 'rgba(225,6,0,0.5)' });
     view.demoName = demo.circuit;
+    const tl = document.getElementById('menu-track'); if (tl) tl.textContent = `${demo.circuit} · ${demo.name}`;
+    const m3 = document.getElementById('menu-3d');
+    if (m3 && webglAvailable()) {
+      try {
+        const cats = ['formula', 'formula', 'endurance', 'rally'];
+        const c = cats[Math.floor(Math.random() * cats.length)];
+        const t = TEAMS[c][Math.floor(Math.random() * TEAMS[c].length)];
+        garage = new Garage3D(m3, c, { primary: t.colors[0], secondary: t.colors[1], accent: t.colors[2] }, { accent: t.colors[0] === '#f0f0f0' ? t.colors[1] : t.colors[0], number: Math.floor(1 + Math.random() * 63), sponsor: t.short, dist: 15 });
+      } catch (e) { console.warn(e); }
+    }
     const cars = DEMO_COLORS.map((c, i) => ({ p: -i * 0.012, v: 0.06 + Math.random() * 0.002, c }));
     let last = performance.now();
     const loop = (t) => {
@@ -57,7 +73,7 @@ registerScreen({
     };
     anim = requestAnimationFrame(loop);
   },
-  unmount() { cancelAnimationFrame(anim); view?.destroy(); },
+  unmount() { cancelAnimationFrame(anim); view?.destroy(); garage?.destroy(); garage = null; },
   actions: {
     'continue-last'() {
       const s = listSaves().filter((x) => !x.empty).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0];

@@ -21,7 +21,10 @@ export class Garage3D {
     const key = new THREE.SpotLight(0xffffff, 260, 40, 0.6, 0.5); key.position.set(4, 9, 5); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); this.scene.add(key);
     const rim = new THREE.SpotLight(new THREE.Color(opts.accent || '#ff3b30'), 120, 40, 0.7, 0.6); rim.position.set(-6, 4, -5); this.scene.add(rim);
     const fill = new THREE.DirectionalLight(0x9fb8ff, 0.6); fill.position.set(-4, 3, 6); this.scene.add(fill);
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(4.4, 64), new THREE.MeshStandardMaterial({ color: 0x14171d, roughness: 0.35, metalness: 0.6 }));
+    const fc = document.createElement('canvas'); fc.width = fc.height = 256; const fg = fc.getContext('2d');
+    const grd = fg.createRadialGradient(128, 128, 20, 128, 128, 128); grd.addColorStop(0, '#ffffff'); grd.addColorStop(0.7, '#888888'); grd.addColorStop(1, '#000000'); fg.fillStyle = grd; fg.fillRect(0, 0, 256, 256);
+    const alpha = new THREE.CanvasTexture(fc);
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(4.4, 64), new THREE.MeshStandardMaterial({ color: 0x14171d, roughness: 0.35, metalness: 0.6, transparent: true, alphaMap: alpha }));
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; this.scene.add(floor);
     const ring = new THREE.Mesh(new THREE.RingGeometry(4.3, 4.42, 96), new THREE.MeshBasicMaterial({ color: new THREE.Color(opts.accent || '#e10600') }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.005; this.scene.add(ring);
@@ -29,7 +32,7 @@ export class Garage3D {
     this.car.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     this.scene.add(this.car);
     this.angle = -0.6; this.vel = 0.004; this.pitch = 0.32;
-    this.dist = category === 'rally' ? 9.5 : 11;
+    this.dist = opts.dist || (category === 'rally' ? 9.5 : 11);
     let drag = null;
     const el = this.renderer.domElement;
     el.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, a: this.angle, p: this.pitch }; el.setPointerCapture(e.pointerId); el.style.cursor = 'grabbing'; });
