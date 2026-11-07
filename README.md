@@ -18,6 +18,12 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 3.7
+
+- **Prove libere e qualifiche in diretta**: sessioni con cronometro e auto in pista (2D e 3D); per ogni pilota scegli treno di gomme (nuovo o usato), benzina, giri e ritmo, e decidi tu quando premere "Esci dal box"; feedback sull'assetto dopo ogni uscita, long run che misurano il degrado, pista che si gomma, bandiere; qualifiche Q1/Q2/Q3 con eliminazioni (Hyperpole in Endurance), giri da annullare
+- **Strategia**: pianificatore pre-gara (soste, mescole, giro del pit, benzina al via, rifornimenti e cambi pilota in Endurance) con tempo previsto e curve; in gara scheda "Strategia" per anticipare/posticipare la sosta, cambiare mescola o numero di soste, box automatico, cambio rapido, lift & coast e consigli dell'ingegnere con un clic
+- **Grafica**: pit lane viva (garage illuminati con meccanici, muretto con ingegneri, box per ogni auto, soste animate), telecamera garage, cielo di tardo pomeriggio, disco del sole e raggi di luce, caschi decorati, livree più nitide, metà delle draw call grazie al livello di dettaglio
+
 ## Novità della versione 3.6
 
 - **Interfaccia rifatta da gioco vero**: nuovo carattere condensato, menu in stile console con l'auto 3D protagonista, hub con l'evento in primo piano, colori della squadra, icone SVG al posto delle emoji, torre dei tempi da diretta TV, transizioni e suoni

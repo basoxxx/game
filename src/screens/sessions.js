@@ -251,7 +251,7 @@ function update3D(dt) {
     const speed = inPit ? 0 : speedAtTimeFrac(sim.cat, sim.track.cid, d, lapTimeOf(c, sim), sim.track.lap) / 3.6;
     const pos = order.indexOf(c) + 1;
     const show = c.isPlayer || c.key === P.focus;
-    return { key: c.key, pos, s: frac * g.N, speed, inPit, close: false, tyreColor: COMPOUNDS[c.tyre || 'medium'].color, label: inPit ? '' : show ? `${shortName(sim.driver(c).name)}` : '' };
+    return { key: c.key, pos, s: frac * g.N, speed, inPit, garage: inPit, close: false, tyreColor: COMPOUNDS[c.tyre || 'medium'].color, label: inPit ? '' : show ? `${shortName(sim.driver(c).name)}` : '' };
   });
   // keep the camera on a car that is actually running
   let fk = P.focus;
