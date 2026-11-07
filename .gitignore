@@ -4,3 +4,4 @@ release/
 site/
 *.log
 .DS_Store
+.claude/worktrees/
