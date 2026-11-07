@@ -18,6 +18,12 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 3.6
+
+- **Interfaccia rifatta da gioco vero**: nuovo carattere condensato, menu in stile console con l'auto 3D protagonista, hub con l'evento in primo piano, colori della squadra, icone SVG al posto delle emoji, torre dei tempi da diretta TV, transizioni e suoni
+- **Scontro Totale molto più profondo**: cambio con marce, trazione diversa per ogni auto, derapate controllabili, atterraggi, 4 telecamere e sguardo indietro, vibrazione del gamepad; IA con personalità che sorpassa, sperona di proposito e non si incastra; scontri classificati (T-bone, frontale, tamponamento…), vetri che si rompono, ruote che si staccano, rallentatore, replay del botto; 2 nuovi eventi (Fattoria Pantano, Stadio Ferrovecchio notturno) e il Campionato Rottami su 6 prove
+- **Grafica delle gare**: asfalto con traiettoria gommata e rattoppi, cartelloni, paddock e motorhome, folla che fa la ola, facciate nei cittadini, livree con sponsor, freni incandescenti, scintille dal fondo, regia TV con visuale sempre libera
+
 ## Novità della versione 3.5
 
 - **Nuova modalità "Scontro Totale": guidi tu.** Corse a contatto e demolition derby con fisica vera (Rapier): sospensioni, derapate, salti, auto che si ammaccano, pezzi che volano via, fumo e fuoco, oggetti travolgibili (barili, gomme, casse, fieno, transenne), nitro che si ricarica con gli scontri e i salti, IA che sperona, 4 eventi (cava con salti, figura a otto con incrocio, pineta, arena derby), 4 auto da sbloccare con i crediti, tastiera e gamepad
