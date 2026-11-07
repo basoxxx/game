@@ -1,8 +1,49 @@
 // 3D showroom: turntable with studio lighting and drag-to-rotate
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 import { buildCar } from './cars3d.js';
-import { applyHDRI, applyFilterSettings } from './gfx.js';
+import { applyFilterSettings } from './gfx.js';
+
+// Photo-studio environment for reflections: dark cyclorama with long overhead softbox strips,
+// tall side strips and a dim fill panel. Clear-coat paint picks up the crisp strip highlights
+// that make showroom shots read as "real car".
+function studioEnv(renderer, accent) {
+  const sc = new THREE.Scene();
+  const room = new THREE.Mesh(new THREE.BoxGeometry(30, 14, 30), new THREE.MeshBasicMaterial({ color: 0x15171c, side: THREE.BackSide }));
+  room.position.y = 6; sc.add(room);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshBasicMaterial({ color: 0x0b0c0f })); floor.rotation.x = -Math.PI / 2; floor.position.y = -0.9; sc.add(floor);
+  const glow = (w, h, d, x, y, z, k, col = 0xffffff) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(k) })); m.position.set(x, y, z); sc.add(m); };
+  for (const z of [-2.4, 0, 2.4]) glow(12, 0.12, 0.7, 0, 8, z, 9);
+  for (const x of [-9, 9]) glow(0.2, 6, 1.2, x, 3.5, 0, 4);
+  glow(0.2, 3, 8, -13, 4, 6, 1.6); glow(8, 3, 0.2, 4, 4, 13, 1.2);
+  glow(10, 0.6, 0.2, 0, 1.2, -13, 2.2, accent || 0xff3b30);
+  const pm = new THREE.PMREMGenerator(renderer);
+  const tex = pm.fromScene(sc, 0.02).texture; pm.dispose();
+  return tex;
+}
+
+// mirror shader with a radial fade (mesh uv) so the reflection melts into the floor
+const FadedReflector = {
+  name: 'FadedReflector',
+  uniforms: { color: { value: null }, tDiffuse: { value: null }, textureMatrix: { value: null } },
+  vertexShader: `uniform mat4 textureMatrix; varying vec4 vUv; varying vec2 vUv0;
+    #include <common>
+    #include <logdepthbuf_pars_vertex>
+    void main() { vUv = textureMatrix * vec4(position, 1.0); vUv0 = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    #include <logdepthbuf_vertex>
+    }`,
+  fragmentShader: `uniform vec3 color; uniform sampler2D tDiffuse; varying vec4 vUv; varying vec2 vUv0;
+    #include <logdepthbuf_pars_fragment>
+    void main() {
+      #include <logdepthbuf_fragment>
+      vec4 base = texture2DProj(tDiffuse, vUv);
+      float r = length(vUv0 - 0.5) * 2.0;
+      gl_FragColor = vec4(base.rgb * color * 0.55, (1.0 - smoothstep(0.2, 0.95, r)) * 0.6);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`,
+};
 
 export class Garage3D {
   constructor(container, category, livery, opts = {}) {
@@ -17,8 +58,7 @@ export class Garage3D {
     applyFilterSettings(this.renderer.domElement);
     Object.assign(this.renderer.domElement.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', cursor: 'grab' });
     this.scene = new THREE.Scene();
-    try { const pm = new THREE.PMREMGenerator(this.renderer); this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; this.scene.environmentIntensity = 0.6; } catch {}
-    applyHDRI(this.renderer, this.scene, 'day', { background: false, intensity: 0.9 });
+    try { this.scene.environment = studioEnv(this.renderer, new THREE.Color(opts.accent || '#ff3b30').getHex()); this.scene.environmentIntensity = 0.9; } catch {}
     this.renderer.toneMappingExposure = 1.0;
     this.camera = new THREE.PerspectiveCamera(32, 1, 0.1, 200);
     this.scene.add(new THREE.HemisphereLight(0xdde6ff, 0x111318, 0.4));
@@ -30,9 +70,18 @@ export class Garage3D {
     const alpha = new THREE.CanvasTexture(fc);
     const floor = new THREE.Mesh(new THREE.CircleGeometry(4.4, 64), new THREE.MeshStandardMaterial({ color: 0x14171d, roughness: 0.35, metalness: 0.6, transparent: true, alphaMap: alpha }));
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; this.scene.add(floor);
+    // polished turntable: a faded mirror reflection of the car under the shadowed floor
+    if (opts.reflect !== false) {
+      try {
+        const r = this.container.getBoundingClientRect();
+        const mirror = new Reflector(new THREE.CircleGeometry(4.4, 64), { textureWidth: Math.max(256, Math.round(r.width * 0.6)), textureHeight: Math.max(256, Math.round(r.height * 0.6)), color: 0xffffff, multisample: 0, shader: FadedReflector });
+        mirror.material.transparent = true; mirror.material.depthWrite = false;
+        mirror.rotation.x = -Math.PI / 2; mirror.position.y = 0.002; mirror.renderOrder = 1; this.scene.add(mirror); this.mirror = mirror;
+      } catch (e) { console.warn('reflector', e); }
+    }
     const ring = new THREE.Mesh(new THREE.RingGeometry(4.3, 4.42, 96), new THREE.MeshBasicMaterial({ color: new THREE.Color(opts.accent || '#e10600') }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.005; this.scene.add(ring);
-    this.car = buildCar(category, livery, opts);
+    this.car = buildCar(category, livery, { hq: true, ...opts });
     this.car.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     this.scene.add(this.car);
     this.angle = -0.6; this.vel = 0.004; this.pitch = 0.32;
@@ -57,7 +106,7 @@ export class Garage3D {
     for (const w of this.car.userData.wheels) for (const sp of w.userData.spin) sp.rotation.z -= 0.02;
     this.renderer.render(this.scene, this.camera);
   }
-  destroy() { cancelAnimationFrame(this.raf); this._ro?.disconnect(); this.renderer.dispose(); this.renderer.domElement.remove(); }
+  destroy() { cancelAnimationFrame(this.raf); this._ro?.disconnect(); this.mirror?.dispose?.(); this.renderer.dispose(); this.renderer.domElement.remove(); }
 }
 
 // ---- Static 3D renders of cars for UI cards (cached data URLs) ----
@@ -72,7 +121,8 @@ export function carSnapshot(category, livery, opts = {}, w = 640, h = 300) {
       snapR.toneMapping = THREE.ACESFilmicToneMapping; snapR.outputColorSpace = THREE.SRGBColorSpace;
       snapR.shadowMap.enabled = true;
       snapScene = new THREE.Scene();
-      const pm = new THREE.PMREMGenerator(snapR); snapScene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; snapScene.environmentIntensity = 0.85;
+      try { snapScene.environment = studioEnv(snapR); } catch { const pm = new THREE.PMREMGenerator(snapR); snapScene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; }
+      snapScene.environmentIntensity = 0.95;
       const key2 = new THREE.DirectionalLight(0xffffff, 2.2); key2.position.set(4, 8, 6); key2.castShadow = true; key2.shadow.mapSize.set(1024, 1024);
       const sc = key2.shadow.camera; sc.left = -5; sc.right = 5; sc.top = 5; sc.bottom = -5;
       snapScene.add(key2, new THREE.HemisphereLight(0xdde6ff, 0x222428, 0.5));
