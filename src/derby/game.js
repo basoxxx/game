@@ -1,48 +1,75 @@
 // "Scontro Totale": drivable demolition racing with real rigid-body physics (Rapier).
-// Arcade-tuned raycast vehicles, destructible props, deformable cars with parts that fly off,
-// nitro earned by crashing, AI that races and rams, and a last-car-standing derby arena.
+// Arcade-tuned raycast vehicles (gearbox, weight transfer, handbrake power-slides, counter-steer
+// assist, air control), destructible props, deformable cars with parts and wheels that fly off,
+// cracking windscreens, nitro and points earned by crashing, slow motion on big hits, a replay of
+// the best crash, AI with personalities that races and rams, and a last-car-standing derby arena.
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { pbr, applyHDRI, makeComposer, hdriSun, hdriHorizon, applyFilterSettings, FILTER_PRESETS } from '../ui/gfx.js';
-import { makeForest, makeTreeShadows, vegOfKind } from '../ui/vegetation.js';
+import { applyHDRI, makeComposer, hdriSun, hdriHorizon, applyFilterSettings, FILTER_PRESETS } from '../ui/gfx.js';
 import { engineStart, engineSet, engineStop, sfx } from '../ui/audio.js';
 import { getSettings, setSettings } from '../engine/state.js';
-import { buildTrack, buildTerrain } from './tracks.js';
-import { buildBanger, dent, BANGERS, AI_COLORS } from './cars.js';
+import { buildTrack, buildTerrain, buildRacingLine, buildWater, SURFACES } from './tracks.js';
+import { buildBanger, dent, crackGlass, BANGERS, AI_COLORS } from './cars.js';
 import { Particles, SkidMarks } from './fx.js';
+import { aiInput, initAI } from './ai.js';
+import { buildGround, buildWaterMeshes, buildScenery, buildTrees } from './scenery.js';
+import { buildHud, updateHud, message, showResults } from './hud.js';
+import { CHAMPIONSHIP, champRecord } from './champ.js';
 
 let rapierReady = null;
 export function initPhysics() { return (rapierReady ||= RAPIER.init()); }
 
 const AI_NAMES = ['Brutto Bruno', 'Ivo Lamiera', 'Rosa Ruggine', 'Tino Testacoda', 'Gigi Guardrail', 'Nina Nitro', 'Sandro Sfascio', 'Carla Carburatore', 'Dario Derapata', 'Mirko Marmitta', 'Lea Lamierino'];
+const ENGINE_GEARS = { formula: 8, endurance: 7, rally: 6 }; // gear count of the synth presets (see ui/audio.js)
 const tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), UP = new THREE.Vector3(0, 1, 0);
+const G_CAR = 0x0002, G_GHOST = 0x0004;
+const GROUPS_CAR = (G_CAR << 16) | 0xffff, GROUPS_GHOST = (G_GHOST << 16) | (0xffff & ~G_CAR & ~G_GHOST);
+const wrap = (d) => { while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
+const CRASH_KINDS = {
+  tbone: { label: 'T-BONE!', pts: 300, nitro: 22 },
+  frontale: { label: 'FRONTALE!', pts: 220, nitro: 16 },
+  tampon: { label: 'TAMPONAMENTO!', pts: 120, nitro: 10 },
+  sportellata: { label: 'SPORTELLATA!', pts: 90, nitro: 8 },
+  retro: { label: 'RETROMARCIA KILLER!', pts: 200, nitro: 14 },
+};
 
 export class DerbyGame {
   constructor(container, opts) {
     this.c = container; this.o = { opponents: 7, laps: null, ...opts };
-    this.venue = opts.venue; this.low = getSettings().gfx === 'low';
+    this.venue = typeof opts.venue === 'string' ? null : opts.venue; this.low = getSettings().gfx === 'low';
     this.keys = {}; this.time = 0; this.state = 'loading'; this.msgs = [];
     this.onEnd = opts.onEnd || (() => {});
+    this.timeScale = 1; this.slowT = 0; this.slowCool = 0; this.shake = 0;
+    this.simStats = { stuck: 0, respawn: 0, respawnWhy: {}, wrecks: 0, crashes: 0, props: 0 };
   }
 
   async start() {
+    if (!this.venue) { const { VENUES } = await import('./tracks.js'); this.venue = VENUES.find((v) => v.id === this.o.venue) || VENUES[0]; }
     await initPhysics();
     this.track = buildTrack(this.venue);
-    this.terrain = buildTerrain(this.venue, this.track);
+    this.water = buildWater(this.venue, this.track);
+    this.terrain = buildTerrain(this.venue, this.track, this.water);
+    this.line = this.track.arena ? null : buildRacingLine(this.track, this.venue);
+    this.surface = SURFACES[this.venue.surface] || SURFACES.dirt;
     this.setupRenderer();
     this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
     this.events = new RAPIER.EventQueue(true);
     this.handles = new Map();
-    this.buildGround();
+    // physics heightfield
+    const T = this.terrain;
+    const hf = RAPIER.ColliderDesc.heightfield(T.nr, T.nc, T.H, { x: T.sx, y: 1, z: T.sz }).setTranslation(T.cx, 0, T.cz).setFriction(1.0).setRestitution(0.05);
+    this.groundCol = this.world.createCollider(hf); this.handles.set(this.groundCol.handle, { kind: 'ground' });
+    buildGround(this); buildWaterMeshes(this); buildScenery(this);
     this.buildProps();
+    buildTrees(this);
     this.buildCars();
-    this.buildHud();
+    buildHud(this);
     this.bindInput();
     await this.envReady;
-    this.state = 'countdown'; this.countdown = 3.6;
-    try { engineStart('endurance'); } catch {}
+    this.state = 'countdown'; this.countdown = 3.6; this._lastCount = 4;
+    try { engineStart(this.player.spec.engine || 'endurance'); } catch {}
     this.last = performance.now();
-    const loop = (t) => { if (this.dead) return; this.raf = requestAnimationFrame(loop); this.frame(Math.min(0.05, (t - this.last) / 1000)); this.last = t; };
+    const loop = (t) => { if (this.dead) return; this.raf = requestAnimationFrame(loop); const dt = Math.min(0.05, (t - this.last) / 1000); if (dt > 0) { this.frame(dt); this.last = t; } };
     this.raf = requestAnimationFrame(loop);
   }
 
@@ -57,179 +84,112 @@ export class DerbyGame {
   setupRenderer() {
     const r = this.renderer = new THREE.WebGLRenderer({ antialias: !this.low, powerPreference: 'high-performance' });
     r.setPixelRatio(this.low ? 1 : Math.min(1.5, window.devicePixelRatio || 1));
-    r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+    r.shadowMap.enabled = true; r.shadowMap.type = this.low ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.0; r.outputColorSpace = THREE.SRGBColorSpace;
     this.c.appendChild(r.domElement); Object.assign(r.domElement.style, { position: 'absolute', inset: '0', width: '100%', height: '100%' });
     const s = this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(62, 1, 0.1, 3000);
-    const kind = this.venue.sky || 'day';
-    s.fog = new THREE.FogExp2(0xc9c2b2, 0.0026);
-    this.hemi = new THREE.HemisphereLight(0xdde8ff, 0x6b5a40, 0.6); s.add(this.hemi);
-    const sun = this.sun = new THREE.DirectionalLight(0xfff0d8, kind === 'dusk' ? 2.2 : 2.8);
-    sun.castShadow = true; sun.shadow.mapSize.set(this.low ? 1024 : 2048, this.low ? 1024 : 2048);
-    Object.assign(sun.shadow.camera, { left: -55, right: 55, top: 55, bottom: -55, near: 1, far: 400 }); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
+    const kind = this.venue.sky || 'day', night = kind === 'night';
+    s.fog = new THREE.FogExp2(night ? 0x10141c : 0xc9c2b2, night ? 0.0032 : 0.0024);
+    this.hemi = new THREE.HemisphereLight(night ? 0x8090b0 : 0xdde8ff, night ? 0x2a241c : 0x6b5a40, night ? 0.35 : 0.6); s.add(this.hemi);
+    const sun = this.sun = new THREE.DirectionalLight(night ? 0xe8efff : 0xfff0d8, night ? 1.6 : kind === 'dusk' ? 2.2 : 2.8);
+    sun.castShadow = true; const sm = this.low ? 1024 : 2048; sun.shadow.mapSize.set(sm, sm);
+    Object.assign(sun.shadow.camera, { left: -48, right: 48, top: 48, bottom: -48, near: 1, far: 400 }); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
     s.add(sun); s.add(sun.target);
-    this.sunDir = new THREE.Vector3(0.5, 0.8, 0.35).normalize();
-    this.envReady = applyHDRI(r, s, kind, { intensity: 0.9 }).then(() => {
-      const sd = hdriSun(kind); if (sd) { this.sunDir.copy(sd); this.sunDir.y = Math.max(0.42, this.sunDir.y); this.sunDir.normalize(); }
-      const hz = hdriHorizon(kind); if (hz) s.fog.color.copy(hz).lerp(new THREE.Color(0xcab89a), 0.35);
+    this.sunDir = night ? new THREE.Vector3(0.25, 0.9, 0.3).normalize() : new THREE.Vector3(0.5, 0.8, 0.35).normalize();
+    this.envReady = applyHDRI(r, s, kind, { intensity: night ? 0.6 : 0.9 }).then(() => {
+      const sd = hdriSun(kind); if (sd && !night) { this.sunDir.copy(sd); this.sunDir.y = Math.max(0.42, this.sunDir.y); this.sunDir.normalize(); }
+      const hz = hdriHorizon(kind); if (hz && !night) s.fog.color.copy(hz).lerp(new THREE.Color(0xcab89a), 0.35);
     }).catch(() => {});
-    this.composer = makeComposer(r, s, this.camera, { bloom: 0.28, low: this.low, ao: !this.low });
+    this.composer = makeComposer(r, s, this.camera, { bloom: night ? 0.45 : 0.28, low: this.low, ao: !this.low });
     this._rs = () => this.resize(); window.addEventListener('resize', this._rs); this.resize();
-    this.dust = new Particles(s, 2200, { gravity: -0.4, drag: 1.4, grow: 2.6 });
-    this.smoke = new Particles(s, 900, { gravity: -2.2, drag: 0.8, grow: 3 });
-    this.fire = new Particles(s, 600, { additive: true, gravity: -4, drag: 1.5, grow: -0.4 });
+    const L = this.low ? 0.6 : 1;
+    this.dust = new Particles(s, Math.round(2600 * L), { gravity: -0.25, drag: 1.1, grow: 3.2, tex: 'puff', spin: 0.6 });
+    this.smoke = new Particles(s, Math.round(1100 * L), { gravity: -2.4, drag: 0.7, grow: 3.4, tex: 'puff', spin: 0.8 });
+    this.fire = new Particles(s, 700, { additive: true, gravity: -4.5, drag: 1.5, grow: -0.35, tex: 'puff', spin: 2 });
     this.sparks = new Particles(s, 900, { additive: true, gravity: 9, drag: 0.6, grow: -0.6, sizeScale: 0.5 });
-    this.skids = new SkidMarks(s, 4000);
+    this.chips = new Particles(s, 700, { gravity: 14, drag: 0.4, grow: 0, sizeScale: 0.35, tex: 'chip', spin: 14, fog: true });
+    this.splash = new Particles(s, 900, { gravity: 9.5, drag: 0.6, grow: 1.6, tex: 'puff', spin: 1 });
+    this.skids = new SkidMarks(s, 4500, this.venue.surface === 'asphalt' ? [0.04, 0.04, 0.04] : [0.12, 0.09, 0.06]);
   }
   resize() { const w = this.c.clientWidth || 1280, h = this.c.clientHeight || 720; this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.composer?.setSize(w, h); }
 
-  // ---------------------------------------------------------------- terrain, track dressing
-  buildGround() {
-    const T = this.terrain, v = this.venue, tr = this.track;
-    // physics heightfield
-    const hf = RAPIER.ColliderDesc.heightfield(T.nr, T.nc, T.H, { x: T.sx, y: 1, z: T.sz }).setTranslation(T.cx, 0, T.cz).setFriction(1.0).setRestitution(0.05);
-    this.groundCol = this.world.createCollider(hf); this.handles.set(this.groundCol.handle, { kind: 'ground' });
-    // visual mesh (same grid)
-    const n = (T.nc + 1) * (T.nr + 1), pos = new Float32Array(n * 3), uv = new Float32Array(n * 2), bl = new Float32Array(n), idx = [];
-    for (let c = 0; c <= T.nc; c++) for (let r = 0; r <= T.nr; r++) { const k = c * (T.nr + 1) + r, x = T.X(c), z = T.Z(r); pos.set([x, T.H[k], z], k * 3); uv.set([x / 7, z / 7], k * 2); bl[k] = T.B[k]; }
-    for (let c = 0; c < T.nc; c++) for (let r = 0; r < T.nr; r++) { const a = c * (T.nr + 1) + r, b = a + T.nr + 1; idx.push(a, a + 1, b, b, a + 1, b + 1); }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setAttribute('blend', new THREE.BufferAttribute(bl, 1)); g.setIndex(idx); g.computeVertexNormals();
-    const base = pbr(v.ground === 'rock' ? 'aerial_grass_rock' : 'aerial_grass_rock', { color: v.ground === 'rock' ? 0xd2c3a2 : 0xa9c48a, roughness: 1 });
-    const surf = pbr(v.surface === 'asphalt' ? 'asphalt_02' : 'gravel_floor', { color: v.surface === 'asphalt' ? 0x7a7a7a : 0xcbb48e, roughness: 1 });
-    const rock = pbr('rocky_trail', { color: 0xbfae94, roughness: 1 });
-    const mat = base; mat.onBeforeCompile = (sh) => {
-      sh.uniforms.mapB = { value: surf.map }; sh.uniforms.mapR = { value: rock.map };
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float blend; varying float vBlend; varying float vSlope;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvBlend = blend; vSlope = normal.y;');
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D mapB; uniform sampler2D mapR; varying float vBlend; varying float vSlope;').replace('#include <map_fragment>', `#include <map_fragment>
-        vec3 cB = texture2D(mapB, vMapUv * 1.3).rgb * vec3(${v.surface === 'asphalt' ? '0.62,0.62,0.62' : '0.95,0.82,0.62'});
-        vec3 cR = texture2D(mapR, vMapUv * 0.6).rgb * vec3(0.85,0.76,0.62);
-        float rk = smoothstep(0.9, 0.7, vSlope) * (1.0 - vBlend);
-        diffuseColor.rgb = mix(diffuseColor.rgb, cR, rk);
-        diffuseColor.rgb = mix(diffuseColor.rgb, cB, smoothstep(0.05, 0.95, vBlend));`);
-    };
-    const ground = new THREE.Mesh(g, mat); ground.receiveShadow = true; this.scene.add(ground);
-    // far ground plane to the horizon
-    const far = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshStandardMaterial({ color: v.ground === 'rock' ? 0x9c8e70 : 0x6f8a52, roughness: 1 }));
-    far.rotation.x = -Math.PI / 2; far.position.set(T.cx, -2, T.cz); this.scene.add(far);
-    // track-side: start/finish banner, tyre walls handled as props; trees outside the berms
-    if (!tr.arena) this.buildDressing();
-    else this.buildArena();
-    this.buildTrees();
-  }
-
-  buildDressing() {
-    const tr = this.track, s = this.scene, hw = tr.width / 2;
-    const p0 = tr.pts[0], nx = -Math.sin(p0.h), nz = Math.cos(p0.h);
-    const bannerTex = (() => { const c = document.createElement('canvas'); c.width = 1024; c.height = 128; const g = c.getContext('2d'); g.fillStyle = '#111'; g.fillRect(0, 0, 1024, 128); for (let i = 0; i < 32; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? '#fff' : '#111'; g.fillRect(i * 32, j * 32, 32, 32); } g.fillStyle = '#e10600'; g.fillRect(256, 14, 512, 100); g.fillStyle = '#fff'; g.font = 'italic 900 70px "Exo 2", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('SCONTRO TOTALE', 512, 66); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
-    const pole = new THREE.MeshStandardMaterial({ color: 0x777b80, metalness: 0.7, roughness: 0.4 });
-    for (const sd of [1, -1]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 7.5, 10), pole); p.position.set(p0.x + nx * sd * (hw + 1.5), p0.y + 3.75, p0.z + nz * sd * (hw + 1.5)); p.castShadow = true; s.add(p); }
-    const ban = new THREE.Mesh(new THREE.PlaneGeometry(tr.width + 3, 1.8), new THREE.MeshStandardMaterial({ map: bannerTex, side: THREE.DoubleSide, roughness: 0.6 }));
-    ban.position.set(p0.x, p0.y + 6.6, p0.z); ban.rotation.y = -p0.h + Math.PI / 2; ban.castShadow = true; s.add(ban);
-    // chequered line
-    const chk = new THREE.Mesh(new THREE.PlaneGeometry(1.6, tr.width), new THREE.MeshStandardMaterial({ map: bannerTex, roughness: 0.8 }));
-    chk.rotation.x = -Math.PI / 2; chk.rotation.z = -p0.h; chk.position.set(p0.x, this.terrain.heightAt(p0.x, p0.z) + 0.04, p0.z); s.add(chk);
-    // spectator stands and parked wrecks for atmosphere
-    const standMat = new THREE.MeshStandardMaterial({ color: 0x6c625a, roughness: 0.9 });
-    const crowd = (() => { const c = document.createElement('canvas'); c.width = 512; c.height = 128; const g = c.getContext('2d'); g.fillStyle = '#3d3a37'; g.fillRect(0, 0, 512, 128); for (let i = 0; i < 1400; i++) { g.fillStyle = `hsl(${Math.random() * 360},${40 + Math.random() * 40}%,${35 + Math.random() * 35}%)`; g.fillRect(Math.random() * 512, Math.random() * 128, 3, 4); } const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.repeat.set(3, 1); return t; })();
-    for (const fr of [0.02, 0.5]) {
-      const i = Math.floor(fr * tr.N), p = tr.pts[i], ox = -Math.sin(p.h), oz = Math.cos(p.h), off = -(hw + 16);
-      const g = new THREE.Group();
-      const slope = new THREE.Mesh(new THREE.PlaneGeometry(40, 9), new THREE.MeshStandardMaterial({ map: crowd, roughness: 0.9 })); slope.rotation.x = -0.75; slope.position.set(0, 3.2, 0); g.add(slope);
-      const back = new THREE.Mesh(new THREE.BoxGeometry(40, 7, 0.5), standMat); back.position.set(0, 3.5, -3.4); g.add(back);
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(41, 0.3, 8), new THREE.MeshStandardMaterial({ color: 0xb33a2a, roughness: 0.6 })); roof.position.set(0, 7.6, -0.4); g.add(roof);
-      g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-      const x = p.x + ox * off, z = p.z + oz * off; g.position.set(x, this.terrain.heightAt(x, z), z); g.rotation.y = -p.h; s.add(g);
-    }
-  }
-
-  buildArena() {
-    const tr = this.track, s = this.scene, T = this.terrain;
-    // concrete wall ring + tyre lining (tyres are props), floodlight masts
-    const wallMat = pbr('concrete_floor_worn_001', { color: 0xb8b0a0, repeat: [20, 1] });
-    const wall = new THREE.Mesh(new THREE.CylinderGeometry(tr.R + 10.5, tr.R + 10.5, 3, 96, 1, true), wallMat); wall.position.set(T.cx, 7.6, T.cz); wall.material.side = THREE.DoubleSide; s.add(wall);
-    const wc = RAPIER.ColliderDesc.cylinder(1, 1); // placeholder to keep API warm
-    void wc;
-    const mast = new THREE.MeshStandardMaterial({ color: 0x55595f, metalness: 0.6, roughness: 0.5 });
-    for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; const m = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 26, 8), mast); m.position.set(T.cx + Math.cos(a) * (tr.R + 16), 13 + 7, T.cz + Math.sin(a) * (tr.R + 16)); m.castShadow = true; s.add(m); const lamp = new THREE.Mesh(new THREE.BoxGeometry(3, 1.4, 0.6), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff2d0, emissiveIntensity: 2.5 })); lamp.position.set(m.position.x, 33.5, m.position.z); lamp.lookAt(T.cx, 0, T.cz); s.add(lamp); }
-  }
-
-  buildTrees() {
-    const T = this.terrain, tr = this.track, v = this.venue;
-    const pool = v.ground === 'rock' ? vegOfKind(['broad', 'bush', 'desert']) : vegOfKind(['conifer', 'broad', 'bush']);
-    if (!pool.length) return;
-    const items = []; const target = Math.round((v.forest ? 2600 : 1400) * (this.low ? 0.4 : 1));
-    const clear = (x, z) => {
-      if (tr.arena) return Math.hypot(x - T.cx, z - T.cz) > tr.R + 24;
-      for (let i = 0; i < tr.N; i += 3) { const p = tr.pts[i]; if ((p.x - x) ** 2 + (p.z - z) ** 2 < (tr.width / 2 + 16) ** 2) return false; }
-      return true;
-    };
-    let guard = 0;
-    while (items.length < target && guard++ < target * 5) {
-      const cx = T.cx + (Math.random() - 0.5) * T.sx * 0.94, cz = T.cz + (Math.random() - 0.5) * T.sz * 0.94;
-      const n = 3 + Math.floor(Math.random() * 8);
-      for (let q = 0; q < n; q++) {
-        const x = cx + (Math.random() - 0.5) * 30, z = cz + (Math.random() - 0.5) * 30; if (!clear(x, z)) continue;
-        const meta = pool[Math.floor(Math.random() * pool.length)];
-        const h = { conifer: 11 + Math.random() * 9, broad: 6 + Math.random() * 5, bush: 1.8 + Math.random() * 1.5, desert: 4 + Math.random() * 3 }[meta.kind] || 6;
-        const t = 0.82 + Math.random() * 0.25;
-        items.push({ x, y: T.heightAt(x, z) - 0.2, z, h, meta, rot: Math.random() * 6.28, tint: [t, t, t * 0.95] });
-      }
-    }
-    this.scene.add(makeTreeShadows(items)); this.scene.add(makeForest(items));
-  }
-
   // ---------------------------------------------------------------- destructible props
   buildProps() {
-    const tr = this.track, T = this.terrain, s = this.scene;
+    const tr = this.track, T = this.terrain, s = this.scene, v = this.venue;
     const canvas = (draw, w = 256, h = 256) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
     const barrelTex = canvas((g, w, h) => { g.fillStyle = '#b3261e'; g.fillRect(0, 0, w, h); g.fillStyle = '#ddd'; g.fillRect(0, h * 0.2, w, 10); g.fillRect(0, h * 0.75, w, 10); for (let i = 0; i < 30; i++) { g.fillStyle = 'rgba(90,40,20,0.6)'; g.beginPath(); g.arc(Math.random() * w, Math.random() * h, 4 + Math.random() * 14, 0, 7); g.fill(); } });
     const woodTex = canvas((g, w, h) => { g.fillStyle = '#9a7247'; g.fillRect(0, 0, w, h); for (let i = 0; i < 6; i++) { g.fillStyle = i % 2 ? '#8a6540' : '#a57b4d'; g.fillRect(0, i * h / 6, w, h / 6 - 3); } g.strokeStyle = '#5a4128'; g.lineWidth = 8; g.strokeRect(4, 4, w - 8, h - 8); g.beginPath(); g.moveTo(0, 0); g.lineTo(w, h); g.stroke(); });
     const hayTex = canvas((g, w, h) => { g.fillStyle = '#c8a34f'; g.fillRect(0, 0, w, h); for (let i = 0; i < 900; i++) { g.strokeStyle = `rgba(${150 + Math.random() * 80},${110 + Math.random() * 60},40,0.7)`; g.beginPath(); const x = Math.random() * w, y = Math.random() * h; g.moveTo(x, y); g.lineTo(x + (Math.random() - 0.5) * 20, y + (Math.random() - 0.5) * 6); g.stroke(); } });
     const fenceTex = canvas((g, w, h) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#d22' : '#f2f2f2'; g.fillRect(i * w / 8, 0, w / 8, h); } g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(0, h - 20, w, 20); }, 256, 64);
     const tyreGeo = (() => { const parts = []; for (let k = 0; k < 3; k++) { const t = new THREE.TorusGeometry(0.3, 0.13, 8, 16); t.rotateX(Math.PI / 2); t.translate(0, -0.25 + k * 0.25, 0); parts.push(t); } return mergeGeos(parts); })();
+    const coneGeo = mergeGeos([new THREE.ConeGeometry(0.22, 0.7, 12).translate(0, 0.05, 0), new THREE.BoxGeometry(0.5, 0.06, 0.5).translate(0, -0.3, 0)]);
+    const coneTex = canvas((g, w, h) => { g.fillStyle = '#ff5a00'; g.fillRect(0, 0, w, h); g.fillStyle = '#f4f4f4'; g.fillRect(0, h * 0.35, w, h * 0.14); g.fillRect(0, h * 0.62, w, h * 0.1); }, 64, 64);
     this.propTypes = {
-      barrel: { geo: new THREE.CylinderGeometry(0.3, 0.3, 0.9, 16), mat: new THREE.MeshStandardMaterial({ map: barrelTex, roughness: 0.6, metalness: 0.4 }), col: () => RAPIER.ColliderDesc.cylinder(0.45, 0.3), mass: 30, list: [] },
-      tyres: { geo: tyreGeo, mat: new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.95 }), col: () => RAPIER.ColliderDesc.cylinder(0.38, 0.43), mass: 45, list: [] },
-      crate: { geo: new THREE.BoxGeometry(1, 1, 1), mat: new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.85 }), col: () => RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5), mass: 35, list: [] },
-      hay: { geo: new THREE.CylinderGeometry(0.75, 0.75, 1.2, 18).rotateZ(Math.PI / 2), mat: new THREE.MeshStandardMaterial({ map: hayTex, roughness: 1 }), col: () => RAPIER.ColliderDesc.cylinder(0.6, 0.75).setRotation(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2)), mass: 140, list: [] },
-      fence: { geo: new THREE.BoxGeometry(2.6, 0.9, 0.08), mat: new THREE.MeshStandardMaterial({ map: fenceTex, roughness: 0.7 }), col: () => RAPIER.ColliderDesc.cuboid(1.3, 0.45, 0.04), mass: 16, list: [] },
+      barrel: { geo: new THREE.CylinderGeometry(0.3, 0.3, 0.9, 16), mat: new THREE.MeshStandardMaterial({ map: barrelTex, roughness: 0.6, metalness: 0.4 }), col: () => RAPIER.ColliderDesc.cylinder(0.45, 0.3), mass: 30, half: 0.45, list: [] },
+      tyres: { geo: tyreGeo, mat: new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.95 }), col: () => RAPIER.ColliderDesc.cylinder(0.38, 0.43), mass: 45, half: 0.38, list: [] },
+      crate: { geo: new THREE.BoxGeometry(1, 1, 1), mat: new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.85 }), col: () => RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5), mass: 35, half: 0.5, list: [] },
+      hay: { geo: new THREE.CylinderGeometry(0.75, 0.75, 1.2, 18).rotateZ(Math.PI / 2), mat: new THREE.MeshStandardMaterial({ map: hayTex, roughness: 1 }), col: () => RAPIER.ColliderDesc.cylinder(0.6, 0.75).setRotation(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2)), mass: 140, half: 0.75, list: [] },
+      fence: { geo: new THREE.BoxGeometry(2.6, 0.9, 0.08), mat: new THREE.MeshStandardMaterial({ map: fenceTex, roughness: 0.7 }), col: () => RAPIER.ColliderDesc.cuboid(1.3, 0.45, 0.04), mass: 16, half: 0.45, list: [] },
+      cone: { geo: coneGeo, mat: new THREE.MeshStandardMaterial({ map: coneTex, roughness: 0.6 }), col: () => RAPIER.ColliderDesc.cone(0.36, 0.25), mass: 4, half: 0.36, list: [] },
     };
+    const maxProps = this.low ? 300 : 460; let count = 0;
     const place = (type, x, z, yaw = 0, dy = 0) => {
+      if (count >= maxProps) return; count++;
       const P = this.propTypes[type]; const y = T.heightAt(x, z);
-      const half = type === 'hay' ? 0.75 : type === 'crate' ? 0.5 : type === 'fence' ? 0.45 : type === 'tyres' ? 0.38 : 0.45;
-      const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y + half + 0.02 + dy, z).setRotation(new THREE.Quaternion().setFromAxisAngle(UP, yaw)).setLinearDamping(0.3).setAngularDamping(0.5).setCanSleep(true));
+      const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y + P.half + 0.02 + dy, z).setRotation(new THREE.Quaternion().setFromAxisAngle(UP, yaw)).setLinearDamping(0.3).setAngularDamping(0.5).setCanSleep(true));
       const col = this.world.createCollider(P.col().setMass(P.mass).setFriction(0.8).setRestitution(0.15), body);
-      body.sleep();
+      body.sleep(); body.userData = { type, hit: false };
       P.list.push(body); this.handles.set(col.handle, { kind: 'prop', type, body });
     };
     if (tr.arena) {
       for (let k = 0; k < 90; k++) { const a = (k / 90) * Math.PI * 2; place('tyres', T.cx + Math.cos(a) * (tr.R - 1), T.cz + Math.sin(a) * (tr.R - 1)); }
-      for (let k = 0; k < 24; k++) { const a = Math.random() * 6.28, r = Math.random() * tr.R * 0.7; place(['barrel', 'crate', 'hay'][k % 3], T.cx + Math.cos(a) * r, T.cz + Math.sin(a) * r, Math.random() * 3); }
+      for (let k = 0; k < 30; k++) { const a = Math.random() * 6.28, r = 8 + Math.random() * tr.R * 0.65; place(['barrel', 'crate', 'hay'][k % 3], T.cx + Math.cos(a) * r, T.cz + Math.sin(a) * r, Math.random() * 3); }
     } else {
       const hw = tr.width / 2;
+      // barrels before every jump kicker; cones marking the crossings
+      for (const jp of tr.jumps) { const i = Math.floor(jp * tr.N) - 14; const p = tr.pts[(i + tr.N) % tr.N]; const nx = -Math.sin(p.h), nz = Math.cos(p.h); for (const o of [-hw - 1.5, hw + 1.5]) for (let q = 0; q < 2; q++) place('barrel', p.x + nx * (o + Math.sign(o) * q * 0.7), p.z + nz * (o + Math.sign(o) * q * 0.7)); }
+      for (const ci of tr.crossings) for (let q = -3; q <= 3; q++) { if (!q) continue; const p = tr.pts[(ci + q * 3 + tr.N) % tr.N]; for (const o of [-hw - 0.8, hw + 0.8]) place('cone', p.x - Math.sin(p.h) * o, p.z + Math.cos(p.h) * o); }
       for (let i = 0; i < tr.N; i += 2) {
         const p = tr.pts[i], k = p.k, nx = -Math.sin(p.h), nz = Math.cos(p.h);
         const outside = k > 0 ? -1 : 1;
-        if (Math.abs(k) > 1 / 70 && i % 4 === 0) { const off = outside * (hw + 1.3); place('fence', p.x + nx * off, p.z + nz * off, -p.h); }
-        if (Math.abs(k) > 1 / 45 && i % 6 === 0) { const off = -outside * (hw + 0.9); place('tyres', p.x + nx * off, p.z + nz * off); }
+        if (tr.crossings.some((c) => Math.min(Math.abs(c - i), tr.N - Math.abs(c - i)) < 14)) continue;
+        // tyre walls on the outside of the sharpest corners, fences on the others
+        const ak = Math.abs(k);
+        if (ak > 1 / 70) { const off = outside * (hw + 1.6); place('tyres', p.x + nx * off, p.z + nz * off); }
+        else if (ak > 1 / 200 && i % 4 === 0) { const off = outside * (hw + 1.3); place(v.farm ? 'hay' : 'fence', p.x + nx * off, p.z + nz * off, -p.h); }
+        if (ak > 1 / 90 && i % 6 === 0) { const off = -outside * (hw + 0.9); place('tyres', p.x + nx * off, p.z + nz * off); }
         if (i % 60 === 30) { const off = outside * (hw + 2.5); for (let q = 0; q < 3; q++) place(q === 1 ? 'hay' : 'barrel', p.x + nx * off + Math.cos(p.h) * q * 1.6, p.z + nz * off + Math.sin(p.h) * q * 1.6); }
-        if (i % 90 === 45) { const off = (Math.random() - 0.5) * hw * 1.2; for (let q = 0; q < 4; q++) place('crate', p.x + nx * off + (q % 2) * 1.05, p.z + nz * off + Math.floor(q / 2) * 1.05, p.h, 0); place('crate', p.x + nx * off + 0.5, p.z + nz * off + 0.5, p.h, 1.0); }
+        if (i % 90 === 44 && !this.near(tr.jumps, i, 30)) { const off = (Math.random() - 0.5) * hw * 1.1; for (let q = 0; q < 4; q++) place('crate', p.x + nx * off + (q % 2) * 1.05, p.z + nz * off + Math.floor(q / 2) * 1.05, p.h, 0); place('crate', p.x + nx * off + 0.5, p.z + nz * off + 0.5, p.h, 1.0); }
+        if (v.farm && i % 70 === 10) { const off = outside * (hw + 3.2); for (let q = 0; q < 3; q++) place('hay', p.x + nx * off + Math.cos(p.h) * q * 1.3, p.z + nz * off + Math.sin(p.h) * q * 1.3, -p.h, q === 1 ? 0 : 0); }
       }
-      // barrels before every jump kicker
-      for (const jp of tr.jumps) { const i = Math.floor(jp * tr.N) - 14; const p = tr.pts[(i + tr.N) % tr.N]; const nx = -Math.sin(p.h), nz = Math.cos(p.h); for (const o of [-tr.width / 2 - 1.5, tr.width / 2 + 1.5]) for (let q = 0; q < 2; q++) place('barrel', p.x + nx * (o + Math.sign(o) * q * 0.7), p.z + nz * (o + Math.sign(o) * q * 0.7)); }
     }
     for (const [k, P] of Object.entries(this.propTypes)) {
       if (!P.list.length) continue;
       const inst = new THREE.InstancedMesh(P.geo, P.mat, P.list.length); inst.castShadow = true; inst.receiveShadow = true; inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       P.inst = inst; s.add(inst); this.syncProps(k, true);
     }
+    this.propCount = count;
     this.debris = [];
   }
+  near(list, i, dist) { return (list || []).some((jp) => { const d = Math.abs(i - jp * this.track.N); return Math.min(d, this.track.N - d) * this.track.ds < dist; }); }
   syncProps(type, all = false) {
-    const P = this.propTypes[type]; if (!P.inst) return; const m = new THREE.Matrix4(); let dirty = false;
-    P.list.forEach((b, i) => { if (!all && b.isSleeping()) return; const t = b.translation(), r = b.rotation(); m.compose(tmpV.set(t.x, t.y, t.z), tmpQ.set(r.x, r.y, r.z, r.w), new THREE.Vector3(1, 1, 1)); P.inst.setMatrixAt(i, m); dirty = true; });
+    const P = this.propTypes[type]; if (!P.inst) return; const m = new THREE.Matrix4(); let dirty = false; const one = new THREE.Vector3(1, 1, 1);
+    P.list.forEach((b, i) => {
+      if (!all && b.isSleeping()) return; const t = b.translation(), r = b.rotation(); m.compose(tmpV.set(t.x, t.y, t.z), tmpQ.set(r.x, r.y, r.z, r.w), one); P.inst.setMatrixAt(i, m); dirty = true;
+      if (!all && !b.userData.hit) { const lv = b.linvel(); if (lv.x * lv.x + lv.z * lv.z > 9) { b.userData.hit = true; this.propHit(b, t); } }
+    });
     if (dirty) P.inst.instanceMatrix.needsUpdate = true;
+  }
+  propHit(b, t) {
+    this.simStats.props++;
+    let best = null, bd = 30;
+    for (const c of this.cars) { const p = c.body.translation(); const d = (p.x - t.x) ** 2 + (p.z - t.z) ** 2; if (d < bd) { bd = d; best = c; } }
+    if (!best) return;
+    best.score = (best.score || 0) + 10; best.nitro = Math.min(100, best.nitro + 1.5);
+    if (best.isPlayer) { this.propCombo = (this.time - (this.propComboT || -9) < 1.5 ? (this.propCombo || 0) : 0) + 1; this.propComboT = this.time; if (this.propCombo === 4 || this.propCombo === 10 || this.propCombo === 20) this.message(`Distruzione x${this.propCombo}!`, 'bonus', `+${this.propCombo * 10} punti`); }
+    if (b.userData.type === 'barrel' || b.userData.type === 'crate') for (let k = 0; k < 6; k++) this.chips.emit(t.x, t.y + 0.3, t.z, (Math.random() - 0.5) * 6, 2 + Math.random() * 4, (Math.random() - 0.5) * 6, 1.2, 0.22, b.userData.type === 'crate' ? 0.55 : 0.7, b.userData.type === 'crate' ? 0.4 : 0.15, 0.2, 1);
+    if (b.userData.type === 'hay') for (let k = 0; k < 10; k++) this.dust.emit(t.x, t.y + 0.5, t.z, (Math.random() - 0.5) * 4, 1 + Math.random() * 2, (Math.random() - 0.5) * 4, 1.6, 0.8, 0.82, 0.68, 0.36, 0.5);
   }
 
   // ---------------------------------------------------------------- cars
@@ -243,14 +203,16 @@ export class DerbyGame {
       if (tr.arena) { const a = (k / (nAI + 1)) * Math.PI * 2; grid.push({ x: T.cx + Math.cos(a) * tr.R * 0.75, z: T.cz + Math.sin(a) * tr.R * 0.75, yaw: a + Math.PI }); }
       else { const i = (tr.N - 8 - Math.floor(k / 2) * 4) % tr.N; const p = tr.pts[i], nx = -Math.sin(p.h), nz = Math.cos(p.h), lat = (k % 2 ? -1 : 1) * tr.width * 0.22; grid.push({ x: p.x + nx * lat, z: p.z + nz * lat, yaw: p.h, idx: i }); }
     }
-    // player starts at the back of the grid in races (FlatOut-style comeback), mid-pack in derby
+    // player starts at the back of the grid in races (comeback drive), anywhere in the derby
     const order = tr.arena ? [0, ...Array.from({ length: nAI }, (_, i) => i + 1)] : [nAI, ...Array.from({ length: nAI }, (_, i) => i)];
     for (let k = 0; k <= nAI; k++) {
       const isP = k === 0;
       const spec = isP ? player : BANGERS[(k * 3 + 1) % BANGERS.length];
       const color = isP ? (this.o.color || spec.color) : AI_COLORS[(k - 1) % AI_COLORS.length];
       const g = grid[order[k]];
-      this.cars.push(this.makeCar({ spec, color, num: isP ? 1 : k + 1, name: isP ? (this.o.playerName || 'Tu') : AI_NAMES[(k - 1) % AI_NAMES.length], isPlayer: isP, pos: g, skill: 0.78 + Math.random() * 0.2, aggr: 0.3 + Math.random() * 0.6 }));
+      const car = this.makeCar({ spec, color, num: isP ? 1 : k + 1, name: isP ? (this.o.playerName || 'Tu') : AI_NAMES[(k - 1) % AI_NAMES.length], isPlayer: isP, pos: g, skill: 0.8 + ((k * 0.37) % 1) * 0.2 });
+      if (!isP) initAI(car, k);
+      this.cars.push(car);
     }
     this.player = this.cars[0];
     if (getSettings().dzMarker !== false) {
@@ -258,206 +220,400 @@ export class DerbyGame {
       const arrow = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color: 0xffd400, transparent: true, opacity: 0.9, depthTest: false, side: THREE.DoubleSide }));
       arrow.renderOrder = 10; this.marker = arrow; this.scene.add(arrow);
     }
+    this.rec = []; this.replay = null; this.bestCrash = null;
   }
 
-  makeCar({ spec, color, num, name, isPlayer, pos, skill, aggr }) {
+  makeCar({ spec, color, num, name, isPlayer, pos, skill }) {
     const mesh = buildBanger(spec.id, color, num, num * 31 + 7); this.scene.add(mesh);
     const { L, W } = mesh.userData.dims; const T = this.terrain;
-    const y = T.heightAt(pos.x, pos.z) + 1.1;
+    const y = T.heightAt(pos.x, pos.z) + 0.45;
     const rot = new THREE.Quaternion().setFromAxisAngle(UP, -pos.yaw);
-    const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(pos.x, y, pos.z).setRotation(rot).setCanSleep(false).setLinearDamping(0.08).setAngularDamping(0.8).setCcdEnabled(true)
-      .setAdditionalMassProperties(spec.mass, { x: 0, y: -0.25, z: 0 }, { x: spec.mass * 0.42, y: spec.mass * 2.1, z: spec.mass * 1.9 }, { x: 0, y: 0, z: 0, w: 1 }));
-    const col = this.world.createCollider(RAPIER.ColliderDesc.cuboid(L - 0.05, 0.38, W - 0.03).setTranslation(0, 0.55, 0).setMass(60).setFriction(0.35).setRestitution(0.15)
-      .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(9000), body);
-    const cab = this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.9, 0.25, W - 0.18).setTranslation(-0.2, 1.15, 0).setMass(20).setFriction(0.3), body);
+    const m = spec.mass;
+    const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(pos.x, y, pos.z).setRotation(rot).setCanSleep(false).setLinearDamping(0.06).setAngularDamping(0.9).setCcdEnabled(true)
+      .setAdditionalMassProperties(m, { x: 0, y: spec.comY ?? -0.25, z: 0 }, { x: m * 0.42, y: m * 2.1, z: m * 1.9 }, { x: 0, y: 0, z: 0, w: 1 }));
+    const col = this.world.createCollider(RAPIER.ColliderDesc.cuboid(L - 0.05, 0.38, W - 0.03).setTranslation(0, 0.55, 0).setMass(60).setFriction(0.35).setRestitution(0.12)
+      .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(9000).setCollisionGroups(GROUPS_CAR), body);
+    const cab = this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.9, 0.25, W - 0.18).setTranslation(-0.2, 1.15, 0).setMass(20).setFriction(0.3).setCollisionGroups(GROUPS_CAR)
+      .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(12000), body);
     const vc = this.world.createVehicleController(body);
     const wr = mesh.userData.wr;
     mesh.userData.wheelPos.forEach(([x, z]) => vc.addWheel({ x, y: wr + 0.12, z }, { x: 0, y: -1, z: 0 }, { x: 0, y: 0, z: 1 }, 0.3, wr));
-    const slip = (this.venue.surface === 'asphalt' ? 2.6 : 1.9) * spec.grip;
-    for (let i = 0; i < 4; i++) { vc.setWheelSuspensionStiffness(i, 26); vc.setWheelSuspensionCompression(i, 2.6); vc.setWheelSuspensionRelaxation(i, 3.4); vc.setWheelFrictionSlip(i, slip); vc.setWheelMaxSuspensionTravel(i, 0.32); vc.setWheelMaxSuspensionForce?.(i, 80000); vc.setWheelSideFrictionStiffness?.(i, 1.0); }
-    const car = { mesh, body, col, vc, spec, name, isPlayer, color, num, skill, aggr, slip, hp: 100, nitro: isPlayer ? 35 : 30, steer: 0, idx: pos.idx ?? 0, lap: 0, half: false, finished: false, time: 0, wrecks: 0, out: false, stuckT: 0, flipT: 0, revT: 0, laneOff: (Math.random() - 0.5) * 5, airT: 0, wreckT: 0, lastHit: null, smokeT: 0 };
+    const slip = (this.venue.surface === 'asphalt' ? 1.35 : this.venue.surface === 'mud' ? 0.88 : 1.05) * spec.grip;
+    for (let i = 0; i < 4; i++) { vc.setWheelSuspensionStiffness(i, 30); vc.setWheelSuspensionCompression(i, 3.2); vc.setWheelSuspensionRelaxation(i, 3.8); vc.setWheelFrictionSlip(i, slip); vc.setWheelMaxSuspensionTravel(i, 0.32); vc.setWheelMaxSuspensionForce?.(i, 90000); vc.setWheelSideFrictionStiffness?.(i, 1.0); }
+    const car = { mesh, body, col, cabCol: cab, vc, spec, name, isPlayer, color, num, skill, slip, hp: 100, nitro: isPlayer ? 35 : 30, steer: 0, idx: pos.idx ?? 0, lap: 0, half: false, finished: false, time: 0, wrecks: 0, out: false, flipT: 0, airT: 0, wreckT: 0, lastHit: null, smokeT: 0,
+      gear: 1, rpm: 0.1, shiftT: 0, gearLabel: 'N', score: 0, kills: 0, lapStart: 0, lastLap: 0, bestLap: 0, wheelLost: [false, false, false, false], ghostT: 0, accF: 0, accL: 0, lastV: null, burnT: 0, wrongWayT: 0, stuckHintT: 0, rubber: 1, dirtRate: 0 };
     this.handles.set(col.handle, { kind: 'car', car }); this.handles.set(cab.handle, { kind: 'car', car });
     return car;
   }
 
+  // nearest index around a hint, signed lateral offset from the centre line
+  lateralOf(x, z, hint) {
+    const tr = this.track; let best = hint, bd = 1e9;
+    for (let k = -16; k <= 16; k++) { const i = (hint + k + tr.N) % tr.N, q = tr.pts[i]; const d = (q.x - x) ** 2 + (q.z - z) ** 2; if (d < bd) { bd = d; best = i; } }
+    const p = tr.pts[best]; return (x - p.x) * -Math.sin(p.h) + (z - p.z) * Math.cos(p.h);
+  }
+  packMedian() {
+    if (this._pmT === this.time) return this._pm; this._pmT = this.time;
+    const v = this.cars.filter((c) => !c.finished).map((c) => c.prog || 0).sort((a, b) => a - b); this._pm = v.length ? v[v.length >> 1] : 0; return this._pm;
+  }
+  stat(kind, car) { this.simStats[kind] = (this.simStats[kind] || 0) + 1; if (car) { const pc = (this.simStats.perCar ||= {}); (pc[car.name] ||= {})[kind] = ((pc[car.name] || {})[kind] || 0) + 1; } }
+  requestRespawn(car, why = 'manual') { this.stat('respawn', car); this.simStats.respawnWhy[why] = (this.simStats.respawnWhy[why] || 0) + 1; this.respawn(car); }
+
   respawn(car) {
     const tr = this.track, T = this.terrain;
     let x, z, yaw;
-    if (tr.arena) { x = T.cx + (Math.random() - 0.5) * tr.R; z = T.cz + (Math.random() - 0.5) * tr.R; yaw = Math.random() * 6.28; }
-    else { const p = tr.pts[car.idx]; x = p.x; z = p.z; yaw = p.h; }
-    car.body.setTranslation({ x, y: T.heightAt(x, z) + 1.4, z }, true);
+    if (tr.arena) { const a = Math.random() * 6.28, r = Math.random() * tr.R * 0.5; x = T.cx + Math.cos(a) * r; z = T.cz + Math.sin(a) * r; yaw = Math.random() * 6.28; }
+    else {
+      // a little behind where we were, on a free spot across the track
+      const i = (car.idx - 2 + tr.N) % tr.N, p = tr.pts[i], hw = tr.width / 2 - 2; yaw = p.h;
+      let lat = 0, bestFree = -1;
+      for (const cand of [0, -hw * 0.5, hw * 0.5, -hw, hw]) {
+        const cx = p.x - Math.sin(p.h) * cand, cz = p.z + Math.cos(p.h) * cand;
+        let free = 99; for (const o of this.cars) { if (o === car) continue; const op = o.body.translation(); free = Math.min(free, Math.hypot(op.x - cx, op.z - cz)); }
+        if (free > bestFree) { bestFree = free; lat = cand; } if (free > 8) break;
+      }
+      x = p.x - Math.sin(p.h) * lat; z = p.z + Math.cos(p.h) * lat; car.idx = i;
+    }
+    car.body.setTranslation({ x, y: T.heightAt(x, z) + 0.7, z }, true);
     const q = new THREE.Quaternion().setFromAxisAngle(UP, -yaw); car.body.setRotation(q, true);
-    car.body.setLinvel({ x: 0, y: 0, z: 0 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    car.flipT = car.stuckT = 0; car.revT = 0;
+    car.body.setLinvel({ x: Math.cos(yaw) * 5, y: 0, z: Math.sin(yaw) * 5 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    car.flipT = 0; car.stuckHintT = 0; car.wrongWayT = 0; if (car.ai) { car.ai.revT = 0; car.ai.stuckT = 0; }
+    this.setGhost(car, 2.0);
+    for (let i = 0; i < 4; i++) this.skids.break(car.num * 10 + i);
   }
+  setGhost(car, t) { car.ghostT = t; car.col.setCollisionGroups(GROUPS_GHOST); car.cabCol.setCollisionGroups(GROUPS_GHOST); }
 
   // ---------------------------------------------------------------- input
   bindInput() {
-    this._kd = (e) => { this.keys[e.code] = true; if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault(); if (e.code === 'KeyC') this.camMode = (this.camMode + 1) % 3; if (e.code === 'KeyF') { const ks = Object.keys(FILTER_PRESETS); const cur = getSettings().gfxFilter || 'naturale'; const nx = ks[(ks.indexOf(cur) + 1) % ks.length]; setSettings({ gfxFilter: nx }); applyFilterSettings(); this.message(`Filtro: ${FILTER_PRESETS[nx].label}`, 'info'); } if (e.code === 'KeyR' && this.state === 'race' && this.player.hp > 0) this.respawn(this.player); if ((e.code === 'Escape' || e.code === 'KeyP') && (this.state === 'race' || this.state === 'paused')) this.togglePause(); };
+    this._kd = (e) => {
+      this.keys[e.code] = true;
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Backspace'].includes(e.code)) e.preventDefault();
+      if (this.state === 'replay') { if (e.code === 'Escape' || e.code === 'Enter') this.stopReplay(); return; }
+      if (e.code === 'KeyC') this.cycleCam();
+      if (e.code === 'KeyF') { const ks = Object.keys(FILTER_PRESETS); const cur = getSettings().gfxFilter || 'naturale'; const nx = ks[(ks.indexOf(cur) + 1) % ks.length]; setSettings({ gfxFilter: nx }); applyFilterSettings(); this.message(`Filtro: ${FILTER_PRESETS[nx].label}`, 'info'); }
+      if (e.code === 'KeyR' && this.state === 'race' && this.player.hp > 0 && !this.player.finished) this.requestRespawn(this.player, 'player');
+      if ((e.code === 'KeyT' || e.code === 'Backspace') && !e.repeat) this.restart();
+      if ((e.code === 'Escape' || e.code === 'KeyP') && (this.state === 'race' || this.state === 'paused' || this.state === 'countdown')) this.togglePause();
+    };
     this._ku = (e) => { this.keys[e.code] = false; };
     window.addEventListener('keydown', this._kd); window.addEventListener('keyup', this._ku);
     this.camMode = 0;
   }
+  cycleCam() { this.camMode = (this.camMode + 1) % 4; this.camPos = null; this.message(['Camera: inseguimento', 'Camera: lontana', 'Camera: cofano', 'Camera: paraurti'][this.camMode], 'info'); }
+  restart() { const b = this.hud?.root.querySelector('[data-a="dz-restart"]'); if (b) b.click(); }
   readInput() {
     const k = this.keys; let thr = (k.KeyW || k.ArrowUp) ? 1 : 0, brk = (k.KeyS || k.ArrowDown) ? 1 : 0, st = ((k.KeyA || k.ArrowLeft) ? 1 : 0) - ((k.KeyD || k.ArrowRight) ? 1 : 0);
-    let hb = k.Space ? 1 : 0, nitro = (k.ShiftLeft || k.ShiftRight || k.KeyN) ? 1 : 0, analog = false;
+    let hb = k.Space ? 1 : 0, nitro = (k.ShiftLeft || k.ShiftRight || k.KeyN) ? 1 : 0, analog = false, back = !!k.KeyQ;
     const pads = navigator.getGamepads?.() || [];
     for (const gp of pads) {
       if (!gp) continue;
-      const ax = gp.axes[0] || 0; if (Math.abs(ax) > 0.12) { st = -ax; analog = true; }
+      this.pad = gp;
+      const ax = gp.axes[0] || 0; if (Math.abs(ax) > 0.1) { st = -Math.sign(ax) * ((Math.abs(ax) - 0.1) / 0.9) ** 1.3; analog = true; }
       thr = Math.max(thr, gp.buttons[7]?.value || 0); brk = Math.max(brk, gp.buttons[6]?.value || 0);
-      if (gp.buttons[0]?.pressed) nitro = 1; if (gp.buttons[1]?.pressed) hb = 1;
-      if (gp.buttons[3]?.pressed && !this._padY && this.state === 'race') this.respawn(this.player); this._padY = gp.buttons[3]?.pressed;
-      if (gp.buttons[2]?.pressed && !this._padX) this.camMode = (this.camMode + 1) % 3; this._padX = gp.buttons[2]?.pressed;
+      if (gp.buttons[0]?.pressed) nitro = 1; if (gp.buttons[1]?.pressed) hb = 1; if (gp.buttons[4]?.pressed) back = true;
+      if (gp.buttons[3]?.pressed && !this._padY && this.state === 'race' && this.player.hp > 0) this.requestRespawn(this.player, 'player'); this._padY = gp.buttons[3]?.pressed;
+      if (gp.buttons[2]?.pressed && !this._padX) this.cycleCam(); this._padX = gp.buttons[2]?.pressed;
       if (gp.buttons[9]?.pressed && !this._padS && (this.state === 'race' || this.state === 'paused')) this.togglePause(); this._padS = gp.buttons[9]?.pressed;
+      if (gp.buttons[8]?.pressed && !this._padB) this.restart(); this._padB = gp.buttons[8]?.pressed;
     }
+    this.lookBack = back;
     return { thr, brk, st, hb, nitro, analog };
   }
-  togglePause() { this.state = this.state === 'paused' ? 'race' : 'paused'; this.hud.pause.classList.toggle('on', this.state === 'paused'); }
+  rumble(strong, weak, ms) {
+    const gp = this.pad; if (!gp?.vibrationActuator) return;
+    try { gp.vibrationActuator.playEffect?.('dual-rumble', { startDelay: 0, duration: Math.round(ms), strongMagnitude: Math.min(1, strong), weakMagnitude: Math.min(1, weak) })?.catch?.(() => {}); } catch {}
+  }
+  togglePause() { if (this.state === 'countdown') { this._pausedFrom = 'countdown'; } this.state = this.state === 'paused' ? (this._pausedFrom || 'race') : (this._pausedFrom = this.state, 'paused'); this.hud.pause.classList.toggle('on', this.state === 'paused'); }
+  message(text, kind, sub) { message(this, text, kind, sub); }
 
   // ---------------------------------------------------------------- driving
   drive(car, inp, dt) {
-    const b = car.body, vc = car.vc;
+    const b = car.body, vc = car.vc, s = car.spec;
     b.resetForces(true); b.resetTorques(true); // user forces persist in Rapier: rebuild them every frame
     const r = b.rotation(); const q = tmpQ.set(r.x, r.y, r.z, r.w);
-    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(q), up = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
+    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(q), up = new THREE.Vector3(0, 1, 0).applyQuaternion(q), side = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
     const lv = b.linvel(); const vel = new THREE.Vector3(lv.x, lv.y, lv.z);
-    const vF = vel.dot(fwd), speed = vel.length();
-    const dead = car.hp <= 0;
-    // steering: rate-limited, less lock at speed
-    const maxSt = 0.62 - Math.min(0.36, speed / 120);
-    const tgt = dead ? 0 : inp.st * maxSt;
-    car.steer += Math.max(-dt * (inp.analog ? 8 : 3.2), Math.min(dt * (inp.analog ? 8 : 3.2), tgt - car.steer));
+    const vF = vel.dot(fwd), vLat = vel.dot(side), speed = vel.length();
+    const dead = car.hp <= 0, mass = s.mass;
+    let grounded = 0; for (let i = 0; i < 4; i++) if (vc.wheelIsInContact(i)) grounded++;
+    // weight transfer estimate (smoothed accelerations, used for grip and for the body lean)
+    if (car.lastV && dt > 0) { const ax = (vF - car.lastV[0]) / dt, al = (vLat - car.lastV[1]) / dt; car.accF += (Math.max(-25, Math.min(25, ax)) - car.accF) * Math.min(1, dt * 8); const yawR = b.angvel().y; const latA = -yawR * vF; car.accL += (Math.max(-20, Math.min(20, latA + al * 0.3)) - car.accL) * Math.min(1, dt * 8); }
+    car.lastV = [vF, vLat];
+    // ---- steering: speed sensitive lock + counter-steer assist that aligns the front wheels with the slide
+    const f = 1 / (1 + (speed / 24) ** 1.6);
+    const lock = s.steer * (0.24 + 0.76 * f);
+    const slideAng = speed > 3 && vF > 1.5 ? Math.atan2(vLat, vF) : 0;
+    const assist = car.isPlayer ? (inp.analog ? 0.45 : 0.7) : 0.85;
+    let tgt = dead ? 0 : inp.st * lock - slideAng * assist * (1 - 0.5 * Math.abs(inp.st));
+    tgt = Math.max(-s.steer - 0.08, Math.min(s.steer + 0.08, tgt));
+    const rate = (inp.analog ? 9 : s.steerRate) * (Math.abs(tgt) < Math.abs(car.steer) ? 1.7 : 1);
+    car.steer += Math.max(-dt * rate, Math.min(dt * rate, tgt - car.steer));
     vc.setWheelSteering(0, car.steer); vc.setWheelSteering(1, car.steer);
-    // engine / reverse / brakes
-    const vmax = 46 * car.spec.top * (car.boost ? 1.18 : 1);
+    // ---- engine, gearbox, brakes
+    const G = s.gears || 4, boost = car.boost;
+    const vmax = 46 * s.top * (boost ? 1.16 : 1) * (car.rubber || 1);
+    const gTop = (g) => vmax * (g / G) ** 0.8;
+    car.shiftT -= dt;
+    const aF = Math.abs(vF);
+    let rpmT;
     let force = 0, brake = 0;
-    if (!dead) {
-      if (inp.thr > 0) force = inp.thr * 8800 * car.spec.power * Math.max(0, 1 - Math.max(0, vF) / vmax) ** 0.7;
-      if (inp.brk > 0) { if (vF > 1.5) brake = inp.brk * 55; else force = -inp.brk * 3600 * Math.max(0, 1 - Math.max(0, -vF) / 14); }
+    car.brakeF = 0;
+    if (inp.hold) {
+      // on the grid: brakes on, revving allowed
+      brake = 90; rpmT = 0.12 + inp.thr * 0.8; car.gearLabel = 'N'; car.boost = false;
+    } else if (!dead) {
+      if (inp.brk > 0 && (vF < -0.5 || (vF < 1.0 && speed < 2.5) || car.gearLabel === 'R' && vF < 1.5)) {
+        // reverse gear
+        car.gearLabel = 'R'; force = -inp.brk * 4200 * s.power * Math.max(0, 1 - Math.max(0, -vF) / 14); rpmT = 0.25 + inp.brk * 0.5 * Math.min(1, aF / 14);
+      } else {
+        while (car.gear < G && aF > gTop(car.gear) * 0.97) { car.gear++; car.shiftT = 0.18; }
+        while (car.gear > 1 && aF < gTop(car.gear - 1) * 0.7) car.gear--;
+        const lo = car.gear > 1 ? gTop(car.gear - 1) * 0.55 : 0;
+        const frac = Math.max(0, Math.min(1, (aF - lo) / (gTop(car.gear) - lo)));
+        rpmT = 0.12 + 0.86 * frac;
+        car.gearLabel = aF < 0.6 && inp.thr < 0.05 ? 'N' : String(car.gear);
+        if (inp.thr > 0) {
+          const tq = 0.82 + 0.3 * Math.sin(Math.min(1, frac) * Math.PI * 0.85);
+          const gm = 1.5 - 0.6 * (car.gear - 1) / Math.max(1, G - 1);
+          force = inp.thr * 8200 * s.power * (mass / 1450) ** 0.6 * gm * tq * Math.max(0, Math.min(1, (1 - aF / vmax) * 7)) * (car.rubber || 1);
+          if (car.shiftT > 0) force *= 0.3;
+          if (aF < 6 && car.gear === 1) rpmT = Math.max(rpmT, 0.35 + inp.thr * 0.35); // clutch slip at launch
+        }
+        if (inp.brk > 0) { brake = inp.brk * 7; car.brakeF = inp.brk; }
+      }
       car.boost = inp.nitro && car.nitro > 0 && inp.thr > 0.2;
-      if (car.boost) { force += 6000 * car.spec.power; car.nitro = Math.max(0, car.nitro - dt * 22); }
-    } else brake = 8;
-    const awd = car.spec.awd;
+      if (car.boost) { force += 6200 * s.power; car.nitro = Math.max(0, car.nitro - dt * 22); }
+      if (grounded < 2 && inp.thr > 0) rpmT = 0.95; // free revving in the air
+    } else { brake = 8; rpmT = 0.05; }
+    car.rpm += (rpmT - car.rpm) * Math.min(1, dt * (car.shiftT > 0 ? 18 : 7));
+    // weight-transfer grip: braking loads the front, throttle unloads it (and can break the rear loose)
+    const brakingLoad = Math.max(0, Math.min(1, -car.accF / 9)), accLoad = Math.max(0, Math.min(1, car.accF / 6));
+    const drive = s.drive || (s.awd ? 'awd' : 'rwd');
+    const hbOn = inp.hb && !dead;
     for (let i = 0; i < 4; i++) {
-      const driven = awd || i >= 2;
-      vc.setWheelEngineForce(i, driven ? force / (awd ? 4 : 2) : 0);
-      vc.setWheelBrake(i, brake * (i < 2 ? 0.6 : 0.4) + (inp.hb && i >= 2 ? 60 : 0));
-      vc.setWheelFrictionSlip(i, car.slip * (inp.hb && i >= 2 ? 0.45 : 1) * (dead ? 0.6 : 1));
+      const front = i < 2;
+      const driven = drive === 'awd' || (drive === 'fwd' ? front : !front);
+      const nDriven = drive === 'awd' ? 4 : 2;
+      vc.setWheelEngineForce(i, driven && !car.wheelLost[i] ? force / nDriven : 0);
+      vc.setWheelBrake(i, inp.hold ? brake : brake * (front ? 0.62 : 0.38) + (hbOn && !front ? 75 : 0));
+      let g = car.slip * (front ? (s.frontGrip || 1) : (s.rearGrip || 1));
+      g *= front ? 1 + brakingLoad * 0.14 - accLoad * 0.06 : 1 - brakingLoad * 0.1 + accLoad * 0.04;
+      if (!front && drive !== 'fwd' && inp.thr > 0.5 && car.gear <= 2 && speed < 22) g *= 1 - (s.powerOver || 0) * inp.thr;
+      if (front && drive === 'fwd' && inp.thr > 0.5) g *= 0.94;
+      if (!front && hbOn) g *= 0.36;
+      if (dead) g *= 0.6;
+      if (car.wheelLost[i]) g *= 0.35;
+      vc.setWheelFrictionSlip(i, g);
+      vc.setWheelSideFrictionStiffness?.(i, !front && hbOn ? 0.55 : 1.0);
     }
-    // aero drag + downforce-ish stability
-    b.addForce({ x: -vel.x * speed * 0.42, y: -speed * speed * 0.9, z: -vel.z * speed * 0.42 }, true);
-    const grounded = [0, 1, 2, 3].filter((i) => vc.wheelIsInContact(i)).length;
+    // aero drag, downforce, surface drag (mud, water)
+    const p = b.translation();
+    const inWater = this.terrain.waterAt(p.x, p.z) > 0.35 && p.y < this.terrain.heightAt(p.x, p.z) + 1.0;
+    const sd = (this.surface.drag || 0) * (this.terrain.trackAt(p.x, p.z) > 0.5 ? 1 : 1.6) + (inWater ? 0.12 : 0);
+    b.addForce({ x: -vel.x * speed * 0.42 - vel.x * mass * sd, y: -speed * speed * 0.9, z: -vel.z * speed * 0.42 - vel.z * mass * sd }, true);
+    car.inWater = inWater;
+    // service brakes as a controlled deceleration (Rapier's wheel brake alone is far too grabby)
+    if (car.brakeF > 0 && grounded >= 2 && vF > 0.5) { const dec = car.brakeF * mass * 8.6 * Math.min(1.15, this.surface.grip || 1) * Math.min(1, vF / 3); b.addForce({ x: -fwd.x * dec, y: 0, z: -fwd.z * dec }, true); }
+    const av = b.angvel();
     if (!grounded) {
       car.airT += dt;
-      // light air control: steer yaws, throttle/brake pitch
-      b.addTorque({ x: up.x * inp.st * 900, y: up.y * inp.st * 900, z: up.z * inp.st * 900 }, true);
+      // heavier than real life so jumps do not float; light air control: steer yaws, throttle/brake pitch,
+      // and a gentle self-levelling so most landings happen on the wheels
+      b.addForce({ x: 0, y: -mass * 9.81 * 0.4, z: 0 }, true);
+      const right = new THREE.Vector3().crossVectors(fwd, UP).normalize();
+      const lvl = new THREE.Vector3().crossVectors(up, UP); // axis * sin(angle) towards upright
+      const kL = mass * (up.y > 0 ? 2.2 : 0.6);
+      b.addTorque({ x: up.x * inp.st * mass * 0.7 + lvl.x * kL - av.x * mass * 0.25, y: up.y * inp.st * mass * 0.7, z: up.z * inp.st * mass * 0.7 + lvl.z * kL - av.z * mass * 0.25 }, true);
+      const pitch = (inp.thr - inp.brk) * mass * 0.5; b.addTorque({ x: right.x * pitch, y: 0, z: right.z * pitch }, true);
     } else {
-      if (car.airT > 0.7) { const bonus = Math.min(20, car.airT * 9); this.award(car, bonus, car.airT > 1.4 ? 'Volo spettacolare!' : 'In volo!'); }
+      if (car.airT > 0.35) this.landed(car, car.airT, vel);
       car.airT = 0;
-    }
-    // self-righting when nearly upside down and slow
-    if (up.y < 0.25 && speed < 4) { car.flipT += dt; } else car.flipT = 0;
-    // anti-roll assist so the car does not tip over in normal cornering
-    if (grounded >= 2 && up.y > 0.4) { const right = new THREE.Vector3(0, 0, 1).applyQuaternion(q); const roll = right.y; b.addTorque({ x: fwd.x * roll * 9000, y: fwd.y * roll * 9000, z: fwd.z * roll * 9000 }, true); }
-    return { fwd, up, speed, vF, grounded };
-  }
-
-  aiInput(car, dt) {
-    const tr = this.track, b = car.body, p = b.translation();
-    const r = b.rotation(); const q = tmpQ.set(r.x, r.y, r.z, r.w);
-    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(q); const lv = b.linvel(); const speed = Math.hypot(lv.x, lv.z);
-    let tx, tz, targetSpeed = 40;
-    if (tr.arena) {
-      // derby: hunt the nearest live car (sometimes prefer the player)
-      let best = null, bd = 1e9;
-      for (const o of this.cars) { if (o === car || o.out) continue; const op = o.body.translation(); let d = Math.hypot(op.x - p.x, op.z - p.z); if (o.isPlayer) d *= 0.75; if (d < bd) { bd = d; best = o; } }
-      if (best) { const op = best.body.translation(); tx = op.x; tz = op.z; } else { tx = this.terrain.cx; tz = this.terrain.cz; }
-      targetSpeed = 30;
-    } else {
-      const look = Math.round((7 + speed * 0.55) / tr.ds);
-      const ti = (car.idx + look) % tr.N, tp = tr.pts[ti];
-      const nx = -Math.sin(tp.h), nz = Math.cos(tp.h);
-      car.laneOff += (Math.random() - 0.5) * dt * 0.8; car.laneOff = Math.max(-tr.width * 0.3, Math.min(tr.width * 0.3, car.laneOff));
-      tx = tp.x + nx * car.laneOff; tz = tp.z + nz * car.laneOff;
-      let kmax = 0; for (let k = 4; k < 30; k += 2) kmax = Math.max(kmax, Math.abs(tr.pts[(car.idx + k) % tr.N].k));
-      targetSpeed = Math.min(46 * car.spec.top, Math.sqrt(9.5 * car.skill / Math.max(kmax, 0.002)));
-      // ramming: aggressive drivers aim at a car just ahead
-      for (const o of this.cars) {
-        if (o === car || o.out) continue; const op = o.body.translation(); const dx = op.x - p.x, dz = op.z - p.z, d = Math.hypot(dx, dz);
-        if (d < 22 && d > 3 && (dx * fwd.x + dz * fwd.z) / d > 0.86 && Math.random() < car.aggr * 0.08) { tx = op.x; tz = op.z; break; }
+      // handbrake helps rotate the car into a power slide; yaw rate is capped so slides stay catchable
+      if (hbOn && speed > 6) { const tq = inp.st * (s.hbYaw || 1) * mass * 3.6 * Math.min(1, speed / 14); b.addTorque({ x: up.x * tq, y: up.y * tq, z: up.z * tq }, true); }
+      const yawMax = 2.3 + (hbOn ? 0.8 : 0);
+      if (Math.abs(av.y) > yawMax) { const tq = -Math.sign(av.y) * (Math.abs(av.y) - yawMax) * mass * 6; b.addTorque({ x: 0, y: tq, z: 0 }, true); }
+      // arcade grip: the velocity slowly follows the nose while sliding (keeps drifts predictable)
+      if (grounded >= 3 && Math.abs(slideAng) > 0.06 && speed > 4) {
+        const k = (hbOn ? 0.35 : 1.1) * mass * (this.surface.grip || 1);
+        b.addForce({ x: -side.x * vLat * k, y: 0, z: -side.z * vLat * k }, true);
       }
     }
-    const want = Math.atan2(tz - p.z, tx - p.x), cur = Math.atan2(fwd.z, fwd.x);
-    let d = want - cur; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
-    let st = Math.max(-1, Math.min(1, -d * 2.4)); // positive steering turns left (+z is right in our frame)
-    let thr = speed < targetSpeed ? 1 : 0, brk = speed > targetSpeed + 4 ? 1 : 0;
-    // stuck / reverse recovery
-    if (car.revT > 0) { car.revT -= dt; return { thr: 0, brk: 1, st: -st, hb: 0, nitro: 0 }; }
-    if (speed < 1.2 && this.state === 'race') { car.stuckT += dt; if (car.stuckT > 1.8) { car.revT = 1.3; car.stuckT = 0; } } else car.stuckT = 0;
-    const nitro = car.nitro > 25 && Math.abs(st) < 0.2 && speed > 15 && Math.random() < 0.7 ? 1 : 0;
-    return { thr, brk, st, hb: Math.abs(d) > 1.2 && speed > 12 ? 1 : 0, nitro };
+    // self-righting when nearly upside down and slow
+    if (up.y < 0.25 && speed < 4) car.flipT += dt; else car.flipT = Math.max(0, car.flipT - dt);
+    // anti-roll assist so the car does not tip over in normal cornering
+    if (grounded >= 2 && up.y > 0.4) { const roll = side.y; b.addTorque({ x: fwd.x * roll * 9000 * (s.roll > 1.2 ? 0.85 : 1), y: fwd.y * roll * 9000, z: fwd.z * roll * 9000 }, true); }
+    return { fwd, up, side, speed, vF, vLat, grounded, slideAng };
+  }
+  landed(car, airT, vel) {
+    const b = car.body, av = b.angvel();
+    b.setAngvel({ x: av.x * 0.5, y: av.y, z: av.z * 0.5 }, true);
+    if (vel.y < -5) b.setLinvel({ x: vel.x, y: vel.y * 0.55, z: vel.z }, true);
+    const p = b.translation();
+    for (let k = 0; k < Math.min(26, airT * 18); k++) { const a = Math.random() * 6.28; this.dust.emit(p.x + Math.cos(a) * 1.5, p.y - 0.3, p.z + Math.sin(a) * 1.5, Math.cos(a) * 3, 0.8 + Math.random(), Math.sin(a) * 3, 1.6 + Math.random(), 1.4, ...(this.surface.dust || [0.5, 0.5, 0.5]), 0.35); }
+    if (airT > 0.7) { const bonus = Math.min(20, airT * 9); this.award(car, bonus, airT > 1.4 ? 'VOLO SPETTACOLARE!' : 'IN VOLO!', Math.round(airT * 60)); }
+    if (car.isPlayer) { this.shake = Math.min(1, this.shake + airT * 0.35); this.rumble(airT * 0.5, airT * 0.6, 160); }
   }
 
+  aiInput(car, dt) { return aiInput(this, car, dt); }
+
   // ---------------------------------------------------------------- damage & events
-  award(car, amt, text) { car.nitro = Math.min(100, car.nitro + amt); if (car.isPlayer && text) this.message(`${text} +${Math.round(amt)} nitro`, 'bonus'); }
+  award(car, amt, text, pts = 0) { car.nitro = Math.min(100, car.nitro + amt); car.score = (car.score || 0) + pts; if (car.isPlayer && text) this.message(text, 'bonus', `+${Math.round(amt)} nitro${pts ? ` · +${pts} punti` : ''}`); }
   handleContacts(dt) {
     this.events.drainContactForceEvents((e) => {
       const A = this.handles.get(e.collider1()), B = this.handles.get(e.collider2()); if (!A || !B) return;
       const J = e.totalForceMagnitude() * dt;
-      const pair = [[A, B], [B, A]];
-      for (const [me, other] of pair) {
-        if (me.kind !== 'car') continue; const car = me.car; if (car.out) continue;
-        const scale = other.kind === 'ground' ? 0.25 : other.kind === 'prop' ? 0.35 : 1;
-        const eff = J * scale; if (eff < 1600) continue;
-        const dmg = Math.min(45, (eff - 1600) / (420 * car.spec.armor));
+      if (A.kind === 'car' && B.kind === 'car' && A.car !== B.car) this.carCrash(A.car, B.car, J);
+      for (const [me, other] of [[A, B], [B, A]]) {
+        if (me.kind !== 'car') continue; const car = me.car; if (car.out && car.hp <= 0 && this.track.arena) continue;
+        if (other.kind === 'car' && other.car === car) continue;
+        const scale = other.kind === 'ground' ? 0.22 : other.kind === 'prop' ? 0.3 : other.kind === 'wall' ? 0.7 : 1;
+        const eff = J * scale; if (eff < 1500) continue;
+        const dmg = Math.min(42, (eff - 1500) / (400 * car.spec.armor)) * (this.track.arena ? 0.8 : 1);
         // impact point: contact manifold if available, else along the force direction
         let wp = null;
         try { this.world.contactPair(e.collider1(), e.collider2(), (man) => { if (!wp && man.numSolverContacts?.() > 0) { const c = man.solverContactPoint(0); wp = new THREE.Vector3(c.x, c.y, c.z); } }); } catch {}
         const bt = car.body.translation(), br = car.body.rotation(); const q = new THREE.Quaternion(br.x, br.y, br.z, br.w);
         if (!wp) { const fd = e.maxForceDirection(); wp = new THREE.Vector3(bt.x - fd.x * 1.5, bt.y + 0.5, bt.z - fd.z * 1.5); }
         const local = wp.clone().sub(new THREE.Vector3(bt.x, bt.y, bt.z)).applyQuaternion(q.clone().invert());
-        const inward = new THREE.Vector3(-local.x, 0, -local.z).normalize();
-        this.applyDamage(car, dmg, local, inward, other.kind === 'car' ? other.car : null);
-        if (eff > 2600) for (let k = 0; k < Math.min(30, eff / 600); k++) this.sparks.emit(wp.x, wp.y, wp.z, (Math.random() - 0.5) * 9, Math.random() * 5, (Math.random() - 0.5) * 9, 0.25 + Math.random() * 0.35, 0.35, 1, 0.75 + Math.random() * 0.2, 0.35, 1);
-        if (car.isPlayer && dmg > 4) { this.shake = Math.min(1, (this.shake || 0) + dmg / 25); try { if (performance.now() - (this._crashSfx || 0) > 180) { this._crashSfx = performance.now(); sfx.crash(); } } catch {} }
+        const inward = new THREE.Vector3(-local.x, -local.y * 0.3, -local.z).normalize();
+        car.lastImpactT = this.time; const ds = (this.simStats.dmgBy ||= {}); ds[other.kind] = Math.round((ds[other.kind] || 0) + dmg); if (other.kind === 'ground' && this.state === 'race' && this.time > 1 && (this.simStats.gl ||= []).length < 25) { const lv = car.body.linvel(); this.simStats.gl.push([car.name.slice(0, 4), Math.round(eff), Math.round(dmg), +lv.y.toFixed(1), +Math.hypot(lv.x, lv.z).toFixed(0), +(car.dyn?.up.y ?? 1).toFixed(2), car.dyn?.grounded, +this.time.toFixed(1), car.hp | 0]); }
+        this.applyDamage(car, dmg, local, inward, other.kind === 'car' ? other.car : null, wp);
+        if (eff > 2400) for (let k = 0; k < Math.min(34, eff / 500); k++) this.sparks.emit(wp.x, wp.y, wp.z, (Math.random() - 0.5) * 10, Math.random() * 5, (Math.random() - 0.5) * 10, 0.25 + Math.random() * 0.35, 0.35, 1, 0.75 + Math.random() * 0.2, 0.35, 1);
+        if (car.isPlayer && dmg > 3) {
+          this.shake = Math.min(1.2, this.shake + dmg / 22); this.rumble(dmg / 22, dmg / 14, 90 + dmg * 9);
+          try { if (performance.now() - (this._crashSfx || 0) > 160) { this._crashSfx = performance.now(); sfx.crash(); } } catch {}
+        }
       }
     });
   }
-  applyDamage(car, dmg, local, dir, by) {
+  // classify a car-vs-car hit (who hit whom, with which part) and reward the aggressor
+  carCrash(a, b, J) {
+    const key = a.num < b.num ? a.num * 100 + b.num : b.num * 100 + a.num;
+    this.pairCool ||= new Map(); if (this.time - (this.pairCool.get(key) ?? -9) < 0.9) return;
+    const pa = a.body.translation(), pb = b.body.translation(), va = a.body.linvel(), vb = b.body.linvel();
+    const dx = pb.x - pa.x, dz = pb.z - pa.z, dl = Math.hypot(dx, dz) || 1, nx = dx / dl, nz = dz / dl;
+    const ca = va.x * nx + va.z * nz, cb = -(vb.x * nx + vb.z * nz), closing = ca + cb;
+    if (closing < 6 || J < 1800) return;
+    this.pairCool.set(key, this.time);
+    const [att, vic] = ca >= cb ? [a, b] : [b, a];
+    const zone = (car, ox, oz) => { const f = car.dyn?.fwd; if (!f) return 'side'; const pc = car.body.translation(); const lx = (ox - pc.x) * f.x + (oz - pc.z) * f.z, lz = (ox - pc.x) * -f.z + (oz - pc.z) * f.x; const { L, W } = car.mesh.userData.dims; return Math.abs(lx) / L > Math.abs(lz) / W ? (lx > 0 ? 'front' : 'rear') : 'side'; };
+    const pAtt = att.body.translation(), pVic = vic.body.translation();
+    const za = zone(att, pVic.x, pVic.z), zv = zone(vic, pAtt.x, pAtt.z);
+    let kind = 'sportellata';
+    if (za === 'front' && zv === 'side') kind = 'tbone'; else if (za === 'front' && zv === 'front') kind = 'frontale'; else if (za === 'front' && zv === 'rear') kind = 'tampon'; else if (za === 'rear') kind = 'retro';
+    const K = CRASH_KINDS[kind], sev = Math.min(2, closing / 14);
+    const pts = Math.round(K.pts * sev);
+    this.simStats.crashes++;
+    att.score += pts; this.award(att, K.nitro * Math.min(1.4, sev), null);
+    vic.lastHit = { by: att, t: this.time };
+    if (att.isPlayer) this.message(K.label, closing > 15 ? 'big' : 'bonus', `+${pts} punti · +${Math.round(K.nitro * Math.min(1.4, sev))} nitro`);
+    if (att.isPlayer || vic.isPlayer) {
+      if (closing > 15 && this.slowCool <= 0) this.slowmo(0.85);
+      const desc = `${K.label.replace('!', '')} ${att.isPlayer ? 'su' : 'da'} ${att.isPlayer ? vic.name : att.name}`;
+      this.crashCandidate(closing * (kind === 'tbone' ? 1.5 : kind === 'frontale' ? 1.3 : 1), [att, vic], desc);
+    }
+  }
+  slowmo(t) { this.slowT = t; this.slowCool = 7; }
+  applyDamage(car, dmg, local, dir, by, wp) {
     if (dmg <= 0.5) return;
     const before = car.hp; car.hp = Math.max(0, car.hp - dmg);
-    dent(car.mesh, local, dir, Math.min(0.22, dmg * 0.009));
-    // parts in the hit zone lose hit points and may fly off
-    const L = car.mesh.userData.dims.L;
+    dent(car.mesh, local, dir, Math.min(0.32, dmg * 0.012));
+    const ud = car.mesh.userData, L = ud.dims.L;
     const zone = local.x > L * 0.45 ? 'front' : local.x < -L * 0.45 ? 'rear' : local.z > 0 ? 'left' : 'right';
-    for (const pt of [...car.mesh.userData.parts]) if (pt.userData.zone === zone) { pt.userData.hp -= dmg; if (pt.userData.hp <= 0) this.detach(car, pt); }
-    if (by && by !== car) { this.award(by, Math.min(18, dmg * 0.7), by.isPlayer ? (dmg > 14 ? 'Colpo devastante!' : 'Bella sportellata!') : null); car.lastHit = { by, t: this.time }; }
+    // bonnet pops up when the nose is smashed
+    if (zone === 'front') { const bn = ud.parts.find((p) => p.userData.bonnet); if (bn && !bn.userData.popped && car.hp < 60) { bn.userData.popped = true; bn.rotation.z = 0.18 + Math.random() * 0.15; bn.position.y += 0.05; } }
+    // windscreens crack, then shatter into glass chips
+    if ((zone === 'front' || zone === 'rear') && dmg > 6) {
+      if (crackGlass(car.mesh, zone, dmg / 12)) {
+        const q = car.mesh.quaternion, gp = new THREE.Vector3(zone === 'front' ? 0.9 : -1.2, ud.dims.beltY + 0.25, 0).applyQuaternion(q).add(car.mesh.position);
+        for (let k = 0; k < 40; k++) this.chips.emit(gp.x, gp.y, gp.z, (Math.random() - 0.5) * 6, 1 + Math.random() * 4, (Math.random() - 0.5) * 6, 0.9 + Math.random() * 0.6, 0.12 + Math.random() * 0.1, 0.75, 0.86, 0.95, 0.9);
+      }
+    }
+    if (wp && dmg > 5) for (let k = 0; k < Math.min(14, dmg * 0.6); k++) this.chips.emit(wp.x, wp.y, wp.z, (Math.random() - 0.5) * 5, 1 + Math.random() * 3, (Math.random() - 0.5) * 5, 1 + Math.random(), 0.16, ...this.paintRGB(car), 1);
+    // parts in the hit zone lose hit points and may fly off
+    for (const pt of [...ud.parts]) if (pt.userData.zone === zone) { pt.userData.hp -= dmg; if (pt.userData.hp <= 0) this.detach(car, pt); }
+    // a huge hit near a wheel can tear it off
+    if ((dmg > 22 || (dmg > 14 && car.hp < 45)) && Math.random() < 0.55) {
+      let wi = -1, wd = 1.3; ud.wheelPos.forEach(([x, z], i) => { const d = Math.hypot(local.x - x, local.z - z); if (d < wd && !car.wheelLost[i]) { wd = d; wi = i; } });
+      if (wi >= 0 && car.wheelLost.filter(Boolean).length < 2) this.detachWheel(car, wi);
+    }
+    if (by && by !== car) { car.lastHit = { by, t: this.time }; by.score += Math.round(dmg * 3); }
     if (before > 0 && car.hp <= 0) this.wreck(car);
+  }
+  paintRGB(car) { if (!car._rgb) { const c = new THREE.Color(car.color); car._rgb = [c.r, c.g, c.b]; } return car._rgb; }
+  toDebris(car, obj, mass = 12) {
+    obj.updateWorldMatrix(true, true); const wp = new THREE.Vector3(), wq = new THREE.Quaternion(); obj.getWorldPosition(wp); obj.getWorldQuaternion(wq);
+    obj.parent.remove(obj); this.scene.add(obj); obj.position.copy(wp); obj.quaternion.copy(wq);
+    const bb = new THREE.Box3().setFromObject(obj); const sz = bb.getSize(new THREE.Vector3()); const ctr = bb.getCenter(new THREE.Vector3());
+    const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(ctr.x, ctr.y, ctr.z).setAngularDamping(0.4));
+    this.world.createCollider(RAPIER.ColliderDesc.cuboid(Math.max(0.05, sz.x / 2), Math.max(0.04, sz.y / 2), Math.max(0.05, sz.z / 2)).setMass(mass).setFriction(0.6), body);
+    const lv = car.body.linvel(); body.setLinvel({ x: lv.x * 0.8 + (Math.random() - 0.5) * 6, y: 3 + Math.random() * 4, z: lv.z * 0.8 + (Math.random() - 0.5) * 6 }, true);
+    body.setAngvel({ x: (Math.random() - 0.5) * 12, y: (Math.random() - 0.5) * 12, z: (Math.random() - 0.5) * 12 }, true);
+    // the body is placed at the bounding-box centre: keep the visual offset from it (in body space)
+    const off = wp.clone().sub(ctr);
+    this.debris.push({ mesh: obj, body, off, q0: wq.clone(), t: 0 });
+    if (this.debris.length > 60) { const o = this.debris.shift(); this.scene.remove(o.mesh); this.world.removeRigidBody(o.body); }
   }
   detach(car, pt) {
     const parts = car.mesh.userData.parts; parts.splice(parts.indexOf(pt), 1);
-    // recentre the part so its origin is the middle of its geometry (collider and visual line up)
-    pt.geometry.computeBoundingBox(); const ctr = pt.geometry.boundingBox.getCenter(new THREE.Vector3());
-    if (ctr.lengthSq() > 1e-6) { pt.geometry = pt.geometry.clone(); pt.geometry.translate(-ctr.x, -ctr.y, -ctr.z); pt.children.forEach((ch) => ch.position.sub(ctr)); pt.position.add(ctr.applyQuaternion(pt.quaternion)); }
-    pt.updateWorldMatrix(true, false); const wp = new THREE.Vector3(), wq = new THREE.Quaternion(); pt.getWorldPosition(wp); pt.getWorldQuaternion(wq);
-    car.mesh.remove(pt); this.scene.add(pt); pt.position.copy(wp); pt.quaternion.copy(wq);
-    const bb = new THREE.Box3().setFromObject(pt); const sz = bb.getSize(new THREE.Vector3());
-    const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(wp.x, wp.y, wp.z).setRotation(wq).setAngularDamping(0.4));
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(Math.max(0.05, sz.x / 2), Math.max(0.03, sz.y / 2), Math.max(0.05, sz.z / 2)).setMass(12).setFriction(0.6), body);
-    const lv = car.body.linvel(); body.setLinvel({ x: lv.x * 0.8 + (Math.random() - 0.5) * 6, y: 3 + Math.random() * 4, z: lv.z * 0.8 + (Math.random() - 0.5) * 6 }, true);
-    body.setAngvel({ x: (Math.random() - 0.5) * 12, y: (Math.random() - 0.5) * 12, z: (Math.random() - 0.5) * 12 }, true);
-    // geometry centre offset: mesh origin may not be the box centre
-    this.debris.push({ mesh: pt, body, t: 0 });
-    if (this.debris.length > 50) { const o = this.debris.shift(); this.scene.remove(o.mesh); this.world.removeRigidBody(o.body); }
+    this.toDebris(car, pt, 12);
   }
+  detachWheel(car, i) {
+    const ud = car.mesh.userData, w = ud.wheels[i];
+    const clone = w.clone(true); w.parent.add(clone); clone.position.copy(w.position); clone.rotation.copy(w.rotation);
+    w.visible = false; car.wheelLost[i] = true;
+    car.vc.setWheelRadius?.(i, ud.wr * 0.45);
+    this.toDebris(car, clone, 18);
+    if (car.isPlayer) this.message('HAI PERSO UNA RUOTA!', 'wreck');
+    else if (car.lastHit?.by?.isPlayer) this.award(car.lastHit.by, 12, 'RUOTA VOLANTE!', 150);
+  }
+  repairWheels(car) { const ud = car.mesh.userData; for (let i = 0; i < 4; i++) if (car.wheelLost[i]) { car.wheelLost[i] = false; ud.wheels[i].visible = true; car.vc.setWheelRadius?.(i, ud.wr); } }
   wreck(car) {
-    car.wrecks++;
-    if (car.lastHit && this.time - car.lastHit.t < 4 && car.lastHit.by) { car.lastHit.by.kills = (car.lastHit.by.kills || 0) + 1; this.award(car.lastHit.by, 35, car.lastHit.by.isPlayer ? `Hai demolito ${car.name}!` : null); }
-    if (car.isPlayer) this.message('AUTO DISTRUTTA!', 'wreck');
-    else this.message(`${car.name} è distrutto`, 'info');
+    car.wrecks++; this.simStats.wrecks++; car.burnT = 12;
+    const killer = car.lastHit && this.time - car.lastHit.t < 4 ? car.lastHit.by : null;
+    if (killer) { killer.kills = (killer.kills || 0) + 1; this.award(killer, 35, killer.isPlayer ? `HAI DEMOLITO ${car.name.toUpperCase()}!` : null, 500); }
+    if (car.isPlayer) { this.message('AUTO DISTRUTTA!', 'wreck'); this.slowmo(1.1); this.rumble(1, 1, 600); }
+    else this.message(`${car.name} è distrutto`, 'info', killer ? `da ${killer.name}` : '');
+    if (killer?.isPlayer || car.isPlayer) this.crashCandidate(24, [car, killer].filter(Boolean), car.isPlayer ? 'La tua auto distrutta' : `Demolizione di ${car.name}`);
+    // explosion
+    const p = car.body.translation();
+    for (let k = 0; k < 40; k++) this.fire.emit(p.x, p.y + 0.8, p.z, (Math.random() - 0.5) * 6, 2 + Math.random() * 5, (Math.random() - 0.5) * 6, 0.5 + Math.random() * 0.5, 1.4, 1, 0.5 + Math.random() * 0.3, 0.1, 1);
+    for (let k = 0; k < 20; k++) this.smoke.emit(p.x, p.y + 1, p.z, (Math.random() - 0.5) * 3, 2 + Math.random() * 2, (Math.random() - 0.5) * 3, 3, 1.6, 0.08, 0.08, 0.08, 0.75);
     if (this.track.arena) { car.out = true; car.outT = this.time; }
     else car.wreckT = 4.5; // respawn after a pause, with patched-up car
+  }
+
+  // ---------------------------------------------------------------- crash replay
+  crashCandidate(score, cars, desc) {
+    if (this.state !== 'race') return;
+    if (this.bestCrash && this.bestCrash.score >= score) return;
+    this.bestCrash = { score, t: this.time, until: this.time + 1.6, focus: cars.map((c) => this.cars.indexOf(c)), desc };
+    this.player.bestCrash = desc;
+  }
+  record() {
+    const n = this.cars.length, f = new Float32Array(n * 7);
+    this.cars.forEach((c, i) => { const t = c.body.translation(), r = c.body.rotation(); f.set([t.x, t.y, t.z, r.x, r.y, r.z, r.w], i * 7); });
+    this.rec.push({ t: this.time, f }); while (this.rec.length && this.rec[0].t < this.time - 6) this.rec.shift();
+    const bc = this.bestCrash; if (bc && !bc.saved && this.time >= bc.until) { bc.saved = true; this.replay = { frames: this.rec.filter((r) => r.t >= bc.t - 3.2), focus: bc.focus, desc: bc.desc }; }
+  }
+  startReplay() {
+    if (!this.replay?.frames.length) return;
+    this._preReplay = this.state; this.state = 'replay'; this.replayT = 0; this.hud.root.classList.add('replaying'); this.hud.replay.classList.add('on');
+  }
+  stopReplay() { if (this.state !== 'replay') return; this.state = this._preReplay || 'finished'; this.hud.root.classList.remove('replaying'); this.hud.replay.classList.remove('on'); this.camPos = null; }
+  replayFrame(dt) {
+    const R = this.replay, F = R.frames; this.replayT += dt * 0.5;
+    const t0 = F[0].t, t = t0 + this.replayT; if (t > F[F.length - 1].t) { this.replayT = 0; }
+    let i = 0; while (i < F.length - 2 && F[i + 1].t < t) i++;
+    const a = F[i], b = F[Math.min(F.length - 1, i + 1)], u = Math.max(0, Math.min(1, (t - a.t) / ((b.t - a.t) || 1)));
+    const qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
+    this.cars.forEach((c, k) => { const o = k * 7; c.mesh.position.set(a.f[o] + (b.f[o] - a.f[o]) * u, a.f[o + 1] + (b.f[o + 1] - a.f[o + 1]) * u, a.f[o + 2] + (b.f[o + 2] - a.f[o + 2]) * u); qa.set(a.f[o + 3], a.f[o + 4], a.f[o + 5], a.f[o + 6]); qb.set(b.f[o + 3], b.f[o + 4], b.f[o + 5], b.f[o + 6]); c.mesh.quaternion.copy(qa.slerp(qb, u)); });
+    const foc = this.cars[R.focus[0]]?.mesh.position || this.player.mesh.position;
+    const ang = this.replayT * 0.5 + 0.6, cp = new THREE.Vector3(foc.x + Math.cos(ang) * 9, 0, foc.z + Math.sin(ang) * 9); cp.y = Math.max(foc.y + 2.8, this.terrain.heightAt(cp.x, cp.z) + 1.5);
+    this.camera.position.copy(cp); this.camera.lookAt(foc.x, foc.y + 0.6, foc.z); this.camera.fov = 55; this.camera.updateProjectionMatrix();
+    this.dust.update(dt * 0.5); this.smoke.update(dt * 0.5); this.fire.update(dt * 0.5); this.sparks.update(dt * 0.5); this.chips.update(dt * 0.5);
+    this.sun.position.copy(foc).addScaledVector(this.sunDir, 150); this.sun.target.position.copy(foc);
+    if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
   }
 
   // ---------------------------------------------------------------- race logic
@@ -465,8 +621,15 @@ export class DerbyGame {
     const tr = this.track; if (tr.arena) return;
     const p = car.body.translation(); let best = car.idx, bd = 1e9;
     for (let k = -30; k <= 60; k++) { const i = (car.idx + k + tr.N) % tr.N; const q = tr.pts[i]; const d = (q.x - p.x) ** 2 + (q.z - p.z) ** 2; if (d < bd) { bd = d; best = i; } }
-    if (best < tr.N * 0.2 && car.idx > tr.N * 0.8) { if (car.half) { car.lap++; car.half = false; if (car.isPlayer && car.lap < this.laps) this.message(car.lap === this.laps - 1 ? 'ULTIMO GIRO!' : `Giro ${car.lap + 1}`, 'info'); if (car.lap >= this.laps && !car.finished) { car.finished = true; car.time = this.time; this.finishOrder.push(car); if (car.isPlayer) this.finish(); } } }
-    else if (best > tr.N * 0.8 && car.idx < tr.N * 0.2) { /* went backwards over the line */ }
+    if (best < tr.N * 0.2 && car.idx > tr.N * 0.8) {
+      if (car.half) {
+        car.lap++; car.half = false;
+        if (car.lapStart != null && this.state === 'race') { const lt = this.time - car.lapStart; car.lastLap = lt; if (!car.bestLap || lt < car.bestLap) { car.bestLap = lt; if (car.isPlayer && car.lap > 1) this.message('Giro più veloce!', 'info'); } }
+        car.lapStart = this.time;
+        if (car.isPlayer && car.lap < this.laps) this.message(car.lap === this.laps - 1 ? 'ULTIMO GIRO!' : `Giro ${car.lap + 1}`, 'info');
+        if (car.lap >= this.laps && !car.finished) { car.finished = true; car.time = this.time; this.finishOrder.push(car); if (car.isPlayer) this.finish(); }
+      }
+    }
     if (best > tr.N * 0.45 && best < tr.N * 0.6) car.half = true;
     car.idx = best; car.offTrack = Math.sqrt(bd);
     car.prog = car.lap * tr.N + best + (car.finished ? 1e6 - car.time : 0);
@@ -475,30 +638,67 @@ export class DerbyGame {
     if (this.track.arena) return this.cars.slice().sort((a, b) => (a.out - b.out) || (b.outT || 0) - (a.outT || 0) || b.hp - a.hp);
     return this.cars.slice().sort((a, b) => (b.prog || 0) - (a.prog || 0));
   }
-  finish() { this.state = 'finished'; this.endT = this.time; this.showResults(); }
+  finish() {
+    this.state = 'finished'; this.endT = this.time;
+    if (this.bestCrash && !this.bestCrash.saved) { this.bestCrash.saved = true; this.replay = { frames: this.rec.filter((r) => r.t >= this.bestCrash.t - 3.2), focus: this.bestCrash.focus, desc: this.bestCrash.desc }; }
+    setTimeout(() => this.endScreen(), this.track.arena ? 1500 : 300);
+  }
+  endScreen() {
+    if (this.dead || this._ended) return; this._ended = true;
+    if (this.o.championship) {
+      const res = this.finishOrder.length ? [...this.finishOrder, ...this.standings().filter((c) => !this.finishOrder.includes(c))] : this.standings();
+      const fastest = this.track.arena ? null : res.filter((c) => c.bestLap).sort((a, b) => a.bestLap - b.bestLap)[0];
+      this.champResult = champRecord(this.venue.id, res.map((c, i) => ({ name: c.name, isPlayer: c.isPlayer, pos: i + 1, kills: c.kills || 0, fastest: c === fastest })));
+    }
+    const r = showResults(this);
+    this.onEnd(r);
+  }
 
   // ---------------------------------------------------------------- frame
-  frame(dt) {
-    if (this.state === 'paused' || this.state === 'loading') { this.render(dt, true); return; }
+  frame(dtReal) {
+    if (!(dtReal > 0)) return; // timestamps can go backwards on the first frame
+    if (this.state === 'replay') { this.replayFrame(dtReal); return; }
+    if (this.state === 'paused' || this.state === 'loading') { this.render(dtReal, true); return; }
+    // slow motion on big impacts
+    this.slowCool -= dtReal;
+    if (this.slowT > 0) { this.slowT -= dtReal; this.timeScale += (0.28 - this.timeScale) * Math.min(1, dtReal * 12); } else this.timeScale += (1 - this.timeScale) * Math.min(1, dtReal * 5);
+    const dt = dtReal * this.timeScale;
     this.time += dt;
-    if (this.state === 'countdown') { this.countdown -= dt; if (this.countdown <= 0) { this.state = 'race'; this.time = 0; this.message('VIA!', 'go'); } }
+    if (this.state === 'countdown') {
+      this.countdown -= dt; const n = Math.ceil(this.countdown - 0.6);
+      if (n !== this._lastCount) { this._lastCount = n; try { n > 0 ? sfx.beep() : sfx.go(); } catch {} }
+      if (this.countdown <= 0) { this.state = 'race'; this.time = 0; this.message('VIA!', 'go'); for (const c of this.cars) c.lapStart = 0; }
+    }
     this.laps = this.o.laps || this.venue.laps; this.finishOrder ||= [];
     const racing = this.state === 'race' || this.state === 'finished';
     const pin = this.readInput();
     for (const car of this.cars) {
-      if (car.out) { this.drive(car, { thr: 0, brk: 0, st: 0, hb: 0, nitro: 0 }, dt); continue; }
-      let inp = !racing ? { thr: 0, brk: 1, st: 0, hb: 1, nitro: 0 } : car.isPlayer && !(this.state === 'finished') ? pin : this.aiInput(car, dt);
-      if (car.wreckT > 0) { car.wreckT -= dt; inp = { thr: 0, brk: 1, st: 0, hb: 0, nitro: 0 }; if (car.wreckT <= 0) { car.hp = 45; this.respawn(car); } }
+      if (car.out) { car.dyn = this.drive(car, { thr: 0, brk: 0, st: 0, hb: 0, nitro: 0 }, dt); continue; }
+      let inp = !racing ? { thr: this.state === 'countdown' && car.isPlayer ? pin.thr : Math.random() < 0.02 ? 1 : 0, brk: 0, st: 0, hb: 0, nitro: 0, hold: 1 } : car.isPlayer && !(this.state === 'finished') ? pin : this.aiInput(car, dt);
+      if (car.wreckT > 0) { car.wreckT -= dt; inp = { thr: 0, brk: 1, st: 0, hb: 0, nitro: 0 }; if (car.wreckT <= 0) { car.hp = 45; car.burnT = 0; this.repairWheels(car); this.respawn(car); } }
       car.dyn = this.drive(car, inp, dt);
-      if (car.flipT > 2.2) this.respawn(car);
+      if (car.ghostT > 0) { car.ghostT -= dt; if (car.ghostT <= 0) { car.col.setCollisionGroups(GROUPS_CAR); car.cabCol.setCollisionGroups(GROUPS_CAR); } }
+      if (car.flipT > (car.isPlayer ? 3.5 : 2.2) && this.state !== 'countdown') { this.requestRespawn(car, 'flip'); }
+      // flipping a rival earns a bonus
+      if (car.dyn.up.y < -0.2 && !car.flipCredited && car.lastHit && this.time - car.lastHit.t < 3) { car.flipCredited = true; this.award(car.lastHit.by, 18, car.lastHit.by.isPlayer ? 'RIBALTATO!' : null, 250); }
+      if (car.dyn.up.y > 0.6) car.flipCredited = false;
       if (racing) this.updateProgress(car);
+      if (car.isPlayer && racing && !this.track.arena) {
+        const tg = this.track.pts[car.idx].h, hd = Math.abs(wrap(Math.atan2(car.dyn.fwd.z, car.dyn.fwd.x) - tg));
+        car.wrongWayT = hd > 2.3 && car.dyn.vF > 3 ? car.wrongWayT + dt : 0;
+        car.stuckHintT = car.dyn.speed < 1 && pin.thr > 0.5 ? car.stuckHintT + dt : 0;
+      }
     }
-    // physics: two substeps for stable high-speed contacts
-    const sub = 2; for (let s = 0; s < sub; s++) { for (const car of this.cars) car.vc.updateVehicle(dt / sub); this.world.timestep = dt / sub; this.world.step(this.events); this.handleContacts(dt / sub); }
-    // derby end condition
-    if (this.track.arena && this.state === 'race') { const alive = this.cars.filter((c) => !c.out); if (this.player.out || alive.length <= 1) { this.finishOrder = this.standings(); this.finish(); } }
+    // physics: fixed-size substeps (<= 1/100 s) for stable high-speed contacts
+    const sub = Math.max(1, Math.ceil(dt / 0.01));
+    for (let s = 0; s < sub; s++) { for (const car of this.cars) car.vc.updateVehicle(dt / sub); this.world.timestep = dt / sub; this.world.step(this.events); this.handleContacts(dt / sub); }
+    // numerical safety net: a body that exploded (NaN / absurd speed) is put back on the track
+    for (const car of this.cars) { const v = car.body.linvel(), t = car.body.translation(); if (!Number.isFinite(v.x + v.y + v.z + t.x + t.y + t.z) || v.x * v.x + v.y * v.y + v.z * v.z > 150 * 150) { (this.simStats.nan ||= []).push([car.name, car.wheelLost.join(''), Math.round(car.hp), +this.time.toFixed(1), car.ghostT > 0, Math.round(v.y)]); car.body.setLinvel({ x: 0, y: 0, z: 0 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true); if (!Number.isFinite(t.x + t.y + t.z)) car.body.setTranslation({ x: this.track.pts[car.idx]?.x ?? this.terrain.cx, y: 50, z: this.track.pts[car.idx]?.z ?? this.terrain.cz }, true); car.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true); this.respawn(car); } }
+    // derby end condition (time limit: 4 minutes, then the healthiest car wins)
+    if (this.track.arena && this.state === 'race') { const alive = this.cars.filter((c) => !c.out); if (this.player.out || alive.length <= 1 || this.time > 240) { this.finishOrder = this.standings(); this.finish(); } }
     if (!this.track.arena && this.state === 'race' && this.player.finished) this.finish();
-    this.render(dt, false, pin);
+    if (this.state === 'race') this.record();
+    this.render(dt, false, pin, dtReal);
   }
 
   syncCar(car, dt) {
@@ -511,123 +711,127 @@ export class DerbyGame {
       w.rotation.y = i < 2 ? car.steer : 0;
       const rot = vc.wheelRotation?.(i); if (rot != null) w.userData.spin.rotation.z = -rot;
     }
+    // body lean from weight transfer (visual only)
+    const s = car.spec, roll = s.roll || 1;
+    const pitchT = Math.max(-0.07, Math.min(0.07, car.accF * 0.0045 * roll)), rollT = Math.max(-0.08, Math.min(0.08, -car.accL * 0.006 * roll));
+    ud.shell.rotation.z += (pitchT - ud.shell.rotation.z) * Math.min(1, dt * 10); ud.shell.rotation.x += (rollT - ud.shell.rotation.x) * Math.min(1, dt * 10);
+    if (car.ghostT > 0 && car.isPlayer) car.mesh.visible = Math.floor(this.time * 10) % 2 === 0; else car.mesh.visible = true;
+    if (!dt) return;
     const lv = car.body.linvel(); const speed = Math.hypot(lv.x, lv.z);
-    // dust from the wheels on dirt, tyre marks when sliding
-    const q = car.mesh.quaternion, fwd = tmpV.set(1, 0, 0).applyQuaternion(q).clone(), side = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
-    const lat = Math.abs(lv.x * side.x + lv.z * side.z);
-    for (let i = 2; i < 4; i++) {
+    const q = car.mesh.quaternion, fwd = car.dyn?.fwd || tmpV.set(1, 0, 0).applyQuaternion(q).clone(), side = car.dyn?.side || new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+    const lat = Math.abs(car.dyn?.vLat || 0);
+    const dustC = this.surface.dust, mud = this.venue.surface === 'mud';
+    const T = this.terrain;
+    const camD = this.camera.position.distanceToSquared(car.mesh.position), near = camD < 120 * 120;
+    // dirt build-up on the paint
+    if (dustC && speed > 3) ud.dirt.value = Math.min(1, ud.dirt.value + dt * (mud ? 0.012 : 0.005) * Math.min(1, speed / 25));
+    if (car.inWater && speed > 3) ud.dirt.value = Math.max(0.15, ud.dirt.value - dt * 0.05);
+    for (let i = 0; i < 4; i++) {
       if (!vc.wheelIsInContact(i)) { this.skids.break(car.num * 10 + i); continue; }
       const cp = vc.wheelContactPoint?.(i); if (!cp) continue;
       const P = new THREE.Vector3(cp.x, cp.y, cp.z);
-      if (this.venue.surface !== 'asphalt' && speed > 6 && Math.random() < 0.35) this.dust.emit(P.x, P.y + 0.3, P.z, -lv.x * 0.15 + (Math.random() - 0.5) * 2, 0.6 + Math.random(), -lv.z * 0.15 + (Math.random() - 0.5) * 2, 1.2 + Math.random() * 1.2, 0.8 + speed * 0.02, 0.66, 0.57, 0.45, 0.2);
-      this.skids.add(car.num * 10 + i, P, side, lat > 3.5 || (car.isPlayer && this.keys.Space) ? Math.min(1, lat / 9 + 0.3) : 0);
+      const rear = i >= 2, spin = rear && car.rpm > 0.6 && speed < 8 && car.dyn?.grounded >= 3 && car.gear === 1;
+      const slideAmt = lat / 9 + (car.isPlayer && this.keys.Space && rear ? 0.4 : 0) + (spin ? 0.6 : 0);
+      const onTrack = T.trackAt(cp.x, cp.z) > 0.3;
+      const wetHere = T.waterAt(cp.x, cp.z) > 0.3;
+      // dust / mud spray, heavier when sliding; splashes in water
+      if (near) {
+        if (wetHere && speed > 3) { if (Math.random() < 0.8) for (let k = 0; k < 2; k++) this.splash.emit(P.x, P.y + 0.15, P.z, -lv.x * 0.15 + side.x * (Math.random() - 0.5) * 6, 2.5 + Math.random() * 3.5 * Math.min(1, speed / 15), -lv.z * 0.15 + side.z * (Math.random() - 0.5) * 6, 0.9 + Math.random() * 0.5, 0.7, 0.78, 0.84, 0.86, 0.55); }
+        else if ((dustC || !onTrack) && (speed > 5 || spin) && Math.random() < (rear ? 0.4 : 0.15) * (1 + slideAmt) * (this.low ? 0.5 : 1)) {
+          const c = onTrack ? (dustC || [0.4, 0.38, 0.33]) : [0.42, 0.38, 0.28];
+          if (mud) this.chips.emit(P.x, P.y + 0.2, P.z, -fwd.x * speed * 0.25 + (Math.random() - 0.5) * 3, 1.5 + Math.random() * 3, -fwd.z * speed * 0.25 + (Math.random() - 0.5) * 3, 0.8, 0.2, 0.25, 0.19, 0.12, 1);
+          this.dust.emit(P.x, P.y + 0.3, P.z, -lv.x * 0.12 + (Math.random() - 0.5) * 2, 0.5 + Math.random(), -lv.z * 0.12 + (Math.random() - 0.5) * 2, 1.6 + Math.random() * 1.6 * (mud ? 0.5 : 1), 0.8 + speed * 0.025 + slideAmt * 0.5, c[0], c[1], c[2], (mud ? 0.16 : 0.22) * Math.min(1.6, 0.6 + slideAmt));
+        }
+        if (!dustC && slideAmt > 0.5 && Math.random() < 0.3) this.smoke.emit(P.x, P.y + 0.2, P.z, (Math.random() - 0.5), 0.6, (Math.random() - 0.5), 1.4, 0.8, 0.8, 0.8, 0.8, 0.18); // tyre smoke on asphalt
+      }
+      this.skids.add(car.num * 10 + i, P, side, rear ? (lat > 3 || spin || (car.isPlayer && this.keys.Space) ? Math.min(1, slideAmt + 0.25) : dustC ? 0.12 : 0) : (lat > 5 ? Math.min(1, lat / 12) : 0), car.wheelLost[i] ? 0.06 : 0.14);
+      if (car.wheelLost[i] && speed > 3 && Math.random() < 0.6) this.sparks.emit(P.x, P.y + 0.05, P.z, -lv.x * 0.3 + (Math.random() - 0.5) * 3, Math.random() * 2, -lv.z * 0.3 + (Math.random() - 0.5) * 3, 0.25, 0.3, 1, 0.7, 0.3, 1);
     }
-    // smoke and fire from damaged engines, nitro flames
-    car.smokeT -= dt;
-    if (car.hp < 55 && car.smokeT <= 0) {
-      car.smokeT = car.hp < 25 ? 0.03 : 0.08;
+    // roof scraping sparks when upside down and sliding
+    if (car.dyn?.up.y < -0.3 && speed > 3 && Math.random() < 0.7) { const rp = new THREE.Vector3(0, ud.dims.H, 0).applyQuaternion(q).add(car.mesh.position); for (let k = 0; k < 3; k++) this.sparks.emit(rp.x, rp.y, rp.z, -lv.x * 0.3 + (Math.random() - 0.5) * 4, Math.random() * 3, -lv.z * 0.3 + (Math.random() - 0.5) * 4, 0.3, 0.35, 1, 0.75, 0.35, 1); }
+    // smoke and fire from damaged engines, burning wrecks, nitro flames
+    car.smokeT -= dt; car.burnT = Math.max(0, car.burnT - dt);
+    if ((car.hp < 55 || car.burnT > 0) && car.smokeT <= 0 && near) {
+      const burning = car.hp <= 15 || car.burnT > 0;
+      car.smokeT = burning ? 0.02 : car.hp < 30 ? 0.04 : 0.09;
       const hp = ud.dims.L - 0.4; const ep = new THREE.Vector3(hp, 0.95, 0).applyQuaternion(q).add(car.mesh.position);
-      const k = car.hp < 25 ? 0.12 : 0.4; this.smoke.emit(ep.x, ep.y, ep.z, (Math.random() - 0.5) * 1.5, 1.5, (Math.random() - 0.5) * 1.5, 1.8, 0.9, k, k, k, 0.55);
-      if (car.hp <= 15) this.fire.emit(ep.x, ep.y, ep.z, (Math.random() - 0.5), 2 + Math.random() * 2, (Math.random() - 0.5), 0.45, 0.7, 1, 0.45 + Math.random() * 0.3, 0.08, 0.9);
+      const k = burning ? 0.06 : car.hp < 30 ? 0.16 : 0.45; this.smoke.emit(ep.x, ep.y + 0.2, ep.z, (Math.random() - 0.5) * 1.5 - lv.x * 0.2, 1.8 + Math.random(), (Math.random() - 0.5) * 1.5 - lv.z * 0.2, burning ? 3.2 : 2, burning ? 1.3 : 0.9, k, k * 0.95, k * 0.9, burning ? 0.7 : 0.5);
+      if (burning) for (let n = 0; n < 2; n++) this.fire.emit(ep.x + (Math.random() - 0.5) * 0.6, ep.y, ep.z + (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) - lv.x * 0.1, 2 + Math.random() * 2.5, (Math.random() - 0.5) - lv.z * 0.1, 0.45 + Math.random() * 0.3, car.burnT > 0 ? 1.1 : 0.75, 1, 0.42 + Math.random() * 0.3, 0.08, 0.9);
     }
     if (car.boost) { const ep = new THREE.Vector3(-ud.dims.L - 0.2, 0.33, -0.5).applyQuaternion(q).add(car.mesh.position); for (let k = 0; k < 3; k++) this.fire.emit(ep.x, ep.y, ep.z, -fwd.x * 8, 0.3, -fwd.z * 8, 0.12, 0.45, 0.4, 0.6, 1, 0.9); }
   }
 
-  render(dt, frozen, pin) {
+  render(dt, frozen, pin, dtReal = dt) {
     for (const car of this.cars) this.syncCar(car, frozen ? 0 : dt);
     for (const k of Object.keys(this.propTypes)) this.syncProps(k);
-    for (const d of this.debris) { const t = d.body.translation(), r = d.body.rotation(); d.mesh.position.set(t.x, t.y, t.z); d.mesh.quaternion.set(r.x, r.y, r.z, r.w); }
-    if (!frozen) { this.dust.update(dt); this.smoke.update(dt); this.fire.update(dt); this.sparks.update(dt); }
-    this.updateCamera(dt);
-    if (this.marker) { const p = this.player.mesh.position; this.marker.position.set(p.x, p.y + 2.2 + Math.sin(this.time * 4) * 0.1, p.z); this.marker.quaternion.copy(this.camera.quaternion); this.marker.visible = this.camMode !== 2; }
-    // shadow follows the player
+    for (const d of this.debris) { const t = d.body.translation(), r = d.body.rotation(); tmpQ.set(r.x, r.y, r.z, r.w); d.mesh.quaternion.copy(tmpQ).multiply(d.q0); d.mesh.position.copy(d.off).applyQuaternion(tmpQ).add(tmpV.set(t.x, t.y, t.z)); }
+    if (!frozen) { this.dust.update(dt); this.smoke.update(dt); this.fire.update(dt); this.sparks.update(dt); this.chips.update(dt); this.splash.update(dt); }
+    this.updateCamera(dtReal);
+    if (this.marker) { const p = this.player.mesh.position; this.marker.position.set(p.x, p.y + 2.4 + Math.sin(this.time * 4) * 0.1, p.z); this.marker.quaternion.copy(this.camera.quaternion); this.marker.visible = this.camMode < 2 && !this.lookBack && this.state !== 'finished'; }
+    // shadow camera follows the player
     const pp = this.player.mesh.position; this.sun.position.copy(pp).addScaledVector(this.sunDir, 150); this.sun.target.position.copy(pp);
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
-    this.updateHud(dt, pin);
-    const sp = this.player.dyn?.speed || 0; try { engineSet(Math.min(1, sp * 3.6 / 340 + (pin?.thr || 0) * 0.08), { crowd: 0.2 }); } catch {}
+    updateHud(this, dtReal);
+    const P = this.player, eg = ENGINE_GEARS[P.spec.engine] || 7;
+    try { engineSet(P.rpm < 0.09 && (pin?.thr || 0) < 0.05 ? 0 : Math.min(0.995, Math.max(0.02, P.rpm)) / eg, { crowd: 0.25 }); } catch {}
   }
 
   updateCamera(dt) {
     const c = this.player, q = c.mesh.quaternion, p = c.mesh.position;
-    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(q); fwd.y *= 0.3; fwd.normalize();
-    const sp = c.dyn?.speed || 0;
-    let pos, look, fov = 62 + Math.min(16, sp * 0.22) + (c.boost ? 8 : 0);
-    if (this.camMode === 2) { pos = new THREE.Vector3(0.6, 1.25, 0).applyQuaternion(q).add(p); look = new THREE.Vector3(12, 0.9, 0).applyQuaternion(q).add(p); fov += 6; }
-    else { const back = this.camMode === 1 ? 11 : 7.2, h = this.camMode === 1 ? 4.2 : 2.6; pos = p.clone().addScaledVector(fwd, -back); pos.y += h; look = p.clone().addScaledVector(fwd, 4); look.y += 0.9; }
-    let gy = this.terrain.heightAt(pos.x, pos.z) + 1.3; for (let k = 1; k <= 3; k++) { const f = k / 4; gy = Math.max(gy, this.terrain.heightAt(p.x + (pos.x - p.x) * f, p.z + (pos.z - p.z) * f) + 1.0); } if (pos.y < gy) pos.y = gy;
-    if (!this.camPos || this.camMode === 2) { this.camPos = pos.clone(); this.camLook = look.clone(); }
-    else { this.camPos.lerp(pos, Math.min(1, dt * 6)); this.camLook.lerp(look, Math.min(1, dt * 10)); }
-    const sh = this.shake || 0; this.shake = Math.max(0, sh - dt * 2.5);
-    this.camera.position.copy(this.camPos).add(new THREE.Vector3((Math.random() - 0.5) * sh * 0.4, (Math.random() - 0.5) * sh * 0.4, (Math.random() - 0.5) * sh * 0.4));
+    const fwd = c.dyn?.fwd || new THREE.Vector3(1, 0, 0).applyQuaternion(q);
+    const sp = c.dyn?.speed || 0, lv = c.body.linvel();
+    let fov = 64 + Math.min(16, sp * 0.24) + (c.boost ? 8 : 0);
+    const sh = this.shake; this.shake = Math.max(0, sh - dt * 2.2);
+    const tt = performance.now() / 1000;
+    const shk = new THREE.Vector3(Math.sin(tt * 37) + Math.sin(tt * 23.3) * 0.5, Math.sin(tt * 41.7) * 0.8, Math.sin(tt * 29.1) + Math.cos(tt * 17) * 0.5).multiplyScalar(sh * 0.16);
+    if (this.camMode >= 2) {
+      // hood / bumper cams: rigid, with the roll partially levelled out
+      const ud = c.mesh.userData, L = ud.dims.L;
+      const local = this.camMode === 2 ? new THREE.Vector3(L * 0.28, ud.dims.beltY + 0.36, 0) : new THREE.Vector3(L + 0.25, 0.55, 0);
+      const dir = this.lookBack ? -1 : 1;
+      if (this.lookBack) local.set(this.camMode === 2 ? -L * 0.5 : -L - 0.3, this.camMode === 2 ? ud.dims.H + 0.15 : 0.6, 0);
+      const pos = local.applyQuaternion(q).add(p);
+      const look = new THREE.Vector3(14 * dir, this.camMode === 2 ? 0.2 : 0.3, 0).applyQuaternion(q).add(p);
+      this.camQ ||= new THREE.Quaternion();
+      const upv = new THREE.Vector3(0, 1, 0).applyQuaternion(q).lerp(UP, 0.6).normalize();
+      this.camera.position.copy(pos).add(shk.multiplyScalar(0.3)); this.camera.up.copy(upv); this.camera.lookAt(look); this.camera.up.set(0, 1, 0);
+      fov += 6;
+      this.camera.fov += (fov - this.camera.fov) * Math.min(1, dt * 4); this.camera.updateProjectionMatrix();
+      this.camPos = null; return;
+    }
+    // chase cams: smoothed yaw that leans into slides, distance grows with speed
+    const head = Math.atan2(fwd.z, fwd.x);
+    let tgtYaw = head;
+    if (sp > 4 && (c.dyn?.vF || 0) > 0) tgtYaw = head + Math.max(-0.6, Math.min(0.6, wrap(Math.atan2(lv.z, lv.x) - head))) * 0.4;
+    if (c.dyn?.up.y < 0.2) tgtYaw = this.camYaw ?? head; // tumbling: hold the view
+    if (this.camYaw == null || !this.camPos) this.camYaw = tgtYaw;
+    this.camYaw += wrap(tgtYaw - this.camYaw) * Math.min(1, dt * 4.5);
+    const yaw = this.camYaw + (this.lookBack ? Math.PI : 0);
+    const dir = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw));
+    const far = this.camMode === 1;
+    const back = (far ? 10.5 : 6.6) + Math.min(2.5, sp * 0.05), h = (far ? 3.9 : 2.3) + Math.min(0.6, sp * 0.012);
+    const pos = p.clone().addScaledVector(dir, -back); pos.y = p.y + h;
+    let gy = this.terrain.heightAt(pos.x, pos.z) + 1.2; for (let k = 1; k <= 3; k++) { const f = k / 4; gy = Math.max(gy, this.terrain.heightAt(p.x + (pos.x - p.x) * f, p.z + (pos.z - p.z) * f) + 0.9); } if (pos.y < gy) pos.y = gy;
+    const look = p.clone().addScaledVector(dir, 4.5); look.y += 1.0;
+    if (!this.camPos || this.camPos.distanceToSquared(pos) > 900) { this.camPos = pos.clone(); this.camLook = look.clone(); }
+    else {
+      // critically damped follow: stiff horizontally, softer vertically (absorbs bumps and landings)
+      const kH = Math.min(1, dt * 9), kV = Math.min(1, dt * 5);
+      this.camPos.x += (pos.x - this.camPos.x) * kH; this.camPos.z += (pos.z - this.camPos.z) * kH; this.camPos.y += (pos.y - this.camPos.y) * kV;
+      if (this.lookBack !== this._lb) { this.camPos.copy(pos); this._lb = this.lookBack; }
+      this.camLook.lerp(look, Math.min(1, dt * 12));
+    }
+    this.camera.position.copy(this.camPos).add(shk);
     this.camera.fov += (fov - this.camera.fov) * Math.min(1, dt * 4); this.camera.updateProjectionMatrix();
     this.camera.lookAt(this.camLook);
-  }
-
-  // ---------------------------------------------------------------- HUD
-  buildHud() {
-    const h = document.createElement('div'); h.className = 'dz-hud'; this.c.appendChild(h);
-    h.innerHTML = `<div class="dz-top"><div class="dz-pos"><span id="dz-pos">1</span><small>/${this.cars.length}</small></div><div class="dz-lap" id="dz-lap"></div><div class="dz-time" id="dz-time">0:00.0</div></div>
-      <div class="dz-board" id="dz-board"></div>
-      <div class="dz-msgs" id="dz-msgs"></div>
-      <div class="dz-count" id="dz-count"></div>
-      <div class="dz-dash"><div class="dz-speed"><b id="dz-spd">0</b><small>km/h</small></div>
-        <div class="dz-bar"><span>NITRO</span><div><i id="dz-nitro"></i></div></div>
-        <div class="dz-bar dmg"><span>DANNI</span><div><i id="dz-hp"></i></div></div></div>
-      <canvas class="dz-map" id="dz-map" width="220" height="220"></canvas>
-      <div class="dz-help">W/S o ↑/↓ gas e freno · A/D sterzo · Spazio freno a mano · Shift nitro · R riposiziona · C camera · F filtro immagine · Esc pausa · Gamepad supportato</div>
-      <div class="dz-pause" id="dz-pause"><h2>Pausa</h2><button class="btn primary lg" data-a="dz-resume">Riprendi</button><button class="btn lg" data-a="dz-restart">Ricomincia</button><button class="btn ghost lg" data-a="dz-quit">Esci</button></div>
-      <div class="dz-results" id="dz-results"></div>`;
-    this.hud = { root: h, pause: h.querySelector('#dz-pause') };
-    // minimap
-    const tr = this.track, T = this.terrain; const cv = h.querySelector('#dz-map'); const g = cv.getContext('2d');
-    const [x0, z0, x1, z1] = tr.bbox; const s = 190 / Math.max(x1 - x0, z1 - z0);
-    this.mapXY = (x, z) => [110 + (x - (x0 + x1) / 2) * s, 110 + (z - (z0 + z1) / 2) * s];
-    this.mapBg = () => { g.clearRect(0, 0, 220, 220); g.lineWidth = 7; g.strokeStyle = 'rgba(255,255,255,0.25)'; g.beginPath(); if (tr.arena) { g.arc(110, 110, tr.R * s, 0, 7); } else tr.pts.forEach((p, i) => { const [x, y] = this.mapXY(p.x, p.z); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.stroke(); };
-    this.mapCtx = g; void T;
-  }
-  message(text, kind = 'info') {
-    const box = this.hud?.root.querySelector('#dz-msgs'); if (!box) return;
-    const el = document.createElement('div'); el.className = 'dz-msg ' + kind; el.textContent = text; box.prepend(el);
-    setTimeout(() => el.classList.add('out'), 1800); setTimeout(() => el.remove(), 2300);
-    while (box.children.length > 4) box.lastChild.remove();
-  }
-  updateHud(dt) {
-    const h = this.hud.root, P = this.player; this._hudT = (this._hudT || 0) + dt;
-    const cnt = h.querySelector('#dz-count');
-    if (this.state === 'countdown') { const n = Math.ceil(this.countdown - 0.6); cnt.textContent = n > 0 ? n : 'VIA!'; cnt.className = 'dz-count on'; }
-    else if (this.time < 1) cnt.textContent = 'VIA!'; else cnt.className = 'dz-count';
-    h.querySelector('#dz-spd').textContent = Math.round((P.dyn?.speed || 0) * 3.6);
-    h.querySelector('#dz-nitro').style.width = P.nitro + '%';
-    const hpEl = h.querySelector('#dz-hp'); hpEl.style.width = P.hp + '%'; hpEl.style.background = P.hp > 50 ? '#3ddc84' : P.hp > 25 ? '#ffb020' : '#ff3b3b';
-    if (this._hudT < 0.12) return; this._hudT = 0;
-    const st = this.standings(); const myPos = st.indexOf(P) + 1;
-    h.querySelector('#dz-pos').textContent = myPos;
-    h.querySelector('#dz-lap').textContent = this.track.arena ? `IN GARA ${this.cars.filter((c) => !c.out).length}/${this.cars.length}` : `GIRO ${Math.min(this.laps, P.lap + 1)}/${this.laps}`;
-    const t = this.state === 'countdown' ? 0 : this.time; h.querySelector('#dz-time').textContent = `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
-    h.querySelector('#dz-board').innerHTML = st.map((c, i) => `<div class="${c.isPlayer ? 'me' : ''} ${c.out ? 'out' : ''}"><b>${i + 1}</b><i style="background:${c.color}"></i><span>${c.name}</span><em style="width:${Math.max(0, c.hp) * 0.3}px;background:${c.hp > 50 ? '#3ddc84' : c.hp > 25 ? '#ffb020' : '#ff3b3b'}"></em></div>`).join('');
-    this.mapBg(); const g = this.mapCtx;
-    for (const c of this.cars) { if (c.out) continue; const p = c.body.translation(); const [x, y] = this.mapXY(p.x, p.z); g.fillStyle = c.isPlayer ? '#ffd400' : c.color; g.beginPath(); g.arc(x, y, c.isPlayer ? 6 : 4, 0, 7); g.fill(); if (c.isPlayer) { g.strokeStyle = '#000'; g.lineWidth = 2; g.stroke(); } }
-  }
-  showResults() {
-    const res = this.finishOrder.length ? [...this.finishOrder, ...this.standings().filter((c) => !this.finishOrder.includes(c))] : this.standings();
-    const myPos = res.indexOf(this.player) + 1;
-    const prize = [12000, 8000, 5500, 4000, 3000, 2200, 1500, 1000][myPos - 1] || 500;
-    const bonus = (this.player.kills || 0) * 1500;
-    const el = this.hud.root.querySelector('#dz-results');
-    el.innerHTML = `<div class="dz-res-card"><div class="tiny upper muted" style="letter-spacing:.3em">${this.track.arena ? 'Demolition derby' : 'Gara'} · ${this.venue.name}</div>
-      <h2>${myPos === 1 ? '🏆 VITTORIA!' : `${myPos}° posto`}</h2>
-      <table class="tbl"><thead><tr><th>Pos</th><th>Pilota</th><th>${this.track.arena ? 'Stato' : 'Tempo'}</th><th>Demolizioni</th></tr></thead><tbody>${res.map((c, i) => `<tr class="${c.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><i class="dz-dot" style="background:${c.color}"></i>${c.name}</td><td>${this.track.arena ? (c.out ? 'Distrutto' : 'In piedi') : c.finished ? `${Math.floor(c.time / 60)}:${(c.time % 60).toFixed(2).padStart(5, '0')}` : 'In pista'}</td><td>${c.kills || 0}</td></tr>`).join('')}</tbody></table>
-      <div class="row between mt16"><span class="muted">Premio: <b>€ ${prize.toLocaleString('it-IT')}</b>${bonus ? ` + bonus demolizioni € ${bonus.toLocaleString('it-IT')}` : ''}</span>
-      <div class="row gap6"><button class="btn lg" data-a="dz-restart">Rigioca</button><button class="btn primary lg" data-a="dz-quit">Continua</button></div></div></div>`;
-    el.classList.add('on');
-    this.onEnd({ pos: myPos, prize: prize + bonus, kills: this.player.kills || 0, venue: this.venue.id });
   }
 }
 
 function mergeGeos(list) {
-  // tiny local merge (positions/normals/uvs), avoids importing BufferGeometryUtils
+  // tiny local merge (positions/normals/uvs, indexed), avoids importing BufferGeometryUtils here
   let n = 0; for (const g of list) n += g.attributes.position.count;
   const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uv = new Float32Array(n * 2), idx = []; let o = 0;
   for (const g of list) { pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); uv.set(g.attributes.uv.array, o * 2); const ix = g.index.array; for (let i = 0; i < ix.length; i++) idx.push(ix[i] + o); o += g.attributes.position.count; }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(idx); return g;
 }
+export { CHAMPIONSHIP };
