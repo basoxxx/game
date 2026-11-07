@@ -120,11 +120,11 @@ export function detailPatch(mat, { antiTile = true, macro = 0.18, macroScale = 0
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.12, 1.02, 0.7), smoothstep(0.62, 0.8, dfbm(vWPos.xz * 0.08 + 3.0)) * 0.5);
       }
       #endif` : ''}
-      ${wet ? `pud = smoothstep(0.56, 0.7, dfbm(vWPos.xz * 0.11 + 11.0)) * smoothstep(0.25, 0.8, wetL)${track ? ` * (0.45 + 0.9 * smoothstep(${f(track.halfW - 3.5)}, ${f(track.halfW)}, abs(vTrk.x)))` : ''};
+      ${wet ? `pud = smoothstep(0.5, 0.66, dfbm(vWPos.xz * 0.11 + 11.0)) * smoothstep(0.25, 0.8, wetL)${track ? ` * (0.45 + 0.9 * smoothstep(${f(track.halfW - 3.5)}, ${f(track.halfW)}, abs(vTrk.x)))` : ''};
       diffuseColor.rgb *= 1.0 - 0.38 * wetL - 0.2 * pud;` : ''}
     `);
     // remap first, then wetness (so puddles can still reach mirror-like roughness)
-    const rr = (rough ? `\nroughnessFactor = ${f(rough[0])} + ${f(rough[1] - rough[0])} * roughnessFactor;` : '') + (wet ? '\nroughnessFactor *= 1.0 - 0.12 * rub; roughnessFactor = mix(roughnessFactor, 0.32, wetL * 0.7); roughnessFactor = mix(roughnessFactor, 0.03, pud);' : '');
+    const rr = (rough ? `\nroughnessFactor = ${f(rough[0])} + ${f(rough[1] - rough[0])} * roughnessFactor;` : '') + (wet ? '\nroughnessFactor *= 1.0 - 0.12 * rub; roughnessFactor = mix(roughnessFactor, 0.16, wetL * 0.75); roughnessFactor = mix(roughnessFactor, 0.03, pud);' : '');
     if (rr) fs = fs.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + rr);
     if (wet) {
       fs = fs.replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(mix(normal, normalize(vNormal) * faceDirection, max(pud, wetL * 0.5)));');
