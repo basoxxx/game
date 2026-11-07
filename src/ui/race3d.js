@@ -1633,7 +1633,7 @@ export class Race3D {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(M * 3).fill(-9999), 3));
       const tex = canvasTex(64, 64, (c, w, h) => { const gr = c.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,0.55)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.18)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, w, h); });
-      this.spray = new THREE.Points(g, new THREE.PointsMaterial({ map: tex, color: this.night ? 0x5a6170 : 0xd5dbe2, size: 2.6, transparent: true, opacity: 0.4, depthWrite: false, sizeAttenuation: true }));
+      this.spray = new THREE.Points(g, new THREE.PointsMaterial({ map: tex, color: this.night ? 0x5a6170 : 0xd5dbe2, size: 2.1, transparent: true, opacity: 0.3, depthWrite: false, sizeAttenuation: true }));
       this.spray.frustumCulled = false; this.sprayV = new Float32Array(M * 3); this.sprayL = new Float32Array(M); this.sprayI = 0;
       this.scene.add(this.spray);
     }
@@ -1648,8 +1648,8 @@ export class Race3D {
       for (let q = 0; q < n; q++) {
         const k = this.sprayI = (this.sprayI + 1) % M; const side = Math.random() < 0.5 ? 1 : -1;
         P[k * 3] = m.position.x - fx * 2.3 + fz * side * 0.7; P[k * 3 + 1] = m.position.y + 0.35; P[k * 3 + 2] = m.position.z - fz * 2.3 - fx * side * 0.7;
-        V[k * 3] = fx * sp * (0.55 + Math.random() * 0.2) + (Math.random() - 0.5) * 3; V[k * 3 + 1] = 1.5 + Math.random() * 2.5; V[k * 3 + 2] = fz * sp * (0.55 + Math.random() * 0.2) + (Math.random() - 0.5) * 3;
-        L[k] = 0.7 + Math.random() * 0.5;
+        V[k * 3] = fx * sp * (0.55 + Math.random() * 0.2) + (Math.random() - 0.5) * 3; V[k * 3 + 1] = 2.2 + Math.random() * 2.8; V[k * 3 + 2] = fz * sp * (0.55 + Math.random() * 0.2) + (Math.random() - 0.5) * 3;
+        L[k] = 0.45 + Math.random() * 0.4;
       }
     }
     // particles keep part of the car's speed (dragged along) and slow down quickly
@@ -1657,7 +1657,8 @@ export class Race3D {
     for (let k = 0; k < M; k++) {
       if (L[k] <= 0) { if (P[k * 3 + 1] > -9000) P[k * 3 + 1] = -9999; continue; }
       L[k] -= dt; V[k * 3] *= drag; V[k * 3 + 2] *= drag; V[k * 3 + 1] -= dt * 2;
-      P[k * 3] += V[k * 3] * dt; P[k * 3 + 1] = Math.max(0.2, P[k * 3 + 1] + V[k * 3 + 1] * dt); P[k * 3 + 2] += V[k * 3 + 2] * dt;
+      P[k * 3] += V[k * 3] * dt; P[k * 3 + 1] += V[k * 3 + 1] * dt; P[k * 3 + 2] += V[k * 3 + 2] * dt;
+      if (P[k * 3 + 1] < 0.35 && V[k * 3 + 1] < 0) { L[k] = 0; P[k * 3 + 1] = -9999; } // mist settles: never leave blobs lying on the asphalt
     }
     this.spray.geometry.attributes.position.needsUpdate = true;
   }
