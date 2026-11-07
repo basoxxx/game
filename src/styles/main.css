@@ -650,3 +650,24 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .cat-card .art { position: relative; inset: auto; flex: 1 1 auto; min-height: 150px; padding: 18px 10px 0 !important; align-items: flex-end; }
 .cat-card .cinfo { padding-top: 14px; }
 .cat-card { justify-content: stretch; }
+/* narrow side tables (rally overall): let the driver name cell shrink with ellipsis instead of overflowing the panel */
+.race-side .tbl td:nth-child(3) { max-width: 0; width: 100%; }
+.race-side .panel { overflow: hidden; }
+#lights { top: 64px !important; z-index: 7 !important; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
+
+/* ---- 1440p and up: scale the whole interface (layout stays 1920-like, text stays readable) ---- */
+@media (min-width: 2200px) and (min-height: 1200px) {
+  .shell, .menu-left, .version, .menu-hint, .modal-wrap, .toasts, .coach, .tip,
+  #app > div:not(.race-screen):not(.rally-screen):not(.shell):not(.menu-screen):not(.bg-layer),
+  .race-top, .race-board, .race-side, .race-feed, .view-btns, .race-sub, .hud3d, #finish-overlay { zoom: 1.3; }
+  html, body { font-size: 15px; }
+  .shell { grid-template-columns: 232px 1fr; grid-template-rows: 64px 1fr; }
+  :root { --topbar-h: 64px; }
+  .main { padding: 24px 28px 40px; }
+  .race-screen, .rally-screen { grid-template-columns: 440px 1fr 420px; grid-template-rows: 72px 1fr 300px; }
+  .lb-row { font-size: 13px; }
+}
+.tbl td.fastest { color: var(--purple); font-weight: 800; }
+.tbl td.fastest::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 8px var(--purple); margin-right: 6px; vertical-align: 1px; }
+/* full-screen pages (no topbar): toasts bottom-right so they never cover the top-right CTA */
+body:not(:has(.topbar)) .toasts { top: auto; bottom: 20px; }
