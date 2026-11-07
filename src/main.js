@@ -37,7 +37,7 @@ window.__apex.simRound = () => {
     const q = runQualifying(st, tr, {}, 0); const laps = raceLaps(st, tr);
     const sim = new CircuitSim(st, tr, { grid: q.grid, setups: {}, weather: makeWeatherPlan(tr, laps), laps });
     sim.cars.forEach((c) => (c.auto = true)); sim.runToEnd(); res = sim.results(); applyRaceRivalry(st, sim); window.__apex.lastSim = sim;
-    const pk = q.grid[0]; res.pole = sim.cars.find((c) => c.key === pk)?.driverIds[0];
+    const pk = (q.qualiOrder || q.grid)[0]; res.pole = sim.cars.find((c) => c.key === pk)?.driverIds[0];
   }
   st.weekend = null; applyRoundResults(st, res); saveGame(); return true;
 };
