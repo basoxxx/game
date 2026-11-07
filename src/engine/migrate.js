@@ -1,6 +1,7 @@
 // Upgrades saves from older versions
 import { getTrack, buildCalendar } from './world.js';
 import { ensureProgress } from './progress.js';
+import { ensureLegacy } from './legacy.js';
 import { TRACKS } from '../data/tracks.js';
 
 export function migrateSave(st) {
@@ -17,6 +18,7 @@ export function migrateSave(st) {
     if (st.weekend && !st.weekend.weather?.trackTemp) st.weekend = null;
   }
   ensureProgress(st);
+  if (st.career) ensureLegacy(st);
   st.version = 2;
   return st;
 }

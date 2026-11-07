@@ -11,6 +11,7 @@ import { driverChip, teamStripe, ratingBox, ovr } from './common.js';
 import { openLoad } from './menu.js';
 import { applyVolumes, sfx } from '../ui/audio.js';
 import { PERKS, xpForLevel, ensureProgress, buyPerk } from '../engine/progress.js';
+import { legacyInfo } from '../engine/legacy.js';
 
 // ---------------- INBOX ----------------
 let selMail = null;
@@ -105,6 +106,7 @@ registerScreen({
       <div class="panel"><div class="kpi"><b>${c.trophies.length}</b><span>Titoli vinti · ${c.seasonsManaged} stagioni</span></div></div>
       <div class="panel"><div class="kpi"><b>${ach.length}/${ALL.length}</b><span>Obiettivi sbloccati</span></div></div>
     </div>
+    ${legacyPanel(st)}
     <div class="panel mt16"><div class="panel-head"><h3>Albero delle abilità</h3><span class="small muted">Guadagni XP con punti, podi, vittorie e obiettivi. Ogni livello = 1 punto abilità.</span></div>
       <div class="grid3">${Object.entries(PERKS).map(([k, b]) => `<div class="card" style="border-top:3px solid ${b.color}"><div class="row">${icon(b.icon, 'ico', `style="width:22px;height:22px;color:${b.color}"`)}<h3>${b.name}</h3></div>
         <div class="col gap6 mt16">${b.perks.map((p, i) => { const own = c.perks.includes(p.id); const avail = !own && (i === 0 || c.perks.includes(b.perks[i - 1].id)); return `<div class="row" style="padding:10px;border-radius:10px;border:1px solid ${own ? b.color : 'var(--line)'};background:${own ? `color-mix(in srgb, ${b.color} 14%, transparent)` : 'rgba(255,255,255,0.02)'};opacity:${own || avail ? 1 : 0.45}"><div class="grow"><b>${p.name}</b><div class="tiny muted">${p.desc}</div></div>${own ? `<span class="chip good">✓</span>` : `<button class="btn sm ${avail && c.points >= p.cost ? 'primary' : ''}" data-a="perk" data-id="${p.id}" ${avail && c.points >= p.cost ? '' : 'disabled'}>${p.cost} pt</button>`}</div>`; }).join('')}</div></div>`).join('')}</div>
@@ -120,6 +122,15 @@ registerScreen({
     perk(el) { const r = buyPerk(S(), el.dataset.id); if (!r.ok) { App.toast('Impossibile', r.msg, 'bad'); return; } sfx.levelup(); App.toast('Abilità sbloccata!', '', 'good'); App.refresh(); },
   },
 });
+
+function legacyPanel(st) {
+  const L = legacyInfo(st);
+  const done = L.milestones.filter((m) => m.done).length;
+  return `<div class="panel mt16"><div class="panel-head"><h3>🏛 Eredità della dinastia</h3><span class="small muted">${done}/${L.milestones.length} traguardi storici</span></div>
+    <div class="grid4"><div class="kpi"><b>${L.score}</b><span>Punteggio eredità</span></div><div class="kpi"><b>${esc(L.tier)}</b><span>${L.next ? `Prossimo rango: ${esc(L.next.name)} (${L.next.min})` : 'Rango massimo'}</span></div><div class="kpi"><b>${L.stats.wins}</b><span>Vittorie in carriera · ${L.stats.podiums} podi</span></div><div class="kpi"><b>${L.stats.races}</b><span>Eventi diretti · ${L.stats.poles} pole</span></div></div>
+    ${bar(L.progress * 100, 'gold')}
+    <div class="grid4 mt16" style="grid-template-columns:repeat(4,1fr)">${L.milestones.map((m) => `<div class="card row" style="${m.done ? '' : 'opacity:.45'}">${icon(m.done ? 'trophy' : 'target', 'ico', `style="width:22px;height:22px;color:${m.done ? 'var(--gold)' : 'var(--dim)'}"`)}<div class="grow"><b class="small">${esc(m.name)}</b><div class="tiny muted">${esc(m.desc)}</div><div class="tiny ${m.done ? 'good' : 'dim'}">${m.done ? `Ottenuto nel ${m.season}` : `+${m.pts} punti`}</div></div></div>`).join('')}</div></div>`;
+}
 
 // ---------------- HALL OF FAME ----------------
 registerScreen({

@@ -3,7 +3,9 @@ import { CATEGORIES, COMPOUNDS } from '../data/categories.js';
 import { pointsFor } from './season.js';
 import { physicsLap } from './trackphys.js';
 import { tyreModel, degPenalty, tempPenalty, weatherFactor, strategyOptions } from './tyres.js';
-import { rand, randInt, chance, clamp, gauss, pick } from './rng.js';
+import { rand, randInt, chance, clamp, gauss, pick, mulberry32 } from './rng.js';
+import { compEnabled, compLapFactor, compFailMult, failureComponent, prepareComponents, applyGridPenalties } from './components.js';
+import { substituteBanned } from './stewards.js';
 import { hasPerk } from './progress.js';
 import { getSettings } from './state.js';
 import { ensureRivalries, duelModifiers, radioAfterPass, radioContact, radioOrders, radioFury, radioReply, commentaryFury, commentaryPass, commentaryBattle, commentaryGeneric } from './rivalry.js';
@@ -50,13 +52,50 @@ export function makeWeatherPlan(track, laps, forcedRain) {
   return { plan, isRain, summary, trackTemp };
 }
 
+// Weather forecast for a weekend: an imperfect view of the real weather plan.
+// Accuracy depends on the race engineer and the 'meteo' perk. Deterministic per weekend.
+export function weatherForecast(state, w, track) {
+  const plan = (w.weather?.plan || []).slice(0, w.laps);
+  const team = state.teams[state.playerTeam];
+  const eng = state.staff?.[team?.staff?.engineer]?.rating || 65;
+  const perfect = hasPerk(state, 'meteo');
+  const acc = perfect ? 1 : clamp(0.42 + (eng - 50) / 100 * 0.7, 0.3, 0.85);
+  const key = `${state.season}|${state.round}|${track.id}|${acc.toFixed(2)}`;
+  if (w._fcE?.k === key) return w._fcE;
+  let h = 11; for (const ch of key) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const r = mulberry32(h);
+  let fc = plan.slice();
+  if (!perfect) {
+    const n = plan.length;
+    const shift = Math.round((r() - 0.5) * n * 0.5 * (1 - acc));
+    fc = plan.map((_, i) => clamp((plan[clamp(i + shift, 0, n - 1)] || 0) * (0.55 + r() * 0.8), 0, 1));
+    if (!w.weather.isRain && r() < (track.rain || 0) * 1.6 * (1 - acc)) {
+      // false alarm: the models see a shower that never comes
+      const c0 = Math.floor(r() * n), wd = Math.max(2, Math.round(n * (0.12 + r() * 0.2))), pk = 0.2 + r() * 0.35;
+      fc = fc.map((v, i) => Math.max(v, Math.abs(i - c0) < wd ? pk * (1 - Math.abs(i - c0) / wd) : 0));
+    } else if (w.weather.isRain && r() < 0.4 * (1 - acc)) fc = fc.map((v) => v * (0.25 + r() * 0.2)); // underestimated front
+  }
+  const peak = Math.max(0, ...fc);
+  const wetLaps = fc.filter((v) => v > 0.2).length;
+  const prob = perfect ? (w.weather.isRain ? 95 : 3) : Math.round(clamp(peak > 0.2 ? 30 + peak * 55 + wetLaps / Math.max(1, fc.length) * 15 : (track.rain || 0) * 45 + r() * 8, 2, 95));
+  const first = fc.findIndex((v) => v > 0.2), last = fc.length - 1 - fc.slice().reverse().findIndex((v) => v > 0.2);
+  let summary = 'Sereno';
+  if (first >= 0) {
+    const n = fc.length;
+    summary = first <= 1 && last >= n - 2 ? 'Pioggia per tutta la gara' : first <= 1 ? 'Pioggia iniziale, poi in asciugatura' : last >= n - 2 ? 'Pioggia attesa nel finale' : 'Possibili rovesci a metà gara';
+  } else if (peak > 0.08) summary = 'Nuvoloso, rischio di qualche goccia';
+  w._fcE = { k: key, laps: fc, prob, summary, acc: Math.round(acc * 100), perfect };
+  return w._fcE;
+}
+
 export function buildEntries(state) {
   const C = CATEGORIES[state.category];
   const entries = [];
   for (const team of Object.values(state.teams)) {
     for (let k = 0; k < C.cars; k++) {
-      const driverIds = team.drivers.slice(k * C.driversPerCar, (k + 1) * C.driversPerCar);
+      let driverIds = team.drivers.slice(k * C.driversPerCar, (k + 1) * C.driversPerCar);
       if (!driverIds.length) continue;
+      if (!state.quick) driverIds = substituteBanned(state, team, driverIds);
       entries.push({ key: `${team.id}#${k}`, teamId: team.id, carIdx: k, driverIds, isPlayer: !!team.isPlayer });
     }
   }
@@ -66,6 +105,38 @@ export function buildEntries(state) {
 export function aiSetupQuality(state, team) {
   const eng = state.staff[team.staff.engineer]?.rating || 65;
   return clamp(0.42 + eng / 100 * 0.38 + (team.facilities.simulator - 3) * 0.03 + rand(-0.12, 0.12), 0.2, 0.97);
+}
+
+// Setup orientation (parc fermé compromise): the setup used in qualifying is the one raced on Sunday.
+// q: qualifying lap factor · r: race pace factor · wear: tyre wear multiplier in the race
+export const SETUP_BIAS = {
+  quali: { name: 'Qualifica', q: -0.0012, r: 0.0005, wear: 1.07, desc: 'Giro secco più veloce (~0,1s), ma gomme più stressate in gara' },
+  balanced: { name: 'Bilanciato', q: 0, r: 0, wear: 1, desc: 'Compromesso neutro' },
+  race: { name: 'Gara', q: 0.0012, r: -0.0004, wear: 0.93, desc: 'Più lenti in qualifica, ma passo gara e degrado migliori' },
+};
+export function setupBias(state, key, track) {
+  const teamId = key.split('#')[0];
+  const team = state.teams[teamId];
+  if (state.weekend && team?.isPlayer) return SETUP_BIAS[state.weekend.bias?.[key]] ? state.weekend.bias[key] : 'balanced';
+  let h = 7; for (const ch of `${key}|${track.id}|${state.season}|${state.round}`) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const r = (h % 1000) / 1000;
+  const ovt = track.ovt ?? 0.4, wear = track.wear ?? 1;
+  const pQ = clamp(0.6 - ovt * 0.75, 0.06, 0.6), pR = clamp((wear - 0.85) * 0.7 + ovt * 0.25, 0.05, 0.55);
+  return r < pQ ? 'quali' : r > 1 - pR ? 'race' : 'balanced';
+}
+
+// Weekend tyre allocation (new sets). Practice and qualifying eat into it: cars that reach Q3
+// start the race on a scrubbed soft and have fewer new sets left for the race.
+export const TYRE_ALLOC = { formula: { soft: 8, medium: 3, hard: 2 }, junior: { soft: 4, medium: 3, hard: 2 } };
+function practiceUse(state, key) {
+  const use = state.category === 'formula' ? { soft: 2, medium: 1, hard: 0 } : { soft: 1, medium: 1, hard: 0 };
+  const w = state.weekend;
+  if (w?.longRuns && state.teams[key.split('#')[0]]?.isPlayer) for (const c of Object.keys(use)) if (w.longRuns[c]) use[c]++;
+  return use;
+}
+export function weekendSets(state) {
+  const s = state._sets;
+  return s && s.season === state.season && s.round === state.round && !state.quick ? s.sets : null;
 }
 
 const aiSmart = (state) => ({ easy: 0.55, normal: 0.8, hard: 0.97 }[state.difficulty] ?? 0.8);
@@ -94,13 +165,32 @@ export function runQualifying(state, track, setups, rainLevel = 0, playerRisk = 
   const entries = buildEntries(state);
   const C = CATEGORIES[state.category];
   const cat = state.category;
+  const compNotes = prepareComponents(state, track, entries);
+  const finish = (q) => {
+    const byKey = Object.fromEntries(entries.map((e) => [e.key, e]));
+    const alloc = TYRE_ALLOC[cat];
+    if (alloc && !state.quick) {
+      const sets = {};
+      for (const e of entries) {
+        const pu = practiceUse(state, e.key);
+        const runs = rainLevel > 0.2 ? 0 : q.sessions.filter((ss) => ss.results.some((r) => r.key === e.key)).length * 2;
+        sets[e.key] = { soft: Math.max(0, alloc.soft - pu.soft - runs), medium: Math.max(0, alloc.medium - pu.medium), hard: Math.max(0, alloc.hard - pu.hard) };
+      }
+      state._sets = { season: state.season, round: state.round, sets };
+      q.sets = sets;
+    }
+    const { grid, pens } = applyGridPenalties(state, q.grid, byKey);
+    q.qualiOrder = q.grid; q.grid = grid; q.gridPens = pens; q.compNotes = compNotes.map((n) => ({ driverId: n.d.id, type: n.type, pen: n.pen, forced: n.forced }));
+    return q;
+  };
   const soft = tyreModel(cat, rainLevel > 0.55 ? 'wet' : rainLevel > 0.2 && C.compounds.includes('inter') ? 'inter' : 'soft');
   const laps = entries.map((e) => {
     const team = state.teams[e.teamId];
     const d = state.drivers[e.driverIds[0]];
     const sq = setups[e.key] ?? aiSetupQuality(state, team);
     const risk = playerRisk[e.key] || 'normal';
-    const base = teamBaseLap(state, team, track) * driverFactor(d, rainLevel, state) * (1 - sq * 0.005) * (soft.wet ? weatherFactor(rainLevel > 0.55 ? 'wet' : 'inter', rainLevel) : weatherFactor('soft', rainLevel)) + soft.pace * track.lap / 90;
+    const bias = SETUP_BIAS[setupBias(state, e.key, track)];
+    const base = teamBaseLap(state, team, track) * compLapFactor(state, d) * (1 + bias.q) * driverFactor(d, rainLevel, state) * (1 - sq * 0.005) * (soft.wet ? weatherFactor(rainLevel > 0.55 ? 'wet' : 'inter', rainLevel) : weatherFactor('soft', rainLevel)) + soft.pace * track.lap / 90;
     const lap = () => {
       let t = base * (1 + gauss(0, 0.0022 * (1.45 - d.attrs.cons / 100)));
       if (risk === 'push') t -= 0.14 * track.lap / 90;
@@ -127,11 +217,11 @@ export function runQualifying(state, track, setups, rainLevel = 0, playerRisk = 
     pool = pool.filter((c) => r2.slice(0, cut2).some((x) => x.key === c.key));
     const r3 = run(pool, 'Q3');
     const fullGrid = [...r3, ...r2.slice(cut2), ...r1.slice(cut1)];
-    return { sessions, grid: fullGrid.map((x) => x.key), times: Object.fromEntries(fullGrid.map((x) => [x.key, x.time])) };
+    return finish({ sessions, grid: fullGrid.map((x) => x.key), times: Object.fromEntries(fullGrid.map((x) => [x.key, x.time])) });
   }
   const res = laps.map((c) => ({ key: c.key, time: Math.min(c.lap(), c.lap(), c.lap()) })).sort((a, b) => a.time - b.time);
   sessions.push({ name: C.id === 'endurance' ? 'Hyperpole' : 'Qualifica', results: res });
-  return { sessions, grid: res.map((x) => x.key), times: Object.fromEntries(res.map((x) => [x.key, x.time])) };
+  return finish({ sessions, grid: res.map((x) => x.key), times: Object.fromEntries(res.map((x) => [x.key, x.time])) });
 }
 
 // ------------------ RACE ------------------
@@ -164,18 +254,20 @@ export class CircuitSim {
     this.planCache = {};
     this.teamOrders = {}; this.radioQ = []; this.radioId = 0;
     this.moments = []; this.momentCD = {}; this.momentsOn = true;
+    this.penalties = []; this.investigations = []; this.compFails = {}; this.compDamage = {};
     this.rivalEvents = []; this.commT = -99; this.lastComm = null; this.battles = {}; this.leaderKey = null; this.commFlags = {};
     try { ensureRivalries(state); } catch { /* quick race worlds */ }
     this.cars = grid.map((key, i) => {
       const e = byKey[key];
       const team = state.teams[e.teamId];
       const effEff = this.endurance ? 0.86 + (team.car.parts.efficiency || 70) / 100 * 0.28 : 1;
+      const bias = setupBias(state, key, track);
       const car = {
         ...e, team, grid: i + 1, pos: i + 1,
         dist: -i * 0.0045 - 0.002, lap: 0, lapStart: 0, lastLap: null, bestLap: null,
         tyre: 'medium', age: 0, temp: 80, wear: 0, compoundsUsed: new Set(),
         fuelMax: this.endurance ? this.stintLaps * effEff : 1, fuel: this.endurance ? this.stintLaps * effEff : 1,
-        baseLap: teamBaseLap(state, team, track), setupQ: setups[key] ?? aiSetupQuality(state, team),
+        baseLap: teamBaseLap(state, team, track) * compLapFactor(state, state.drivers[e.driverIds[0]]) * (1 + SETUP_BIAS[bias].r), bias, tl: 0, setupQ: setups[key] ?? aiSetupQuality(state, team),
         mode: 'normal', status: 'running', reason: null, inPit: 0, pitReq: null, pitStops: 0,
         driverIdx: 0, stintCount: 0, battleT: 0, damage: 0, penalty: 0, lapTarget: track.lap, finishTime: null,
         auto: !e.isPlayer, smart: e.isPlayer ? 0.9 : clamp(smart + rand(-0.12, 0.08), 0.3, 1), aiRainReact: rand(0, 0.15), gapAhead: 9, drs: false, dirty: false,
@@ -183,9 +275,11 @@ export class CircuitSim {
       };
       return car;
     });
+    { const ws = weekendSets(state); this.sets = ws ? JSON.parse(JSON.stringify(ws)) : null; }
     for (const c of this.cars) {
       c.plan = this.makePlan(c);
       c.tyre = c.plan ? c.plan[0].c : this.pickStartCompound();
+      this.fitTyre(c, c.tyre, true);
       c.compoundsUsed.add(c.tyre);
       c.temp = this.endurance ? 85 : 82;
       c.lapTarget = this.computeLap(c);
@@ -206,6 +300,7 @@ export class CircuitSim {
     let w = (1.18 - tp / 420 - d.attrs.tyre / 520) * { push: 1.32, normal: 1, save: 0.72 }[mode];
     w *= 1 + (this.trackTemp - 32) * 0.008;
     if (c.isPlayer && hasPerk(this.state, 'tyre_reader')) w *= 0.94;
+    w *= SETUP_BIAS[c.bias]?.wear ?? 1;
     return w;
   }
 
@@ -220,6 +315,24 @@ export class CircuitSim {
     const o = opts[k];
     return o.stints.map((s) => ({ c: s.c, laps: Math.max(1, Math.round(s.laps + gauss(0, 1 - c.smart))) }));
   }
+
+  // fit a set of `comp`: a new one if any is left in the allocation, otherwise a used (scrubbed) set
+  fitTyre(c, comp, start = false) {
+    const s = this.sets?.[c.key];
+    c.usedSet = false; c.age = 0;
+    if (!s || s[comp] == null) return;
+    if (s[comp] > 0) { s[comp]--; return; }
+    c.age = start ? rand(1.5, 3) : rand(2.5, 5);
+    c.usedSet = true;
+    if (!start && c.isPlayer) this.log(`📻 Ingegnere a ${this.driver(c).name.split(' ')[0]}: «Niente set nuovi di ${COMPOUNDS[comp].name}: montiamo un treno usato.»`, 'radio', c.key, true);
+  }
+  // the player picked a different starting tyre in the strategy screen
+  setStartTyre(c, comp) {
+    const s = this.sets?.[c.key];
+    if (s && s[c.tyre] != null && !c.usedSet) s[c.tyre]++;
+    c.tyre = comp; this.fitTyre(c, comp, true);
+  }
+  setsLeft(c) { return this.sets?.[c.key] || null; }
 
   pickStartCompound() {
     const r = this.weather.plan[0];
@@ -335,6 +448,16 @@ export class CircuitSim {
     if (c.plan && !comp.wet) {
       const st = c.plan[c.planIdx];
       const isLast = c.planIdx >= c.plan.length - 1;
+      if (!isLast && lapsLeft > 5 && !this.sc && !this.vsc) {
+        // cover a rival's undercut attempt
+        if (c._cover && c.stintLap >= st.laps * 0.55) { c._cover = false; c.planIdx++; if (c.pos <= 10) this.log(`🧠 ${this.driver(c).name} risponde subito alla sosta del rivale.`, 'pit', c.key, false); return this.req(c, c.plan[c.planIdx].c); }
+        c._cover = false;
+        // stuck behind a slower car: try the undercut
+        c._stuck = c.gapAhead < 1.4 ? (c._stuck || 0) + 1 : 0;
+        if (c._stuck >= 2 && c.stintLap >= st.laps * 0.7 && wear > 0.45 && chance(0.2 + c.smart * 0.35)) { c._stuck = 0; c.planIdx++; c._undercut = true; return this.req(c, c.plan[c.planIdx].c); }
+      }
+      // late safety car on the final stint: free stop for fresh tyres
+      if ((this.sc || this.vsc) && isLast && wear > 0.42 && lapsLeft > 3 && lapsLeft < this.laps * 0.45 && chance(0.2 + c.smart * 0.45)) return this.req(c, this.dryChoice(c, lapsLeft));
       if (!isLast && (c.stintLap >= st.laps || wear > 0.98) && lapsLeft > 2) {
         c.planIdx++;
         return this.req(c, c.plan[c.planIdx].c);
@@ -470,11 +593,24 @@ export class CircuitSim {
     if (c.isPlayer && hasPerk(this.state, 'fast_crew')) stat -= 0.3;
     if (!req.compound && this.endurance) stat -= 9;
     const loss = this.pitLoss * (this.sc ? 0.5 : this.vsc ? 0.65 : 1);
+    // pit lane infringements
+    const infr = this.endurance ? 0.2 : 1;
+    if (chance(infr * 0.008 * (1.3 - mech / 100) * (1.2 - crew * 0.08) * (this.sc || this.vsc ? 2.4 : 1))) this.penalize(c, 'unsafe', 5, 0, '5s per rilascio non sicuro dalla piazzola', 0.05 * (this.C.budgetScale || 1));
+    else if (chance(infr * 0.0035)) this.penalize(c, 'speed', 5, 0, '5s per eccesso di velocità in pit lane', 0.02 * (this.C.budgetScale || 1));
+    // rivals react: the car just ahead covers the undercut, a car on good tyres goes long (overcut)
+    if (!this.sc && !this.vsc && !this.endurance) {
+      for (const x of this.cars) {
+        if (x === c || x.status !== 'running' || x.inPit > 0 || !x.auto || x.teamId === c.teamId || !x.plan) continue;
+        const gap = (x.dist - c.dist) * this.track.lap;
+        if (gap > 0 && gap < 2.8 && chance(x.smart * 0.75)) x._cover = true;
+        else if (gap < 0 && gap > -2.5 && x.wear < 0.55 && x.plan[x.planIdx] && x.planIdx < x.plan.length - 1 && chance(0.35)) x.plan[x.planIdx].laps += 2;
+      }
+    }
     if (c.damage > 0 && req.repair !== false) { stat += c.damage * 12; c.damage = 0; }
     c.inPit = loss + stat;
     c.pitStops++;
     if (c.isPlayer && !c.auto && c.plan && req.compound && c.plan[c.planIdx + 1]) c.planIdx++;
-    if (req.compound) { c.tyre = req.compound; c.age = 0; c.temp = (this.endurance ? 72 : 70) + (c.isPlayer && hasPerk(this.state, 'outlap') ? 18 : 0); c.compoundsUsed.add(req.compound); c.stintLap = 0; }
+    if (req.compound) { c.tyre = req.compound; this.fitTyre(c, req.compound); c.temp = (this.endurance ? 72 : 70) + (c.isPlayer && hasPerk(this.state, 'outlap') ? 18 : 0); c.compoundsUsed.add(req.compound); c.stintLap = 0; }
     if (this.endurance) { c.fuel = c.fuelMax; c.stintCount++; }
     if (req.swap && c.driverIds.length > 1) { c.driverIdx = (c.driverIdx + 1) % c.driverIds.length; c.stintCount = 0; }
     const d = this.driver(c);
@@ -502,6 +638,7 @@ export class CircuitSim {
 
   retire(c, reason, crash) {
     c.status = 'dnf'; c.reason = reason;
+    if (crash && compEnabled(this.state) && !this.compFails[c.key] && chance(0.3)) this.compFails[c.key] = 'gb';
     const d = this.driver(c);
     this.log(`${crash ? '💥' : '🔧'} RITIRO: ${d.name} (${c.team.name}) – ${reason}`, crash ? 'crash' : 'fail', c.key, true);
     if (c.pos <= 10 || c.isPlayer) this.comment(commentaryGeneric('retire', d, crash ? ' dopo il contatto' : ''), c.key, true);
@@ -510,6 +647,58 @@ export class CircuitSim {
       else if (chance(crash ? 0.5 : 0.35)) this.deployVSC();
     }
   }
+  // ---------- STEWARDS ----------
+  penalize(c, type, secs, pts, text, fine = 0) {
+    const d = this.driver(c);
+    c.penalty += secs;
+    if (c.status === 'finished') c.finishTime += secs;
+    this.penalties.push({ key: c.key, teamId: c.teamId, driverId: d.id, type, secs, pts, text, fine: c.isPlayer ? fine : 0, lap: c.lap });
+    this.log(`⚖ Commissari: ${d.name} – ${text}${pts ? ` (+${pts} pt superlicenza)` : ''}`, 'warn', c.key, true);
+    if (c.isPlayer && c.status === 'running' && this.laps - c.dist > 1) this.log(`📻 Ingegnere a ${d.name.split(' ')[0]}: «${pick(['Abbiamo una penalità di ' + secs + ' secondi, spingi per recuperarli.', 'Penalità di ' + secs + 's. Dobbiamo costruire un margine.', 'I commissari ci hanno dato ' + secs + ' secondi. Testa bassa e spingi.'])}»`, 'radio', c.key, true);
+  }
+  stewardsLap(c, d) {
+    if (this.sc || this.vsc || c.status !== 'running') return;
+    if (c.lap === 1 && chance(0.003 * (1.4 - d.attrs.cons / 100))) this.penalize(c, 'jump', 5, 0, '5s per partenza anticipata');
+    const street = this.track.street || 0;
+    const busy = c.attackUntil > this.time || c.defendUntil > this.time ? 1.4 : 1;
+    let lam = 0.032 * this.scale * { push: 1.8, normal: 1, save: 0.45 }[c.mode] * (1.35 - d.attrs.cons / 100) * (1 - street * 0.65) * busy * (this.rain > 0.3 ? 0.6 : 1) * (this.endurance ? 0.18 : 1);
+    let n = 0; while (lam > 0) { if (chance(Math.min(1, lam))) n++; lam -= 1; }
+    for (let i = 0; i < n; i++) {
+      c.tl++;
+      if (c.tl === 3) { this.log(`🏁 Bandiera bianconera a ${d.name}: tre infrazioni dei limiti della pista.`, 'warn', c.key, c.isPlayer); if (c.isPlayer) this.log(`📻 Ingegnere a ${d.name.split(' ')[0]}: «Attento ai limiti della pista, alla prossima è penalità!»`, 'radio', c.key, true); }
+      else if (c.tl === 4 || (c.tl > 4 && (c.tl - 4) % 2 === 0)) this.penalize(c, 'tl', 5, 0, `5s per track limits (${c.tl} infrazioni)`);
+    }
+  }
+  investigate(att, vic, severe) {
+    const da = this.driver(att), dv = this.driver(vic);
+    if (!da || !dv) return;
+    this.log(`🔎 I commissari indagano sul contatto tra ${da.name} e ${dv.name}.`, 'warn', att.key, att.isPlayer || vic.isPlayer);
+    this.investigations.push({ at: this.time + rand(25, 70), att: att.key, vic: vic.key, severe, da: da.id, dv: dv.id });
+  }
+  resolveInvestigations() {
+    const due = this.investigations.filter((x) => x.at <= this.time);
+    if (!due.length) return;
+    this.investigations = this.investigations.filter((x) => x.at > this.time);
+    for (const inv of due) {
+      const att = this.cars.find((x) => x.key === inv.att), vic = this.cars.find((x) => x.key === inv.vic);
+      if (!att || !vic) continue;
+      const da = this.state.drivers[inv.da], dv = this.state.drivers[inv.dv];
+      const pAtt = clamp(0.5 + (75 - da.attrs.race) / 120 + (inv.severe ? 0.08 : 0), 0.3, 0.75);
+      const r = Math.random();
+      let guilty = null, type = 'col';
+      if (r < pAtt) guilty = att; else if (r < pAtt + 0.1) { guilty = vic; type = 'defend'; }
+      if (!guilty) { this.log(`⚖ Commissari: contatto ${da.name}–${dv.name} classificato come incidente di gara. Nessuna azione.`, 'info', att.key, att.isPlayer || vic.isPlayer); continue; }
+      const secs = type === 'col' && inv.severe ? 10 : 5;
+      const pts = type === 'col' ? (inv.severe ? 2 : 1) + (chance(0.2) ? 1 : 0) : 1;
+      const text = type === 'col' ? `${secs}s per aver causato una collisione con ${this.driver(vic).name}` : `${secs}s per cambio di traiettoria in frenata su ${this.driver(att).name}`;
+      if (guilty.status === 'dnf') {
+        const gd = this.driver(guilty);
+        this.penalties.push({ key: guilty.key, teamId: guilty.teamId, driverId: gd.id, type, secs: 0, pts, grid: 3, text: `3 posizioni di penalità in griglia al prossimo evento (${type === 'col' ? 'collisione causata' : 'manovra in frenata'})`, lap: guilty.lap });
+        this.log(`⚖ Commissari: ${gd.name} retrocesso di 3 posizioni nella prossima griglia (+${pts} pt superlicenza).`, 'warn', guilty.key, true);
+      } else this.penalize(guilty, type, secs, pts, text);
+    }
+  }
+
   deploySC() {
     this.sc = { laps: randInt(2, 4), startLap: Math.floor(this.progress * this.laps) };
     this.scCount++;
@@ -547,7 +736,7 @@ export class CircuitSim {
     if (this.leaderFinished || c.lap >= this.laps) {
       if (!this.leaderFinished) { this.leaderFinished = true; this.log(`🏁 ${this.driver(c).name} taglia per primo il traguardo!`, 'finish', c.key, true); }
       if ((this.C.id === 'formula' || this.C.id === 'junior') && !this.weather.isRain && [...c.compoundsUsed].filter((x) => !COMPOUNDS[x].wet).length < 2) {
-        c.penalty += 10; this.log(`⚖ ${this.driver(c).name}: +10s di penalità (una sola mescola utilizzata)`, 'warn', c.key, c.isPlayer);
+        this.penalize(c, 'tyre', 10, 0, '+10s: una sola mescola utilizzata');
       }
       c.status = 'finished'; c.finishTime = crossT + c.penalty; c.finishLap = c.lap;
       return;
@@ -574,6 +763,7 @@ export class CircuitSim {
     failP *= this.realism.failures;
     crashP *= this.realism.damage;
     if (c.isPlayer && hasPerk(this.state, 'reliable')) failP *= 0.8;
+    failP *= compFailMult(this.state, d);
     if (chance(crashP)) {
       const r = Math.random();
       if (r < 0.42) this.retire(c, pick(['Incidente', 'Contatto alla staccata', 'Fuori pista contro le barriere', 'Testacoda e muro']), true);
@@ -583,10 +773,20 @@ export class CircuitSim {
     }
     if (chance(failP)) {
       const r = Math.random();
-      if (r < 0.55) { this.retire(c, pick(['Power unit', 'Cambio', 'Idraulica', 'Freni', 'Perdita olio', 'Elettronica', 'Sospensione']), false); return; }
+      if (r < 0.55) {
+        if (compEnabled(this.state) && chance(0.65)) {
+          const part = failureComponent(this.state, d);
+          this.compFails[c.key] = part;
+          this.retire(c, part === 'ice' ? pick(['Power unit', 'Perdita olio', 'Turbo', 'MGU-K']) : 'Cambio', false);
+          if (c.isPlayer) this.log(`📻 Ingegnere: «${part === 'ice' ? 'La power unit è andata: dovremo montarne una nuova.' : 'Cambio rotto: servirà un’unità nuova.'}»`, 'radio', c.key, true);
+        } else this.retire(c, pick(['Idraulica', 'Freni', 'Elettronica', 'Sospensione', 'Pompa benzina']), false);
+        return;
+      }
       c.damage += rand(0.2, 0.7); this.log(`🔧 Problema tecnico per ${d.name}: perde potenza.`, 'warn', c.key, c.isPlayer);
+      if (compEnabled(this.state)) this.compDamage[c.key] = (this.compDamage[c.key] || 0) + 0.18;
     }
     if (wear > 1.12 && !comp.wet && chance(0.25)) { c.damage += 0.6; c.pitReq = c.pitReq || { compound: this.dryChoice(c, this.laps - c.dist), fuel: true }; this.log(`💥 Foratura per ${d.name}! Gomme oltre il limite.`, 'warn', c.key, true); c.dist -= 0.15; }
+    this.stewardsLap(c, d);
     if (c.auto) { const req = this.aiThink(c); if (req) c.pitReq = req; }
     if (c.isPlayer && !c.auto && this.endurance && c.fuel < 1.05 && !c.pitReq) { c.pitReq = { compound: null, fuel: true }; this.log(`⛽ Ingegnere: ${d.name} chiamato ai box per carburante (automatico).`, 'pit', c.key, true); }
     if (c.isPlayer && !c.auto && wear > 1.1 && !c.pitReq && this.laps - c.dist > 2) this.log(`📻 Ingegnere a ${d.name.split(' ')[0]}: «Le gomme sono finite, dobbiamo fermarci!»`, 'radio', c.key, true);
@@ -614,6 +814,7 @@ export class CircuitSim {
     }
     if (rain < 0.1 && this._lastRain >= 0.1) this.log('☀ La pioggia smette, pista in asciugatura.', 'weather', null, true);
     this._lastRain = rain;
+    if (this.investigations.length) this.resolveInvestigations();
     if (this.radioQ.length) for (const r of this.radioQ.filter((x) => this.time > x.until)) this.answerRadio(r.id, r.type === 'ers' || r.type === 'pit');
     if (this.vsc && this.time > this.vsc.until) { this.vsc = null; this.log('🟢 Fine Virtual Safety Car', 'sc', null, true); for (const c of this.cars) c.lapTarget = this.computeLap(c); }
     for (const c of running) {
@@ -728,6 +929,7 @@ export class CircuitSim {
               } else this.rivalRadio(radioContact(db, da, duel.heat), a.key, true);
               if (chance(0.3)) this.retire(a, 'Contatto in duello', true);
               else { a.damage += rand(0.3, 0.9); this.log(`⚠ Contatto tra ${db.name} e ${da.name}: ala danneggiata!`, 'warn', a.key, a.isPlayer || b.isPlayer); a.lapTarget = this.computeLap(a); }
+              this.investigate(b, a, a.status === 'dnf');
             }
           } else b.dist = a.dist - MIN_GAP;
         } else b.dist = a.dist - MIN_GAP;
@@ -758,6 +960,7 @@ export class CircuitSim {
       if (lapN === Math.floor(this.laps / 2) && !this.commFlags.half) { this.commFlags.half = 1; this.comment(commentaryGeneric('halfway'), null, true); }
       if (lapN === this.laps - 1 && !this.commFlags.last) { this.commFlags.last = 1; this.comment(commentaryGeneric('lastlap'), null, true); }
     }
+    if (this.leaderFinished && this.cars.every((c) => c.status !== 'running') && this.investigations.length) { for (const x of this.investigations) x.at = 0; this.resolveInvestigations(); }
     if (this.leaderFinished && this.cars.every((c) => c.status !== 'running')) { this.finished = true; this.log('Bandiera a scacchi. Gara conclusa.', 'finish', null, true); }
     if (!this.cars.some((c) => c.status === 'running')) this.finished = true;
   }
@@ -800,6 +1003,6 @@ export class CircuitSim {
       const gap = this.gapToLeader(c, leader);
       return { key: c.key, teamId: c.teamId, driverIds: c.driverIds, pos, status: c.status === 'dnf' ? 'dnf' : 'fin', reason: c.reason, pts, gap, bestLap: c.bestLap, pitStops: c.pitStops, grid: c.grid, laps: c.status === 'finished' ? c.finishLap : Math.floor(Math.max(0, c.dist)), tyres: [...c.compoundsUsed] };
     });
-    return { classification: out, fastest: this.fastest, scCount: this.scCount };
+    return { classification: out, fastest: this.fastest, scCount: this.scCount, penalties: this.penalties.slice(), compFails: { ...this.compFails }, compDamage: { ...this.compDamage } };
   }
 }

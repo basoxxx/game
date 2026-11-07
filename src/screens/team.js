@@ -9,6 +9,9 @@ import { cat, playerTeam, teamDrivers, standings, fmtM, freeAgents, driverIntere
 import { driverChip, ovr, ratingBox, moraleChip, attrBars, ATTR_NAMES, teamStripe } from './common.js';
 import { sfx } from '../ui/audio.js';
 import { hasPerk } from '../engine/progress.js';
+import { negotiate, canPrecontract, nextSeasonRoster, persona } from '../engine/market.js';
+import { licencePoints, BAN_POINTS } from '../engine/stewards.js';
+import { compEnabled, compSummaryText } from '../engine/components.js';
 
 // --------------- DRIVERS ---------------
 registerScreen({
@@ -29,6 +32,7 @@ registerScreen({
           <div class="grow"><div class="row">${flagSVG(d.nat, 26, 17)}<h2>${esc(d.name)}</h2></div>
             <div class="row wrap mt8 gap6"><span class="chip">#${d.number}</span><span class="chip">${d.age} anni</span>${C.driversPerCar > 1 ? `<span class="chip info">Auto ${Math.floor(i / C.driversPerCar) + 1}</span>` : ''}${moraleChip(d.morale)}</div>
             <div class="row wrap mt8 gap6 small"><span class="muted">Contratto:</span><b>${d.contract} ${d.contract === 1 ? 'stagione' : 'stagioni'}</b><span class="muted">· Stipendio:</span><b>${fmtM(d.salary)}/anno</b></div>
+            ${driverStatusChips(st, d, t)}
           </div>
           <div class="col" style="align-items:center;gap:4px">${ratingBox(ovr(st, d), false)}<span class="tiny muted">OVR</span></div>
         </div>
@@ -71,42 +75,53 @@ export function openContract(driverId, replaceId = null, renew = false) {
   const st = S();
   const d = st.drivers[driverId];
   const t = playerTeam(st);
+  persona(d);
   const ask = driverInterest(st, d, t, 1, 1).ask;
-  let salary = +(ask * 1.0).toFixed(2), years = 2;
+  let salary = +(ask * 1.0).toFixed(2), years = 2, no1 = false, reply = null, counter = null;
+  const preOk = !renew && canPrecontract(st, d);
+  let mode = renew ? 'renew' : preOk ? 'pre' : 'sign';
   const seats = seatsPerTeam(st);
   const mine = teamDrivers(st, t);
-  const needReplace = !renew && mine.length >= seats && !replaceId;
   const render = () => {
-    const { score } = driverInterest(st, d, t, salary, years);
-    const buy = renew ? 0 : buyoutCost(st, d);
-    const verdict = score >= 1 ? ['good', 'Entusiasta'] : score >= 0.82 ? ['warn', 'Disponibile'] : ['bad', 'Non interessato'];
-    return `<div class="row" style="gap:14px">${helmetSVG(d.helmet, 64)}<div class="grow"><div class="row">${flagSVG(d.nat)}<h2 style="margin:0">${esc(d.name)}</h2></div><div class="small muted">${d.age} anni · ${d.teamId ? esc(st.teams[d.teamId].name) : 'Svincolato'} · OVR ${ovr(st, d)}</div></div></div>
-    <div class="col gap16 mt24">
-      <div><div class="row between"><label class="lbl">Stipendio annuo</label><b>${fmtM(salary)}</b></div><input type="range" min="${(ask * 0.5).toFixed(2)}" max="${(ask * 2).toFixed(2)}" step="0.05" value="${salary}" data-input="sal" class="mt8"><div class="tiny muted mt8">Richiesta del pilota: circa ${fmtM(ask)}</div></div>
-      <div><label class="lbl">Durata</label><div class="row gap6 mt8">${[1, 2, 3, 4].map((y) => `<button class="btn sm ${years === y ? 'active' : ''}" data-a="years" data-y="${y}">${y} ${y === 1 ? 'anno' : 'anni'}</button>`).join('')}</div></div>
-      ${needReplace ? `<div><label class="lbl">Sostituisce</label><div class="row gap6 mt8 wrap">${mine.map((m) => `<button class="btn sm ${replaceId === m.id ? 'active' : ''}" data-a="repl" data-id="${m.id}">${esc(m.name)}</button>`).join('')}</div><div class="tiny muted mt8">Il pilota sostituito verrà liberato (penale 50% del residuo).</div></div>` : ''}
+    const { score, ev } = driverInterest(st, d, t, salary, years, { no1 });
+    const dem = ev.demands;
+    const buy = mode === 'sign' ? buyoutCost(st, d) : 0;
+    const ros = nextSeasonRoster(st);
+    const needReplace = mode === 'sign' ? mine.length >= seats : mode === 'pre' ? ros.free <= 0 : false;
+    const replList = mode === 'pre' ? ros.staying : mine;
+    const verdict = score >= 1.12 ? ['good', 'Entusiasta'] : score >= 1 ? ['warn', 'Disponibile'] : score >= 0.9 ? ['warn', 'Ci sta pensando'] : ['bad', 'Non interessato'];
+    const pat = ev.patience;
+    return `<div class="row" style="gap:14px">${helmetSVG(d.helmet, 64)}<div class="grow"><div class="row">${flagSVG(d.nat)}<h2 style="margin:0">${esc(d.name)}</h2></div><div class="small muted">${d.age} anni · ${d.teamId ? esc(st.teams[d.teamId].name) + ` (contratto: ${d.contract} ${d.contract === 1 ? 'stagione' : 'stagioni'})` : 'Svincolato'} · OVR ${ovr(st, d)}</div>
+      <div class="row gap6 mt8 wrap"><span class="chip info" title="${esc(dem.persona.desc)}">${esc(dem.persona.name)}</span><span class="chip">Agente: ${esc(dem.agent)}</span><span class="chip ${pat <= 1 ? 'bad' : ''}">Pazienza ${'●'.repeat(Math.max(0, pat))}${'○'.repeat(Math.max(0, 4 - pat))}</span></div></div></div>
+    <div class="small muted mt8">${esc(dem.persona.desc)}</div>
+    ${dem.notes.length ? `<div class="row gap6 mt8 wrap">${dem.notes.map((n) => `<span class="chip warn">${esc(n)}</span>`).join('')}</div>` : ''}
+    ${dem.rival ? `<div class="card mt8" style="border-color:var(--bad)"><b class="small bad">Offerta concorrente</b><div class="small">${esc(st.teams[dem.rival.teamId]?.name || '')}: ${fmtM(dem.rival.salary)}/anno per ${dem.rival.years} anni · decisione entro il round ${dem.rival.deadline + 1}</div></div>` : ''}
+    <div class="col gap16 mt16">
+      ${!renew && preOk ? `<div><label class="lbl">Tipo di accordo</label><div class="row gap6 mt8"><button class="btn sm ${mode === 'pre' ? 'active' : ''}" data-a="mode" data-m="pre">Precontratto dal ${st.season + 1}</button><button class="btn sm ${mode === 'sign' ? 'active' : ''}" data-a="mode" data-m="sign">Subito (clausola ${fmtM(buyoutCost(st, d))})</button></div><div class="tiny muted mt8">Il contratto di ${esc(d.name)} scade a fine anno: con un precontratto non paghi la clausola, ma arriverà solo la prossima stagione.</div></div>` : ''}
+      <div><div class="row between"><label class="lbl">Stipendio annuo</label><b>${fmtM(salary)}</b></div><input type="range" min="${(ask * 0.5).toFixed(2)}" max="${(ask * 2.2).toFixed(2)}" step="0.05" value="${salary}" data-input="sal" class="mt8"><div class="tiny muted mt8">Richiesta dell’agente: circa ${fmtM(ask)}</div></div>
+      <div><label class="lbl">Durata</label><div class="row gap6 mt8">${[1, 2, 3, 4].map((y) => `<button class="btn sm ${years === y ? 'active' : ''}" data-a="years" data-y="${y}">${y} ${y === 1 ? 'anno' : 'anni'}${y === dem.prefYears ? ' ★' : ''}</button>`).join('')}</div><div class="tiny muted mt8">★ durata preferita dal pilota</div></div>
+      <div><label class="lbl">Ruolo in squadra</label><div class="row gap6 mt8"><button class="btn sm ${!no1 ? 'active' : ''}" data-a="no1" data-v="0">Parità con il compagno</button><button class="btn sm ${no1 ? 'active' : ''}" data-a="no1" data-v="1">Prima guida garantita</button></div><div class="tiny muted mt8">La prima guida riceve la precedenza negli ordini di scuderia: piace ai piloti ambiziosi, ma il compagno perde morale.</div></div>
+      ${needReplace ? `<div><label class="lbl">${mode === 'pre' ? 'Lascerà a fine stagione' : 'Sostituisce'}</label><div class="row gap6 mt8 wrap">${replList.map((m) => `<button class="btn sm ${replaceId === m.id ? 'active' : ''}" data-a="repl" data-id="${m.id}">${esc(m.name)}</button>`).join('')}</div><div class="tiny muted mt8">${mode === 'pre' ? 'Il pilota indicato verrà liberato a fine anno (penale 50% del residuo).' : 'Il pilota sostituito verrà liberato (penale 50% del residuo).'}</div></div>` : ''}
       <div class="card"><div class="row between"><span>Interesse</span><span class="chip ${verdict[0]}">${verdict[1]}</span></div>${bar(Math.min(100, score * 80), verdict[0] === 'good' ? 'green' : verdict[0] === 'warn' ? 'gold' : 'red')}
         <div class="row between small mt8"><span class="muted">Bonus firma (25%)</span><b>${fmtM(renew ? 0 : salary * 0.25)}</b></div>
         ${buy ? `<div class="row between small"><span class="muted">Clausola rescissoria</span><b>${fmtM(buy)}</b></div>` : ''}
       </div>
+      ${reply ? `<div class="card" style="border-left:3px solid var(--warn)"><div class="small">${esc(reply)}</div>${counter && counter <= ask * 2.2 ? `<button class="btn sm mt8" data-a="counter">Accetta la controproposta (${fmtM(counter)})</button>` : ''}</div>` : ''}
     </div>
-    <div class="row mt24" style="justify-content:flex-end"><button class="btn ghost" data-a="close-modal">Annulla</button><button class="btn primary" data-a="sign" ${needReplace && !replaceId ? 'disabled' : ''}>${renew ? 'Rinnova' : 'Offri contratto'}</button></div>`;
+    <div class="row mt24" style="justify-content:flex-end"><button class="btn ghost" data-a="close-modal">Annulla</button><button class="btn primary" data-a="sign" ${(needReplace && !replaceId) || ev.blocked ? 'disabled' : ''}>${renew ? 'Proponi rinnovo' : mode === 'pre' ? 'Proponi precontratto' : 'Offri contratto'}</button></div>`;
   };
   const rerender = () => { const m = document.querySelector('.modal'); if (m) m.innerHTML = render(); };
   App.modal(render(), {
     sal(el) { salary = +(+el.value).toFixed(2); rerender(); },
     years(el) { years = +el.dataset.y; rerender(); },
     repl(el) { replaceId = el.dataset.id; rerender(); },
+    mode(el) { mode = el.dataset.m; replaceId = null; rerender(); },
+    no1(el) { no1 = el.dataset.v === '1'; rerender(); },
+    counter() { if (counter) salary = +Math.min(ask * 2.2, Math.ceil(counter * 20) / 20).toFixed(2); reply = null; counter = null; rerender(); },
     sign() {
-      if (renew) {
-        const { score } = driverInterest(st, d, t, salary, years);
-        if (score < 0.82) { App.toast('Rinnovo rifiutato', `${d.name} vuole di più.`, 'bad'); sfx.bad(); return; }
-        d.salary = salary; d.contract = years; d.morale = Math.min(100, d.morale + 8);
-        App.closeModal(); App.toast('Contratto rinnovato', `${d.name} fino al ${st.season + years}`, 'good'); sfx.ok(); App.refresh(); return;
-      }
-      const r = signDriver(st, d.id, salary, years, replaceId);
-      if (!r.ok) { App.toast('Offerta respinta', r.msg, 'bad'); sfx.bad(); return; }
-      App.closeModal(); App.toast('Firmato!', `${d.name} è un nuovo pilota di ${t.name}`, 'good'); sfx.win(); App.refresh();
+      const r = negotiate(st, d.id, { salary, years, no1, replaceId, mode });
+      if (!r.ok) { reply = r.msg; counter = r.counter || null; sfx.bad(); rerender(); return; }
+      App.closeModal(); App.toast(renew ? 'Contratto rinnovato' : mode === 'pre' ? 'Precontratto firmato!' : 'Firmato!', r.msg || `${d.name} è un nuovo pilota di ${t.name}`, 'good'); sfx.win(); App.refresh();
     },
   });
 }
@@ -130,7 +145,7 @@ registerScreen({
       <div class="row"><div class="tabs">${[['all', 'Tutti'], ['free', 'Svincolati'], ['team', 'Sotto contratto'], ['young', 'Giovani']].map(([k, n]) => `<div class="tab ${mFilter === k ? 'active' : ''}" data-a="filter" data-f="${k}">${n}</div>`).join('')}</div>
       <select data-change="sort"><option value="ovr" ${mSort === 'ovr' ? 'selected' : ''}>Ordina: Valore</option><option value="pot" ${mSort === 'pot' ? 'selected' : ''}>Potenziale</option><option value="age" ${mSort === 'age' ? 'selected' : ''}>Età</option><option value="sal" ${mSort === 'sal' ? 'selected' : ''}>Stipendio</option></select></div></div>
     <div class="panel flush anim-in"><table class="tbl"><thead><tr><th>Pilota</th><th>Squadra</th><th class="right">Età</th>${Object.values(ATTR_NAMES).map((n) => `<th class="right" title="${n}">${n.slice(0, 3)}</th>`).join('')}<th class="right">Pot.</th><th class="right">OVR</th><th class="right">Stipendio</th><th></th></tr></thead><tbody>
-      ${list.slice(0, 80).map((d) => { const tm = d.teamId ? st.teams[d.teamId] : null; const p = showPot(d); return `<tr><td>${driverChip(st, d, { size: 24 })}</td><td class="small">${tm ? `<div class="row">${teamStripe(tm)}${esc(tm.short)} <span class="muted">(${d.contract}a)</span></div>` : '<span class="chip good">Libero</span>'}</td><td class="right mono">${d.age}</td>${Object.keys(ATTR_NAMES).map((k) => `<td class="right mono ${d.attrs[k] >= 88 ? 'good' : d.attrs[k] < 70 ? 'dim' : ''}">${d.attrs[k]}</td>`).join('')}<td class="right mono">${p == null ? '<span class="dim" title="Migliora l’Accademia per vedere il potenziale">?</span>' : p}</td><td class="right">${ratingBox(ovr(st, d))}</td><td class="right mono small">${fmtM(d.salary)}</td><td class="right"><button class="btn sm ${tm ? '' : 'primary'}" data-a="offer" data-id="${d.id}">Offerta</button></td></tr>`; }).join('')}
+      ${list.slice(0, 80).map((d) => { const tm = d.teamId ? st.teams[d.teamId] : null; const p = showPot(d); return `<tr><td>${driverChip(st, d, { size: 24 })}</td><td class="small">${tm ? `<div class="row">${teamStripe(tm)}${esc(tm.short)} <span class="muted">(${d.contract}a)</span>${d.nextTeam ? ` <span class="chip tiny ${d.nextTeam === t.id ? 'good' : ''}">→ ${esc(st.teams[d.nextTeam]?.short || '')}</span>` : canPrecontract(st, d) ? ' <span class="chip tiny warn" title="Contratto in scadenza: puoi firmare un precontratto">Precontratto</span>' : ''}</div>` : `<span class="chip good">Libero</span>${d.reserveFor ? ` <span class="chip tiny">Riserva ${esc(st.teams[d.reserveFor]?.short || '')}</span>` : ''}`}</td><td class="right mono">${d.age}</td>${Object.keys(ATTR_NAMES).map((k) => `<td class="right mono ${d.attrs[k] >= 88 ? 'good' : d.attrs[k] < 70 ? 'dim' : ''}">${d.attrs[k]}</td>`).join('')}<td class="right mono">${p == null ? '<span class="dim" title="Migliora l’Accademia per vedere il potenziale">?</span>' : p}</td><td class="right">${ratingBox(ovr(st, d))}</td><td class="right mono small">${fmtM(d.salary)}</td><td class="right"><button class="btn sm ${tm ? '' : 'primary'}" data-a="offer" data-id="${d.id}">Offerta</button></td></tr>`; }).join('')}
     </tbody></table></div>`;
   },
   actions: {
@@ -231,5 +246,21 @@ registerScreen({
     },
   },
 });
+
+function driverStatusChips(st, d, t) {
+  const chips = [];
+  persona(d);
+  chips.push(`<span class="chip info" title="Personalità del pilota">${esc(({ ambizioso: 'Ambizioso', mercenario: 'Mercenario', leale: 'Uomo-squadra', emergente: 'Giovane affamato' })[d.persona] || '')}</span>`);
+  if (t.number1 === d.id) chips.push('<span class="chip good">Prima guida</span>');
+  if (d.nextTeam && d.nextTeam !== t.id) chips.push(`<span class="chip bad">Partirà per ${esc(st.teams[d.nextTeam]?.short || '')} a fine anno</span>`);
+  else if (d.rivalOffer) chips.push(`<span class="chip bad">Corteggiato da ${esc(st.teams[d.rivalOffer.teamId]?.short || '')}: ${fmtM(d.rivalOffer.salary)}/a</span>`);
+  if (d.releaseAtEnd) chips.push('<span class="chip warn">Lascerà a fine stagione</span>');
+  else if (d.contract === 1 && !d.nextTeam) chips.push('<span class="chip warn">In scadenza</span>');
+  const lp = licencePoints(d);
+  if (lp) chips.push(`<span class="chip ${lp >= 8 ? 'bad' : 'warn'}">Superlicenza ${lp}/${BAN_POINTS}</span>`);
+  if (d.ban && d.ban.season === st.season && d.ban.round >= st.round) chips.push('<span class="chip bad">Squalificato per il prossimo evento</span>');
+  const incoming = Object.values(st.drivers).filter((x) => x.nextTeam === t.id);
+  return `<div class="row wrap mt8 gap6">${chips.join('')}</div>${compEnabled(st) ? `<div class="tiny muted mt8">${esc(compSummaryText(st, d))}</div>` : ''}${incoming.length && d === teamDrivers(st, t)[0] ? `<div class="tiny good mt8">In arrivo dal ${st.season + 1}: ${incoming.map((x) => esc(x.name)).join(', ')}</div>` : ''}`;
+}
 
 function simCost(st) { return +(0.6 * ({ formula: 1, rally: 0.35, endurance: 0.55 }[st.category] || 1)).toFixed(2); }

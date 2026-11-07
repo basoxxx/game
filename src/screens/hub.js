@@ -50,6 +50,8 @@ registerScreen({
     const unread = st.inbox.filter((m) => !m.read).length;
     if (st.career.points) todo.push(['good', `${st.career.points} punti abilità da spendere`, 'career']);
     if (unread) todo.push(['info', unread === 1 ? '1 messaggio non letto' : `${unread} messaggi non letti`, 'inbox']);
+    if (st.ultimatum?.season === st.season) { const my = s.teams.find((x) => x.id === t.id)?.pts || 0; todo.unshift(['bad', `Ultimatum del consiglio: ${Math.max(0, my - st.ultimatum.start)}/${st.ultimatum.need} punti entro il round ${st.ultimatum.until}`, 'standings']); }
+    for (const d of myDrivers) { if (d.rivalOffer) todo.unshift(['bad', `${d.name} ha un’offerta da ${st.teams[d.rivalOffer.teamId]?.name}: rinnova o lo perderai`, 'drivers']); else if (d.nextTeam && d.nextTeam !== t.id) todo.push(['warn', `${d.name} partirà a fine anno: trova un sostituto`, 'market']); }
 
     let hero = '';
     if (info) {
