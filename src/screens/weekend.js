@@ -362,7 +362,7 @@ function mountRace() {
     setTimeout(() => document.getElementById('pit-ov')?.remove(), 3500);
   };
   if (isSprint) R.sim.log('⚡ SPRINT: gara breve, punti ai primi 8 (8-7-6-5-4-3-2-1).', 'start', null, true);
-  for (const c of R.sim.cars) if (c.isPlayer) { c.tyre = w.startTyre[c.key] || c.tyre; c.compoundsUsed = new Set([c.tyre]); c.plan = !isSprint && w.plans?.[c.key] ? w.plans[c.key].map((x) => ({ ...x })) : null; c.planIdx = 0; c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c); }
+  for (const c of R.sim.cars) if (c.isPlayer) { R.sim.setStartTyre(c, w.startTyre[c.key] || c.tyre); c.compoundsUsed = new Set([c.tyre]); c.plan = !isSprint && w.plans?.[c.key] ? w.plans[c.key].map((x) => ({ ...x })) : null; c.planIdx = 0; c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c); }
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {};
   R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, padTop: 40, glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' || st.category === 'junior' ? drsZones('formula', tr) : [] });
   R.last = performance.now(); R.uiT = 0;
@@ -715,7 +715,8 @@ function strategyPanel(st, w, tr, entries, q, C) {
       const opts = planOptions(st, tr, w.laps, team, d, w.weather.trackTemp);
       if (!w.plans[e.key]) { w.plans[e.key] = opts[0].stints; w.startTyre[e.key] = opts[0].stints[0].c; }
       const cur = w.plans[e.key].map((x) => x.c).join('-');
-      html += `<div class="card mt8"><div class="row"><span class="pos">P${q.grid.indexOf(e.key) + 1}</span><b class="grow">${esc(d.name)}</b><span class="tiny muted">Piano scelto</span></div><div class="col gap4 mt8">${opts.map((o, i) => `<div class="row" style="gap:8px;cursor:pointer;padding:4px;border-radius:8px;${o.stints.map((x) => x.c).join('-') === cur ? 'background:color-mix(in srgb, var(--team) 18%, transparent);outline:1px solid var(--team)' : ''}" data-a="pick-plan" data-key="${e.key}" data-i="${i}"><span class="tiny mono" style="width:56px">${i === 0 ? '<b class="good">OTTIMA</b>' : '+' + (o.time - opts[0].time).toFixed(1) + 's'}</span><div class="grow">${stintBar(o.stints, w.laps)}</div><span class="tiny muted" style="width:44px">${o.stints.length - 1} ${o.stints.length === 2 ? 'sosta' : 'soste'}</span></div>`).join('')}</div></div>`;
+      const ns = q.sets?.[e.key];
+      html += `<div class="card mt8"><div class="row"><span class="pos">P${q.grid.indexOf(e.key) + 1}</span><b class="grow">${esc(d.name)}</b>${ns ? `<span class="tiny muted" title="Set nuovi rimasti per la gara (gli altri sono usati)">Set nuovi: ${['soft', 'medium', 'hard'].map((cp) => `${tyreBadge(cp)}<b class="${ns[cp] ? '' : 'bad'}">${ns[cp]}</b>`).join(' ')}</span>` : ''}<span class="tiny muted">Piano scelto</span></div><div class="col gap4 mt8">${opts.map((o, i) => `<div class="row" style="gap:8px;cursor:pointer;padding:4px;border-radius:8px;${o.stints.map((x) => x.c).join('-') === cur ? 'background:color-mix(in srgb, var(--team) 18%, transparent);outline:1px solid var(--team)' : ''}" data-a="pick-plan" data-key="${e.key}" data-i="${i}"><span class="tiny mono" style="width:56px">${i === 0 ? '<b class="good">OTTIMA</b>' : '+' + (o.time - opts[0].time).toFixed(1) + 's'}</span><div class="grow">${stintBar(o.stints, w.laps)}</div><span class="tiny muted" style="width:44px">${o.stints.length - 1} ${o.stints.length === 2 ? 'sosta' : 'soste'}</span></div>`).join('')}</div></div>`;
     }
     html += `<div class="small muted mt8">L’ingegnere ti avviserà quando arriva il giro di sosta previsto. Puoi sempre cambiare idea in gara (safety car, pioggia, undercut…). Regola: almeno due mescole diverse.</div>`;
   } else {

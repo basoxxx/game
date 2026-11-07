@@ -48,7 +48,7 @@ function nextPenalty(state, d, type) {
 export function fitComponent(state, d, type, why = '') {
   const c = ensureComp(state, d);
   const pen = nextPenalty(state, d, type);
-  c[type].used++; c[type].wear = 0;
+  c[type].used++; c[type].wear = 0; c[type].warned = false;
   if (pen > 0) {
     const gp = d.gridPen && d.gridPen.season === state.season && d.gridPen.round === state.round ? d.gridPen : (d.gridPen = { season: state.season, round: state.round, places: 0, items: [] });
     gp.places += pen; gp.items.push(`${COMP_TYPES[type].short} n.${c[type].used}${why ? ' (' + why + ')' : ''}`);
@@ -156,6 +156,14 @@ export function postRaceComponents(state, results, track) {
       const f = results.compFails?.[r.key];
       if (f) c[f].wear = DESTROYED;
       if (results.compDamage?.[r.key]) c.ice.wear = Math.min(DESTROYED - 1, +(c.ice.wear + results.compDamage[r.key]).toFixed(3));
+      if (team.isPlayer) {
+        const bad = Object.keys(COMP_TYPES).filter((type) => c[type].wear >= DESTROYED || (c[type].wear >= 0.88 && !c[type].warned));
+        if (bad.length) {
+          for (const type of bad) c[type].warned = true;
+          const txt = bad.map((type) => `${COMP_TYPES[type].name}: ${c[type].wear >= DESTROYED ? 'distrutto' : `usura ${Math.round(c[type].wear * 100)}%`} (${c[type].used}/${compPool(state, type)} usati)`).join('\n');
+          state.inbox.unshift({ id: `cmp_${d.id}_${state.season}_${state.round}`, from: 'Reparto Motori', icon: 'rd', type: 'bad', subject: `Componenti a fine vita: ${d.name}`, body: `${txt}\n\nUn componente oltre la vita utile perde potenza e rischia il guasto. Nelle prove libere puoi montarne uno nuovo: se superi l’allocazione stagionale scatta la penalità in griglia. Conviene farlo su una pista dove si sorpassa facilmente.`, read: false, season: state.season, round: state.round });
+        }
+      }
     }
   }
 }

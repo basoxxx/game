@@ -125,6 +125,20 @@ export function setupBias(state, key, track) {
   return r < pQ ? 'quali' : r > 1 - pR ? 'race' : 'balanced';
 }
 
+// Weekend tyre allocation (new sets). Practice and qualifying eat into it: cars that reach Q3
+// start the race on a scrubbed soft and have fewer new sets left for the race.
+export const TYRE_ALLOC = { formula: { soft: 8, medium: 3, hard: 2 }, junior: { soft: 4, medium: 3, hard: 2 } };
+function practiceUse(state, key) {
+  const use = state.category === 'formula' ? { soft: 2, medium: 1, hard: 0 } : { soft: 1, medium: 1, hard: 0 };
+  const w = state.weekend;
+  if (w?.longRuns && state.teams[key.split('#')[0]]?.isPlayer) for (const c of Object.keys(use)) if (w.longRuns[c]) use[c]++;
+  return use;
+}
+export function weekendSets(state) {
+  const s = state._sets;
+  return s && s.season === state.season && s.round === state.round && !state.quick ? s.sets : null;
+}
+
 const aiSmart = (state) => ({ easy: 0.55, normal: 0.8, hard: 0.97 }[state.difficulty] ?? 0.8);
 
 // Base dry lap (s) for a team car on a track: physics from parts, calibrated to real laps
@@ -154,6 +168,17 @@ export function runQualifying(state, track, setups, rainLevel = 0, playerRisk = 
   const compNotes = prepareComponents(state, track, entries);
   const finish = (q) => {
     const byKey = Object.fromEntries(entries.map((e) => [e.key, e]));
+    const alloc = TYRE_ALLOC[cat];
+    if (alloc && !state.quick) {
+      const sets = {};
+      for (const e of entries) {
+        const pu = practiceUse(state, e.key);
+        const runs = rainLevel > 0.2 ? 0 : q.sessions.filter((ss) => ss.results.some((r) => r.key === e.key)).length * 2;
+        sets[e.key] = { soft: Math.max(0, alloc.soft - pu.soft - runs), medium: Math.max(0, alloc.medium - pu.medium), hard: Math.max(0, alloc.hard - pu.hard) };
+      }
+      state._sets = { season: state.season, round: state.round, sets };
+      q.sets = sets;
+    }
     const { grid, pens } = applyGridPenalties(state, q.grid, byKey);
     q.qualiOrder = q.grid; q.grid = grid; q.gridPens = pens; q.compNotes = compNotes.map((n) => ({ driverId: n.d.id, type: n.type, pen: n.pen, forced: n.forced }));
     return q;
@@ -250,9 +275,11 @@ export class CircuitSim {
       };
       return car;
     });
+    { const ws = weekendSets(state); this.sets = ws ? JSON.parse(JSON.stringify(ws)) : null; }
     for (const c of this.cars) {
       c.plan = this.makePlan(c);
       c.tyre = c.plan ? c.plan[0].c : this.pickStartCompound();
+      this.fitTyre(c, c.tyre, true);
       c.compoundsUsed.add(c.tyre);
       c.temp = this.endurance ? 85 : 82;
       c.lapTarget = this.computeLap(c);
@@ -288,6 +315,24 @@ export class CircuitSim {
     const o = opts[k];
     return o.stints.map((s) => ({ c: s.c, laps: Math.max(1, Math.round(s.laps + gauss(0, 1 - c.smart))) }));
   }
+
+  // fit a set of `comp`: a new one if any is left in the allocation, otherwise a used (scrubbed) set
+  fitTyre(c, comp, start = false) {
+    const s = this.sets?.[c.key];
+    c.usedSet = false; c.age = 0;
+    if (!s || s[comp] == null) return;
+    if (s[comp] > 0) { s[comp]--; return; }
+    c.age = start ? rand(1.5, 3) : rand(2.5, 5);
+    c.usedSet = true;
+    if (!start && c.isPlayer) this.log(`📻 Ingegnere a ${this.driver(c).name.split(' ')[0]}: «Niente set nuovi di ${COMPOUNDS[comp].name}: montiamo un treno usato.»`, 'radio', c.key, true);
+  }
+  // the player picked a different starting tyre in the strategy screen
+  setStartTyre(c, comp) {
+    const s = this.sets?.[c.key];
+    if (s && s[c.tyre] != null && !c.usedSet) s[c.tyre]++;
+    c.tyre = comp; this.fitTyre(c, comp, true);
+  }
+  setsLeft(c) { return this.sets?.[c.key] || null; }
 
   pickStartCompound() {
     const r = this.weather.plan[0];
@@ -565,7 +610,7 @@ export class CircuitSim {
     c.inPit = loss + stat;
     c.pitStops++;
     if (c.isPlayer && !c.auto && c.plan && req.compound && c.plan[c.planIdx + 1]) c.planIdx++;
-    if (req.compound) { c.tyre = req.compound; c.age = 0; c.temp = (this.endurance ? 72 : 70) + (c.isPlayer && hasPerk(this.state, 'outlap') ? 18 : 0); c.compoundsUsed.add(req.compound); c.stintLap = 0; }
+    if (req.compound) { c.tyre = req.compound; this.fitTyre(c, req.compound); c.temp = (this.endurance ? 72 : 70) + (c.isPlayer && hasPerk(this.state, 'outlap') ? 18 : 0); c.compoundsUsed.add(req.compound); c.stintLap = 0; }
     if (this.endurance) { c.fuel = c.fuelMax; c.stintCount++; }
     if (req.swap && c.driverIds.length > 1) { c.driverIdx = (c.driverIdx + 1) % c.driverIds.length; c.stintCount = 0; }
     const d = this.driver(c);
