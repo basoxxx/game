@@ -379,3 +379,13 @@ label.lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; 
 .race-sub .sub.angry { border-left-color: #ff2a2a; background: rgba(40,4,4,.88); color: #fff; font-weight: 700; animation: rise .3s ease both, shake .45s ease .3s 1; box-shadow: 0 0 0 1px rgba(255,40,40,.45), 0 10px 30px rgba(255,0,0,.25); }
 .race-sub .sub.angry .sub-tag { background: #ff2a2a; color: #fff; }
 @keyframes shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+
+.battle { position: absolute; top: 70px; left: 50%; transform: translate(-50%, -8px); z-index: 5; display: flex; align-items: stretch; gap: 0; opacity: 0; transition: opacity .3s, transform .3s; pointer-events: none; font-family: var(--display); }
+.battle.on { opacity: 1; transform: translate(-50%, 0); }
+.mode3d .battle { display: flex; } .race-view:not(.mode3d) .battle { display: none; }
+.bt-car { display: flex; align-items: center; gap: 8px; background: rgba(8,10,14,.86); padding: 6px 12px; border-left: 4px solid var(--tc); }
+.bt-car:last-child { border-left: none; border-right: 4px solid var(--tc); }
+.bt-pos { font-weight: 900; font-style: italic; font-size: 16px; }
+.bt-name { font-weight: 900; letter-spacing: .08em; font-size: 15px; }
+.bt-gap { background: linear-gradient(180deg, #e10600, #a00400); color: #fff; font-weight: 900; font-style: italic; padding: 6px 14px; font-size: 17px; display: flex; align-items: center; gap: 6px; }
+.bt-drs { background: #18e06a; color: #000; font-size: 10px; padding: 1px 5px; border-radius: 3px; font-style: normal; }

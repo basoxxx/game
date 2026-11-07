@@ -685,8 +685,7 @@ export class Race3D {
   }
 
   addCar(c) {
-    const m = buildCar(c.category === 'rally' ? 'endurance' : this.category, c.livery, { helmet: c.helmet, tyre: c.tyreColor, number: c.number, sponsor: c.sponsor });
-    if (c.category === 'rally') m.scale.set(0.9, 0.95, 0.92);
+    const m = buildCar(c.category === 'rally' ? 'gt' : this.category, c.livery, { helmet: c.helmet, tyre: c.tyreColor, number: c.number, sponsor: c.sponsor });
     m.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     this.scene.add(m);
     const label = document.createElement('div');
@@ -717,6 +716,7 @@ export class Race3D {
   }
 
   setRain(level) {
+    this._rainLvl = level;
     if (level > 0.08 && !this.rain) {
       const n = 2500; const g = new THREE.BufferGeometry(); const p = new Float32Array(n * 3);
       for (let i = 0; i < n; i++) { p[i * 3] = (Math.random() - 0.5) * 120; p[i * 3 + 1] = Math.random() * 60; p[i * 3 + 2] = (Math.random() - 0.5) * 120; }
@@ -833,6 +833,7 @@ export class Race3D {
         car._d = d;
       }
     }
+    this.updateSpray(dt);
     if (this.rain && this.rain.visible) {
       const p = this.rain.geometry.attributes.position;
       for (let i = 0; i < p.count; i++) { let y = p.getY(i) - dt * 40; if (y < 0) y += 60; p.setY(i, y); }
@@ -874,11 +875,54 @@ export class Race3D {
     m.position.set(x, yy, z);
     m.rotation.y = -h - car._yaw;
     const k = this.geo.k[i0];
-    m.rotation.x = Math.max(-0.04, Math.min(0.04, k * speed ** 2 * 0.0012));
+    // body roll towards the outside of the corner, pitch from braking / acceleration
+    const stiff = this.category === 'rally' ? 2.2 : this.category === 'endurance' ? 1.3 : 1;
+    car._roll = (car._roll || 0) + (Math.max(-0.05, Math.min(0.05, -k * speed ** 2 * 0.0011 * stiff)) - (car._roll || 0)) * Math.min(1, dt * 6);
+    m.rotation.x = car._roll;
+    if (dt > 0) { const acc = (speed - (car._v ?? speed)) / dt; car._v = speed; car._acc = (car._acc || 0) + (Math.max(-45, Math.min(15, acc)) - (car._acc || 0)) * Math.min(1, dt * 5); }
+    m.rotation.z = (this.geo.h ? m.rotation.z : 0) + Math.max(-0.035, Math.min(0.02, (car._acc || 0) * 0.0009 * stiff));
     const spin = speed * dt / 0.34;
-    for (const w of m.userData.wheels) for (const sp of w.userData.spin) sp.rotation.z -= spin;
+    const steer = Math.max(-0.42, Math.min(0.42, Math.atan(3.5 * (this.geo.k[(i0 + 3) % N] || k)) * 1.4));
+    m.userData.wheels.forEach((w, wi) => { for (const sp of w.userData.spin) sp.rotation.z -= spin; if (wi < 2) w.rotation.y = -steer; });
     if (st.tyreColor && st.tyreColor !== car.tyre) { car.tyre = st.tyreColor; setTyreColor(m, st.tyreColor); }
     car.state = st;
+  }
+
+  // water spray thrown up behind the cars on a wet track
+  updateSpray(dt) {
+    const wet = this._rainLvl || 0;
+    if (wet < 0.15 && !this.spray) return;
+    if (!this.spray) {
+      const n = 4000; const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3).fill(-9999), 3));
+      const tex = new THREE.CanvasTexture((() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,0.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return c; })());
+      this.spray = new THREE.Points(g, new THREE.PointsMaterial({ size: 2.6, map: tex, transparent: true, opacity: 0.5, depthWrite: false, color: 0xdfe6ee, sizeAttenuation: true }));
+      this.spray.frustumCulled = false; this.spray.userData = { vel: new Float32Array(n * 3), life: new Float32Array(n), head: 0, n };
+      this.scene.add(this.spray);
+    }
+    const P = this.spray.geometry.attributes.position, U = this.spray.userData;
+    this.spray.material.opacity = Math.min(0.55, wet * 0.8);
+    if (wet >= 0.15) for (const car of this.cars.values()) {
+      if (!car.mesh.visible || !car.state) continue;
+      const v = car.state.speed || 0; if (v < 25) continue;
+      if (car.mesh.position.distanceToSquared(this.camera.position) > 260 * 260) continue;
+      const m = car.mesh; const fx = Math.cos(m.rotation.y), fz = -Math.sin(m.rotation.y);
+      const emit = Math.min(6, Math.round(v / 14 * wet * 2));
+      for (let e = 0; e < emit; e++) {
+        const i = U.head; U.head = (U.head + 1) % U.n;
+        const side = (Math.random() - 0.5) * 1.6;
+        P.setXYZ(i, m.position.x - fx * 2.4 - fz * side, m.position.y + 0.35, m.position.z - fz * 2.4 + fx * side);
+        U.vel[i * 3] = -fx * v * 0.25 + (Math.random() - 0.5) * 3; U.vel[i * 3 + 1] = 1.5 + Math.random() * 3; U.vel[i * 3 + 2] = -fz * v * 0.25 + (Math.random() - 0.5) * 3;
+        U.life[i] = 0.7 + Math.random() * 0.4;
+      }
+    }
+    for (let i = 0; i < U.n; i++) {
+      if (U.life[i] <= 0) continue;
+      U.life[i] -= dt; if (U.life[i] <= 0) { P.setXYZ(i, 0, -9999, 0); continue; }
+      P.setXYZ(i, P.getX(i) + U.vel[i * 3] * dt, P.getY(i) + U.vel[i * 3 + 1] * dt, P.getZ(i) + U.vel[i * 3 + 2] * dt);
+      U.vel[i * 3 + 1] -= 2 * dt; U.vel[i * 3] *= 1 - dt * 1.5; U.vel[i * 3 + 2] *= 1 - dt * 1.5;
+    }
+    P.needsUpdate = true;
   }
 
   startIntro(sec = 5) { this.introT = sec; this.introDur = sec; this.introStart = performance.now(); }

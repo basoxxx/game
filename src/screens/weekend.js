@@ -306,7 +306,7 @@ function raceScreen(st) {
       <button class="btn sm ghost" data-a="sim-end">${icon('ff')} Fine gara</button>
     </div>
     <div class="race-board" id="board"></div>
-    <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="race-sub" id="race-sub"></div><div id="finish-overlay"></div></div>
+    <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="race-sub" id="race-sub"></div><div class="battle" id="battle"></div><div id="finish-overlay"></div></div>
     <div class="race-side" id="side"></div>
     <div class="race-feed"><div class="row gap4 mb8" id="feed-tabs"></div><div id="feed" style="height:calc(100% - 34px);overflow-y:auto"></div></div>
   </div>`;
@@ -419,6 +419,19 @@ function update3D(dt) {
     const gear = kmh < 5 ? 'N' : Math.min(8, 1 + Math.floor(kmh / 42));
     hud.innerHTML = `<span class="tiny muted upper">${esc(sim.driver(fc).name)}</span><span class="pos">P${fc.pos}</span><span class="spd">${kmh}</span><span class="tiny muted">km/h</span><span style="font-size:22px;font-weight:900">${gear}</span>${fc.drs ? '<span class="chip good">DRS</span>' : ''}${tyreBadge(fc.tyre)}`;
     R.focusSpeed = kmh;
+  }
+  // TV battle graphic: focused car within a second of the car ahead
+  const bt = document.getElementById('battle');
+  if (bt && fc) {
+    const ahead = sim.cars.find((c) => c.pos === fc.pos - 1 && c.status === 'running');
+    const behind = sim.cars.find((c) => c.pos === fc.pos + 1 && c.status === 'running');
+    let a = null, b = null;
+    if (ahead && fc.gapAhead < 1.0 && fc.inPit <= 0 && ahead.inPit <= 0) { a = ahead; b = fc; } else if (behind && behind.gapAhead < 1.0 && behind.inPit <= 0 && fc.inPit <= 0) { a = fc; b = behind; }
+    if (a && b && !sim.sc) {
+      const side = (c) => `<div class="bt-car" style="--tc:${c.team.car.livery.primary}"><span class="bt-pos">P${c.pos}</span><span class="bt-name">${esc(shortName(sim.driver(c).name))}</span>${tyreBadge(c.tyre)}<span class="tiny muted">${Math.round(c.wear * 100)}%</span></div>`;
+      bt.innerHTML = `${side(a)}<div class="bt-gap">${b.gapAhead.toFixed(1)}s${b.drs ? '<span class="bt-drs">DRS</span>' : ''}</div>${side(b)}`;
+      bt.classList.add('on');
+    } else bt.classList.remove('on');
   }
 }
 
