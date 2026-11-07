@@ -2,7 +2,7 @@
 import { App, registerScreen } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { flagSVG, teamBadge } from '../ui/art.js';
-import { esc } from '../ui/dom.js';
+import { esc, pageHead } from '../ui/dom.js';
 import { CATEGORIES } from '../data/categories.js';
 import { TEAMS } from '../data/teams.js';
 import { createWorld, buildCalendar, getTrack } from '../engine/world.js';
@@ -36,17 +36,17 @@ registerScreen({
   render() {
     const medals = getMedals();
     const got = Object.keys(medals).length;
-    return `<div style="position:fixed;inset:0;overflow-y:auto;padding:34px 50px">
-      <div class="row between mb16"><div class="row" style="gap:16px"><button class="btn ghost icon-btn" data-a="nav" data-to="menu">${icon('left')}</button><div><div class="tiny upper muted" style="letter-spacing:.3em">Modalità</div><h1 style="font-size:36px">Sfide</h1></div></div><span class="chip">${got}/${CHALLENGES.length} completate · ${Object.values(medals).filter((m) => m === 0).length} ori</span></div>
+    return `<div class="full-screen">
+      ${pageHead({ eyebrow: 'Modalità · Scenari', title: 'Sfide', right: `<div class="kpi" style="text-align:right"><b>${got}<span style="font-size:20px;color:var(--muted);letter-spacing:0">/${CHALLENGES.length}</span></b><span>Completate · ${Object.values(medals).filter((m) => m === 0).length} ori</span></div>` })}
       <div class="grid4 anim-in">${CHALLENGES.map((c) => {
         const t = TEAMS[c.cat].find((x) => x.id === c.team); const tr = getTrack(c.cat, c.track); const m = medals[c.id];
-        return `<div class="card click" data-a="go" data-id="${c.id}" style="border-top:3px solid ${CATEGORIES[c.cat].color};min-height:230px;display:flex;flex-direction:column">
-          <div class="row between"><span class="tiny upper" style="color:${CATEGORIES[c.cat].color};font-weight:700;letter-spacing:.15em">${CATEGORIES[c.cat].name}</span>${m != null ? `<span class="chip" style="border-color:${MEDALS[m][1]};color:${MEDALS[m][1]}">${icon('trophy', 'ico', 'style="width:12px"')} ${MEDALS[m][0]}</span>` : ''}</div>
-          <div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:21px;margin-top:8px;text-transform:uppercase">${esc(c.title)}</div>
+        return `<div class="ch-card" data-a="go" data-id="${c.id}" style="--cc:${CATEGORIES[c.cat].color}">
+          <div class="row between"><span class="tiny upper" style="color:${CATEGORIES[c.cat].color}">${CATEGORIES[c.cat].name}</span>${m != null ? `<span class="tag" style="background:${MEDALS[m][1]}">${icon('medal')} ${MEDALS[m][0]}</span>` : ''}</div>
+          <div class="ch-t">${esc(c.title)}</div>
           <div class="row mt8">${flagSVG(tr.nat)}<span class="small">${esc(tr.name)}</span></div>
           <div class="row mt8">${teamBadge(t, 22)}<span class="small muted">${esc(t.name)}</span></div>
           <div class="small muted mt8 grow">${esc(c.desc)}</div>
-          <div class="row gap4 mt8 tiny">${c.medals.map((p, i) => `<span class="chip tiny" style="color:${MEDALS[i][1]}">${MEDALS[i][0]}: P${p}</span>`).join('')}</div>
+          <div class="row mt16" style="gap:14px">${c.medals.map((p, i) => `<span class="medal" style="--mc:${MEDALS[i][1]}">P${p}</span>`).join('')}</div>
         </div>`;
       }).join('')}</div></div>`;
   },
@@ -59,7 +59,7 @@ registerScreen({
       const ev = buildCalendar(ch.cat, 'full').find((e) => e.trackId === ch.track);
       ev.round = 1; st.calendar = [ev];
       setState(st);
-      App.modal(`<div class="tiny upper muted" style="letter-spacing:.3em">Sfida</div><h2>${esc(ch.title)}</h2><p class="muted">${esc(ch.desc)}</p><div class="row gap6">${ch.medals.map((p, i) => `<span class="chip" style="color:${MEDALS[i][1]}">${MEDALS[i][0]}: P${p} o meglio</span>`).join('')}</div><div class="row mt24" style="justify-content:flex-end"><button class="btn primary lg" data-a="start">${icon('flag')} Inizia</button></div>`, { start() { App.closeModal(); App.go(ch.cat === 'rally' ? 'rally' : 'weekend'); } });
+      App.modal(`<div class="tiny upper" style="color:var(--team)">Sfida</div><h2 class="mt8">${esc(ch.title)}</h2><p>${esc(ch.desc)}</p><div class="row" style="gap:18px">${ch.medals.map((p, i) => `<span class="medal" style="--mc:${MEDALS[i][1]}">${MEDALS[i][0]} · P${p} o meglio</span>`).join('')}</div><div class="row mt24" style="justify-content:flex-end"><button class="btn primary lg" data-a="start">${icon('flag')} Inizia</button></div>`, { start() { App.closeModal(); App.go(ch.cat === 'rally' ? 'rally' : 'weekend'); } });
     },
   },
 });

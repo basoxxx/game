@@ -27,9 +27,9 @@ registerScreen({
     <div class="grid2 anim-in">${ds.map((d, i) => {
       const pos = s.drivers.findIndex((x) => x.id === d.id) + 1;
       const pts = s.drivers.find((x) => x.id === d.id)?.pts || 0;
-      return `<div class="panel">
+      return `<div class="panel drv-card"><div class="drv-bignum">${d.number}</div>
         <div class="row" style="gap:18px;align-items:flex-start">${helmetSVG(d.helmet, 92)}
-          <div class="grow"><div class="row">${flagSVG(d.nat, 26, 17)}<h2>${esc(d.name)}</h2></div>
+          <div class="grow"><div class="row">${flagSVG(d.nat, 26, 17)}<h2 style="font-size:32px;font-style:italic;font-weight:800">${esc(d.name)}</h2></div>
             <div class="row wrap mt8 gap6"><span class="chip">#${d.number}</span><span class="chip">${d.age} anni</span>${C.driversPerCar > 1 ? `<span class="chip info">Auto ${Math.floor(i / C.driversPerCar) + 1}</span>` : ''}${moraleChip(d.morale)}</div>
             <div class="row wrap mt8 gap6 small"><span class="muted">Contratto:</span><b>${d.contract} ${d.contract === 1 ? 'stagione' : 'stagioni'}</b><span class="muted">· Stipendio:</span><b>${fmtM(d.salary)}/anno</b></div>
             ${driverStatusChips(st, d, t)}

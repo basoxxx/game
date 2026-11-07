@@ -29,5 +29,6 @@ export function bar(v, cls = '', ghost = null) {
 // Header for full-screen pages (menu sub-pages): back button, eyebrow, big slanted title, right-hand slot
 export function pageHead({ back = 'menu', backAction = null, eyebrow = '', title = '', sub = '', right = '' } = {}) {
   const b = backAction ? `data-a="${backAction}"` : `data-a="nav" data-to="${back}"`;
-  return `<div class="page-head"><div class="ph-left"><button class="btn icon-btn ph-back" ${b} aria-label="Indietro" data-tip="Indietro (Esc)">${icon('left')}</button><div>${eyebrow ? `<div class="ph-eyebrow">${eyebrow}</div>` : ''}<h1>${title}</h1>${sub ? `<div class="ph-sub">${sub}</div>` : ''}</div></div>${right ? `<div class="ph-right">${right}</div>` : ''}</div>`;
+  const btn = back === null && !backAction ? '' : `<button class="btn icon-btn ph-back" ${b} aria-label="Indietro" data-tip="Indietro (Esc)">${icon('left')}</button>`;
+  return `<div class="page-head"><div class="ph-left">${btn}<div>${eyebrow ? `<div class="ph-eyebrow">${eyebrow}</div>` : ''}<h1>${title}</h1>${sub ? `<div class="ph-sub">${sub}</div>` : ''}</div></div>${right ? `<div class="ph-right">${right}</div>` : ''}</div>`;
 }

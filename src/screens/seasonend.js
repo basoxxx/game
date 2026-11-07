@@ -1,7 +1,7 @@
 import { App, registerScreen } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { helmetSVG, teamBadge, carSVG, flagSVG } from '../ui/art.js';
-import { esc, bar } from '../ui/dom.js';
+import { esc, bar, pageHead } from '../ui/dom.js';
 import { S, setState, saveGame } from '../engine/state.js';
 import { createWorld } from '../engine/world.js';
 import { cat, playerTeam, endSeason, newSeason, jobOffers, fmtM, addMail, unlock } from '../engine/season.js';
@@ -26,13 +26,12 @@ registerScreen({
     const ok = sm.teamPos <= sm.target;
     const champMine = sm.champ.teamId === pt.id;
     const consMine = sm.st.teams[0].id === pt.id;
-    return `<div style="position:fixed;inset:0;overflow-y:auto;padding:36px 50px">
-      <div class="tiny upper muted" style="letter-spacing:.3em">${esc(cat(st).full)}</div>
-      <h1 style="font-size:48px">Fine Stagione ${sm.season}</h1>
-      <div class="grid3 mt24 anim-in">
+    return `<div class="full-screen" style="--pc:${ok ? 'var(--gold)' : 'var(--accent)'}">
+      ${pageHead({ back: null, eyebrow: esc(cat(st).full), title: `Fine stagione ${sm.season}`, right: `<div class="kpi" style="text-align:right"><b class="${ok ? 'good' : 'bad'}" style="font-size:48px;font-style:italic">${sm.teamPos}°</b><span>Costruttori · obiettivo ${sm.target}°</span></div>` })}
+      <div class="grid3 anim-in">
         <div class="panel ${champMine ? 'glow' : ''}"><div class="tiny upper muted">Campione Piloti</div><div class="row mt8" style="gap:14px">${helmetSVG(sm.champ.helmet, 64)}<div><div style="font-family:var(--display);font-weight:900;font-size:22px">${esc(sm.champ.name)}</div><div class="muted">${esc(sm.champTeam.name)} · ${sm.st.drivers[0].pts} punti</div></div></div></div>
         <div class="panel ${consMine ? 'glow' : ''}"><div class="tiny upper muted">Campione Costruttori</div><div class="row mt8" style="gap:14px">${teamBadge(sm.constructors, 60)}<div><div style="font-family:var(--display);font-weight:900;font-size:22px">${esc(sm.constructors.name)}</div><div class="muted">${sm.st.teams[0].pts} punti</div></div></div></div>
-        <div class="panel"><div class="tiny upper muted">La tua stagione</div><div style="font-family:var(--display);font-weight:900;font-size:44px;font-style:italic" class="${ok ? 'good' : 'bad'}">${sm.teamPos}°</div><div class="muted">Obiettivo: ${sm.target}° · Premio: <b>${fmtM(sm.prize)}</b></div>${sm.legacy ? `<div class="small mt8">🏛 Eredità: <b>${sm.legacy.score}</b>${sm.legacy.gained > 0 ? ` <span class="good">(+${sm.legacy.gained})</span>` : ''} · ${esc(sm.legacy.tier)}</div>` : ''}</div>
+        <div class="panel"><div class="tiny upper muted">La tua stagione</div><div style="font-family:var(--display);font-weight:900;font-size:44px;font-style:italic" class="${ok ? 'good' : 'bad'}">${sm.teamPos}°</div><div class="muted">Obiettivo: ${sm.target}° · Premio: <b>${fmtM(sm.prize)}</b></div>${sm.legacy ? `<div class="small mt8">Eredità: <b>${sm.legacy.score}</b>${sm.legacy.gained > 0 ? ` <span class="good">(+${sm.legacy.gained})</span>` : ''} · ${esc(sm.legacy.tier)}</div>` : ''}</div>
       </div>
       ${sm.awards?.length ? `<div class="panel mt16 anim-in"><div class="panel-head"><h3>Gala di fine stagione · Premi</h3></div><div class="grid4">${sm.awards.map((a, i) => `<div class="card" style="text-align:center;animation:rise .5s ${0.2 + i * 0.15}s both">${icon(a.icon, 'ico', 'style="width:34px;height:34px;color:var(--gold)"')}<div class="tiny upper muted mt8">${esc(a.name)}</div><div style="font-family:var(--display);font-weight:900;font-size:18px">${esc(a.who)}</div><div class="small muted">${esc(a.team || '')}${a.note ? ' · ' + esc(a.note) : ''}</div></div>`).join('')}</div></div>` : ''}
       <div class="panel mt16 ${sm.fired ? '' : ''}"><div class="panel-head"><h3>Verdetto del Consiglio</h3><span class="chip ${st.board.confidence < 30 ? 'bad' : st.board.confidence > 65 ? 'good' : 'warn'}">Fiducia ${st.board.confidence}%</span></div>

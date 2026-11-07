@@ -24,7 +24,7 @@
     linear-gradient(0deg, rgba(6,7,9,.95) 0%, rgba(6,7,9,0) 22%); }
 .menu-bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
 .menu-bg::before { content: ''; position: absolute; right: -8%; top: -20%; width: 70%; height: 140%; transform: skewX(calc(-1 * var(--slant))); background: linear-gradient(180deg, #111419, #0a0b0e 70%); }
-.menu-bg::after { content: ''; position: absolute; right: 9%; top: -20%; width: 12px; height: 140%; transform: skewX(calc(-1 * var(--slant))); background: var(--accent); box-shadow: 34px 0 0 -4px rgba(255,255,255,.07); }
+.menu-bg::after { content: ''; position: absolute; right: 9%; top: -20%; width: 12px; height: 140%; -webkit-mask-image: linear-gradient(180deg, #000 40%, transparent 70%); mask-image: linear-gradient(180deg, #000 40%, transparent 70%); transform: skewX(calc(-1 * var(--slant))); background: var(--accent); box-shadow: 34px 0 0 -4px rgba(255,255,255,.07); }
 .menu-bg canvas { position: absolute; right: 0; top: 0; width: 64%; height: 100%; opacity: .5; }
 .menu-car { position: absolute; right: -2%; bottom: 2%; width: 70%; height: 74%; z-index: 0; }
 .menu-car-fallback { position: absolute; right: 4%; bottom: 10%; width: 50%; z-index: 0; filter: drop-shadow(0 30px 30px rgba(0,0,0,.7)); }
@@ -329,3 +329,31 @@
   .res-hero .rh-win { font-size: 42px; }
   .podium .pd { width: 140px; }
 }
+
+/* ============================ CALENDAR ============================ */
+.cal-prog { height: 4px; background: rgba(255,255,255,.08); }
+.cal-prog i { display: block; height: 100%; background: var(--team); }
+.cal-list { background: var(--s1); border: 1px solid var(--line); }
+.cal-row { position: relative; display: grid; grid-template-columns: 74px minmax(0, 1.4fr) 100px minmax(0, 1.3fr) minmax(0, 1fr); align-items: center; gap: 18px; min-height: 72px; padding: 8px 22px 8px 0; border-bottom: 1px solid var(--line); }
+.cal-row:last-child { border-bottom: 0; }
+.cal-row .cal-rd { align-self: stretch; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; font-style: italic; font-size: 30px; color: var(--dim); background: rgba(255,255,255,.02); margin: -8px 0; }
+.cal-row .cal-ev { display: flex; align-items: center; gap: 14px; }
+.cal-row .cal-name { font-family: var(--display); font-weight: 700; font-size: 21px; text-transform: uppercase; letter-spacing: .02em; line-height: 1.05; }
+.cal-row .cal-circ { font-size: 13.5px; color: var(--text2); margin-top: 3px; }
+.cal-row .cal-map svg { display: block; }
+.cal-row .cal-info { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.cal-row .cal-win { display: flex; align-items: center; gap: 10px; }
+.cal-row .cal-mine { display: flex; gap: 18px; justify-content: flex-end; }
+.cal-row .cal-res { display: flex; flex-direction: column; align-items: flex-end; }
+.cal-row .cal-res b { font-family: var(--display); font-size: 24px; font-weight: 800; font-style: italic; line-height: 1; }
+.cal-row.done { background: rgba(255,255,255,.012); }
+.cal-row.done .cal-rd { color: var(--text2); }
+.cal-row.cur { background: color-mix(in srgb, var(--team) 14%, var(--s1)); box-shadow: inset 4px 0 0 var(--team); }
+.cal-row.cur .cal-rd { color: #fff; background: var(--team); }
+.cal-row:not(.done):not(.cur) .cal-name { color: var(--text2); }
+
+/* ---- Driver cards (team HQ) ---- */
+.drv-card { overflow: hidden; border-top: 4px solid var(--team); }
+.drv-card::before { content: ''; position: absolute; right: -60px; top: 0; width: 360px; height: 150px; background: linear-gradient(180deg, color-mix(in srgb, var(--team) 22%, transparent), transparent); transform: skewX(calc(-1 * var(--slant))); pointer-events: none; }
+.drv-card > * { position: relative; }
+.drv-card > .drv-bignum { position: absolute; right: 96px; top: -26px; font-family: var(--display); font-weight: 800; font-style: italic; font-size: 160px; line-height: 1; color: color-mix(in srgb, var(--team) 24%, transparent); pointer-events: none; }

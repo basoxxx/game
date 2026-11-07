@@ -1,7 +1,8 @@
 // Inbox, Standings, Calendar, Career, Settings
 import { App, registerScreen, trackName } from '../app.js';
 import { icon } from '../ui/icons.js';
-import { flagSVG, teamBadge, carSVG, helmetSVG } from '../ui/art.js';
+import { flagSVG, teamBadge, carSVG, helmetSVG, trackSVG } from '../ui/art.js';
+import { circuitPath } from '../ui/trackview.js';
 import { esc, bar, fmtGap, fmtLong } from '../ui/dom.js';
 import { S, getSettings, setSettings, saveGame, exportSave } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
@@ -26,8 +27,8 @@ registerScreen({
     if (m && !m.read) m.read = true;
     return `<div class="screen-title"><div><div class="sub">${st.inbox.filter((x) => !x.read).length} non letti</div><h1>Posta</h1></div><button class="btn sm ghost" data-a="read-all">${icon('check')} Segna tutti come letti</button></div>
     <div style="display:grid;grid-template-columns:400px 1fr;gap:16px;height:calc(100vh - 190px)" class="anim-in">
-      <div class="panel tight" style="overflow-y:auto">${st.inbox.map((x) => `<div class="mail ${x.read ? '' : 'unread'} ${x.type} ${x.id === selMail ? 'sel' : ''}" data-a="open-mail" data-id="${x.id}" style="${x.id === selMail ? 'background:rgba(255,255,255,0.07);border-color:var(--line2)' : ''}"><div class="ic">${icon(x.icon || 'mail')}</div><div class="grow" style="min-width:0"><div class="subj small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.subject)}</div><div class="tiny muted">${esc(x.from)} · S${x.season} R${x.round + 1}</div></div></div>`).join('') || `<div class="empty">${icon('mail')}<b>Posta vuota</b><span>Nessun messaggio</span></div>`}</div>
-      <div class="panel" style="overflow-y:auto">${m ? `<div class="row" style="gap:14px"><div class="mail ${m.type}" style="padding:0"><div class="ic" style="width:52px;height:52px">${icon(m.icon || 'mail')}</div></div><div><h2>${esc(m.subject)}</h2><div class="muted small">Da: <b>${esc(m.from)}</b> · Stagione ${m.season}, round ${m.round + 1}</div></div></div><div class="mt24" style="white-space:pre-line;line-height:1.7;font-size:15.5px">${esc(m.body)}</div>` : '<div class="empty">Seleziona un messaggio</div>'}</div>
+      <div class="panel tight" style="overflow-y:auto">${st.inbox.map((x) => `<div class="mail ${x.read ? '' : 'unread'} ${x.type} ${x.id === selMail ? 'sel' : ''}" data-a="open-mail" data-id="${x.id}" ><div class="ic">${icon(x.icon || 'mail')}</div><div class="grow" style="min-width:0"><div class="subj small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.subject)}</div><div class="tiny muted">${esc(x.from)} · S${x.season} R${x.round + 1}</div></div></div>`).join('') || `<div class="empty">${icon('mail')}<b>Posta vuota</b><span>Nessun messaggio</span></div>`}</div>
+      <div class="panel" style="overflow-y:auto">${m ? `<div class="row" style="gap:14px"><div class="mail ${m.type}" style="padding:0"><div class="ic" style="width:52px;height:52px">${icon(m.icon || 'mail')}</div></div><div><h2 style="font-size:30px;font-style:italic;font-weight:800">${esc(m.subject)}</h2><div class="small mt8" style="color:var(--text2)">Da <b>${esc(m.from)}</b> · Stagione ${m.season}, round ${m.round + 1}</div></div></div><div class="mt24" style="white-space:pre-line;line-height:1.75;font-size:16px;color:var(--text2);max-width:760px">${esc(m.body)}</div>` : '<div class="empty">Seleziona un messaggio</div>'}</div>
     </div>`;
   },
   actions: {
@@ -74,17 +75,24 @@ registerScreen({
   render() {
     const st = S();
     const pt = playerTeam(st);
-    return `<div class="screen-title"><div><div class="sub">Stagione ${st.season}</div><h1>Calendario</h1></div></div>
-    <div class="grid3 anim-in">${st.calendar.map((ev, i) => {
+    const done = st.calendar.filter((e) => e.results).length;
+    return `<div class="screen-title"><div><div class="sub">Stagione ${st.season} · ${done}/${st.calendar.length} eventi disputati</div><h1>Calendario</h1></div></div>
+    <div class="cal-prog mb16"><i style="width:${(done / Math.max(1, st.calendar.length)) * 100}%"></i></div>
+    <div class="cal-list anim-in">${st.calendar.map((ev, i) => {
       const tr = getTrack(st.category, ev.trackId);
       const res = ev.results;
       const win = res?.classification[0];
       const mine = res?.classification.filter((c) => c.teamId === pt.id) || [];
       const cur = i === st.round;
-      return `<div class="card ${cur ? 'sel' : ''}" style="${res ? '' : cur ? '' : 'opacity:.85'}">
-        <div class="row between"><span class="chip">R${ev.round}</span>${res ? '<span class="chip good">Completato</span>' : cur ? '<span class="chip warn pulse">Prossimo</span>' : ''}</div>
-        <div class="row mt8" style="gap:10px">${flagSVG(tr.nat, 30, 20)}<div><div style="font-weight:800;font-family:var(--display);font-size:17px">${esc(tr.name)}</div><div class="tiny muted upper">${esc(tr.circuit || (ev.stages ? `${ev.stages.length} PS · ${ev.stages.reduce((a, b) => a + b.km, 0)} km` : ''))}</div></div></div>
-        ${win ? `<div class="mt16 small"><div class="row between"><span class="muted">Vincitore</span><span>${driverChip(st, st.drivers[win.driverIds[0]], { helmet: false })}</span></div>${mine.map((m) => `<div class="row between mt8"><span class="muted">${esc(st.drivers[m.driverIds[0]]?.name || '')}</span><b class="${m.status === 'dnf' ? 'bad' : m.pos <= 3 ? 'good' : ''}">${m.status === 'dnf' ? 'RIT' : 'P' + m.pos}</b></div>`).join('')}</div>` : `<div class="mt16 row wrap gap6 small">${ev.sprint ? '<span class="chip warn">⚡ Sprint</span>' : ''}${tr.night ? '<span class="chip">Notturna</span>' : ''}${tr.double ? '<span class="chip warn">Punti doppi</span>' : ''}<span class="chip">Pioggia ${Math.round(tr.rain * 100)}%</span></div>`}
+      let map = '';
+      try { map = st.category === 'rally' ? '' : trackSVG(circuitPath(tr.cid), { w: 90, h: 54, glow: null, color: cur ? '#fff' : 'rgba(255,255,255,.55)', width: 3, start: false }); } catch {}
+      const tags = `${ev.sprint ? `<span class="tag">${icon('bolt')} Sprint</span>` : ''}${tr.night ? `<span class="tag dark">${icon('moon')} Notte</span>` : ''}${tr.double ? '<span class="tag">Punti doppi</span>' : ''}`;
+      return `<div class="cal-row ${cur ? 'cur' : ''} ${res ? 'done' : ''}">
+        <div class="cal-rd">${String(ev.round).padStart(2, '0')}</div>
+        <div class="cal-ev">${flagSVG(tr.nat, 34, 23)}<div style="min-width:0"><div class="cal-name">${esc(tr.name)}</div><div class="cal-circ">${esc(tr.circuit || (ev.stages ? `${ev.stages.length} PS · ${ev.stages.reduce((a, b) => a + b.km, 0)} km` : ''))}</div></div></div>
+        <div class="cal-map">${map}</div>
+        <div class="cal-info">${win ? `<div class="cal-win"><span class="tiny upper muted">Vincitore</span>${driverChip(st, st.drivers[win.driverIds[0]], { helmet: false })}</div>` : cur ? '<span class="tag red">Prossimo evento</span>' : `<span class="small muted">Pioggia ${Math.round(tr.rain * 100)}%</span>`}<div class="row gap4">${tags}</div></div>
+        <div class="cal-mine">${mine.map((m) => `<div class="cal-res"><span class="small muted">${esc((st.drivers[m.driverIds[0]]?.name || '').split(' ').slice(-1)[0])}</span><b class="${m.status === 'dnf' ? 'bad' : m.pos <= 3 ? 'good' : ''}">${m.status === 'dnf' ? 'RIT' : 'P' + m.pos}</b></div>`).join('')}</div>
       </div>`;
     }).join('')}</div>`;
   },
@@ -100,7 +108,7 @@ registerScreen({
     const ach = Object.values(st.achievements);
     const ALL = [['first_podium', 'Champagne!'], ['first_win', 'Prima vittoria!'], ['one_two', 'Doppietta'], ['pole', 'Pole Position'], ['signing', 'Colpo di mercato'], ['driver_title', 'Campione del Mondo'], ['team_title', 'Dinastia'], ['switch', 'Giramondo'], ['level5', 'Manager affermato'], ['level10', 'Stratega leggendario'], ['rd5', 'Fabbrica a pieno regime'], ['sponsor3', 'Vetrina piena'], ['rain_win', 'Re della pioggia'], ['from_back', 'Rimonta epica'], ['quick', 'Pilota della domenica']];
     const need = xpForLevel(c.level);
-    return `<div class="screen-title"><div><div class="sub">${esc(st.playerName)}</div><h1>Carriera</h1></div><div class="chip ${c.points ? 'good pulse' : ''}">Punti abilità: <b>${c.points}</b></div></div>
+    return `<div class="screen-title"><div><div class="sub">${esc(st.playerName)}</div><h1>Carriera</h1></div><div class="kpi" style="text-align:right"><b style="${c.points ? 'color:var(--good)' : ''}">${c.points}</b><span>Punti abilità</span></div></div>
     <div class="grid4 anim-in">
       <div class="panel"><div class="kpi"><b>Livello ${c.level}</b><span>Manager · ${c.xp}/${need} XP</span></div>${bar((c.xp / need) * 100, 'gold')}</div>
       <div class="panel"><div class="kpi"><b>${Math.round(c.reputation)}</b><span>Reputazione</span></div>${bar(c.reputation, 'blue')}</div>
@@ -110,7 +118,7 @@ registerScreen({
     ${legacyPanel(st)}
     <div class="panel mt16"><div class="panel-head"><h3>Albero delle abilità</h3><span class="small muted">Guadagni XP con punti, podi, vittorie e obiettivi. Ogni livello = 1 punto abilità.</span></div>
       <div class="grid3">${Object.entries(PERKS).map(([k, b]) => `<div class="card" style="border-top:3px solid ${b.color}"><div class="row">${icon(b.icon, 'ico', `style="width:22px;height:22px;color:${b.color}"`)}<h3>${b.name}</h3></div>
-        <div class="col gap6 mt16">${b.perks.map((p, i) => { const own = c.perks.includes(p.id); const avail = !own && (i === 0 || c.perks.includes(b.perks[i - 1].id)); return `<div class="row" style="padding:10px;border-radius:10px;border:1px solid ${own ? b.color : 'var(--line)'};background:${own ? `color-mix(in srgb, ${b.color} 14%, transparent)` : 'rgba(255,255,255,0.02)'};opacity:${own || avail ? 1 : 0.45}"><div class="grow"><b>${p.name}</b><div class="tiny muted">${p.desc}</div></div>${own ? `<span class="chip good">✓</span>` : `<button class="btn sm ${avail && c.points >= p.cost ? 'primary' : ''}" data-a="perk" data-id="${p.id}" ${avail && c.points >= p.cost ? '' : 'disabled'}>${p.cost} pt</button>`}</div>`; }).join('')}</div></div>`).join('')}</div>
+        <div class="col gap6 mt16">${b.perks.map((p, i) => { const own = c.perks.includes(p.id); const avail = !own && (i === 0 || c.perks.includes(b.perks[i - 1].id)); return `<div class="row" style="padding:10px;border-radius:10px;border:1px solid ${own ? b.color : 'var(--line)'};background:${own ? `color-mix(in srgb, ${b.color} 14%, transparent)` : 'rgba(255,255,255,0.02)'};opacity:${own || avail ? 1 : 0.45}"><div class="grow"><b>${p.name}</b><div class="tiny muted">${p.desc}</div></div>${own ? `<span class="chip good">${icon('check')}</span>` : `<button class="btn sm ${avail && c.points >= p.cost ? 'primary' : ''}" data-a="perk" data-id="${p.id}" ${avail && c.points >= p.cost ? '' : 'disabled'}>${p.cost} pt</button>`}</div>`; }).join('')}</div></div>`).join('')}</div>
     </div>
     <div class="grid2 mt16">
       <div class="panel"><div class="panel-head"><h3>Obiettivi stagione ${st.season}</h3></div><div class="col gap6">${(st.objectives || []).map((o) => `<div class="card row">${icon(o.done ? 'check' : 'target', 'ico', `style="width:22px;height:22px;color:${o.done ? 'var(--good)' : 'var(--muted)'}"`)}<div class="grow"><b>${esc(o.text)}</b><div class="tiny muted">Premio: ${o.xp} XP · ${fmtM(o.money)}</div></div>${o.done ? '<span class="chip good">Completato</span>' : '<span class="chip">In corso</span>'}</div>`).join('')}</div></div>
@@ -127,7 +135,7 @@ registerScreen({
 function legacyPanel(st) {
   const L = legacyInfo(st);
   const done = L.milestones.filter((m) => m.done).length;
-  return `<div class="panel mt16"><div class="panel-head"><h3>🏛 Eredità della dinastia</h3><span class="small muted">${done}/${L.milestones.length} traguardi storici</span></div>
+  return `<div class="panel mt16"><div class="panel-head"><h3>${icon('trophy')} Eredità della dinastia</h3><span class="small muted">${done}/${L.milestones.length} traguardi storici</span></div>
     <div class="grid4"><div class="kpi"><b>${L.score}</b><span>Punteggio eredità</span></div><div class="kpi"><b>${esc(L.tier)}</b><span>${L.next ? `Prossimo rango: ${esc(L.next.name)} (${L.next.min})` : 'Rango massimo'}</span></div><div class="kpi"><b>${L.stats.wins}</b><span>Vittorie in carriera · ${L.stats.podiums} podi</span></div><div class="kpi"><b>${L.stats.races}</b><span>Eventi diretti · ${L.stats.poles} pole</span></div></div>
     ${bar(L.progress * 100, 'gold')}
     <div class="grid4 mt16" style="grid-template-columns:repeat(4,1fr)">${L.milestones.map((m) => `<div class="card row" style="${m.done ? '' : 'opacity:.45'}">${icon(m.done ? 'trophy' : 'target', 'ico', `style="width:22px;height:22px;color:${m.done ? 'var(--gold)' : 'var(--dim)'}"`)}<div class="grow"><b class="small">${esc(m.name)}</b><div class="tiny muted">${esc(m.desc)}</div><div class="tiny ${m.done ? 'good' : 'dim'}">${m.done ? `Ottenuto nel ${m.season}` : `+${m.pts} punti`}</div></div></div>`).join('')}</div></div>`;
@@ -158,7 +166,7 @@ registerScreen({
   render(params) {
     const s = getSettings();
     const back = params?.back === 'menu' || !S();
-    const inner = `<div class="screen-title"><div><div class="sub">Preferenze</div><h1>Impostazioni</h1></div>${back ? `<button class="btn" data-a="nav" data-to="menu">${icon('left')} Menu</button>` : ''}</div>
+    const inner = `<div class="screen-title"><div><div class="sub">Preferenze</div><h1>Impostazioni</h1></div>${back ? `<button class="btn ph-back" data-a="nav" data-to="menu" data-tip="Indietro (Esc)">${icon('left')} Menu</button>` : ''}</div>
     <div class="grid2 anim-in" style="max-width:1000px">
       <div class="panel"><div class="panel-head"><h3>Audio</h3></div>
         <div class="row between"><span>Effetti sonori</span><button class="btn sm ${s.sound ? 'active' : ''}" data-a="toggle" data-k="sound">${s.sound ? 'ON' : 'OFF'}</button></div>
@@ -184,7 +192,7 @@ registerScreen({
       <div class="panel"><div class="panel-head"><h3>Comandi</h3><button class="btn sm ghost" data-a="shortcuts">Tutte le scorciatoie</button></div><div class="col gap6 small">${[['Spazio', 'Pausa in gara'], ['1 – 6', 'Velocità di simulazione'], ['1 – 0', 'Sezioni della gestione'], ['Ctrl + S', 'Salvataggio rapido'], ['?', 'Elenco comandi']].map(([k, d]) => `<div class="row between"><span class="muted">${d}</span><span class="kbd">${k}</span></div>`).join('')}</div></div>
       <div class="panel"><div class="panel-head"><h3>Info</h3></div><div class="small muted" style="line-height:1.6">Apex Dynasty v${__APP_VERSION__}<br>Gioco gestionale di fantasia. Tutti i nomi di squadre, piloti, sponsor e marchi sono parodie inventate e non sono affiliati a persone o aziende reali.</div></div>
     </div>`;
-    return back ? `<div style="position:fixed;inset:0;padding:40px 60px;overflow-y:auto">${inner}</div>` : inner;
+    return back ? `<div class="full-screen" style="padding-top:36px">${inner}</div>` : inner;
   },
   actions: {
     toggle(el) { const k = el.dataset.k; const cur = getSettings()[k]; setSettings({ [k]: !(cur ?? true) }); applyVolumes(); App.refresh(); },
