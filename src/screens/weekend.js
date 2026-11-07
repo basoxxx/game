@@ -181,6 +181,7 @@ registerScreen({
     view2d() { disable3D(); renderViewBtns(); },
     replay() { if (R.replay) stopReplay(); else { if (!R.r3d) { R.view3d = 'chase'; enable3D('chase'); renderViewBtns(); } startReplay(R.lastHighlight && R.sim.time - R.lastHighlight.t < 12 ? R.lastHighlight.key : R.focus); } },
     focus(el) { R.focus = el.dataset.key; updateBoard(); },
+    gapmode() { R.gapMode = R.gapMode === 'int' ? 'lead' : 'int'; updateBoard(); },
     'tele-tab'(el) { R.tab = el.dataset.t; updateFeed(true); },
     'tele-car'(el) { R.teleKey = el.dataset.key; updateFeed(true); },
     'to-race'() { const w = S().weekend; w.phase = 'race'; saveGame(); App.refresh(); },
@@ -295,15 +296,17 @@ function raceScreen(st) {
   const tr = getTrack(st.category, st.weekend.trackId);
   return `<div class="race-screen">
     <div class="race-top">
-      <button class="btn ghost icon-btn" data-a="pause" id="btn-pause">${icon('pause')}</button>
+      <button class="btn ghost icon-btn" data-a="pause" id="btn-pause" data-tip="Pausa / riprendi (Spazio)">${icon('pause')}</button>
       ${flagSVG(tr.nat, 30, 20)}<div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:19px;text-transform:uppercase;line-height:1">${esc(tr.name)}</div><div class="tiny muted upper">${esc(tr.circuit)}</div></div>
       <div class="tb-stat"><b id="lapcount">1/${st.weekend.laps}</b><span>Giro</span></div>
       <div class="tb-stat"><b id="racetime">0:00</b><span>Tempo</span></div>
       <div class="tb-stat" id="wx"><b>—</b><span>Meteo</span></div>
       <div id="flagstatus"></div>
       <div class="grow"></div>
-      <div class="speed-btns" id="speedbtns">${[1, 2, 4, 8, 16, 32].map((v) => `<button class="btn sm" data-a="speed" data-v="${v}" title="${v === 1 ? 'Tempo reale' : v + 'x'}">${v === 1 ? '1x LIVE' : v + 'x'}</button>`).join('')}</div>
-      <button class="btn sm ghost" data-a="sim-end">${icon('ff')} Fine gara</button>
+      <div class="speed-btns" id="speedbtns">${[1, 2, 4, 8, 16, 32].map((v, i) => `<button class="btn sm" data-a="speed" data-v="${v}" data-tip="${v === 1 ? 'Tempo reale' : `Velocità ${v}x`} · tasto ${i + 1}">${v === 1 ? '1x LIVE' : v + 'x'}</button>`).join('')}</div>
+      <button class="btn sm ghost" data-a="sim-end" data-tip="Simula il resto della gara: le decisioni passano all’ingegnere">${icon('ff')} Fine gara</button>
+      <span class="kbd-help" data-a="shortcuts" data-tip="Scorciatoie: Spazio pausa · 1-6 velocità · R replay">?</span>
+      <div class="race-prog"><i id="race-prog"></i></div>
     </div>
     <div class="race-board" id="board"></div>
     <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="race-sub" id="race-sub"></div><div id="finish-overlay"></div></div>
@@ -330,7 +333,7 @@ function mountRace() {
   };
   if (isSprint) R.sim.log('⚡ SPRINT: gara breve, punti ai primi 8 (8-7-6-5-4-3-2-1).', 'start', null, true);
   for (const c of R.sim.cars) if (c.isPlayer) { c.tyre = w.startTyre[c.key] || c.tyre; c.compoundsUsed = new Set([c.tyre]); c.plan = !isSprint && w.plans?.[c.key] ? w.plans[c.key].map((x) => ({ ...x })) : null; c.planIdx = 0; c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c); }
-  R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {};
+  R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {}; R.gh = {};
   R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, padTop: 40, glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' || st.category === 'junior' ? drsZones('formula', tr) : [] });
   R.last = performance.now(); R.uiT = 0;
   R.focus = R.sim.cars.find((c) => c.isPlayer)?.key;
@@ -452,7 +455,7 @@ function draw() {
       if (car.inPit > 0 && v.pitPos) q = v.pitPos(pitIdx++);
       else q = v.pointAt(arcFrac(sim.cat, sim.track.cid, car.status === 'finished' ? car.finishLap : car.dist, sim.track.lap));
       const d = sim.driver(car);
-      v.drawCar(q.x, q.y, q.ang, L.primary, L.secondary, { style, glow: car.isPlayer ? L.primary : null, outline: car.isPlayer, label: car.isPlayer || car.pos <= 3 ? `${car.pos} ${shortName(d.name)}` : null, num: R.r3d ? null : car.pos, labelBg: car.isPlayer ? L.primary : 'rgba(0,0,0,0.75)' });
+      v.drawCar(q.x, q.y, q.ang, L.primary, L.secondary, { style, glow: car.isPlayer ? L.primary : null, outline: car.isPlayer, label: car.isPlayer || car.pos <= 3 ? `${car.pos} ${shortName(d.name)}` : null, num: R.r3d ? null : car.pos, dot: !(car.isPlayer || car.pos <= 3), labelBg: car.isPlayer ? L.primary : 'rgba(0,0,0,0.75)' });
     }
   }, { rain: sim.rain, night: sim.night });
 }
@@ -482,6 +485,7 @@ function updateTop() {
   const leader = sim.classification()[0];
   const lap = Math.min(sim.laps, Math.max(1, Math.floor(leader.status === 'finished' ? sim.laps : leader.dist) + 1));
   const el = document.getElementById('lapcount'); if (el) el.textContent = `${lap}/${sim.laps}`;
+  const pg = document.getElementById('race-prog'); if (pg) pg.style.width = `${Math.min(100, (leader.status === 'finished' ? 1 : leader.dist / sim.laps) * 100).toFixed(2)}%`;
   const tt = document.getElementById('racetime'); if (tt) { const s = Math.floor(sim.time); tt.textContent = `${Math.floor(s / 3600) ? Math.floor(s / 3600) + ':' : ''}${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
   const wx = document.getElementById('wx'); const r = sim.rain;
   if (wx) wx.innerHTML = `<b class="${r > 0.2 ? 'info' : ''}">${r < 0.05 ? 'Asciutto' : r < 0.3 ? 'Pioviggine' : r < 0.6 ? 'Pioggia' : 'Diluvio'}${sim.night ? ' · Notte' : ''}</b><span>Meteo ${Math.round(r * 100)}%</span>`;
@@ -489,23 +493,67 @@ function updateTop() {
   if (fs) fs.innerHTML = sim.sc ? '<span class="chip warn pulse" style="font-weight:800">🚨 SAFETY CAR</span>' : sim.finished ? '<span class="chip good">🏁 FINITA</span>' : '<span class="chip good">🟢 Bandiera verde</span>';
 }
 
+// "Charles Leclair" -> "C. Leclair" so the tower stays readable on narrow screens
+function towerName(n) {
+  const p = String(n).split(' ');
+  if (p.length < 2) return esc(n);
+  return `<span class="ini">${esc(p[0][0])}.</span> ${esc(p.slice(1).join(' '))}`;
+}
 function updateBoard() {
-  const sim = R.sim; const st = S();
+  const sim = R.sim;
   const cls = sim.classification(); const leader = cls[0];
+  const interval = R.gapMode === 'int';
+  let prevGap = 0;
   const html = cls.map((c, i) => {
     const d = sim.driver(c);
-    const gap = c.status === 'dnf' ? 'RIT' : i === 0 ? (c.status === 'finished' ? '🏁' : 'Leader') : fmtGap(sim.gapToLeader(c, leader));
-    const comp = COMPOUNDS[c.tyre];
+    const gl = i ? sim.gapToLeader(c, leader) : 0;
+    let gap, gcls = '';
+    if (c.status === 'dnf') gap = 'RIT';
+    else if (i === 0) gap = c.status === 'finished' ? '🏁' : 'Leader';
+    else if (interval && typeof gl === 'number' && typeof prevGap === 'number') {
+      const iv = Math.max(0, gl - prevGap);
+      gap = `+${iv.toFixed(iv < 10 ? 3 : 1)}`;
+      gcls = c.drs || iv < 1 ? 'drs' : iv < 2 ? 'close' : '';
+    } else gap = fmtGap(gl);
+    if (c.status !== 'dnf') prevGap = gl;
     const posDelta = c.grid - (i + 1);
-    return `<div class="lb-row ${c.isPlayer ? 'me' : ''} ${c.status === 'dnf' ? 'dnf' : ''} ${c.inPit > 0 ? 'pit' : ''} ${c.key === R.focus ? 'focus' : ''}" data-a="focus" data-key="${c.key}">
+    const fl = sim.fastest.key === c.key;
+    return `<div class="lb-row ${c.isPlayer ? 'me' : ''} ${c.status === 'dnf' ? 'dnf' : ''} ${c.inPit > 0 ? 'pit' : ''} ${c.key === R.focus ? 'focus' : ''}" data-a="focus" data-key="${c.key}" ${c.isPlayer ? `style="border-left-color:${c.team.car.livery.primary}"` : ''}>
       <span class="pos p${i + 1}" style="font-size:14px">${i + 1}</span>${teamStripe(c.team)}
-      <span class="nm">${esc(d.name)} ${posDelta > 0 ? `<span class="good tiny">▲${posDelta}</span>` : posDelta < 0 ? `<span class="bad tiny">▼${-posDelta}</span>` : ''}</span>
+      <span class="nm">${towerName(d.name)}${fl ? '<i class="fl" data-tip="Giro più veloce"></i>' : ''} ${posDelta > 0 ? `<span class="good tiny">▲${posDelta}</span>` : posDelta < 0 ? `<span class="bad tiny">▼${-posDelta}</span>` : ''}</span>
       <span>${c.status === 'dnf' ? '' : tyreBadge(c.tyre)}</span>
-      <div>${c.status === 'dnf' ? `<span class="tiny bad">${esc(c.reason || '')}</span>` : c.inPit > 0 ? '<span class="chip warn tiny">BOX</span>' : `<div class="wear"><i style="width:${Math.max(0, 1 - c.wear) * 100}%;background:${c.wear > 0.8 ? 'var(--bad)' : c.wear > 0.55 ? 'var(--warn)' : 'var(--good)'}"></i></div>`}</div>
-      <span class="gap">${gap}</span></div>`;
+      <div>${c.status === 'dnf' ? `<span class="tiny bad">${esc(c.reason || '')}</span>` : c.inPit > 0 ? '<span class="chip warn tiny">BOX</span>' : `<div class="wear" data-tip="Gomme ${COMPOUNDS[c.tyre]?.name || ''}: ${Math.max(0, Math.round((1 - c.wear) * 100))}% · ${c.stintLap ?? 0} giri"><i style="width:${Math.max(0, 1 - c.wear) * 100}%;background:${c.wear > 0.8 ? 'var(--bad)' : c.wear > 0.55 ? 'var(--warn)' : 'var(--good)'}"></i></div>`}</div>
+      <span class="gap ${gcls}">${gap}</span></div>`;
   }).join('');
   const b = document.getElementById('board');
-  if (b) b.innerHTML = `<div class="lb-row" style="color:var(--muted);font-size:10px;letter-spacing:.12em;text-transform:uppercase"><span>Pos</span><span></span><span>Pilota</span><span>Gom</span><span>Usura</span><span class="right">Distacco</span></div>${html}<div class="small muted" style="padding:10px">Giro veloce: ${sim.fastest.key ? `<b>${esc(sim.driver(sim.cars.find((c) => c.key === sim.fastest.key)).name)}</b> ${fmtTime(sim.fastest.time)}` : '—'}</div>`;
+  const fk = sim.fastest.key && sim.cars.find((c) => c.key === sim.fastest.key);
+  if (b) b.innerHTML = `<div class="lb-row lb-head"><span>Pos</span><span></span><span>Pilota</span><span>Gom</span><span>Usura</span><span class="gapmode" data-a="gapmode" data-tip="Clicca per alternare distacco dal leader / intervallo con chi precede">${interval ? 'Interv.' : 'Gap'}</span></div>${html}<div class="lb-foot small muted"><i class="fl" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--purple);box-shadow:0 0 8px var(--purple)"></i>Giro veloce: ${fk ? `<b style="color:#fff">${esc(sim.driver(fk).name)}</b> <span class="lap-t">${fmtTime(sim.fastest.time)}</span>` : '—'}</div>`;
+}
+
+// Gap to the car ahead, sampled once per lap, for the sparkline in the control card
+function gapHistory(sim, c, gA) {
+  R.gh ||= {};
+  const h = (R.gh[c.key] ||= []);
+  const lap = Math.floor(c.dist);
+  if (gA == null || gA > 60 || c.status !== 'running') return h;
+  if (!h.length || h[h.length - 1].lap !== lap) h.push({ lap, v: gA }); else h[h.length - 1].v = gA;
+  if (h.length > 16) h.shift();
+  return h;
+}
+function sparkline(vals, w = 120, h = 24) {
+  if (vals.length < 2) return '';
+  const max = Math.max(1, ...vals), min = Math.min(0, ...vals);
+  const pts = vals.map((v, i) => `${((i / (vals.length - 1)) * (w - 4) + 2).toFixed(1)},${(2 + (1 - (v - min) / (max - min || 1)) * (h - 4)).toFixed(1)}`);
+  const last = vals[vals.length - 1], first = vals[0];
+  const col = last < first - 0.15 ? 'var(--good)' : last > first + 0.15 ? 'var(--bad)' : 'var(--text2)';
+  const one = (1 - (1 - min) / (max - min || 1)) * (h - 4) + 2;
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${max >= 1 ? `<line x1="0" x2="${w}" y1="${one.toFixed(1)}" y2="${one.toFixed(1)}" stroke="rgba(34,211,122,.45)" stroke-dasharray="3 3" stroke-width="1"/>` : ''}<polyline points="${pts.join(' ')}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/><circle cx="${pts[pts.length - 1].split(',')[0]}" cy="${pts[pts.length - 1].split(',')[1]}" r="2.4" fill="${col}"/></svg>`;
+}
+function lapCls(sim, c) {
+  if (!c.lastLap || !isFinite(c.lastLap)) return '';
+  if (sim.fastest.key === c.key && Math.abs(sim.fastest.time - c.lastLap) < 1e-6) return 't-purple';
+  if (c.bestLap && c.lastLap <= c.bestLap + 1e-6) return 't-green';
+  return 't-yellow';
 }
 
 let lastCtrlHTML = '';
@@ -530,18 +578,19 @@ function updateControls(force) {
       <div class="row mt8">${tyreBadge(c.tyre)}<div class="grow"><div class="row between tiny"><span>${COMPOUNDS[c.tyre].name} · ${c.stintLap} giri</span><span class="${tempCls(sim, c)}">${Math.round(c.temp)}°C</span><span class="${c.wear > 0.75 ? 'bad' : ''}">${wearTxt}%</span></div><div class="wear" style="height:6px"><i style="width:${wearTxt}%;background:${c.wear > 0.7 ? 'var(--bad)' : c.wear > 0.45 ? 'var(--warn)' : 'var(--good)'}"></i></div></div></div>
       ${sim.endurance ? `<div class="row mt8">${icon('fuel', 'ico', 'style="width:18px"')}<div class="grow"><div class="row between tiny"><span>Carburante</span><span class="${c.fuel < 1.5 ? 'bad' : ''}">${c.fuel.toFixed(1)} giri</span></div><div class="wear" style="height:6px"><i style="width:${(c.fuel / c.fuelMax) * 100}%;background:var(--info)"></i></div></div></div><div class="tiny muted mt8">Stint pilota: ${c.stintCount + 1}${c.stintCount >= 2 ? ' <span class="warn">(affaticato)</span>' : ''}</div>` : ''}
       ${c.damage > 0.05 ? `<div class="chip bad mt8">Danni: +${c.damage.toFixed(1)}s/giro</div>` : ''}
+      ${(() => { const h = gapHistory(sim, c, gA); return h.length >= 3 ? `<div class="gapline" data-tip="Distacco da chi precede negli ultimi giri. Sotto la linea verde (1s) puoi attaccare con DRS/Override."><div><div class="gl-lbl">Gap avanti</div><div class="gl-v">${gA != null && gA < 60 ? Math.max(0, gA).toFixed(2) + 's' : '—'}</div></div>${sparkline(h.map((x) => x.v))}</div>` : ''; })()}
       <div class="tiny upper muted mt8 mb8">Ritmo</div>
-      <div class="seg">${[['save', 'Gestione'], ['normal', 'Normale'], ['push', 'Attacco']].map(([k, n]) => `<div class="${c.mode === k ? 'on ' + k : ''}" data-a="mode" data-key="${c.key}" data-m="${k}">${n}</div>`).join('')}</div>
+      <div class="seg">${[['save', 'Gestione', 'Gestione: più lento ma risparmia gomme (e carburante).'], ['normal', 'Normale', 'Normale: equilibrio tra passo e usura.'], ['push', 'Attacco', 'Attacco: più veloce, ma consuma le gomme e le surriscalda.']].map(([k, n, tip]) => `<div class="${c.mode === k ? 'on ' + k : ''}" data-a="mode" data-key="${c.key}" data-m="${k}" data-tip="${tip}">${n}</div>`).join('')}</div>
       <div class="row between tiny mt8"><span class="upper muted">${sim.endurance ? 'Ibrido' : 'Batteria ERS'}</span><span class="${c.ers < 20 ? 'bad' : ''}">${Math.round(c.ers)}%</span></div>
       <div class="wear" style="height:6px;margin:4px 0 6px"><i style="width:${c.ers}%;background:linear-gradient(90deg,#7c4dff,#00e5ff)"></i></div>
-      <div class="seg">${[['harvest', 'Ricarica'], ['balanced', 'Bilanciato'], ['deploy', 'Override']].map(([k, n]) => `<div class="${c.ersMode === k ? 'on ' + (k === 'deploy' ? 'push' : k === 'harvest' ? 'save' : '') : ''}" data-a="ers" data-key="${c.key}" data-m="${k}">${n}</div>`).join('')}</div>
+      <div class="seg">${[['harvest', 'Ricarica', 'Ricarica: perdi un po’ di passo ma riempi la batteria.'], ['balanced', 'Bilanciato', 'Bilanciato: usa e recupera energia in modo neutro.'], ['deploy', 'Override', 'Override: massima potenza elettrica. Usalo entro 1s da chi precede per sorpassare.']].map(([k, n, tip]) => `<div class="${c.ersMode === k ? 'on ' + (k === 'deploy' ? 'push' : k === 'harvest' ? 'save' : '') : ''}" data-a="ers" data-key="${c.key}" data-m="${k}" data-tip="${tip}">${n}</div>`).join('')}</div>
       <div class="tiny upper muted mt8 mb8">Pit stop</div>
-      <div class="row gap4 wrap">${sim.C.compounds.map((cp) => `<button class="btn sm ${pitSel === cp ? 'active' : ''}" style="padding:4px 6px" data-a="pitsel" data-key="${c.key}" data-c="${cp}" title="${COMPOUNDS[cp].name}">${tyreBadge(cp)}</button>`).join('')}${sim.endurance ? `<button class="btn sm ${pitSel === 'none' ? 'active' : ''}" style="padding:4px 8px" data-a="pitsel" data-key="${c.key}" data-c="none">Solo ⛽</button>` : ''}</div>
+      <div class="row gap4 wrap">${sim.C.compounds.map((cp) => `<button class="btn sm ${pitSel === cp ? 'active' : ''}" style="padding:4px 6px" data-a="pitsel" data-key="${c.key}" data-c="${cp}" data-tip="Monta ${COMPOUNDS[cp].name} alla prossima sosta">${tyreBadge(cp)}</button>`).join('')}${sim.endurance ? `<button class="btn sm ${pitSel === 'none' ? 'active' : ''}" style="padding:4px 8px" data-a="pitsel" data-key="${c.key}" data-c="none">Solo ⛽</button>` : ''}</div>
       ${sim.endurance && c.driverIds.length > 1 ? `<button class="btn sm mt8 ${R.swap[c.key] ? 'active' : ''}" style="width:100%" data-a="swap" data-key="${c.key}">${icon('swap')} Cambio pilota → ${esc(st.drivers[c.driverIds[(c.driverIdx + 1) % c.driverIds.length]].name.split(' ').pop())}</button>` : ''}
       <button class="btn ${c.pitReq ? 'danger' : 'team'} mt8 ${advice?.urgent && !c.pitReq ? 'pulse' : ''}" style="width:100%" data-a="pit" data-key="${c.key}">${c.pitReq ? `Annulla box (${c.pitReq.compound ? COMPOUNDS[c.pitReq.compound].short : '⛽'})` : `${icon('wrench')} Chiama ai box`}</button>
       ${advice ? `<div class="small mt8 ${advice.urgent ? 'warn' : 'muted'}">${icon('info', 'ico', 'style="width:13px;vertical-align:-2px"')} ${advice.text}</div>` : ''}
-      <div class="row between mt8 tiny"><span class="muted">Strategia automatica (ingegnere)</span><button class="btn sm ${c.auto ? 'active' : ''}" data-a="auto" data-key="${c.key}">${c.auto ? 'ON' : 'OFF'}</button></div>
-      <div class="tiny muted mt8">Giri rimanenti: ${lapsLeft.toFixed(1)} · Ultimo ${fmtTime(c.lastLap)} · Best ${fmtTime(c.bestLap)}</div>` : ''}
+      <div class="row between mt8 tiny"><span class="muted">Strategia automatica (ingegnere)</span><button class="btn sm ${c.auto ? 'active' : ''}" data-a="auto" data-key="${c.key}" data-tip="L’ingegnere decide ritmo e pit stop al posto tuo">${c.auto ? 'ON' : 'OFF'}</button></div>
+      <div class="timing" data-tip="Viola: giro più veloce della gara · Verde: record personale · Giallo: più lento del tuo migliore"><div><span>Ultimo</span><b class="${lapCls(sim, c)}">${fmtTime(c.lastLap)}</b></div><div><span>Migliore</span><b class="${sim.fastest.key === c.key ? 't-purple' : c.bestLap ? 't-green' : ''}">${fmtTime(c.bestLap)}</b></div><div><span>Giri rim.</span><b>${lapsLeft.toFixed(1)}</b></div></div>` : ''}
     </div>`;
   }).join('');
   const plan = R.sim.weather.plan;

@@ -47,6 +47,7 @@ registerScreen({
         <div id="menu-track" class="tiny upper muted" style="position:absolute;left:40px;top:30px;letter-spacing:.3em"></div>
       </div>
       <div class="version">v${__APP_VERSION__} · Gioco di fantasia: nomi e marchi sono parodie e non affiliati</div>
+      <div class="menu-hint"><span><span class="kbd">↑</span><span class="kbd">↓</span> Naviga</span><span><span class="kbd">Invio</span> Seleziona</span><span><span class="kbd">?</span> Comandi</span></div>
     </div>`;
   },
   mount() {
