@@ -610,7 +610,7 @@ export class DerbyGame {
     const el = this.hud.root.querySelector('#dz-results');
     el.innerHTML = `<div class="dz-res-card"><div class="tiny upper muted" style="letter-spacing:.3em">${this.track.arena ? 'Demolition derby' : 'Gara'} · ${this.venue.name}</div>
       <h2>${myPos === 1 ? '🏆 VITTORIA!' : `${myPos}° posto`}</h2>
-      <table class="tbl"><thead><tr><th>Pos</th><th>Pilota</th><th>${this.track.arena ? 'Stato' : 'Tempo'}</th><th>Demolizioni</th></tr></thead><tbody>${res.map((c, i) => `<tr class="${c.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><i class="dz-dot" style="background:${c.color}"></i>${c.name}</td><td>${this.track.arena ? (c.out ? 'Distrutto' : 'In piedi') : c.finished ? `${Math.floor(c.time / 60)}:${(c.time % 60).toFixed(2).padStart(5, '0')}` : 'Doppiato'}</td><td>${c.kills || 0}</td></tr>`).join('')}</tbody></table>
+      <table class="tbl"><thead><tr><th>Pos</th><th>Pilota</th><th>${this.track.arena ? 'Stato' : 'Tempo'}</th><th>Demolizioni</th></tr></thead><tbody>${res.map((c, i) => `<tr class="${c.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><i class="dz-dot" style="background:${c.color}"></i>${c.name}</td><td>${this.track.arena ? (c.out ? 'Distrutto' : 'In piedi') : c.finished ? `${Math.floor(c.time / 60)}:${(c.time % 60).toFixed(2).padStart(5, '0')}` : 'In pista'}</td><td>${c.kills || 0}</td></tr>`).join('')}</tbody></table>
       <div class="row between mt16"><span class="muted">Premio: <b>€ ${prize.toLocaleString('it-IT')}</b>${bonus ? ` + bonus demolizioni € ${bonus.toLocaleString('it-IT')}` : ''}</span>
       <div class="row gap6"><button class="btn lg" data-a="dz-restart">Rigioca</button><button class="btn primary lg" data-a="dz-quit">Continua</button></div></div></div>`;
     el.classList.add('on');
