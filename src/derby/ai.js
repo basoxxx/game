@@ -47,8 +47,8 @@ export function aiInput(game, car, dt) {
   if (game.state === 'race' && out.thr > 0.3 && k.speed < 1.4 && car.dyn?.grounded >= 2) {
     A.stuckT += dt;
     if (A.stuckT > 1.1) {
-      A.stuckT = 0; A.stuckN++; game.stat?.('stuck', car);
-      if (A.stuckN >= 3 && !game.track.arena) { A.stuckN = 0; game.requestRespawn(car, 'stuck'); }
+      A.stuckT = 0; A.stuckN++; game.stat?.('stuck', car); if ((game.simStats.stuckAt ||= []).length < 30) game.simStats.stuckAt.push([car.idx, Math.round(car.offTrack || 0), Math.round((car.dyn?.up?.y ?? 1) * 10) / 10, game.cars.some((o) => o !== car && (() => { const a = o.body.translation(), b = car.body.translation(); return (a.x - b.x) ** 2 + (a.z - b.z) ** 2 < 36; })()) ? 'car' : '-']);
+      if (!game.track.arena && (A.stuckN >= 3 || (A.stuckN >= 2 && (car.offTrack || 0) > game.track.width / 2 - 1))) { A.stuckN = 0; game.requestRespawn(car, 'stuck'); }
       else { A.revT = 0.9 + Math.random() * 0.6; A.revSt = out.st > 0 ? -1 : 1; }
     }
   } else A.stuckT = Math.max(0, A.stuckT - dt * 2);

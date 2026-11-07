@@ -468,7 +468,9 @@ export class DerbyGame {
         if (other.kind === 'car' && other.car === car) continue;
         const scale = other.kind === 'ground' ? 0.22 : other.kind === 'prop' ? 0.3 : other.kind === 'wall' ? 0.7 : 1;
         const eff = J * scale; if (eff < 1500) continue;
-        const dmg = Math.min(42, (eff - 1500) / (400 * car.spec.armor)) * (this.track.arena ? 0.8 : 1);
+        // one damage hit per pair every 0.15 s (locked-together cars would otherwise grind each other to death)
+        if (other.kind === 'car') { const kk = car.num * 100 + other.car.num; this.pairDmg ||= new Map(); const pd = this.pairDmg.get(kk); if (pd && this.time - pd.t < 0.15 && eff < pd.eff * 1.6) continue; this.pairDmg.set(kk, { t: this.time, eff }); }
+        const dmg = Math.min(42, (eff - 1500) / (400 * car.spec.armor)) * (this.track.arena ? 0.62 : 1);
         // impact point: contact manifold if available, else along the force direction
         // impact point: towards the other body (cars, props), along the motion (walls) or below/above (ground),
         // projected onto the car's box so dents land on the panel that was actually hit
@@ -482,8 +484,7 @@ export class DerbyGame {
         const local = new THREE.Vector3(dl.x * sc, 0.62 + dl.y * sc, dl.z * sc);
         const wp = local.clone().applyQuaternion(q).add(new THREE.Vector3(bt.x, bt.y, bt.z));
         const inward = new THREE.Vector3(-local.x, -local.y * 0.3, -local.z).normalize();
-        if (car.isPlayer) (this.simStats.hitLocal ||= []).push([other.kind, +local.x.toFixed(2), +local.y.toFixed(2), +local.z.toFixed(2), Math.round(dmg)]);
-        car.lastImpactT = this.time; const ds = (this.simStats.dmgBy ||= {}); ds[other.kind] = Math.round((ds[other.kind] || 0) + dmg); if (other.kind === 'ground' && this.state === 'race' && this.time > 1 && (this.simStats.gl ||= []).length < 25) { const lv = car.body.linvel(); this.simStats.gl.push([car.name.slice(0, 4), Math.round(eff), Math.round(dmg), +lv.y.toFixed(1), +Math.hypot(lv.x, lv.z).toFixed(0), +(car.dyn?.up.y ?? 1).toFixed(2), car.dyn?.grounded, +this.time.toFixed(1), car.hp | 0]); }
+        car.lastImpactT = this.time; const ds = (this.simStats.dmgBy ||= {}); ds[other.kind] = Math.round((ds[other.kind] || 0) + dmg);
         this.applyDamage(car, dmg, local, inward, other.kind === 'car' ? other.car : null, wp);
         if (eff > 2400) for (let k = 0; k < Math.min(34, eff / 500); k++) this.sparks.emit(wp.x, wp.y, wp.z, (Math.random() - 0.5) * 10, Math.random() * 5, (Math.random() - 0.5) * 10, 0.25 + Math.random() * 0.35, 0.35, 1, 0.75 + Math.random() * 0.2, 0.35, 1);
         if (car.isPlayer && dmg > 3) {
@@ -687,7 +688,14 @@ export class DerbyGame {
       let inp = !racing ? { thr: this.state === 'countdown' && car.isPlayer ? pin.thr : Math.random() < 0.02 ? 1 : 0, brk: 0, st: 0, hb: 0, nitro: 0, hold: 1 } : car.isPlayer && !(this.state === 'finished') ? pin : this.aiInput(car, dt);
       if (car.wreckT > 0) { car.wreckT -= dt; inp = { thr: 0, brk: 1, st: 0, hb: 0, nitro: 0 }; if (car.wreckT <= 0) { car.hp = 45; car.burnT = 0; this.repairWheels(car); this.respawn(car); } }
       car.dyn = this.drive(car, inp, dt);
-      if (car.ghostT > 0) { car.ghostT -= dt; if (car.ghostT <= 0) { car.col.setCollisionGroups(GROUPS_CAR); car.cabCol.setCollisionGroups(GROUPS_CAR); } }
+      if (car.ghostT > 0) {
+        car.ghostT -= dt;
+        if (car.ghostT <= 0) {
+          // stay a ghost while still overlapping another car
+          const p = car.body.translation(); const busy = this.cars.some((o) => o !== car && !o.out && (() => { const q = o.body.translation(); return (q.x - p.x) ** 2 + (q.z - p.z) ** 2 < 25 && Math.abs(q.y - p.y) < 2.5; })());
+          if (busy) car.ghostT = 0.3; else { car.col.setCollisionGroups(GROUPS_CAR); car.cabCol.setCollisionGroups(GROUPS_CAR); }
+        }
+      }
       if (car.flipT > (car.isPlayer ? 3.5 : 2.2) && this.state !== 'countdown') { this.requestRespawn(car, 'flip'); }
       // flipping a rival earns a bonus
       if (car.dyn.up.y < -0.2 && !car.flipCredited && car.lastHit && this.time - car.lastHit.t < 3) { car.flipCredited = true; this.award(car.lastHit.by, 18, car.lastHit.by.isPlayer ? 'RIBALTATO!' : null, 250); }
@@ -797,7 +805,7 @@ export class DerbyGame {
     if (this.camMode >= 2) {
       // hood / bumper cams: rigid, with the roll partially levelled out
       const ud = c.mesh.userData, L = ud.dims.L;
-      const local = this.camMode === 2 ? new THREE.Vector3(L * 0.28, ud.dims.beltY + 0.36, 0) : new THREE.Vector3(L + 0.25, 0.55, 0);
+      const local = this.camMode === 2 ? new THREE.Vector3(L * 0.22, ud.dims.beltY + 0.5, 0) : new THREE.Vector3(L + 0.25, 0.55, 0);
       const dir = this.lookBack ? -1 : 1;
       if (this.lookBack) local.set(this.camMode === 2 ? -L * 0.5 : -L - 0.3, this.camMode === 2 ? ud.dims.H + 0.15 : 0.6, 0);
       const pos = local.applyQuaternion(q).add(p);
