@@ -135,7 +135,7 @@ export function detailPatch(mat, { antiTile = true, macro = 0.18, macroScale = 0
   return mat;
 }
 
-const HDRIS = { day: 'kloofendal_48d_partly_cloudy_puresky_1k.hdr', dusk: 'qwantani_dusk_2_puresky_1k.hdr', night: 'moonless_golf_1k.hdr' };
+const HDRIS = { day: 'kloofendal_48d_partly_cloudy_puresky_1k.hdr', afternoon: 'qwantani_late_afternoon_puresky_1k.hdr', dusk: 'qwantani_dusk_2_puresky_1k.hdr', night: 'moonless_golf_1k.hdr' };
 const hdrCache = {};
 // direction of the brightest pixel (the sun) in three.js equirect convention
 function findSun(tex) {
@@ -170,6 +170,9 @@ export function applyHDRI(renderer, scene, kind = 'day', { background = true, in
     if (hdrCache[kind]) return done(hdrCache[kind]);
     new RGBELoader().setDataType(THREE.FloatType).load(BASE + 'hdri/' + HDRIS[kind], (t) => {
       t.mapping = THREE.EquirectangularReflectionMapping;
+      // some skies store a sun brighter than half-float range: the PMREM (half float) would turn
+      // it into Inf/NaN and black out every reflection, so clamp the peak
+      try { const a = t.image.data; if (a instanceof Float32Array) { let hit = false; for (let i = 0; i < a.length; i++) if (a[i] > 20000) { a[i] = 20000; hit = true; } if (hit) t.needsUpdate = true; } } catch {}
       try { t.userData.sun = findSun(t); t.userData.horizon = findHorizon(t); } catch { t.userData.sun = null; }
       hdrCache[kind] = t;
       done(t);
@@ -407,6 +410,45 @@ const FlareShader = {
       gl_FragColor = col;
     }`,
 };
+// ---- light shafts (screen-space radial blur towards the sun) ------------------------------
+// Bright sky pixels are smeared along the line to the sun, so the gaps between trees, stands
+// and buildings throw visible shafts at low sun. Display space, 24 taps, only while the sun
+// is near the frame.
+const RaysShader = {
+  uniforms: { tDiffuse: { value: null }, uSun: { value: new THREE.Vector2(0.5, 0.5) }, uAmt: { value: 0 }, uTint: { value: new THREE.Color(1, 0.85, 0.62) }, uAspect: { value: 16 / 9 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: /* glsl */`
+    uniform sampler2D tDiffuse; uniform vec2 uSun; uniform float uAmt, uAspect; uniform vec3 uTint; varying vec2 vUv;
+    void main() {
+      vec4 col = texture2D(tDiffuse, vUv);
+      vec2 dl = (uSun - vUv); float len = length(dl * vec2(uAspect, 1.0));
+      vec2 stepv = dl * (0.92 / 24.0);
+      vec2 p = vUv; float acc = 0.0, w = 1.0;
+      float j = fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453);
+      p += stepv * j;
+      for (int i = 0; i < 24; i++) {
+        vec3 s = texture2D(tDiffuse, clamp(p, 0.001, 0.999)).rgb;
+        float l = dot(s, vec3(0.2126, 0.7152, 0.0722));
+        acc += smoothstep(0.8, 1.0, l) * w; w *= 0.95; p += stepv;
+      }
+      acc /= 24.0;
+      float fall = exp(-len * 2.2);
+      col.rgb += uTint * acc * fall * uAmt * (1.0 - 0.5 * dot(col.rgb, vec3(0.333)));
+      gl_FragColor = col;
+    }`,
+};
+export function updateGodRays(composer, camera, sunDir, amount = 1) {
+  const r = composer?.rays; if (!r) return;
+  if (!sunDir || amount <= 0.001) { r.enabled = false; return; }
+  _sv.copy(sunDir).normalize();
+  const facing = _sv.dot(camera.getWorldDirection(new THREE.Vector3()));
+  _sv.multiplyScalar(1000).add(camera.position).project(camera);
+  const u = _sv.x * 0.5 + 0.5, v = _sv.y * 0.5 + 0.5;
+  const amt = amount * THREE.MathUtils.smoothstep(facing, 0.15, 0.6);
+  r.enabled = amt > 0.01 && _sv.z < 1 && u > -0.6 && u < 1.6 && v > -0.6 && v < 1.6;
+  r.uniforms.uSun.value.set(u, v); r.uniforms.uAmt.value = amt; r.uniforms.uAspect.value = camera.aspect;
+}
+
 const _sv = new THREE.Vector3();
 // Place the flare for this frame: sunDir = world direction towards the sun (or null/off).
 // amount scales the effect (e.g. 0 at night or under heavy cloud).
@@ -422,7 +464,7 @@ export function updateSunFlare(composer, camera, sunDir, amount = 1) {
   f.uniforms.uSun.value.set(u, v); f.uniforms.uAmt.value = amt; f.uniforms.uAspect.value = camera.aspect;
 }
 
-export function makeComposer(renderer, scene, camera, { bloom = 0.22, low = false, ao = false, grade = true, filter = true, flare = false } = {}) {
+export function makeComposer(renderer, scene, camera, { bloom = 0.22, low = false, ao = false, grade = true, filter = true, flare = false, rays = false } = {}) {
   if (low) { if (filter) applyFilterSettings(renderer.domElement); return null; }
   try {
     const size0 = renderer.getSize(new THREE.Vector2());
@@ -443,6 +485,7 @@ export function makeComposer(renderer, scene, camera, { bloom = 0.22, low = fals
     const b = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), bloom, 0.55, 0.88);
     comp.addPass(b);
     comp.addPass(new OutputPass());
+    if (rays) { const rp = new ShaderPass(RaysShader); rp.enabled = false; comp.addPass(rp); comp.rays = rp; }
     if (flare) { const fl = new ShaderPass(FlareShader); fl.enabled = false; comp.addPass(fl); comp.flare = fl; }
     if (grade) { const gp = new ShaderPass(GradeShader); gp.userData = { vig: GradeShader.uniforms.uVig.value }; comp.addPass(gp); comp.grade = gp; }
     comp.addPass(new SMAAPass(size.x * renderer.getPixelRatio(), size.y * renderer.getPixelRatio()));

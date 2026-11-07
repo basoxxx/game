@@ -6,8 +6,8 @@ import { trackGeometry, speedProfile, sampleAtTimeFrac } from '../engine/trackph
 import { genStage, STAGE_STYLE } from './trackview.js';
 import { getSettings } from '../engine/state.js';
 import { passBy } from './audio.js';
-import { buildCar, setTyreColor, MAT } from './cars3d.js';
-import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, updateSunFlare } from './gfx.js';
+import { buildCar, setTyreColor, setCarLOD, MAT } from './cars3d.js';
+import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, updateSunFlare, updateGodRays } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // Tree geometry (origin at the base, height 1) with vertex colours: trunk + layered foliage
@@ -49,6 +49,13 @@ function noise(ctx, w, h, base, amp, n = 6000, size = 2) {
 const TIME = { value: 0 };
 // endurance races at the night circuits start in the evening light
 const DUSK_TRACKS = ['qat', 'bhr'];
+// time-of-day presets (opts.timeOfDay): key light, sky fill, exposure / white balance of the
+// grade, minimum shadow elevation, light-shaft strength, fallback sky gradient
+const TOD = {
+  day: { sun: 0xfff1dc, sunI: 2.3, hemi: 0xdfefff, hemiG: 0x4a6a3a, exp: 1.05, warm: 0.035, sat: 1.08, k: 1, el: 0.45, rays: 0.08, top: 0x3d7ad6, bot: 0xcfe3f7, disc: 0xfff6e6, bg: 1, fogK: 1 },
+  afternoon: { sun: 0xffd9ae, sunI: 2.5, hemi: 0xffeedd, hemiG: 0x5a6a3a, exp: 1.0, warm: 0.055, sat: 1.1, k: 0.92, el: 0.3, rays: 0.2, top: 0x4a7fc9, bot: 0xf2dcc0, disc: 0xffe2b8, bg: 0.82, fogK: 0.95 },
+  dusk: { sun: 0xffb27a, sunI: 1.75, hemi: 0xffd2b0, hemiG: 0x5a4a3a, exp: 1.0, warm: 0.07, sat: 1.06, k: 0.65, el: 0.22, rays: 0.32, top: 0x34507e, bot: 0xf2b27e, disc: 0xffb070, bg: 0.72, fogK: 0.72 },
+};
 // crowd material: people bob, stand up and wave (per seat cell), driven by TIME
 function crowdPatch(mat) {
   mat.onBeforeCompile = (sh) => {
@@ -66,12 +73,31 @@ function crowdPatch(mat) {
   return mat;
 }
 
+
+// simple standing figure (origin at the feet, facing +z). Vertex colours: pure white parts
+// (overalls, arms) take the per-instance team colour, the rest keeps its own colour.
+let _personGeo = null;
+function personGeo() {
+  if (_personGeo) return _personGeo;
+  const parts = [];
+  const add = (g, hex) => { const c = new THREE.Color(hex); const n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); parts.push(g); };
+  for (const sx of [-0.1, 0.1]) add(new THREE.CapsuleGeometry(0.075, 0.68, 3, 8).translate(sx, 0.42, 0), '#16181d');
+  for (const sx of [-0.1, 0.1]) add(new THREE.BoxGeometry(0.12, 0.08, 0.26).translate(sx, 0.04, 0.05), '#0c0d0f');
+  add(new THREE.CapsuleGeometry(0.165, 0.36, 4, 10).scale(1, 1, 0.68).translate(0, 1.13, 0), '#ffffff');
+  for (const sx of [-0.25, 0.25]) add(new THREE.CapsuleGeometry(0.052, 0.48, 3, 6).rotateZ(sx * 0.35).translate(sx, 1.1, 0.02), '#ffffff');
+  add(new THREE.SphereGeometry(0.105, 12, 8).translate(0, 1.6, 0), '#c99a7a');
+  add(new THREE.SphereGeometry(0.113, 12, 5, 0, Math.PI * 2, 0, Math.PI * 0.36).translate(0, 1.615, -0.012), '#15171b');
+  _personGeo = mergeGeometries(parts);
+  _personGeo.computeBoundingSphere();
+  return _personGeo;
+}
+
 export function webglAvailable() {
   try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; }
 }
 
 export class Race3D {
-  constructor(container, { cid, geo, street = 0, night = false, cars = [], category = 'formula', surface = null, wet = false }) {
+  constructor(container, { cid, geo, street = 0, night = false, cars = [], category = 'formula', surface = null, wet = false, timeOfDay = null }) {
     this.container = container;
     this.geo = geo || trackGeometry(cid);
     this.open = !!this.geo.open;
@@ -99,6 +125,13 @@ export class Race3D {
     this.scene = new THREE.Scene();
     try { const pm = new THREE.PMREMGenerator(this.renderer); this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; this.scene.environmentIntensity = 0.45; } catch {}
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.3, 6000);
+    // teams in entry order (first = nearest the pit exit): garages, stands and boxes
+    this.teamList = []; this._boxes = new Map();
+    for (const c of cars) {
+      if (c.category === 'rally' && category !== 'rally') continue; // endurance GT traffic never pits
+      const team = String(c.key).split('#')[0];
+      if (!this._boxes.has(team)) { this._boxes.set(team, this.teamList.length); this.teamList.push({ team, livery: { primary: '#e10600', secondary: '#ffffff', accent: '#111111', ...c.livery }, sponsor: c.sponsor, n: 0 }); }
+    }
     this.labels = document.createElement('div');
     Object.assign(this.labels.style, { position: 'absolute', inset: '0', pointerEvents: 'none', overflow: 'hidden' });
     container.appendChild(this.labels);
@@ -107,18 +140,28 @@ export class Race3D {
     if (this.open) this.buildStage(); else { this.buildTrack(street); this.buildScenery(street); }
     this.buildRacingLine();
     WET.value = 0;
-    // twilight sky: low warm sun
-    this.skyKind = night ? 'night' : category === 'endurance' && DUSK_TRACKS.includes(this.geo.cid) ? 'dusk' : 'day';
-    if (this.skyKind === 'dusk') { this.sun.color.setHex(0xffb27a); this.sun.intensity = 1.7; this.hemi.color.setHex(0xffd2b0); this.renderer.toneMappingExposure = 1.12; }
+    // time of day: explicit opts.timeOfDay ('day' | 'afternoon' | 'dusk'), else endurance races at
+    // the night circuits start in the evening light
+    this.skyKind = night ? 'night' : TOD[timeOfDay] ? timeOfDay : category === 'endurance' && DUSK_TRACKS.includes(this.geo.cid) ? 'dusk' : 'day';
+    this.tod = TOD[this.skyKind] || null;
+    if (this.tod) {
+      const T = this.tod;
+      this.sun.color.setHex(T.sun); this.sun.intensity = T.sunI; this.hemi.color.setHex(T.hemi); this.hemi.groundColor.setHex(T.hemiG); this.renderer.toneMappingExposure = T.exp;
+      this.skyMat.uniforms.top.value.setHex(T.top); this.skyMat.uniforms.bot.value.setHex(T.bot);
+    }
     applyHDRI(this.renderer, this.scene, this.skyKind, { intensity: night ? 0.35 : 0.9 }).then((ok) => {
       if (ok && this.skyDome) { this.skyDome.visible = false; if (this.clouds) this.clouds.visible = false; this.hdr = true; }
       // align the key light with the sun painted in the HDRI (elevation clamped for readable shadows)
       const sd = !night && hdriSun(this.skyKind);
       const hz = !night && hdriHorizon(this.skyKind);
-      if (hz && this.scene.fog) { this.scene.fog.color.copy(hz); this.fogDay = hz.clone(); this._wetApplied = -1; }
-      if (sd) { const el = Math.min(0.95, Math.max(this.skyKind === 'dusk' ? 0.22 : 0.45, Math.asin(sd.y))); const az = Math.atan2(sd.z, sd.x); this.sunDir.set(Math.cos(az) * Math.cos(el), Math.sin(el), Math.sin(az) * Math.cos(el)); }
+      if (hz && this.scene.fog) { this.scene.fog.color.copy(hz).multiplyScalar(this.tod?.fogK ?? 1); this.fogDay = this.scene.fog.color.clone(); this._wetApplied = -1; }
+      if (ok && this.tod) { this.scene.backgroundIntensity = this.tod.bg; if (this._lit) this._lit.bg = this.tod.bg; }
+      if (sd) { const el = Math.min(0.95, Math.max(this.tod?.el ?? 0.45, Math.asin(sd.y))); const az = Math.atan2(sd.z, sd.x); this.sunDir.set(Math.cos(az) * Math.cos(el), Math.sin(el), Math.sin(az) * Math.cos(el)); }
+      if (sd) this.buildSunDisc(sd);
     });
-    this.composer = makeComposer(this.renderer, this.scene, this.camera, { bloom: night ? 0.45 : 0.18, low: this.low, ao: true, flare: !night });
+    this.composer = makeComposer(this.renderer, this.scene, this.camera, { bloom: night ? 0.45 : 0.18, low: this.low, ao: true, flare: !night, rays: !night });
+    if (this.composer?.grade && this.tod) { this.composer.grade.uniforms.uWarm.value = this.tod.warm; this.composer.grade.uniforms.uSat.value = this.tod.sat; }
+    if (this.composer?.rays && this.tod) this.composer.rays.uniforms.uTint.value.setHex(this.tod.disc);
     this.cars = new Map();
     for (const c of cars) this.addCar(c);
     this.camPos = new THREE.Vector3(0, 50, 0);
@@ -214,6 +257,21 @@ export class Race3D {
     return m;
   }
 
+  // flat strip over pit coordinates q0..q1 (samples from the line) between offsets a(q)..b(q)
+  laneStrip(q0, q1, a, b, y, material, vScale = 1 / 6, uvFn = null) {
+    const { N, x, y: Y, hdg } = this.geo;
+    const pos = [], uv = [], idx = [];
+    for (let q = q0, n = 0; q <= q1; q++, n++) {
+      const i = ((q % N) + N) % N; const nx = -Math.sin(hdg[i]), nz = Math.cos(hdg[i]);
+      const A = a(q), B = b(q), hh = this.geo.h ? this.geo.h[i] : 0;
+      pos.push(x[i] + nx * A, y + hh, Y[i] + nz * A, x[i] + nx * B, y + hh, Y[i] + nz * B);
+      if (uvFn) uv.push(...uvFn(q, 0), ...uvFn(q, 1)); else uv.push(0, n * this.geo.ds * vScale, (B - A) * vScale, n * this.geo.ds * vScale);
+      if (q < q1) { const k = n * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, material); m.receiveShadow = true; return m;
+  }
+
   // ribbon over a sample range [i0, i1] (wraps), offsets a..b, edges faded in over 4 samples
   segRibbon(i0, i1, a, b, y, material, vScale = 0.1) {
     const { N, x, y: Y, hdg } = this.geo;
@@ -239,6 +297,7 @@ export class Race3D {
   buildTrack(street) {
     const W = street > 0.7 ? 11 : 13;
     this.TW = W;
+    { const N = this.geo.N; this.pitSpan = 44; this.inPitZone = (i, m = 0) => { const d = Math.min(((i % N) + N) % N, N - ((i % N) + N) % N); return d <= this.pitSpan + m; }; }
     const D = (m, o) => (this.low ? m : detailPatch(m, o));
     this.desert = ['bhr', 'qat', 'abu', 'ksa'].includes(this.geo.cid);
     this.computeLine();
@@ -268,6 +327,7 @@ export class Race3D {
         if (cn.r > 220) continue;
         const span = Math.min(40, Math.max(14, Math.round(cn.r / 6)));
         const side = -cn.dir;
+        if (side > 0 && (this.inPitZone(cn.i - span, 6) || this.inPitZone(cn.i + span, 6))) continue;
         const g0 = W / 2 + 5.5;
         const a = side > 0 ? g0 : -(W / 2 + runoff - 1), b = side > 0 ? W / 2 + runoff - 1 : -g0;
         this.scene.add(this.segRibbon(cn.i - Math.round(span * 0.6), cn.i + span, a, b, 0.02, gravel, 1 / 3.5));
@@ -279,6 +339,7 @@ export class Race3D {
         if (cn.r > 260) continue;
         const span = Math.min(34, Math.max(12, Math.round(cn.r / 7)));
         const side = -cn.dir;
+        if (side > 0 && (this.inPitZone(cn.i - span, 6) || this.inPitZone(cn.i + span, 6))) continue;
         const i0 = cn.i - Math.round(span * 0.7), i1 = cn.i + span;
         this.scene.add(side > 0 ? this.segRibbon(i0, i1, W / 2 + 1.3, W / 2 + 5.5, 0.026, paint, 1 / 6) : this.segRibbon(i0, i1, -(W / 2 + 5.5), -(W / 2 + 1.3), 0.026, paint, 1 / 6));
         this.scene.add(side > 0 ? this.segRibbon(i0 + 2, i1 - 2, W / 2 + 5.2, W / 2 + 5.45, 0.03, stripe, 1 / 6) : this.segRibbon(i0 + 2, i1 - 2, -(W / 2 + 5.45), -(W / 2 + 5.2), 0.03, stripe, 1 / 6));
@@ -316,9 +377,16 @@ export class Race3D {
     // barriers
     const wallTex = canvasTex(256, 32, (c, w, h) => { const cols = street > 0.7 ? ['#e8e8e8', '#c81e1e'] : ['#d32f2f', '#f2f2f2']; for (let i = 0; i < 8; i++) { c.fillStyle = cols[i % 2]; c.fillRect(i * w / 8, 0, w / 8, h); } c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(0, h - 4, w, 4); });
     const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.7, side: THREE.DoubleSide });
-    // pit lane: dedicated lane on the + side around the start line, inside the barriers
-    this.pitSpan = 44; this.pitOff = W / 2 + (street > 0.7 ? 6.5 : 9);
-    const pitW = (i) => { const d = Math.min(i, N - i); return d <= this.pitSpan ? 1 : d >= this.pitSpan + 14 ? 0 : 1 - (d - this.pitSpan) / 14; };
+    // pit lane on the + side around the start line. Cross-section (metres from the centre):
+    // pit wall | team stands | fast lane (driving line pitOff) | white line | working lane with
+    // the boxes (pitBoxOff) | garages (front at pitBack)
+    this.pitSpan = 44;
+    {
+      const pw = W / 2 + (street > 0.7 ? 1.2 : 2.0), fl0 = pw + 2.1, fl1 = fl0 + 4.4, wl0 = fl1 + 0.2, wl1 = wl0 + 5.6;
+      this.pit = { wall: pw, fl0, fl1, wl0, wl1 };
+      this.pitOff = (fl0 + fl1) / 2; this.pitBoxOff = (wl0 + wl1) / 2; this.pitBack = wl1 + 0.4; this.pitGarage = this.pitBack + 4.2;
+    }
+    const pitW = (i) => { const d = Math.min(i, N - i); return d <= this.pitSpan + 2 ? 1 : d >= this.pitSpan + 16 ? 0 : 1 - (d - this.pitSpan - 2) / 14; };
     const baseWall = W / 2 + runoff + (street > 0.7 ? 0.5 : 4);
     // free space to each side before reaching another part of the circuit: barriers go halfway
     const clr = [new Float32Array(N).fill(999), new Float32Array(N).fill(999)];
@@ -330,32 +398,18 @@ export class Race3D {
           if (lat > 0) clr[0][i] = Math.min(clr[0][i], lat); else clr[1][i] = Math.min(clr[1][i], -lat); } }
       for (const a of clr) { const b = Float32Array.from(a); for (let i = 0; i < N; i++) { let m = 999; for (let q = -6; q <= 6; q++) m = Math.min(m, b[(i + q + N) % N]); a[i] = m; } } }
     this.sideClr = clr;
-    const rawWall = (i, side) => side > 0 ? Math.max(baseWall, baseWall + (this.pitOff + 4.2 - baseWall) * pitW(i)) : baseWall;
+    const rawWall = (i, side) => side > 0 ? baseWall + (this.pitBack + 1.2 - baseWall) * pitW(i) : baseWall;
     this.wallOff = (i, side) => { i = ((i % N) + N) % N; return Math.max(W / 2 + 1.4, Math.min(rawWall(i, side), clr[side > 0 ? 0 : 1][i] / 2)); };
+    // + side barriers stop where the garages close the pit lane
+    this.inPitZone = (i, m = 0) => { const d = Math.min(((i % N) + N) % N, N - ((i % N) + N) % N); return d <= this.pitSpan + m; };
     {
-      const pos = [], idx = [], uv = [];
-      const pm = this.low ? new THREE.MeshStandardMaterial({ color: 0x45484e, roughness: 0.85 }) : detailPatch(pbr('asphalt_02', { color: 0x76767a, roughness: 0.9, repeat: [1, 1] }), { macro: 0.14, macroScale: 0.05, wet: true, rough: [0.6, 1.0], key: 'pitlane' });
-      let n = 0;
-      for (let q = -this.pitSpan - 10; q <= this.pitSpan + 10; q++, n++) {
-        const i = (q + N) % N; const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
-        const t = Math.min(1, (this.pitSpan + 10 - Math.abs(q)) / 12);
-        const a = W / 2 + 0.2, b = W / 2 + 0.2 + (this.pitOff + 2.6 - W / 2) * t;
-        pos.push(this.geo.x[i] + nx * a, 0.025, this.geo.y[i] + nz * a, this.geo.x[i] + nx * b, 0.025, this.geo.y[i] + nz * b);
-        uv.push(0, n * this.geo.ds / 6, (b - a) / 6, n * this.geo.ds / 6);
-        if (q < this.pitSpan + 10) { const k = n * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
-      }
-      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
-      const pl = new THREE.Mesh(g, pm); pl.receiveShadow = true; this.scene.add(pl);
-      // pit lane white line + box markings
-      const ln = []; const li = [];
-      for (let q = -this.pitSpan + 4, k = 0; q <= this.pitSpan - 4; q++, k++) {
-        const i = (q + N) % N; const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
-        const a = this.pitOff - 2.9, b = this.pitOff - 2.7;
-        ln.push(this.geo.x[i] + nx * a, 0.04, this.geo.y[i] + nz * a, this.geo.x[i] + nx * b, 0.04, this.geo.y[i] + nz * b);
-        if (q < this.pitSpan - 4) { const j = k * 2; li.push(j, j + 1, j + 2, j + 1, j + 3, j + 2); }
-      }
-      const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(ln, 3)); lg.setIndex(li); lg.computeVertexNormals();
-      this.scene.add(new THREE.Mesh(lg, lineMat));
+      const pm = this.low ? new THREE.MeshStandardMaterial({ color: 0x55585e, roughness: 0.85 }) : detailPatch(pbr('concrete_floor_worn_001', { color: 0x9a9ca0, roughness: 0.85, repeat: [1, 1] }), { macro: 0.1, macroScale: 0.05, wet: true, rough: [0.5, 0.95], key: 'pitlane' });
+      const P = this.pitSpan;
+      // asphalt from the track edge to the garages, tapering into the track at entry and exit
+      this.scene.add(this.laneStrip(-P - 15, P + 15, () => W / 2 + 0.2, (q) => { const t = Math.min(1, Math.max(0, (P + 15 - Math.abs(q)) / 13)); return W / 2 + 0.2 + (this.pitBack + 0.6 - W / 2 - 0.2) * t * t * (3 - 2 * t); }, 0.025, pm, 1 / 6));
+      // lane lines: fast-lane edge by the pit wall, fast / working lane divider
+      this.scene.add(this.laneStrip(-P + 1, P - 1, () => this.pit.fl0 - 0.1, () => this.pit.fl0 + 0.1, 0.04, lineMat));
+      this.scene.add(this.laneStrip(-P + 1, P - 1, () => this.pit.fl1 + 0.0, () => this.pit.fl1 + 0.2, 0.04, lineMat));
     }
     this.buildBarriers(street, wallMat);
     // bridge decks and pillars for figure-of-eight crossings
@@ -424,7 +478,8 @@ export class Race3D {
     const d0 = (profile) => profile.off || 0;
     for (const cn of this.geo.corners) {
       const span = Math.min(30, Math.max(10, Math.round(cn.r / 12)));
-      for (const side of [1, -1]) strip(cn.i - span, span * 2, side, prof, 1.8, 3);
+      // no kerb on the pit side where the pit wall / pit lane run alongside
+      for (const side of [1, -1]) { if (side > 0 && this.inPitZone && (this.inPitZone(cn.i - span, 4) || this.inPitZone(cn.i + span, 4))) continue; strip(cn.i - span, span * 2, side, prof, 1.8, 3); }
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
@@ -436,6 +491,7 @@ export class Race3D {
     for (const cn of this.geo.corners) {
       if (cn.r > 90) continue;
       const side = cn.dir > 0 ? 1 : -1; // inside of the corner
+      if (side > 0 && this.inPitZone && (this.inPitZone(cn.i - 5, 4) || this.inPitZone(cn.i + 5, 4))) continue;
       strip(cn.i - 5, 10, side, sProf, 1.2, 0);
     }
     if (!idx.length) return;
@@ -610,7 +666,7 @@ export class Race3D {
       const px = this.geo.x[i] + nx * off, pz = this.geo.y[i] + nz * off;
       const hw = this.geo.h ? this.geo.h[i] : 0;
       pos.push(px, hw + y0 - (y0 === 0 && hw > 0.3 ? 1.2 : 0), pz, px, hw + y1, pz); uv.push(v, 0, v, 1); v += this.geo.ds * step / vRepeat;
-      const ok = !filter || filter(i);
+      const ok = (!filter || filter(i)) && !(side > 0 && this.inPitZone?.(i, -1));
       if (n > 0 && ok && prevOk) { const k = (n - 1) * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
       prevOk = ok;
     }
@@ -654,6 +710,7 @@ export class Race3D {
     const postMat = new THREE.MeshStandardMaterial({ color: 0x8a9096, metalness: 0.8, roughness: 0.45 });
     const posts = [];
     for (const side of [1, -1]) for (let i = 0; i < N; i++) {
+      if (side > 0 && this.inPitZone?.(i, -1)) continue;
       const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]); const hw = this.geo.h ? this.geo.h[i] : 0;
       if (i % 2 === 0) { const o = side * (this.wallOff(i, side) + 0.6); posts.push([this.geo.x[i] + nx * o, hw, this.geo.y[i] + nz * o, 4.6]); }
       if (street <= 0.7 && tec[i] !== (side > 0 ? 1 : 2)) { const o = side * (this.wallOff(i, side) + 0.2); posts.push([this.geo.x[i] + nx * o, hw, this.geo.y[i] + nz * o, 1.1]); }
@@ -800,7 +857,7 @@ export class Race3D {
   buildGantry(W) {
     const g = new THREE.Group();
     const steel = new THREE.MeshStandardMaterial({ color: 0x30343b, metalness: 0.75, roughness: 0.38 });
-    const span = W + 6;
+    const span = this.pit ? 2 * this.pit.wall : W + 6; // + side post stands on the pit wall
     for (const zz of [span / 2, -span / 2]) {
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.9, 8.4, 0.9), steel); post.position.set(0, 4.2, zz); post.castShadow = true; g.add(post);
       const foot = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.5, 1.6), steel); foot.position.set(0, 0.25, zz); g.add(foot);
@@ -949,37 +1006,7 @@ export class Race3D {
       this.placeAt(st, cn.i, side * (this.wallOff(cn.i, side) + 8), 0, side > 0 ? Math.PI : 0);
       if (this.boxClear(st, 15, 5, W / 2 + 3, cn.i)) { this.scene.add(st); this.obstacles.push({ x: st.position.x, z: st.position.z, r: 18, h: 13, hl: 16, hd: 6.5, rot: st.rotation.y }); }
     }
-    const pitMat = new THREE.MeshStandardMaterial({ color: 0xc9ced6, roughness: 0.5, metalness: 0.2 });
-    const garMat = new THREE.MeshStandardMaterial({ color: 0x15181d, roughness: 0.7 });
-    // lit garage interiors (team-coloured back wall, white floor, light strips, tyre racks)
-    const garCols = ['#c8102e', '#00a19c', '#1e41ff', '#ff8000', '#006f62', '#0067c6', '#5a5f66', '#8f1b2c', '#e8e8e8', '#2b4562'];
-    const garInt = garCols.map((tc) => { const t = canvasTex(256, 128, (c, w, h) => {
-      c.fillStyle = '#d9dde2'; c.fillRect(0, 0, w, h);
-      c.fillStyle = tc; c.fillRect(0, h * 0.12, w, h * 0.5);
-      c.fillStyle = 'rgba(255,255,255,0.85)'; c.font = 'italic 900 26px "Exo 2", sans-serif'; c.textAlign = 'center'; c.fillText('APEX', w / 2, h * 0.42);
-      c.fillStyle = '#fffbe8'; for (let x = 10; x < w; x += 48) c.fillRect(x, 2, 30, 5);
-      c.fillStyle = '#eceff2'; c.fillRect(0, h * 0.62, w, h * 0.38);
-      c.fillStyle = '#16181b'; for (const x of [12, w - 44]) for (let y = 0; y < 3; y++) { c.beginPath(); c.arc(x + 16, h * 0.68 + y * 13, 6, 0, 7); c.fill(); }
-      c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(w * 0.3, h * 0.8, w * 0.4, h * 0.12);
-    }); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; return new THREE.MeshStandardMaterial({ map: t, roughness: 0.6, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: this.night ? 0.6 : 0.35 }); });
-    let garK = 0;
-    const pitBack = (this.pitOff || W / 2 + 9) + 4.6;
-    for (let q = -this.pitSpan + 2; q <= this.pitSpan - 2; q += 3) {
-      const seg = new THREE.Group();
-      const b = new THREE.Mesh(new THREE.BoxGeometry(this.geo.ds * 3 + 0.4, 5.2, 14), pitMat); b.position.set(0, 2.6, 7); b.castShadow = true; b.receiveShadow = true; seg.add(b);
-      const glass = new THREE.Mesh(new THREE.BoxGeometry(this.geo.ds * 3 + 0.4, 3.4, 12), this._glass ||= new THREE.MeshStandardMaterial({ color: 0x1b2a3c, roughness: 0.08, metalness: 0.85 })); glass.position.set(0, 6.9, 7.6); seg.add(glass);
-      const roofS = new THREE.Mesh(new THREE.BoxGeometry(this.geo.ds * 3 + 0.4, 0.5, 15), this._pitRoof ||= new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (c, w, h) => {
-        c.fillStyle = '#7d848d'; c.fillRect(0, 0, w, h);
-        c.fillStyle = 'rgba(0,0,0,0.18)'; for (let x = 0; x < w; x += 16) c.fillRect(x, 0, 2, h);
-        c.fillStyle = '#c9ced4'; c.fillRect(30, 60, 40, 30); c.fillRect(150, 140, 50, 36); c.fillStyle = '#4a5058'; c.beginPath(); c.arc(50, 75, 11, 0, 7); c.arc(175, 158, 13, 0, 7); c.fill();
-        c.fillStyle = '#e8e8e8'; c.fillRect(0, h - 14, w, 14); c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(0, h - 16, w, 2);
-      }), roughness: 0.6, metalness: 0.3 })); roofS.position.set(0, 8.85, 6.8); roofS.castShadow = true; seg.add(roofS);
-      const gd = new THREE.Mesh(new THREE.BoxGeometry(this.geo.ds * 3 - 2.5, 4.2, 0.2), [garMat, garMat, garMat, garMat, garMat, garInt[Math.floor(garK++ / 2) % garInt.length]]); gd.position.set(0, 2.1, -0.05); seg.add(gd);
-      // local x = track tangent, local z = outward normal
-      b.position.set(0, 2.6, 0); glass.position.set(0, 6.9, 0.6); roofS.position.set(0, 8.85, -0.2); gd.position.set(0, 2.1, -7.05);
-      this.placeAt(seg, q, pitBack + 7, 0);
-      if (this.clearOfTrack(seg.position.x, seg.position.z, W / 2 + 9, q)) { this.scene.add(seg); this.obstacles?.push({ x: seg.position.x, z: seg.position.z, r: 11, h: 9.5, hl: this.geo.ds * 1.5 + 0.3, hd: 7.6, rot: seg.rotation.y }); }
-    }
+    this.buildPitLane(street);
     // trees / buildings instanced
     const count = street > 0.7 ? Math.round(260 * (this.low ? 0.35 : 1)) : 0;
     const geo = street > 0.7 ? new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0) : Math.random() < 0.5 ? treeGeo() : bushGeo();
@@ -1096,7 +1123,7 @@ export class Race3D {
       for (let i = 0; i < N; i += 24) {
         const side = (i / 24) % 2 ? 1 : -1;
         const lamp = new THREE.Object3D();
-        this.placeAt(lamp, i, side * (W / 2 + 6), 16); lamp.updateMatrix(); heads.push(lamp.matrix.clone());
+        this.placeAt(lamp, i, side * (side > 0 && this.pit && this.inPitZone(i, 16) ? this.pit.wall - 1.6 : W / 2 + 6), 16); lamp.updateMatrix(); heads.push(lamp.matrix.clone());
         const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
         const p = lamp.position;
         poles.push(new THREE.Matrix4().compose(new THREE.Vector3(p.x + nx * side * 1.6, 8, p.z + nz * side * 1.6), q, one));
@@ -1135,6 +1162,286 @@ export class Race3D {
       if (!this.low) { this.lampLights = [0, 1, 2, 3].map(() => { const l = new THREE.PointLight(0xfff0d8, 0, 55, 2); this.scene.add(l); return l; }); }
       this.scene.add(new THREE.AmbientLight(0xfff0d8, 0.22));
     }
+  }
+
+  // ---- pit lane ---------------------------------------------------------------------------
+  // Pit wall with debris fence and team stands (monitors, seated engineers), garages with lit
+  // team-coloured interiors (back-wall artwork, tyre stacks, trolleys, data station, staff),
+  // name boards over the doors, box markings, pit exit light and speed-limit board.
+  // Bays are 3 samples wide; team k owns bays 2k, 2k+1 counted from the pit exit. Everything
+  // is merged into a few meshes (vertex colours + two texture atlases): ~12 draw calls.
+  buildPitLane(street) {
+    if (!this.pit || this.open) return;
+    const N = this.geo.N, W = this.TW, P = this.pitSpan, pit = this.pit, ds = this.geo.ds;
+    const teams = this.teamList || [];
+    const F = this.pitBack, bw = ds * 3;
+    const d = new THREE.Object3D();
+    const frame = (q) => { const i = ((Math.round(q) % N) + N) % N; this.placeAt(d, q, 0, this.geo.h ? this.geo.h[i] : 0); d.updateMatrix(); return d.matrix.clone(); };
+    const G = { shell: [], glass: [], roof: [], vc: [], glow: [], art: [], head: [], screen: [], mark: [] };
+    const col = new THREE.Color();
+    const put = (list, geo, M, color) => {
+      for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(k)) geo.deleteAttribute(k);
+      if (color != null) { col.set(color); const n = geo.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = col.r; a[i * 3 + 1] = col.g; a[i * 3 + 2] = col.b; } geo.setAttribute('color', new THREE.BufferAttribute(a, 3)); }
+      geo.applyMatrix4(M); list.push(geo);
+    };
+    const box = (w, h, dd, x, y, z) => new THREE.BoxGeometry(w, h, dd).translate(x, y, z);
+    // plane facing the pit lane (-z local) with its uv mapped onto an atlas tile
+    const tilePlane = (w, h, x, y, z, tile, cols, rows, facePos = false) => {
+      const g = new THREE.PlaneGeometry(w, h); if (!facePos) g.rotateY(Math.PI); g.translate(x, y, z);
+      const uv = g.attributes.uv, cx = tile % cols, cy = Math.floor(tile / cols);
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, (cx + uv.getX(i)) / cols, 1 - (cy + 1 - uv.getY(i)) / rows);
+      return g;
+    };
+    // ---- texture atlases: garage back walls (4x4 tiles of 512x256), door name boards (4x8 of 256x64)
+    const nT = Math.min(15, teams.length);
+    const lumaOf = (hex) => { const c = new THREE.Color(hex); return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b; };
+    const artTex = canvasTex(2048, 1024, (c) => {
+      for (let t = 0; t < 16; t++) {
+        const x0 = (t % 4) * 512, y0 = Math.floor(t / 4) * 256; c.save(); c.beginPath(); c.rect(x0, y0, 512, 256); c.clip(); c.translate(x0, y0);
+        if (t === 15 || t >= nT) { // closed shutter
+          c.fillStyle = '#b9bec4'; c.fillRect(0, 0, 512, 256); c.fillStyle = 'rgba(0,0,0,0.16)'; for (let y = 0; y < 256; y += 9) c.fillRect(0, y, 512, 2);
+          c.fillStyle = 'rgba(255,255,255,0.25)'; for (let y = 4; y < 256; y += 9) c.fillRect(0, y, 512, 1); c.restore(); continue;
+        }
+        const T = teams[t], L = T.livery, name = String(T.sponsor || T.team).toUpperCase();
+        c.fillStyle = '#dfe3e8'; c.fillRect(0, 0, 512, 256);
+        c.fillStyle = 'rgba(0,0,0,0.08)'; for (let x = 0; x < 512; x += 64) c.fillRect(x, 0, 2, 140);
+        c.fillStyle = L.primary; c.fillRect(0, 120, 512, 136);
+        c.fillStyle = L.secondary; c.fillRect(0, 112, 512, 10); c.fillStyle = L.accent || '#111'; c.fillRect(0, 122, 512, 4);
+        c.fillStyle = lumaOf(L.primary) > 0.6 ? '#111' : '#fff'; let size = 70; c.font = `italic 900 ${size}px "Exo 2", sans-serif`;
+        while (c.measureText(name).width > 440 && size > 26) { size -= 4; c.font = `italic 900 ${size}px "Exo 2", sans-serif`; }
+        c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(name, 256, 190);
+        c.fillStyle = L.primary; c.font = 'italic 900 34px "Exo 2", sans-serif'; c.fillText(name, 256, 62);
+        c.restore();
+      }
+    });
+    artTex.wrapS = artTex.wrapT = THREE.ClampToEdgeWrapping;
+    const headTex = canvasTex(1024, 512, (c) => {
+      for (let t = 0; t < 32; t++) {
+        const x0 = (t % 4) * 256, y0 = Math.floor(t / 4) * 64; c.save(); c.beginPath(); c.rect(x0, y0, 256, 64); c.clip(); c.translate(x0, y0);
+        const T = t < nT ? teams[t] : null; const L = T ? T.livery : { primary: '#1b1e24', secondary: '#3a3f47', accent: '#e10600' };
+        c.fillStyle = L.primary; c.fillRect(0, 0, 256, 64); c.fillStyle = L.accent || '#111'; c.fillRect(0, 56, 256, 8); c.fillStyle = L.secondary; c.fillRect(0, 0, 14, 64);
+        const name = T ? String(T.sponsor || T.team).toUpperCase() : 'APEX TV';
+        c.fillStyle = lumaOf(L.primary) > 0.6 ? '#111' : '#fff'; let size = 40; c.font = `italic 900 ${size}px "Exo 2", sans-serif`;
+        while (c.measureText(name).width > 220 && size > 14) { size -= 2; c.font = `italic 900 ${size}px "Exo 2", sans-serif`; }
+        c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(name, 135, 30); c.restore();
+      }
+    });
+    headTex.wrapS = headTex.wrapT = THREE.ClampToEdgeWrapping;
+    // timing / telemetry screens (one shared image)
+    const scrTex = canvasTex(512, 256, (c, w, h) => {
+      c.fillStyle = '#05080d'; c.fillRect(0, 0, w, h);
+      for (let r = 0; r < 12; r++) { c.fillStyle = r % 2 ? '#0d1520' : '#0a1018'; c.fillRect(6, 8 + r * 19, 240, 18); c.fillStyle = '#e8eef5'; c.fillRect(12, 14 + r * 19, 14, 6); c.fillStyle = ['#ff3b30', '#00d2be', '#1e41ff', '#ff8700', '#ffffff', '#ffd400'][r % 6]; c.fillRect(32, 12 + r * 19, 4, 12); c.fillStyle = '#c9d4e0'; c.fillRect(42, 14 + r * 19, 60 + (r * 37) % 50, 6); c.fillStyle = r % 3 ? '#4cd964' : '#bf5af2'; c.fillRect(190, 14 + r * 19, 46, 6); }
+      c.strokeStyle = '#00d2ff'; c.lineWidth = 3; c.beginPath(); for (let k = 0; k <= 60; k++) { const a = k / 60 * Math.PI * 2; const r = 70 + 18 * Math.sin(a * 3) + 10 * Math.cos(a * 5); const px = 380 + Math.cos(a) * r * 0.9, py = 90 + Math.sin(a) * r * 0.55; k ? c.lineTo(px, py) : c.moveTo(px, py); } c.stroke();
+      c.strokeStyle = '#ffd400'; c.lineWidth = 2; c.beginPath(); for (let x = 260; x < 506; x += 4) { const y = 220 - 40 * Math.abs(Math.sin(x * 0.05)) - 10 * Math.sin(x * 0.21); x === 260 ? c.moveTo(x, y) : c.lineTo(x, y); } c.stroke();
+    });
+    scrTex.wrapS = scrTex.wrapT = THREE.ClampToEdgeWrapping;
+    // ---- bays: team k gets bays 2k, 2k+1 from the exit end
+    const bays = [];
+    for (let q = P - 2; q >= -P + 2; q -= 3) {
+      this.placeAt(d, q, F + 7);
+      if (!this.clearOfTrack(d.position.x, d.position.z, W / 2 + 9)) continue;
+      bays.push({ q, team: -1 });
+    }
+    bays.forEach((b, k) => { const t = Math.floor(k / 2); if (t < nT) b.team = t; });
+    this.pitBays = bays;
+    const staff = [];
+    const person = (x, z, face, q, colr, sit = 0) => { staff.push({ q, x, z, face, color: colr, sit }); };
+    for (const b of bays) {
+      const M = frame(b.q), T = b.team >= 0 ? teams[b.team] : null;
+      const tc = T ? T.livery.primary : '#4b5058', tc2 = T ? T.livery.secondary : '#8a9097';
+      // building shell: pillars, lintel, first-floor slab, back wall
+      put(G.shell, box(0.8, 5.0, 14, -bw / 2, 2.5, F + 7), M); put(G.shell, box(0.8, 5.0, 14, bw / 2, 2.5, F + 7), M);
+      put(G.shell, box(bw, 1.0, 0.5, 0, 4.5, F + 0.25), M);
+      put(G.shell, box(bw, 0.5, 14, 0, 5.2, F + 7), M);
+      put(G.shell, box(bw, 5.0, 0.4, 0, 2.5, F + 13.8), M);
+      put(G.glass, box(bw, 3.3, 12.4, 0, 7.1, F + 7.6), M);
+      put(G.roof, box(bw + 0.05, 0.45, 15, 0, 8.95, F + 6.8), M);
+      put(G.head, tilePlane(bw - 1.4, 0.72, 0, 4.5, F - 0.02, T ? b.team : 31, 4, 8), M);
+      if (!T) { put(G.art, tilePlane(bw - 0.8, 4.0, 0, 2.0, F + 0.35, 15, 4, 4), M); continue; }
+      // interior: epoxy floor with team stripe, white partitions, dark ceiling with light strips
+      const iw = bw - 0.8;
+      put(G.vc, box(iw, 0.04, 9.6, 0, 0.02, F + 4.8), M, '#c8ccd2');
+      put(G.vc, box(iw, 0.045, 0.6, 0, 0.025, F + 0.8), M, tc);
+      for (const sx of [-1, 1]) put(G.vc, box(0.08, 4.0, 9.4, sx * (bw / 2 - 0.42), 2.0, F + 4.9), M, '#eceff2');
+      put(G.vc, box(iw, 0.06, 9.6, 0, 4.0, F + 4.8), M, '#23262b');
+      for (const z of [1.6, 4.6, 7.6]) put(G.glow, box(iw - 1.6, 0.05, 0.22, 0, 3.95, F + z), M);
+      put(G.art, tilePlane(iw, 4.0, 0, 2.0, F + 9.6, b.team, 4, 4), M);
+      // tyre sets in team-coloured blankets, trolleys, data station with screens
+      for (const sx of [-1, 1]) for (const ox of [1.3, 2.2]) for (let k = 0; k < 4; k++) put(G.vc, new THREE.CylinderGeometry(0.34, 0.34, 0.3, 12).translate(sx * (bw / 2 - ox), 0.17 + k * 0.33, F + 8.7), M, k % 2 ? tc : tc2);
+      for (const sx of [-1, 1]) { put(G.vc, box(1.1, 0.95, 0.6, sx * (bw / 2 - 1.3), 0.5, F + 5.6), M, tc); put(G.vc, box(1.14, 0.05, 0.64, sx * (bw / 2 - 1.3), 1.0, F + 5.6), M, '#1a1c20'); }
+      put(G.vc, box(2.6, 1.6, 0.6, 0, 0.8, F + 9.1), M, '#1b1e23');
+      for (const sx of [-0.55, 0.55]) put(G.screen, tilePlane(1.0, 0.6, sx, 2.05, F + 9.05, 0, 1, 1), M);
+      // a car-cover rack / jacks by the door
+      put(G.vc, box(0.25, 0.25, 1.4, -bw / 2 + 1.0, 0.13, F + 1.4), M, '#d8d8d8');
+      // staff inside the garage
+      person(-bw / 2 + 1.6, F + 7.0, 0, b.q, tc); person(bw / 2 - 2.0, F + 3.2, -0.6, b.q, tc); person(0.6, F + 8.3, 3.1, b.q, '#222831');
+    }
+    // ---- pit wall: concrete wall + debris fence; team stands with canopy, monitors, engineers
+    {
+      const concrete = new THREE.MeshStandardMaterial({ color: 0xd9dcdf, roughness: 0.8 });
+      const wallG = [];
+      const vs = (q0, q1, off, y0, y1, flip) => { const pos = [], uv = [], idx = []; for (let q = q0, n = 0; q <= q1; q++, n++) { const i = ((q % N) + N) % N; const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]); const hh = this.geo.h ? this.geo.h[i] : 0; const px = this.geo.x[i] + nx * off, pz = this.geo.y[i] + nz * off; pos.push(px, hh + y0, pz, px, hh + y1, pz); uv.push(n * ds / 3, 0, n * ds / 3, 1); if (q < q1) { const k = n * 2; flip ? idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2) : idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); } } const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); return g; };
+      const q0 = -P - 3, q1 = P + 3, a = pit.wall - 0.3, b2 = pit.wall + 0.3;
+      wallG.push(vs(q0, q1, a, 0, 1.05, false), vs(q0, q1, b2, 0, 1.05, true));
+      { const pos = [], uv = [], idx = []; for (let q = q0, n = 0; q <= q1; q++, n++) { const i = ((q % N) + N) % N; const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]); for (const o of [a, b2]) pos.push(this.geo.x[i] + nx * o, 1.05, this.geo.y[i] + nz * o); uv.push(0, 0, 1, 0); if (q < q1) { const k = n * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); } } const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); wallG.push(g); }
+      const wm = new THREE.Mesh(mergeGeometries(wallG), concrete); wm.castShadow = true; wm.receiveShadow = true; this.scene.add(wm);
+      const fenceTex = canvasTex(128, 128, (c, w, h) => { c.clearRect(0, 0, w, h); c.strokeStyle = 'rgba(205,210,214,0.95)'; c.lineWidth = 3; for (let k = -w; k < w * 2; k += 32) { c.beginPath(); c.moveTo(k, 0); c.lineTo(k + h, h); c.stroke(); c.beginPath(); c.moveTo(k, h); c.lineTo(k + h, 0); c.stroke(); } });
+      fenceTex.repeat.set(1, 2);
+      const fm = new THREE.Mesh(vs(q0, q1, pit.wall - 0.15, 1.05, 3.9, false), new THREE.MeshStandardMaterial({ map: fenceTex, alphaTest: 0.35, metalness: 0.6, roughness: 0.5, side: THREE.DoubleSide }));
+      fm.castShadow = true; this.scene.add(fm);
+      // fence posts
+      const posts = []; for (let q = q0; q <= q1; q += 2) { this.placeAt(d, q, pit.wall - 0.15, 1.05); d.scale.set(1, 1, 1); d.updateMatrix(); posts.push(d.matrix.clone()); }
+      const pm = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.05, 0.05, 2.9, 6).translate(0, 1.45, 0), new THREE.MeshStandardMaterial({ color: 0x8a9096, metalness: 0.8, roughness: 0.45 }), posts.length);
+      posts.forEach((m, k) => pm.setMatrixAt(k, m)); pm.castShadow = true; this.scene.add(pm);
+      // team stands on the pit-lane side of the wall, centred on each team's pair of bays
+      for (let t = 0; t < nT; t++) {
+        const own = bays.filter((b) => b.team === t); if (!own.length) continue;
+        const qc = own.reduce((s2, b) => s2 + b.q, 0) / own.length;
+        const M = frame(qc), L = teams[t].livery, z0 = pit.wall + 0.3;
+        put(G.vc, box(7.0, 1.05, 1.2, 0, 0.53, z0 + 0.6), M, '#2a2e35');
+        put(G.vc, box(7.0, 0.05, 1.3, 0, 1.08, z0 + 0.62), M, '#e6e8eb');
+        for (const sx of [-3.3, 3.3]) put(G.vc, box(0.12, 3.2, 0.12, sx, 1.6, z0 + 0.15), M, '#5a5f66');
+        put(G.vc, box(7.6, 0.16, 2.1, 0, 3.25, z0 + 1.0), M, L.primary);
+        put(G.vc, box(7.6, 0.3, 0.06, 0, 3.05, z0 + 2.04), M, L.secondary);
+        put(G.head, tilePlane(4.2, 0.5, 0, 2.85, z0 + 2.08, t, 4, 8, true), M);
+        put(G.head, tilePlane(4.2, 0.5, 0, 3.6, z0 - 0.02, t, 4, 8), M);
+        for (let k = 0; k < 4; k++) { const x = -2.4 + k * 1.6; put(G.vc, box(0.06, 0.5, 0.06, x, 1.35, z0 + 0.35), M, '#202328'); put(G.screen, tilePlane(0.95, 0.55, x, 1.75, z0 + 0.4, 0, 1, 1, true), M); person(x, z0 + 1.55, Math.PI, qc, k % 2 ? L.primary : '#20242b', 1); }
+      }
+    }
+    // ---- box markings in the working lane: yellow box outline + white stop T per bay
+    {
+      const mk = canvasTex(256, 512, (c, w, h) => {
+        c.clearRect(0, 0, w, h); c.strokeStyle = 'rgba(255,214,10,0.95)'; c.lineWidth = 7; c.strokeRect(w * 0.12, h * 0.22, w * 0.76, h * 0.56);
+        c.fillStyle = 'rgba(245,245,245,0.95)'; c.fillRect(w * 0.3, h * 0.26 - 10, w * 0.4, 10); c.fillRect(w * 0.48, h * 0.26, 10, h * 0.12);
+        c.fillStyle = 'rgba(255,214,10,0.9)'; for (const y of [0.3, 0.7]) c.fillRect(w * 0.88, h * y, w * 0.12, 6);
+      });
+      mk.wrapS = THREE.ClampToEdgeWrapping; mk.wrapT = THREE.RepeatWrapping;
+      const qa = Math.min(...bays.map((b) => b.q)) - 1.5, qb = Math.max(...bays.map((b) => b.q)) + 1.5;
+      if (bays.length) {
+        const m = this.laneStrip(Math.floor(qa), Math.ceil(qb), () => pit.wl0 + 0.1, () => pit.wl1, 0.042, new THREE.MeshStandardMaterial({ map: mk, transparent: true, depthWrite: false, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2 }), 0, (q, side) => [side, (q - qa) / 3]);
+        this.scene.add(m);
+      }
+    }
+    // ---- merge and add
+    const shellMat = new THREE.MeshStandardMaterial({ color: 0xd3d8de, roughness: 0.5, metalness: 0.2 });
+    // first-floor glazing: tinted panes with mullions and transoms (lit offices at night)
+    const glassTex = canvasTex(256, 128, (c, w, h) => {
+      const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#2a3b52'); g.addColorStop(0.6, '#152233'); g.addColorStop(1, '#1d2c40'); c.fillStyle = g; c.fillRect(0, 0, w, h);
+      c.fillStyle = 'rgba(255,255,255,0.06)'; for (let x = 0; x < w; x += 32) c.fillRect(x + 4, 0, 10, h);
+      c.fillStyle = '#c9ced5'; for (let x = 0; x < w; x += 32) c.fillRect(x, 0, 3, h); c.fillRect(0, h * 0.62, w, 3); c.fillRect(0, 0, w, 4); c.fillRect(0, h - 4, w, 4);
+    });
+    const glassMat = new THREE.MeshStandardMaterial({ map: glassTex, roughness: 0.1, metalness: 0.7, ...(this.night ? { emissive: 0x6a5a40, emissiveMap: glassTex, emissiveIntensity: 0.8 } : {}) });
+    // roof: ribbed panels, AC units and skylights, white parapet edge
+    const roofTex = canvasTex(256, 256, (c, w, h) => {
+      c.fillStyle = '#7d848d'; c.fillRect(0, 0, w, h);
+      c.fillStyle = 'rgba(0,0,0,0.18)'; for (let x = 0; x < w; x += 16) c.fillRect(x, 0, 2, h);
+      c.fillStyle = '#c9ced4'; c.fillRect(30, 60, 40, 30); c.fillRect(150, 140, 50, 36); c.fillStyle = '#4a5058'; c.beginPath(); c.arc(50, 75, 11, 0, 7); c.arc(175, 158, 13, 0, 7); c.fill();
+      c.fillStyle = 'rgba(160,190,215,0.55)'; c.fillRect(96, 30, 28, 70); c.fillRect(96, 170, 28, 60);
+      c.fillStyle = '#e8e8e8'; c.fillRect(0, h - 14, w, 14); c.fillRect(0, 0, w, 8); c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(0, h - 16, w, 2);
+    });
+    const roofMat = new THREE.MeshStandardMaterial({ map: roofTex, roughness: 0.6, metalness: 0.3 });
+    const glowK = { value: this.night ? 0.55 : 0.3 }; this._pitGlow = glowK;
+    const vcMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.05 });
+    vcMat.onBeforeCompile = (sh) => { sh.uniforms.uGlow = glowK; sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uGlow;').replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vColor.rgb * uGlow;'); };
+    vcMat.customProgramCacheKey = () => 'pitvc';
+    const lit = (map, k) => new THREE.MeshStandardMaterial({ map, roughness: 0.55, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: k });
+    const out = [
+      [G.shell, shellMat, true], [G.glass, glassMat, false], [G.roof, roofMat, true], [G.vc, vcMat, true],
+      [G.glow, new THREE.MeshBasicMaterial({ color: 0xfff7e8 }), false], [G.art, lit(artTex, this.night ? 0.55 : 0.32), false],
+      [G.head, lit(headTex, this.night ? 0.6 : 0.2), false], [G.screen, new THREE.MeshBasicMaterial({ map: scrTex }), false],
+    ];
+    for (const [list, mat, cast] of out) {
+      if (!list.length) continue;
+      const g = mergeGeometries(list); if (!g) continue;
+      g.computeBoundingSphere();
+      const m = new THREE.Mesh(g, mat); m.castShadow = cast; m.receiveShadow = true; this.scene.add(m);
+    }
+    // the building blocks camera placement / trees like the old segments did
+    for (const b of bays) { this.placeAt(d, b.q, F + 7); this.obstacles?.push({ x: d.position.x, z: d.position.z, r: 11, h: 9.5, hl: bw / 2 + 0.3, hd: 7.6, rot: d.rotation.y }); }
+    // ---- pit exit light (green, red when a car is about to be released into traffic) and the
+    // speed-limit board at the entry
+    {
+      const g = new THREE.Group();
+      const dark = new THREE.MeshStandardMaterial({ color: 0x1b1d21, roughness: 0.5, metalness: 0.4 });
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(0.16, 3.2, 0.16).translate(0, 1.6, 0), dark));
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.0, 0.45).translate(0, 3.5, 0), dark));
+      this.pitLightG = new THREE.MeshStandardMaterial({ color: 0x0a3a10, emissive: 0x22ff44, emissiveIntensity: 2.4 });
+      this.pitLightR = new THREE.MeshStandardMaterial({ color: 0x3a0a0a, emissive: 0xff2020, emissiveIntensity: 0 });
+      const lens = new THREE.CylinderGeometry(0.13, 0.13, 0.06, 16).rotateZ(Math.PI / 2);
+      const r = new THREE.Mesh(lens, this.pitLightR); r.position.set(-0.17, 3.75, 0); g.add(r);
+      const gr = new THREE.Mesh(lens, this.pitLightG); gr.position.set(-0.17, 3.3, 0); g.add(gr);
+      this.placeAt(g, P + 3, pit.wall + 0.6, this.geo.h ? this.geo.h[(P + 3) % N] : 0); g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); this.scene.add(g);
+      const sign = canvasTex(128, 160, (c, w, h) => { c.fillStyle = '#fff'; c.fillRect(0, 0, w, h); c.fillStyle = '#111'; c.font = '900 30px "Exo 2", sans-serif'; c.textAlign = 'center'; c.fillText('PIT', w / 2, 32); c.strokeStyle = '#d40000'; c.lineWidth = 12; c.beginPath(); c.arc(w / 2, 100, 44, 0, 7); c.stroke(); c.fillStyle = '#111'; c.font = '900 44px "Exo 2", sans-serif'; c.textBaseline = 'middle'; c.fillText('80', w / 2, 102); });
+      sign.wrapS = sign.wrapT = THREE.ClampToEdgeWrapping;
+      const sg = new THREE.Group();
+      sg.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.2, 0.1).translate(0, 1.1, 0), dark));
+      const face = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.1, 0.9), [dark, new THREE.MeshStandardMaterial({ map: sign, roughness: 0.5 }), dark, dark, dark, dark]); face.position.y = 2.6; sg.add(face);
+      const qe = -P - 9; this.placeAt(sg, qe, this.pitBack - 1.5, this.geo.h ? this.geo.h[(qe + N) % N] : 0); this.scene.add(sg);
+    }
+    // ---- people: one instanced mesh for the static staff, one for the pit-stop crews
+    const pg = personGeo();
+    const pMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75 });
+    pMat.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = TIME;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;')
+        .replace('#include <color_vertex>', `vColor = vec3(1.0);
+          #ifdef USE_COLOR
+            vColor = color.rgb;
+          #endif
+          #ifdef USE_INSTANCING_COLOR
+            if (color.r > 0.99 && color.g > 0.99 && color.b > 0.99) vColor = instanceColor.rgb;
+          #endif`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          float fid = float(gl_InstanceID);
+          transformed.x += sin(uTime * (0.7 + fract(fid * 0.37)) + fid * 1.7) * 0.035 * max(0.0, position.y - 0.8);
+          transformed.z += sin(uTime * 0.53 + fid * 2.3) * 0.02 * max(0.0, position.y - 0.8);`);
+    };
+    pMat.customProgramCacheKey = () => 'people';
+    const ccol = new THREE.Color();
+    if (staff.length) {
+      const sm = new THREE.InstancedMesh(pg, pMat, staff.length);
+      staff.forEach((p, k) => {
+        const M = frame(p.q); d.position.set(p.x, p.sit ? -0.42 : 0, p.z); d.rotation.set(0, p.face, 0); d.scale.set(1, 1, 1); d.updateMatrix();
+        sm.setMatrixAt(k, M.clone().multiply(d.matrix)); sm.setColorAt(k, ccol.set(p.color));
+      });
+      sm.castShadow = true; sm.receiveShadow = true; sm.computeBoundingSphere(); this.scene.add(sm);
+    }
+    const nCrew = Math.min(bays.length, 12) * 10;
+    this.crew = new THREE.InstancedMesh(pg, pMat, nCrew); this.crew.count = 0; this.crew.castShadow = true; this.crew.frustumCulled = false;
+    this.crew.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(nCrew * 3), 3);
+    this.scene.add(this.crew);
+  }
+
+  // pit crews around cars stopped in their box (wheel guns kneeling at each wheel, front and
+  // rear jack, two stabilisers); crews stand ready at the box edge while their car comes in
+  updatePitCrew() {
+    if (!this.crew) return;
+    const d = this._crewD ||= new THREE.Object3D(), col = this._crewC ||= new THREE.Color();
+    let k = 0; const max = this.crew.instanceMatrix.count;
+    const fm = this.category === 'formula' || this.category === 'junior';
+    const L = fm ? 1.8 : 1.45, Wd = fm ? 1.45 : 1.35;
+    for (const car of this.cars.values()) {
+      const pc = car.pc; if (!pc || !car.mesh.visible || k + 10 > max) continue;
+      const ready = pc.phase === 'in' && pc.bayQ - pc.q < 8;
+      if (!(pc.phase === 'stop' && (pc.g || 0) < 0.05) && !ready) continue;
+      const m = car.mesh, tc = car.teamColor || '#dddddd';
+      const h = ready ? -this.geo.hdg[((Math.round(pc.bayQ) % this.geo.N) + this.geo.N) % this.geo.N] : m.rotation.y;
+      const c = Math.cos(h), s = Math.sin(h);
+      const base = ready ? this.pose(((pc.bayQ % this.geo.N) + this.geo.N) % this.geo.N, this.pitBoxOff) : { x: m.position.x, z: m.position.z, y: m.position.y };
+      const spots = ready
+        ? [[-2.5, 2.4, 0], [-1.2, 2.5, 0], [0, 2.6, 0], [1.2, 2.5, 0], [2.4, 2.4, 0], [-2.5, -2.4, Math.PI], [-1.2, -2.5, Math.PI], [1.2, -2.5, Math.PI], [3.6, 0.8, 0], [-3.4, 0.8, 0]]
+        : [[L, Wd, 1], [-L, Wd, 1], [L, -Wd, 1], [-L, -Wd, 1], [3.3, 0, 2], [-3.1, 0, 2], [0.2, 1.6, 0], [0.2, -1.6, 0], [L + 0.6, Wd + 0.5, 0], [-L - 0.6, Wd + 0.5, 0]];
+      for (const [lx, lz, kind] of spots) {
+        // local (lx along the car, lz to its left) -> world; figures face the car
+        const wx = base.x + lx * c + lz * s, wz = base.z - lx * s + lz * c;
+        d.position.set(wx, (base.y || 0) - 0.02, wz);
+        const fx = base.x - wx, fz = base.z - wz; d.rotation.set(0, Math.atan2(fx, fz), 0);
+        d.scale.set(1, kind === 1 ? 0.62 : kind === 2 ? 0.8 : 1, 1); d.updateMatrix();
+        this.crew.setMatrixAt(k, d.matrix); this.crew.setColorAt(k, col.set(tc)); k++;
+      }
+    }
+    this.crew.count = k;
+    if (k) { this.crew.instanceMatrix.needsUpdate = true; this.crew.instanceColor.needsUpdate = true; }
   }
 
   // true when the straight segment a->b (world points) passes no grandstand, building or tree
@@ -1193,7 +1500,7 @@ export class Race3D {
     }
     // ---- paddock: motorhomes and hospitality units behind the pit building ----
     if (this.pitSpan && !this.open) {
-      const pitBack = (this.pitOff || W / 2 + 9) + 4.6;
+      const pitBack = this.pitBack || W / 2 + 13.6;
       const teamCols = ['#dc0000', '#00d2be', '#1e41ff', '#ff8700', '#006f62', '#0090ff', '#2b4562', '#900000', '#f0f0f0', '#5e8faa'];
       const mhTex = canvasTex(256, 128, (c, w, h) => {
         c.fillStyle = '#ffffff'; c.fillRect(0, 0, w, h);
@@ -1311,18 +1618,21 @@ export class Race3D {
     // a candidate must see the track where it films the cars (the sample itself and the
     // run-up to it) without a building, grandstand or the pit roof in between
     const sees = (i, pos) => [0, -10, -22, -34].every((d) => { const j = (i + d + N) % N; tp.set(this.geo.x[j], (this.geo.h ? this.geo.h[j] : 0) + 1, this.geo.y[j]); return this.losClear(pos, tp); });
-    const free = (px, pz, r) => !(this.obstacles || []).some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.hl ? Math.max(o.hl, o.hd) : o.r) ** 2 * 0.8) && this.clearOfTrack(px, pz, r);
+    // oriented footprint (+4 m margin) for buildings / stands, radius for the rest
+    const inObs = (o, px, pz) => { const ex = px - o.x, ez = pz - o.z; if (!o.hl) return ex * ex + ez * ez < o.r * o.r * 0.8; const c = Math.cos(o.rot), sn = Math.sin(o.rot); return Math.abs(ex * c - ez * sn) < o.hl + 4 && Math.abs(ex * sn + ez * c) < o.hd + 4; };
+    const free = (px, pz, r) => !(this.obstacles || []).some((o) => inObs(o, px, pz)) && this.clearOfTrack(px, pz, r);
     for (let i = 0; i < N; i += step) {
       const k = cams.length;
       let side = (k % 2 ? 1 : -1);
-      if (this.pitSpan && Math.min(i, N - i) < this.pitSpan + 14) side = -1; // never behind the pit building
+      const nearPit = this.pitSpan && Math.min(i, N - i) < this.pitSpan + 22;
+      if (nearPit) side = -1; // never behind / on top of the pit building
       const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
       const hy = this.geo.h ? this.geo.h[i] : 0;
       const offs = st ? [this.wallOff(i, side) + 1.6, this.wallOff(i, side) + 1.2] : [W / 2 + 26, W / 2 + 18, W / 2 + 34, W / 2 + 12];
       const hs = st ? [6 + (k % 3) * 2, 11, 16, 24] : [7 + (k % 3) * 3, 12, 18, 26];
       let pick = null;
       for (const hgt of hs) {
-        for (const sd of [side, -side]) for (const o0 of offs) {
+        for (const sd of nearPit ? [-1] : [side, -side]) for (const o0 of offs) {
           const off = st ? this.wallOff(i, sd) + (o0 - this.wallOff(i, side)) : o0;
           const px = this.geo.x[i] + nx * sd * off, pz = this.geo.y[i] + nz * sd * off;
           if (!free(px, pz, st ? W / 2 + 3.2 : W / 2 + 6)) continue;
@@ -1339,7 +1649,7 @@ export class Race3D {
 
   addCar(c) {
     const dirt = this.open && this.surface !== 'tarmac' ? (this.surface === 'snow' ? 0.35 : 0.85) : 0;
-    const m = buildCar(c.category === 'rally' ? 'gt' : this.category, c.livery, { helmet: c.helmet, tyre: c.tyreColor, number: c.number, sponsor: c.sponsor, dirt });
+    const m = buildCar(c.category === 'rally' ? 'gt' : this.category, c.livery, { helmet: c.helmet, tyre: c.tyreColor, number: c.number, sponsor: c.sponsor, dirt, lod: true, hq: !!c.isPlayer && !this.low });
     m.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     // soft contact shadow (ambient occlusion under the floor) — also grounds the car when shadows are off
     {
@@ -1358,21 +1668,44 @@ export class Race3D {
     label.style.setProperty('--lc', c.livery.primary);
     this.labels.appendChild(label);
     const team = String(c.key).split('#')[0]; this._boxes ||= new Map(); if (!this._boxes.has(team)) this._boxes.set(team, this._boxes.size);
-    this.cars.set(c.key, { box: this._boxes.get(team), mesh: m, label, lane: ((c.key.charCodeAt(0) + c.key.length * 7) % 5 - 2) * 0.9, lastS: 0, tyre: c.tyreColor, isPlayer: c.isPlayer });
+    // each car gets its own garage bay: the team's first or second one
+    const tIdx = this._boxes.get(team), tm = this.teamList?.[tIdx];
+    const nth = tm ? tm.n++ : 0;
+    const bay = this.pitBays?.length ? this.pitBays.find((b) => b.team === tIdx && !b.used) || this.pitBays.filter((b) => b.team === tIdx)[nth % 2] : null;
+    if (bay) bay.used = true;
+    this.cars.set(c.key, { box: tIdx, bay, teamColor: c.livery?.primary, mesh: m, label, lane: ((c.key.charCodeAt(0) + c.key.length * 7) % 5 - 2) * 0.9, lastS: 0, tyre: c.tyreColor, isPlayer: c.isPlayer });
   }
 
   setNight(n) {
     if (this._night === n) return; this._night = n;
-    const day = { top: new THREE.Color(0x3d7ad6), bot: new THREE.Color(0xcfe3f7), fog: new THREE.Color(0xb8d4f0) };
+    const T = this.tod || TOD.day;
+    const day = { top: new THREE.Color(T.top), bot: new THREE.Color(T.bot), fog: new THREE.Color(0xb8d4f0) };
     const nite = { top: new THREE.Color(0x02040c), bot: new THREE.Color(0x141c33), fog: new THREE.Color(0x070b18) };
     this.skyMat.uniforms.top.value.copy(day.top).lerp(nite.top, n);
     this.skyMat.uniforms.bot.value.copy(day.bot).lerp(nite.bot, n);
     this.scene.fog.color.copy(this.fogDay || day.fog).lerp(nite.fog, n);
-    if (!this.hdr) this.scene.background = this.scene.fog.color.clone(); else { this.scene.backgroundIntensity = 1 - n * 0.85; this.scene.environmentIntensity = 0.9 - n * 0.6; }
-    const dk = this.skyKind === 'dusk' ? 0.65 : 1; this.hemi.intensity = (1.1 - n * 0.55) * (0.6 + 0.4 * dk); this.sun.intensity = (2.6 - n * 2.0) * dk;
+    if (!this.hdr) this.scene.background = this.scene.fog.color.clone(); else { this.scene.backgroundIntensity = (T.bg ?? 1) * (1 - n * 0.85); this.scene.environmentIntensity = 0.9 - n * 0.6; }
+    const dk = T.k; this.hemi.intensity = (1.1 - n * 0.55) * (0.6 + 0.4 * dk); this.sun.intensity = (2.6 - n * 2.0) * dk;
     this._lit = { sun: this.sun.intensity, bg: this.hdr ? this.scene.backgroundIntensity : 1, fog: this.scene.fog.color.clone() }; this._wetApplied = -1;
     if (this.forest) this.forest.material.uniforms.light.value = 1 - n * 0.8;
-    this.renderer.toneMappingExposure = 1.05 - n * 0.2;
+    this.renderer.toneMappingExposure = T.exp - n * 0.2;
+  }
+
+  // visible sun: soft disc + glow sprite on the sun painted in the HDRI (the 1k map clips it to
+  // a pixel or two), coloured by the time of day; drawn behind everything, no fog
+  buildSunDisc(dir) {
+    if (this.sunDisc || this.night) return;
+    const tex = canvasTex(256, 256, (c, w, h) => {
+      c.clearRect(0, 0, w, h);
+      const g = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+      g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.05, 'rgba(255,255,255,1)'); g.addColorStop(0.07, 'rgba(255,250,235,0.45)'); g.addColorStop(0.14, 'rgba(255,240,215,0.07)'); g.addColorStop(0.4, 'rgba(255,230,200,0.012)'); g.addColorStop(1, 'rgba(255,230,200,0)');
+      c.fillStyle = g; c.fillRect(0, 0, w, h);
+    });
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    const mat = new THREE.SpriteMaterial({ map: tex, color: new THREE.Color(this.tod?.disc ?? 0xfff6e6).multiplyScalar(this.skyKind === 'dusk' ? 1.4 : 1.8), blending: THREE.AdditiveBlending, depthWrite: false, fog: false, transparent: true });
+    this.sunDisc = new THREE.Sprite(mat); const sz = this.skyKind === 'day' ? 900 : 1300; this.sunDisc.scale.set(sz, sz, 1); this.sunDisc.renderOrder = -1;
+    this._sunDiscDir = dir.clone().normalize();
+    this.scene.add(this.sunDisc);
   }
 
   setStartLights(n, go) {
@@ -1396,12 +1729,12 @@ export class Race3D {
     // overcast: weaker sun, duller sky, grey haze, less saturated grade
     if (Math.abs(wet - (this._wetApplied ?? -1)) > 0.01) {
       this._wetApplied = wet;
-      const base = this._lit || { sun: this.night ? 1.55 : 2.2, bg: this.night ? 0.35 : 1, fog: (this.fogDay || this.scene.fog.color).clone() };
+      const base = this._lit || { sun: this.night ? 1.55 : this.tod?.sunI ?? 2.2, bg: this.night ? 0.35 : this.tod?.bg ?? 1, fog: (this.fogDay || this.scene.fog.color).clone() };
       if (!this._lit && this.fogDay) this._lit = base;
       this.sun.intensity = base.sun * (1 - 0.72 * wet);
       if (this.hdr) { this.scene.backgroundIntensity = base.bg * (1 - 0.55 * wet); this.scene.backgroundBlurriness = 0.12 * wet; }
       this.scene.fog.color.copy(base.fog).lerp(this._rainFog ||= new THREE.Color(this.night ? 0x0b0e14 : 0x7d858e), wet * 0.75);
-      if (this.composer?.grade) this.composer.grade.uniforms.uSat.value = 1.08 - 0.28 * wet;
+      if (this.composer?.grade) this.composer.grade.uniforms.uSat.value = (this.tod?.sat ?? 1.08) - 0.28 * wet;
     }
     if (!this.asphaltMat.userData.wetPatch) { this.asphaltMat.roughness = 0.82 - wet * 0.5; this.asphaltMat.metalness = 0.04 + wet * 0.12; if (this.asphaltMat.color) { this._asphBase ??= this.asphaltMat.color.getHex(); this.asphaltMat.color.setHex(this._asphBase).multiplyScalar(1 - wet * 0.45); } }
     WET.value = wet;
@@ -1432,31 +1765,13 @@ export class Race3D {
     const items = [];
     for (const st of states) {
       const car = this.cars.get(st.key); if (!car) continue;
-      if (st.hidden) { car.mesh.visible = false; car.label.style.display = 'none'; car.pit = car.exit = null; continue; }
-      let s = st.s, spd = st.speed || 0, lane, pit = false;
+      if (st.hidden) { car.mesh.visible = false; car.label.style.display = 'none'; car.pc = null; continue; }
+      let s = st.s, spd = st.speed || 0, lane, pit = false, yaw = 0;
       const i0 = open ? Math.min(N - 2, Math.max(0, Math.floor(s))) : Math.floor(s) % N;
       const race = (this.line ? this.line[i0] * (st.close ? 0.45 : 1) : 0) + (st.close && st.pos ? (st.pos % 2 ? 2.6 : -2.6) : car.lane * 0.3);
-      if (st.inPit && this.pitOff && !open) {
-        // drive down the pit lane to the team box, stop, wait for the sim to release the car
-        if (!car.pit) { car.pit = { adv: 0, box: 6 + (car.box || 0) * 2.6 }; car.exit = null; }
-        const rel = dS(st.s, 0);
-        const target = car.pit.box - rel;
-        if (car.pit.adv < target) { car.pit.adv = Math.min(target, car.pit.adv + 21 * dt / ds); spd = 21; } else spd = 0;
-        s = st.s + car.pit.adv; lane = this.pitOff; pit = true;
-      } else {
-        if (car.pit) { car.exit = { off: car.pit.adv, t: 0 }; car.pit = null; }
-        lane = race;
-        if (car.exit) {
-          // leave the box at limiter speed and let the visual position fall back onto the sim one
-          car.exit.t += dt;
-          const vv = Math.min(spd, 21 + Math.max(0, car.exit.t - 1.2) * 16);
-          car.exit.off -= Math.max(spd * 0.15, spd - vv) * dt / ds;
-          if (car.exit.off <= 0) car.exit = null;
-          else { s = st.s + car.exit.off; spd = vv; if (dS(s, 0) < this.pitSpan - 4 && dS(s, 0) > -4) { lane = this.pitOff; pit = true; } }
-        }
-        lane = Math.max(-maxLane, Math.min(maxLane, lane));
-      }
-      items.push({ st, car, s: wrap(s), spd, lane, pit });
+      if (this.pitOff && !open) { const r = this.pitStep(car, st, dt, race); if (r) { items.push({ st, car, ...r, s: wrap(r.s) }); continue; } }
+      lane = Math.max(-maxLane, Math.min(maxLane, race));
+      items.push({ st, car, s: wrap(s), spd, lane, pit, yaw });
     }
     // pass 2: resolve overlaps. Process cars from the front so the car behind yields
     // (moves aside if there is room, otherwise backs off) — no two bodies can intersect.
@@ -1473,7 +1788,7 @@ export class Race3D {
       const car = it.car;
       car.latOff = (car.latOff || 0) * Math.max(0, 1 - dt * 0.7);
       const tgt = it.pit ? it.lane : Math.max(-maxLane, Math.min(maxLane, it.lane + car.latOff));
-      car.laneCur = car.laneCur == null ? tgt : car.laneCur + (tgt - car.laneCur) * Math.min(1, dt * (it.pit ? 2.2 : 4));
+      car.laneCur = car.laneCur == null || it.exact ? tgt : car.laneCur + (tgt - car.laneCur) * Math.min(1, dt * (it.pit ? 3 : 4));
       if (!it.pit) car.laneCur = Math.max(-maxLane, Math.min(maxLane, car.laneCur));
       // visual longitudinal back-off memory so a yielding car does not snap
       let s = wrap(it.s - (car.sBack || 0));
@@ -1498,11 +1813,12 @@ export class Race3D {
       if (car.sBack < 0.01) car.sBack = 0;
       s = wrap(s);
       placed.push({ ...this.pose(s, car.laneCur), s, lane: car.laneCur, pit: it.pit });
-      this.placeCar(car, it.st, s, car.laneCur, it.spd, dt);
+      this.placeCar(car, it.st, s, car.laneCur, it.spd, dt, it.yaw || 0);
       if (it.st.key === this.focusKey) focus = car;
     }
     if (!focus) focus = [...this.cars.values()].find((c) => c.mesh.visible);
     this.updateCamera(focus, dt);
+    this.updatePitCrew();
     // pass-by sounds for cars close to a fixed (TV) camera
     if (this.camMode === 'tv' && !this.introT) {
       for (const car of this.cars.values()) {
@@ -1531,9 +1847,24 @@ export class Race3D {
       const rl = MAT.light('#ff2020', 3), on = (this.wet || 0) > 0.25 ? (Math.floor(performance.now() / 250) % 2 ? 4.5 : 0.25) : 3;
       if (rl.emissiveIntensity !== on) rl.emissiveIntensity = on;
     }
+    this.updateLOD(focus);
+    if (this.sunDisc) { this.sunDisc.position.copy(this.camera.position).addScaledVector(this._sunDiscDir, 4200); this.sunDisc.material.opacity = (1 - (this._night || 0)) * (1 - 0.95 * (this.wet || 0)); this.sunDisc.visible = this.sunDisc.material.opacity > 0.02; }
+    if (this.composer?.rays) updateGodRays(this.composer, this.camera, this.hdr && hdriSun(this.skyKind), (this.tod?.rays ?? 0) * (1 - (this._night || 0)) * (1 - 0.9 * (this.wet || 0)));
     if (this.composer?.flare) updateSunFlare(this.composer, this.camera, this.hdr && hdriSun(this.skyKind), (1 - (this._night || 0)) * (1 - 0.9 * (this.wet || 0)) * (this.camMode === 'cockpit' ? 1.2 : 1));
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
     this.updateLabels();
+  }
+
+  // distance LOD: cars smaller than ~120 px on screen draw their simplified version
+  updateLOD(focus) {
+    const tanF = Math.tan(this.camera.fov * Math.PI / 360), H = this.H || 720, cam = this.camera.position;
+    const inCar = this.camMode === 'onboard' || this.camMode === 'cockpit';
+    for (const car of this.cars.values()) {
+      const m = car.mesh; if (!m.visible) continue;
+      const px = 5.2 / (2 * Math.max(0.1, m.position.distanceTo(cam)) * tanF) * H;
+      const far = !(inCar && car === focus) && px < (car.lodFar ? 135 : 115);
+      if (far !== car.lodFar) { car.lodFar = far; setCarLOD(m, far); }
+    }
   }
 
   // per-car effects: glowing brake discs (one instanced additive mesh for every wheel of every
@@ -1592,7 +1923,7 @@ export class Race3D {
     const P = this.sparkP, V = this.sparkV, L = this.sparkL, Mx = this.sparkM;
     for (const car of cars) {
       const m = car.mesh, sp = car.state?.speed || 0, acc = car._acc || 0;
-      if (!m.visible || sp < 45 || car.pit || m.position.distanceToSquared(cam) > 180 * 180) continue;
+      if (!m.visible || sp < 45 || car.pc || m.position.distanceToSquared(cam) > 180 * 180) continue;
       const rate = (acc < -18 ? 40 : 0) + (sp > 75 ? 6 : 0) + (car._bump || 0);
       car._spk = (car._spk || 0) + rate * dt * (0.3 + Math.random());
       const fx = Math.cos(m.rotation.y), fz = -Math.sin(m.rotation.y);
@@ -1663,6 +1994,69 @@ export class Race3D {
     this.spray.geometry.attributes.position.needsUpdate = true;
   }
 
+  // Visual pit-lane journey, decoupled from the sim (which freezes a pitting car on the line):
+  // 'in' (entry -> own box at the limiter) -> 'stop' (in the box, or pushed back into the
+  // garage nose-out while st.garage) -> 'out' (box -> exit at the limiter, rejoin, then hand
+  // back to the sim position once it has caught up). Optional st.pitting (the car will pit at
+  // the end of this lap) lets it take the pit entry road instead of appearing there.
+  pitStep(car, st, dt, race) {
+    const N = this.geo.N, ds = this.geo.ds, P = this.pitSpan, LIM = 22;
+    const rel = (v) => { let d = ((v % N) + N) % N; if (d > N / 2) d -= N; return d; };
+    const simQ = rel(st.s);
+    const bayQ = car.bay ? car.bay.q : Math.min(P - 4, 6 + (car.box || 0) * 2.6);
+    let pc = car.pc;
+    if (!pc) {
+      if (st.inPit) {
+        if (!car._placed) pc = { q: bayQ, phase: 'stop', v: 0, g: st.garage ? 1 : 0 };
+        else { pc = { q: -P - 14, phase: 'in', v: LIM, g: 0 }; if (this.focusKey === st.key || this.dirFocus === st.key) this._cut = true; }
+      } else if (st.pitting && simQ > -P - 14 && simQ < -P - 2) pc = { q: simQ, phase: 'in', v: Math.max(LIM, st.speed || LIM), g: 0, approach: true };
+      else return null;
+      car.pc = pc;
+    }
+    pc.bayQ = bayQ;
+    const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const laneAt = (q) => { const a = Math.abs(q); if (a <= P + 2) return this.pitOff; const rl = this.line ? this.line[((Math.round(q) % N) + N) % N] : race; return this.pitOff + (rl - this.pitOff) * sm(P + 2, P + 14, a); };
+    let spd = 0, lane = this.pitOff, yaw = 0;
+    if (pc.phase === 'in') {
+      if (!st.inPit && !st.pitting) { if (pc.approach) { car.pc = null; return null; } pc.phase = 'out'; pc.q0 = pc.q - 10; }
+      else {
+        if (st.inPit) pc.approach = false;
+        const dist = Math.max(0, (bayQ - pc.q) * ds);
+        const vt = Math.min(LIM, Math.sqrt(2 * 7 * dist) + 0.5);
+        pc.v = pc.v > vt ? Math.max(vt, pc.v - 30 * dt) : Math.min(vt, pc.v + 8 * dt);
+        pc.q = Math.min(bayQ, pc.q + pc.v * dt / ds); spd = pc.v;
+        if (bayQ - pc.q < 0.01) { pc.q = bayQ; spd = pc.v = 0; if (st.inPit) pc.phase = 'stop'; }
+        lane = laneAt(pc.q) + (this.pitBoxOff - laneAt(pc.q)) * sm(5, 0.6, bayQ - pc.q);
+      }
+    }
+    if (pc.phase === 'stop') {
+      const gt = st.inPit && st.garage ? 1 : 0;
+      pc.g = (pc.g || 0) + Math.sign(gt - (pc.g || 0)) * Math.min(Math.abs(gt - (pc.g || 0)), dt / 3.2);
+      if (!st.inPit && pc.g <= 0.001) { pc.phase = 'out'; pc.v = 0; pc.q0 = pc.q; }
+      const e = sm(0, 1, pc.g); lane = this.pitBoxOff + (this.pitGarage - this.pitBoxOff) * e; yaw = Math.PI / 2 * e;
+    }
+    if (pc.phase === 'out') {
+      pc.q0 ??= pc.q;
+      const gap = simQ - pc.q; // > 0: the sim car is ahead of the visual one
+      const joined = pc.q > P + 2;
+      const target = !joined ? LIM : gap > 0.5 ? (st.speed || LIM) * 1.25 : Math.max(LIM, st.speed || LIM);
+      pc.v = Math.min(target, pc.v + (joined ? 15 : 9) * dt);
+      pc.q += pc.v * dt / ds; spd = pc.v;
+      lane = laneAt(pc.q) + (this.pitBoxOff - laneAt(pc.q)) * (1 - sm(0.6, 4.5, pc.q - pc.q0));
+      if (pc.q > P + 14) {
+        const vis = this._frustumHas?.(car.mesh);
+        if ((gap > -0.25 && gap < 0.35) || (Math.abs(gap) > 30 && !vis)) { car.pc = null; return null; }
+      }
+    }
+    return { s: pc.q, spd, lane, pit: true, yaw, exact: !pc.approach || pc.q > -P - 2 };
+  }
+
+  _frustumHas(o) {
+    const f = this._frus ||= new THREE.Frustum(), m = this._frusM ||= new THREE.Matrix4();
+    m.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse); f.setFromProjectionMatrix(m);
+    return f.containsPoint(o.position);
+  }
+
   pose(s, lane) {
     const N = this.geo.N;
     const i0 = this.open ? Math.min(N - 2, Math.max(0, Math.floor(s))) : Math.floor(s) % N, i1 = this.open ? i0 + 1 : (i0 + 1) % N, f = this.open ? Math.min(1, Math.max(0, s - i0)) : s - Math.floor(s);
@@ -1672,9 +2066,9 @@ export class Race3D {
     return { x: this.geo.x[i0] + (this.geo.x[i1] - this.geo.x[i0]) * f - Math.sin(h) * lane, z: this.geo.y[i0] + (this.geo.y[i1] - this.geo.y[i0]) * f + Math.cos(h) * lane, h, y: yy };
   }
 
-  placeCar(car, st, s, laneCur, speed, dt) {
+  placeCar(car, st, s, laneCur, speed, dt, yawX = 0) {
     const N = this.geo.N, m = car.mesh;
-    m.visible = true;
+    m.visible = true; car._placed = true;
     const i0 = this.open ? Math.min(N - 2, Math.max(0, Math.floor(s))) : Math.floor(s) % N, i1 = this.open ? i0 + 1 : (i0 + 1) % N, f = this.open ? Math.min(1, Math.max(0, s - i0)) : s - Math.floor(s);
     let hd = this.geo.hdg[i1] - this.geo.hdg[i0]; while (hd > Math.PI) hd -= 2 * Math.PI; while (hd < -Math.PI) hd += 2 * Math.PI;
     const h = this.geo.hdg[i0] + hd * f;
@@ -1692,7 +2086,7 @@ export class Race3D {
     const yawLat = speed > 2 && dt > 0 ? Math.atan2(laneCur - prevLane, speed * dt) : 0;
     car._yaw = (car._yaw || 0) + (Math.max(-0.35, Math.min(0.35, yawLat)) - (car._yaw || 0)) * Math.min(1, dt * 8);
     m.position.set(x, yy, z);
-    m.rotation.y = -h - car._yaw;
+    m.rotation.y = -h - car._yaw + yawX;
     const k = this.geo.k[i0];
     // body roll towards the outside of the corner, pitch from braking / acceleration
     const stiff = this.category === 'rally' ? 2.2 : this.category === 'endurance' ? 1.3 : 1;
@@ -1740,18 +2134,29 @@ export class Race3D {
     }
     if (this.director) {
       this.dirT = (this.dirT || 0) - dt;
+      const cur = this.cars.get(this.dirFocus);
+      // the followed car goes into / leaves the pits: cut to / away from the garage camera soon
+      if (cur && this.camMode !== 'garage' && cur.pc?.phase === 'stop') this.dirT = Math.min(this.dirT, 1.2);
+      if (cur && this.camMode === 'garage' && !cur.pc) this.dirT = Math.min(this.dirT, 0.6);
       if (this.dirT <= 0) {
-        this.dirT = 7 + Math.random() * 6;
         const b = this.pickBattle();
         this.dirFocus = b || this.focusKey;
-        const modes = ['tv', 'tv', 'chase', 'heli', 'tv', 'onboard'];
-        this.camMode = modes[Math.floor(Math.random() * modes.length)];
+        const df = this.cars.get(this.dirFocus);
+        const pool = df?.pc ? ['garage', 'garage', 'tv'] : ['tv', 'tv', 'chase', 'heli', 'tv', 'onboard'];
+        // never cut to the same shot type twice in a row unless nothing else fits
+        const opts = pool.filter((m2) => m2 !== this.camMode);
+        const mode = (opts.length ? opts : pool)[Math.floor(Math.random() * (opts.length || pool.length))];
+        this.camMode = mode;
+        this.dirT = mode === 'tv' ? 8 + Math.random() * 6 : mode === 'heli' ? 6 + Math.random() * 4 : mode === 'garage' ? 7 + Math.random() * 5 : 5 + Math.random() * 4;
         this._cut = true;
       }
       const df = this.cars.get(this.dirFocus);
       if (df && df.mesh.visible) focus = df;
     }
     if (!focus) return;
+    // garage camera falls back to the TV coverage while the car is out on track
+    const mode = this.camMode === 'garage' && !focus.pc ? 'tv' : this.camMode;
+    const wasCut = this._cut;
     const m = focus.mesh;
     const fwd = new THREE.Vector3(Math.cos(-m.rotation.y), 0, -Math.sin(-m.rotation.y));
     // car faces +x in local space; world forward = rotate (1,0,0) by rotation.y
@@ -1761,7 +2166,19 @@ export class Race3D {
     let fov = 50;
     const spd = focus.state?.speed || 0;
     this._shT = (this._shT || 0) + dt;
-    if (this.camMode === 'chase') {
+    if (mode === 'garage') {
+      // pit-lane camera at the team's box: low on the fast lane, looking into the box / garage
+      const bq = focus.pc ? focus.pc.bayQ : focus.bay.q, N = this.geo.N, t = this._shT;
+      const i = ((Math.round(bq) % N) + N) % N;
+      // stand off along the building (towards its middle), on the box side of the fast lane
+      const along = (bq > 0 ? -1 : 1) * (1.3 + Math.sin(t * 0.07) * 0.35);
+      const p0 = this.pose((bq + along + N) % N, this.pit.fl0 + 1.4);
+      pos = new THREE.Vector3(p0.x, (p0.y || 0) + 1.65 + 0.1 * Math.sin(t * 0.11), p0.z);
+      const inG = (focus.pc?.g || 0) > 0.5;
+      const tl = inG ? this.pose(i, this.pitGarage - 0.8) : null;
+      look = inG ? new THREE.Vector3(tl.x, (tl.y || 0) + 0.9, tl.z) : target.clone().add(new THREE.Vector3(0, 0.6, 0));
+      fov = inG ? 46 : 40;
+    } else if (this.camMode === 'chase') {
       // camera on a soft spring: it lags behind the car's yaw so corners show the car turning
       if (!this._chaseFwd || this._cut) this._chaseFwd = fwd.clone();
       this._chaseFwd.lerp(fwd, Math.min(1, dt * 3.2)).normalize();
@@ -1816,7 +2233,7 @@ export class Race3D {
       look.x += rx * jx; look.z += rz * jx; look.y += jy;
     }
     // never put the camera inside a building / grandstand: lift it above the roof
-    if (this.obstacles && this.camMode !== 'onboard' && this.camMode !== 'cockpit') for (const o of this.obstacles) { const d2 = (o.x - pos.x) ** 2 + (o.z - pos.z) ** 2; if (d2 < o.r * o.r && pos.y < (o.h ?? 14) + 3) pos.y = (o.h ?? 14) + 3; }
+    if (this.obstacles && this.camMode !== 'onboard' && this.camMode !== 'cockpit' && mode !== 'garage') for (const o of this.obstacles) { const d2 = (o.x - pos.x) ** 2 + (o.z - pos.z) ** 2; if (d2 < o.r * o.r && pos.y < (o.h ?? 14) + 3) pos.y = (o.h ?? 14) + 3; }
     // on-board vibration: high-frequency buzz that grows with speed (kerbs/bumps feel)
     if (this.camMode === 'onboard' || this.camMode === 'cockpit') {
       const t = this._shT, a = Math.min(1, spd / 85) * (this.camMode === 'cockpit' ? 0.009 : 0.014);
@@ -1833,16 +2250,17 @@ export class Race3D {
     if (this._cut || this.camMode === 'onboard' || ck) { this.camPos.copy(pos); this.camLook.copy(look); this._cut = false; }
     else { this.camPos.lerp(pos, k); this.camLook.lerp(look, this.camMode === 'chase' ? 1 : this.camMode === 'heli' ? Math.min(1, dt * 3) : Math.min(1, dt * 7)); }
     this.camera.position.copy(this.camPos);
-    this.camera.fov += (fov - this.camera.fov) * Math.min(1, dt * 4);
+    // a cut lands on its framing at once; within a shot the zoom eases
+    if (wasCut) this.camera.fov = fov; else this.camera.fov += (fov - this.camera.fov) * Math.min(1, dt * 4);
     this.camera.updateProjectionMatrix();
     this.camera.lookAt(this.camLook);
     // shadow frustum centred a little ahead of the camera, snapped to texels to avoid shimmering
     // the frustum is only as wide as the view needs: close cameras get ~3 cm shadow texels
     // (crisp self-shadowing on the cars), the helicopter keeps the wide one
-    const half = this.camMode === 'heli' ? 70 : this.camMode === 'tv' ? 60 : this.camMode === 'chase' ? 40 : 46;
+    const half = mode === 'heli' ? 70 : mode === 'tv' ? 60 : mode === 'chase' || mode === 'garage' ? 40 : 46;
     const sc = this.sun.shadow.camera;
     if (sc.right !== half) { sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.updateProjectionMatrix(); this.sun.shadow.normalBias = 0.03 * Math.max(0.5, half / 70); }
-    const fc = this.camMode === 'tv' || this.camMode === 'heli' ? target.clone() : this.camera.position.clone().lerp(target, 0.5).addScaledVector(fwd, half * 0.45);
+    const fc = mode === 'tv' || mode === 'heli' ? target.clone() : this.camera.position.clone().lerp(target, 0.5).addScaledVector(fwd, half * 0.45);
     const tex = (2 * half) / this.sun.shadow.mapSize.x; fc.x = Math.round(fc.x / tex) * tex; fc.z = Math.round(fc.z / tex) * tex;
     this.sun.position.copy(fc).addScaledVector(this.sunDir, 400);
     this.sun.target.position.copy(fc);
