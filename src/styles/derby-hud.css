@@ -1,0 +1,35 @@
+/* Scontro Totale in-race HUD (markup lives in src/derby/, owned by the driving-mode code).
+   Moved verbatim from the old main.css: not part of the UI redesign. */
+.dz-root { position: fixed; inset: 0; background: #000; overflow: hidden; }
+.dz-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-size: 22px; color: #ddd; }
+.dz-hud { position: absolute; inset: 0; pointer-events: none; font-family: var(--display); color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.6); }
+.dz-top { position: absolute; top: 18px; left: 22px; display: flex; gap: 22px; align-items: flex-end; }
+.dz-pos { font-size: 64px; font-weight: 900; font-style: italic; line-height: .9; } .dz-pos small { font-size: 26px; opacity: .8; }
+.dz-lap, .dz-time { font-size: 22px; font-weight: 800; font-style: italic; padding-bottom: 6px; }
+.dz-board { position: absolute; top: 18px; right: 18px; width: 230px; display: flex; flex-direction: column; gap: 3px; }
+.dz-board div { display: flex; align-items: center; gap: 8px; background: rgba(8,10,14,.62); padding: 3px 8px; border-radius: 6px; font-size: 13px; font-family: var(--body, sans-serif); }
+.dz-board div.me { background: rgba(255,200,0,.25); outline: 1px solid rgba(255,212,0,.7); }
+.dz-board div.out { opacity: .4; text-decoration: line-through; }
+.dz-board b { width: 16px; font-family: var(--display); } .dz-board i { width: 10px; height: 10px; border-radius: 2px; } .dz-board span { flex: 1; } .dz-board em { height: 4px; border-radius: 2px; }
+.dz-msgs { position: absolute; top: 24%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.dz-msg { font-size: 30px; font-weight: 900; font-style: italic; letter-spacing: .02em; animation: dzpop .35s cubic-bezier(.2,1.6,.4,1) both; transition: opacity .4s, transform .4s; }
+.dz-msg.bonus { color: #ffd400; } .dz-msg.wreck { color: #ff3b3b; font-size: 46px; } .dz-msg.go { color: #3ddc84; font-size: 60px; } .dz-msg.info { font-size: 22px; }
+.dz-msg.out { opacity: 0; transform: translateY(-14px); }
+@keyframes dzpop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.dz-count { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 140px; font-weight: 900; font-style: italic; opacity: 0; }
+.dz-count.on { opacity: 1; animation: dzpop .3s both; }
+.dz-dash { position: absolute; right: 26px; bottom: 22px; width: 280px; background: linear-gradient(160deg, rgba(10,12,16,.75), rgba(10,12,16,.45)); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; padding: 12px 16px; }
+.dz-speed b { font-size: 58px; font-weight: 900; font-style: italic; } .dz-speed small { font-size: 16px; margin-left: 6px; opacity: .7; }
+.dz-bar { display: grid; grid-template-columns: 62px 1fr; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; letter-spacing: .12em; }
+.dz-bar div { height: 10px; background: rgba(255,255,255,.12); border-radius: 5px; overflow: hidden; }
+.dz-bar i { display: block; height: 100%; background: linear-gradient(90deg, #1e90ff, #6be4ff); box-shadow: 0 0 10px #4fc3ff; transition: width .1s; }
+.dz-bar.dmg i { box-shadow: none; }
+.dz-map { position: absolute; left: 20px; bottom: 20px; width: 200px; height: 200px; background: rgba(8,10,14,.45); border-radius: 50%; border: 1px solid rgba(255,255,255,.12); }
+.dz-help { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); font-family: var(--body, sans-serif); font-size: 11px; opacity: .6; text-shadow: none; white-space: nowrap; }
+.dz-pause, .dz-results { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px; background: rgba(0,0,0,.55); pointer-events: auto; text-shadow: none; }
+.dz-pause.on, .dz-results.on { display: flex; }
+.dz-pause h2 { font-size: 54px; font-style: italic; }
+.dz-res-card { background: rgba(14,16,20,.95); border: 1px solid rgba(255,255,255,.12); border-top: 3px solid #ff6a00; border-radius: 16px; padding: 24px 28px; min-width: 560px; font-family: var(--body, sans-serif); }
+.dz-res-card h2 { font-family: var(--display); font-size: 44px; font-style: italic; margin: 6px 0 14px; }
+.dz-res-card tr.me td { color: #ffd400; font-weight: 800; }
+.dz-dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; vertical-align: 0; }

@@ -54,14 +54,14 @@ registerScreen({
     const tr = getTrack('rally', ev.trackId);
     if (w.phase !== 'shakedown' && !X.ev) { w.phase = 'prep'; startEvent(st); }
     if (w.phase === 'run') return runScreen(st, tr);
-    const stagesStrip = ev.stages.map((s, i) => { const done = X.ev && i < X.ev.stageIdx; const cur = X.ev && i === X.ev.stageIdx; return `<div class="chip ${done ? 'good' : cur ? 'warn' : ''}" style="border-left:3px solid ${SURFACES[s.surface].color}">PS${i + 1}${s.power ? '⚡' : ''}</div>`; }).join('');
-    return `<div style="position:fixed;inset:0;display:flex;flex-direction:column">
-      <div class="race-top" style="height:64px">
-        ${w.phase === 'shakedown' ? `<button class="btn ghost icon-btn" data-a="exit">${icon('left')}</button>` : ''}
-        ${flagSVG(tr.nat, 34, 22)}<div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:22px;text-transform:uppercase;line-height:1">${esc(tr.name)}</div><div class="tiny muted upper">${ev.stages.length} prove speciali · ${ev.stages.reduce((a, b) => a + b.km, 0)} km cronometrati · Round ${st.round + 1}/${st.calendar.length}</div></div>
-        <div class="grow"></div><div class="row gap4">${stagesStrip}</div>
+    const stagesStrip = ev.stages.map((s, i) => { const done = X.ev && i < X.ev.stageIdx; const cur = X.ev && i === X.ev.stageIdx; return `<div class="step ${done ? 'done' : cur ? 'cur' : ''}" style="padding:7px 12px;font-size:14px" data-tip="${esc(s.name || '')} · ${SURFACES[s.surface].name}${s.power ? ' · Power Stage' : ''}"><i style="display:inline-block;width:6px;height:14px;background:${SURFACES[s.surface].color};transform:skewX(-12deg)"></i>PS${i + 1}${s.power ? icon('bolt', 'ico', 'style="width:13px;height:13px"') : ''}</div>`; }).join('');
+    return `<div class="wk-screen">
+      <div class="wk-head">
+        ${w.phase === 'shakedown' ? `<button class="btn icon-btn" data-a="exit" aria-label="Esci dal rally">${icon('left')}</button>` : ''}
+        ${flagSVG(tr.nat, 40, 27)}<div><div class="wk-title">${esc(tr.name)}</div><div class="wk-sub">${ev.stages.length} prove speciali · ${ev.stages.reduce((a, b) => a + b.km, 0)} km cronometrati · Round ${st.round + 1}/${st.calendar.length}</div></div>
+        <div class="grow"></div><div class="stepper" style="gap:3px;flex-wrap:wrap;justify-content:flex-end">${stagesStrip}</div>
       </div>
-      <div style="flex:1;overflow-y:auto;padding:24px 30px">${w.phase === 'shakedown' ? shakedown(st, tr) : w.phase === 'prep' ? prep(st, tr) : w.phase === 'stageres' ? stageResults(st, tr) : w.phase === 'service' ? service(st) : w.phase === 'final' ? finalView(st) : ''}</div>
+      <div class="wk-body">${w.phase === 'shakedown' ? shakedown(st, tr) : w.phase === 'prep' ? prep(st, tr) : w.phase === 'stageres' ? stageResults(st, tr) : w.phase === 'service' ? service(st) : w.phase === 'final' ? finalView(st) : ''}</div>
     </div>`;
   },
   mount() { const ph = S().weekend?.phase; if (ph === 'run') { mountRun(); coach('rallyrun', 'Prova speciale in corso', 'Quando il copilota ti chiama, hai pochi secondi per decidere (tasti <b>A</b>/<b>B</b>). Rischiare fa guadagnare tempo ma può costare il rally!'); } else if (ph === 'prep') coach('rallyprep', 'Gomme e ritmo', 'Scegli le gomme adatte alla superficie e al meteo. Sulle prove lunghe le morbide si consumano. Il ritmo Attacco è più veloce ma molto più rischioso.'); },
@@ -180,11 +180,11 @@ function runScreen(st, tr) {
   return `<div class="rally-screen">
     <div class="race-top">
       <button class="btn ghost icon-btn" data-a="pause" id="btn-pause">${icon('pause')}</button>
-      ${flagSVG(tr.nat, 30, 20)}<div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:19px;text-transform:uppercase;line-height:1">PS${stg.idx + 1} · ${esc(stg.name)}</div><div class="tiny muted upper">${SURFACES[stg.surface].name} · ${stg.km} km${stg.wet ? ' · Bagnato' : ''}${stg.power ? ' · Power Stage' : ''}</div></div>
+      <div class="rt-event">${flagSVG(tr.nat, 34, 22)}<div><div class="rt-name">PS${stg.idx + 1} · ${esc(stg.name)}</div><div class="rt-circ">${SURFACES[stg.surface].name} · ${stg.km} km${stg.wet ? ' · Bagnato' : ''}${stg.power ? ' · Power Stage' : ''}</div></div></div>
       <div class="tb-stat"><b id="stagetime">0:00</b><span>Tempo prova</span></div>
       <div class="grow"></div>
       <div class="speed-btns" id="speedbtns">${[1, 4, 8, 16, 32, 64].map((v) => `<button class="btn sm" data-a="speed" data-v="${v}">${v === 1 ? '1x LIVE' : v + 'x'}</button>`).join('')}</div>
-      <button class="btn sm ghost" data-a="skip-stage">${icon('ff')} Fine prova</button>
+      <button class="btn sm" data-a="skip-stage">${icon('ff')} Fine prova</button>
     </div>
     <div class="race-board" id="board"></div>
     <div class="race-view" id="race-view"><canvas id="rally-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div id="decision"></div></div>
@@ -377,7 +377,7 @@ function service(st) {
 
 function finalView(st) {
   return `<div class="grid2 anim-in" style="max-width:1100px;margin:0 auto"><div class="panel"><div class="panel-head"><h3>Classifica finale</h3></div>${overallTable(st, 20)}</div>
-  <div class="col gap16" style="justify-content:center"><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:48px;line-height:1">🏁 RALLY CONCLUSO</div><button class="btn primary xl pulse" data-a="finish-rally">Podio e punti ${icon('right')}</button></div></div>`;
+  <div class="col gap16" style="justify-content:center"><div class="finish-card" style="padding:28px 40px 20px"><div class="tiny upper muted mt8">Arrivo</div><div class="fc-t">Rally concluso</div></div><button class="btn primary xl pulse" data-a="finish-rally">Podio e punti ${icon('right')}</button></div></div>`;
 }
 
 function speedUI() {

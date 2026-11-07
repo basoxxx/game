@@ -124,11 +124,13 @@ export class TrackView {
     const g = c.createRadialGradient(this.W / 2, this.H / 2, 50, this.W / 2, this.H / 2, Math.max(this.W, this.H) * 0.7);
     const groundA = surf === 'snow' ? '#2a3440' : surf === 'gravel' || surf === 'rough' ? '#1e1a14' : '#0f1712';
     g.addColorStop(0, groundA); g.addColorStop(1, '#06080a');
-    c.fillStyle = g; c.fillRect(0, 0, this.W, this.H);
-    // grid
-    c.strokeStyle = 'rgba(255,255,255,0.025)'; c.lineWidth = 1;
-    for (let x = 0; x < this.W; x += 40) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, this.H); c.stroke(); }
-    for (let y = 0; y < this.H; y += 40) { c.beginPath(); c.moveTo(0, y); c.lineTo(this.W, y); c.stroke(); }
+    if (!this.opts.clear) {
+      c.fillStyle = g; c.fillRect(0, 0, this.W, this.H);
+      // grid
+      c.strokeStyle = 'rgba(255,255,255,0.025)'; c.lineWidth = 1;
+      for (let x = 0; x < this.W; x += 40) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, this.H); c.stroke(); }
+      for (let y = 0; y < this.H; y += 40) { c.beginPath(); c.moveTo(0, y); c.lineTo(this.W, y); c.stroke(); }
+    }
     const pts = this.screen;
     const trace = () => { c.beginPath(); pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); if (this.path.closed) c.closePath(); };
     const tw = this.opts.width ?? Math.max(10, Math.min(22, this.sw / 45));

@@ -91,14 +91,15 @@ registerScreen({
     const tr = getTrack(st.category, w.trackId);
     const steps = [['practice', 'Prove Libere'], ['quali', st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'], ...(w.sprint ? [['sprint', 'Sprint']] : []), ['race', 'Gara']];
     const idx = steps.findIndex((s) => s[0] === w.phase);
-    return `<div style="position:fixed;inset:0;display:flex;flex-direction:column">
-      <div class="race-top" style="height:64px">
-        <button class="btn ghost icon-btn" data-a="exit">${icon('left')}</button>
-        ${flagSVG(tr.nat, 34, 22)}<div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:22px;text-transform:uppercase;line-height:1">${esc(tr.name)}</div><div class="tiny muted upper">${esc(tr.circuit)} · ${w.laps} giri · Round ${st.round + 1}/${st.calendar.length}</div></div>
+    return `<div class="wk-screen">
+      <div class="wk-head">
+        <button class="btn icon-btn" data-a="exit" aria-label="Esci dal weekend" data-tip="Torna alla gestione">${icon('left')}</button>
+        ${flagSVG(tr.nat, 40, 27)}<div><div class="wk-title">${esc(tr.name)}</div><div class="wk-sub">${esc(tr.circuit)} · ${w.laps} giri · Round ${st.round + 1}/${st.calendar.length}</div></div>
+        <div class="wk-track">${trackSVG(circuitPath(tr.cid), { w: 220, h: 96, glow: null, color: '#fff', width: 3, start: false })}</div>
         <div class="grow"></div>
-        <div class="stepper">${steps.map((s, i) => `${i ? '<div class="step-line"></div>' : ''}<div class="step ${i < idx ? 'done' : i === idx ? 'cur' : ''}"><div class="n">${i < idx ? '✓' : i + 1}</div>${s[1]}</div>`).join('')}</div>
+        <div class="stepper">${steps.map((s, i) => `<div class="step ${i < idx ? 'done' : i === idx ? 'cur' : ''}"><span class="n">${i < idx ? icon('check', 'ico', 'style="width:15px;height:15px"') : i + 1}</span>${s[1]}</div>`).join('')}</div>
       </div>
-      <div style="flex:1;overflow-y:auto;padding:24px 30px">${w.phase === 'practice' ? practiceView(st, tr) : qualiView(st, tr)}</div>
+      <div class="wk-body">${w.phase === 'practice' ? practiceView(st, tr) : qualiView(st, tr)}</div>
     </div>`;
   },
   mount() {
@@ -223,15 +224,15 @@ function practiceView(st, tr) {
   const fbTxt = (p, f) => f === 'ok' ? 'Perfetto' : f === 'hi' ? 'Un po’ alto' : f === 'lo' ? 'Un po’ basso' : f === 'vhi' ? 'Troppo alto' : 'Troppo basso';
   const sb = trackSetupBase(st, tr);
   const hint = sb ? `${sb.aero > 60 ? 'pista da <b>alto carico</b>: parti con ali alte' : sb.aero < 40 ? 'pista veloce: <b>ali scariche</b>' : 'carico <b>medio</b>'}, ${sb.gear > 55 ? '<b>rapporti lunghi</b> per i rettilinei' : 'rapporti <b>corti</b> per la trazione'}${sb.height > 50 ? ', <b>altezza da terra alta</b> per sconnessioni e cordoli' : ''}.` : '';
-  return `<div class="row between mb16"><div><h2>Prove Libere · Assetto</h2><div class="small muted">Regola i parametri e manda il pilota in pista: ascolta il feedback per avvicinarti all’assetto ideale. Un buon assetto vale fino a mezzo secondo al giro.</div>${hint ? `<div class="small mt8">${icon('info', 'ico', 'style="width:13px;vertical-align:-2px"')} Ingegnere: ${hint}</div>` : ''}</div>
-    <div class="row">${st.category !== 'rally' ? `<div class="panel tight small"><div class="tiny upper muted mb8">Long run (simulazione di stint · 2 giri di prova)</div><div class="row gap4">${['soft', 'medium', 'hard'].map((c) => `<button class="btn sm ${w.longRuns?.[c] ? 'active' : ''}" data-a="longrun" data-c="${c}" ${w.longRuns?.[c] || Object.values(w.cars)[0].runs < 2 ? 'disabled' : ''}>${tyreBadge(c)} ${w.longRuns?.[c] ? '✓' : ''}</button>`).join('')}</div><div class="tiny ${Math.abs(wearError(st)) < 0.03 ? 'good' : 'warn'} mt8">Dati degrado: ${Math.abs(wearError(st)) < 0.03 ? 'misurati ✓' : 'stimati (±' + Math.round(Math.abs(wearError(st)) * 100 + 4) + '%)'}</div></div>` : ''}<div class="panel tight row small" style="gap:14px">${(() => { const fc = weatherForecast(st, w, tr); return `${icon(fc.prob >= 50 ? 'rain' : 'sun')}<div><b>Previsioni gara</b><div class="muted">${fc.summary} · pioggia ${fc.prob}%</div><div class="tiny dim">Affidabilità previsione ${fc.perfect ? 'radar preciso' : fc.acc + '%'}</div></div>`; })()}${w.qualiRain ? `<span class="chip info">Qualifiche bagnate</span>` : ''}</div><button class="btn primary lg" data-a="to-quali">${st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'} ${icon('right')}</button></div></div>
+  return `<div class="wk-phase"><div style="max-width:760px"><div class="tiny upper muted">Sessione 1 · Venerdì</div><h2 class="mt8">Prove Libere · Assetto</h2><div class="small mt8" style="color:var(--text2);line-height:1.5">Regola i parametri e manda il pilota in pista: ascolta il feedback per avvicinarti all’assetto ideale. Un buon assetto vale fino a mezzo secondo al giro.</div>${hint ? `<div class="small mt8">${icon('info', 'ico', 'style="width:13px;vertical-align:-2px"')} Ingegnere: ${hint}</div>` : ''}</div>
+    <div class="row">${st.category !== 'rally' ? `<div class="panel tight small"><div class="tiny upper muted mb8">Long run (simulazione di stint · 2 giri di prova)</div><div class="row gap4">${['soft', 'medium', 'hard'].map((c) => `<button class="btn sm ${w.longRuns?.[c] ? 'active' : ''}" data-a="longrun" data-c="${c}" ${w.longRuns?.[c] || Object.values(w.cars)[0].runs < 2 ? 'disabled' : ''}>${tyreBadge(c)} ${w.longRuns?.[c] ? icon('check') : ''}</button>`).join('')}</div><div class="tiny ${Math.abs(wearError(st)) < 0.03 ? 'good' : 'warn'} mt8">Dati degrado: ${Math.abs(wearError(st)) < 0.03 ? 'misurati' : 'stimati (±' + Math.round(Math.abs(wearError(st)) * 100 + 4) + '%)'}</div></div>` : ''}<div class="panel tight row small" style="gap:14px">${(() => { const fc = weatherForecast(st, w, tr); return `${icon(fc.prob >= 50 ? 'rain' : 'sun')}<div><b>Previsioni gara</b><div class="muted">${fc.summary} · pioggia ${fc.prob}%</div><div class="tiny dim">Affidabilità previsione ${fc.perfect ? 'radar preciso' : fc.acc + '%'}</div></div>`; })()}${w.qualiRain ? `<span class="chip info">Qualifiche bagnate</span>` : ''}</div><button class="btn primary lg" data-a="to-quali">${st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'} ${icon('right')}</button></div></div>
   <div class="grid2 anim-in">${entries.map((e, i) => {
     const c = w.cars[e.key]; const d = st.drivers[e.driverIds[0]];
     const other = keys.find((k) => k !== e.key);
     return `<div class="panel">
-      <div class="row" style="gap:12px">${helmetSVG(d.helmet, 48)}<div class="grow"><div class="tiny upper muted">Auto #${d.number}${e.driverIds.length > 1 ? ' · ' + e.driverIds.map((id) => st.drivers[id].name.split(' ').pop()).join(' / ') : ''}</div><h3 style="font-size:19px">${esc(d.name)}</h3></div>
+      <div class="row" style="gap:12px">${helmetSVG(d.helmet, 48)}<div class="grow"><div class="tiny upper muted">Auto #${d.number}${e.driverIds.length > 1 ? ' · ' + e.driverIds.map((id) => st.drivers[id].name.split(' ').pop()).join(' / ') : ''}</div><h3 style="font-size:24px;letter-spacing:.02em">${esc(d.name)}</h3></div>
         <div style="width:220px"><div class="row between small"><span class="muted">Fiducia assetto</span><b>${Math.round(c.q * 100)}%</b></div>${bar(c.q * 100, c.q > 0.8 ? 'green' : c.q > 0.55 ? 'gold' : 'red')}</div></div>
-      <div class="mt16">${SETUP_PARAMS.map((p) => { const f = c.fb?.[p.id]; return `<div class="setup-slider"><div><div style="font-weight:600;font-size:13.5px" title="${p.info}">${p.name}</div><div class="tiny ${f && f !== 'ok' ? 'warn' : 'dim'}">${f && f !== 'ok' ? (f.endsWith('lo') ? p.lo : p.hi) : p.info}</div></div><div class="row"><span class="tiny dim">MIN</span><input type="range" min="0" max="100" value="${c.vals[p.id]}" data-input="slider" data-key="${e.key}" data-p="${p.id}"><span class="tiny dim">MAX</span><b class="mono" id="v-${e.key}-${p.id}" style="width:28px;text-align:right">${c.vals[p.id]}</b></div><div class="fb ${f || 'unk'}">${f ? fbTxt(p, f) : 'Nessun dato'}</div></div>`; }).join('')}</div>
+      <div class="mt16">${SETUP_PARAMS.map((p) => { const f = c.fb?.[p.id]; return `<div class="setup-slider"><div><div style="font-family:var(--display);font-weight:700;font-size:17px;text-transform:uppercase;letter-spacing:.02em" title="${p.info}">${p.name}</div><div class="tiny ${f && f !== 'ok' ? 'warn' : 'dim'}">${f && f !== 'ok' ? (f.endsWith('lo') ? p.lo : p.hi) : p.info}</div></div><div class="row"><span class="tiny dim">MIN</span><input type="range" min="0" max="100" value="${c.vals[p.id]}" data-input="slider" data-key="${e.key}" data-p="${p.id}"><span class="tiny dim">MAX</span><b class="mono" id="v-${e.key}-${p.id}" style="width:28px;text-align:right">${c.vals[p.id]}</b></div><div class="fb ${f || 'unk'}">${f ? fbTxt(p, f) : 'Nessun dato'}</div></div>`; }).join('')}</div>
       <div class="row mt16 between"><div class="row gap6"><button class="btn primary" data-a="run" data-key="${e.key}" ${c.runs <= 0 ? 'disabled' : ''}>${icon('play')} Giro di prova (${c.runs})</button><button class="btn sm ghost" data-a="autosetup" data-key="${e.key}" ${c.runs < 2 ? 'disabled' : ''} title="L’ingegnere imposta un assetto (costa 2 giri)">${icon('wrench')} Ingegnere</button>${other ? `<button class="btn sm ghost" data-a="copy" data-from="${other}" data-to="${e.key}" title="Copia l’assetto del compagno">${icon('swap')} Copia</button>` : ''}</div>
       <div class="small muted">${c.laps.length ? `Ultimo: <b class="mono" style="color:#fff">${fmtTime(c.laps[c.laps.length - 1])}</b> · Best ${fmtTime(Math.min(...c.laps))}` : 'Nessun giro'}</div></div>
       ${biasCard(st, w, e.key)}
@@ -296,7 +297,7 @@ function qualiView(st, tr) {
         <div class="small muted">Al limite: tempi migliori ma più rischio di errore. ${w.qualiRain ? '<span class="info">Pista bagnata in qualifica!</span>' : ''}</div>
         <button class="btn primary xl mt16" style="width:100%" data-a="run-quali">${icon('play')} Avvia ${st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'}</button>
       </div>
-      <div class="panel" style="display:flex;align-items:center;justify-content:center">${trackSVG(circuitPath(tr.cid), { w: 480, h: 320, glow: 'var(--team)' })}</div>
+      <div class="panel" style="display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--team) 14%, var(--s1)), var(--s1) 70%)">${trackSVG(circuitPath(tr.cid), { w: 480, h: 320, glow: null, color: '#fff', width: 5, under: 'rgba(0,0,0,.45)' })}</div>
     </div>`;
   }
   const q = w.quali;
@@ -330,21 +331,21 @@ function raceScreen(st) {
   return `<div class="race-screen">
     <div class="race-top">
       <button class="btn ghost icon-btn" data-a="pause" id="btn-pause" data-tip="Pausa / riprendi (Spazio)">${icon('pause')}</button>
-      ${flagSVG(tr.nat, 30, 20)}<div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:19px;text-transform:uppercase;line-height:1">${esc(tr.name)}</div><div class="tiny muted upper">${esc(tr.circuit)}</div></div>
+      <div class="rt-event">${flagSVG(tr.nat, 34, 22)}<div><div class="rt-name">${esc(tr.name)}</div><div class="rt-circ">${esc(tr.circuit)}</div></div></div>
       <div class="tb-stat"><b id="lapcount">1/${st.weekend.laps}</b><span>Giro</span></div>
       <div class="tb-stat"><b id="racetime">0:00</b><span>Tempo</span></div>
       <div class="tb-stat" id="wx"><b>—</b><span>Meteo</span></div>
       <div id="flagstatus"></div>
       <div class="grow"></div>
       <div class="speed-btns" id="speedbtns">${[1, 2, 4, 8, 16, 32].map((v, i) => `<button class="btn sm" data-a="speed" data-v="${v}" data-tip="${v === 1 ? 'Tempo reale' : `Velocità ${v}x`} · tasto ${i + 1}">${v === 1 ? '1x LIVE' : v + 'x'}</button>`).join('')}</div>
-      <button class="btn sm ghost" data-a="sim-end" data-tip="Simula il resto della gara: le decisioni passano all’ingegnere">${icon('ff')} Fine gara</button>
+      <button class="btn sm" data-a="sim-end" data-tip="Simula il resto della gara: le decisioni passano all’ingegnere">${icon('ff')} Fine gara</button>
       <span class="kbd-help" data-a="shortcuts" data-tip="Scorciatoie: Spazio pausa · 1-6 velocità · R replay">?</span>
       <div class="race-prog"><i id="race-prog"></i></div>
     </div>
     <div class="race-board" id="board"></div>
     <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="race-sub" id="race-sub"></div><div class="battle" id="battle"></div><div id="finish-overlay"></div></div>
     <div class="race-side" id="side"></div>
-    <div class="race-feed"><div class="row gap4 mb8" id="feed-tabs"></div><div id="feed" style="height:calc(100% - 34px);overflow-y:auto"></div></div>
+    <div class="race-feed"><div class="row gap4 mb8" id="feed-tabs"></div><div id="feed" style="height:calc(100% - 46px);overflow-y:auto"></div></div>
   </div>`;
 }
 
@@ -361,7 +362,7 @@ function mountRace() {
     const ov = document.getElementById('finish-overlay'); if (!ov) return;
     document.getElementById('pit-ov')?.remove();
     const col = stat < 2.6 ? 'var(--good)' : stat < 3.5 ? 'var(--warn)' : 'var(--bad)';
-    ov.insertAdjacentHTML('beforeend', `<div id="pit-ov" style="position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(0,0,0,.82);border:1px solid var(--line2);border-left:4px solid ${col};padding:10px 18px;border-radius:12px;text-align:center;animation:pop .3s"><div class="tiny upper muted">Pit stop · ${esc(R.sim.driver(c).name)}</div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:34px;color:${col}">${stat.toFixed(2)}s</div><div class="tiny muted">${c.tyre ? COMPOUNDS[c.tyre].name : ''}</div></div>`);
+    ov.insertAdjacentHTML('beforeend', `<div id="pit-ov" class="pit-ov" style="--pc:${col}"><div class="tiny upper muted">Pit stop · ${esc(R.sim.driver(c).name)}</div><div class="pt">${stat.toFixed(2)}s</div><div class="small muted">${c.tyre ? COMPOUNDS[c.tyre].name : ''}</div></div>`);
     setTimeout(() => document.getElementById('pit-ov')?.remove(), 3500);
   };
   if (isSprint) R.sim.log('⚡ SPRINT: gara breve, punti ai primi 8 (8-7-6-5-4-3-2-1).', 'start', null, true);
@@ -400,7 +401,7 @@ function stopRace() { R.moment = null; R.replay = null; R.rbuf = []; cancelAnima
 function renderViewBtns() {
   const el = document.getElementById('view-btns'); if (!el) return;
   const can3d = webglAvailable();
-  el.innerHTML = (can3d ? `<button class="btn sm" data-a="replay" title="Rivedi gli ultimi 10 secondi">⟲ Replay</button>` : '') + [['2d', 'Mappa 2D'], ['auto', 'Regia'], ['tv', 'TV 3D'], ['chase', 'Camera car'], ['onboard', 'Onboard'], ...(['formula', 'junior'].includes(S().category) ? [['cockpit', 'Pilota']] : []), ['heli', 'Elicottero']].map(([k, n]) => `<button class="btn sm ${((R.view3d || '2d') === k) ? 'active' : ''}" data-a="${k === '2d' ? 'view2d' : 'cam'}" data-c="${k}" ${k !== '2d' && !can3d ? 'disabled' : ''}>${n}</button>`).join('');
+  el.innerHTML = (can3d ? `<button class="btn sm" data-a="replay" title="Rivedi gli ultimi 10 secondi">${icon('replay')} Replay</button>` : '') + [['2d', 'Mappa 2D'], ['auto', 'Regia'], ['tv', 'TV 3D'], ['chase', 'Camera car'], ['onboard', 'Onboard'], ...(['formula', 'junior'].includes(S().category) ? [['cockpit', 'Pilota']] : []), ['heli', 'Elicottero']].map(([k, n]) => `<button class="btn sm ${((R.view3d || '2d') === k) ? 'active' : ''}" data-a="${k === '2d' ? 'view2d' : 'cam'}" data-c="${k}" ${k !== '2d' && !can3d ? 'disabled' : ''}>${n}</button>`).join('');
 }
 function enable3D(cam) {
   const st = S(); const sim = R.sim;
@@ -480,10 +481,10 @@ function defaultPitTyre(c) {
 function startLights(done) {
   const ov = document.getElementById('finish-overlay');
   let n = 0;
-  ov.innerHTML = `<div style="position:absolute;top:30px;left:50%;transform:translateX(-50%);display:flex;gap:12px;background:rgba(0,0,0,.8);padding:14px 20px;border-radius:14px;border:1px solid var(--line2);z-index:3" id="lights">${[0, 1, 2, 3, 4].map((i) => `<div id="l${i}" style="width:34px;height:34px;border-radius:50%;background:#222;box-shadow:inset 0 0 8px #000"></div>`).join('')}</div>`;
+  ov.innerHTML = `<div class="start-lights" id="lights">${[0, 1, 2, 3, 4].map((i) => `<div id="l${i}"></div>`).join('')}</div>`;
   const iv = setInterval(() => {
     if (n < 5) { const l = document.getElementById(`l${n}`); if (l) { l.style.background = '#ff1a1a'; l.style.boxShadow = '0 0 20px #f00'; } sfx.beep(); n++; R.r3d?.setStartLights(n, false); }
-    else { clearInterval(iv); setTimeout(() => { document.querySelectorAll('#lights > div').forEach((l) => { l.style.background = '#222'; l.style.boxShadow = 'none'; }); sfx.go(); R.r3d?.setStartLights(0, true); setTimeout(() => { const L = document.getElementById('lights'); if (L) L.remove(); }, 600); done(); }, 300 + Math.random() * 900); }
+    else { clearInterval(iv); setTimeout(() => { document.querySelectorAll('#lights > div').forEach((l) => { l.style.background = '#1b1d21'; l.style.boxShadow = 'inset 0 0 8px #000'; }); sfx.go(); R.r3d?.setStartLights(0, true); setTimeout(() => { const L = document.getElementById('lights'); if (L) L.remove(); }, 600); done(); }, 300 + Math.random() * 900); }
   }, 520);
 }
 
@@ -536,7 +537,7 @@ function updateTop() {
   const wx = document.getElementById('wx'); const r = sim.rain;
   if (wx) wx.innerHTML = `<b class="${r > 0.2 ? 'info' : ''}">${r < 0.05 ? 'Asciutto' : r < 0.3 ? 'Pioviggine' : r < 0.6 ? 'Pioggia' : 'Diluvio'}${sim.night ? ' · Notte' : ''}</b><span>Meteo ${Math.round(r * 100)}%</span>`;
   const fs = document.getElementById('flagstatus');
-  if (fs) fs.innerHTML = sim.sc ? '<span class="chip warn pulse" style="font-weight:800">🚨 SAFETY CAR</span>' : sim.finished ? '<span class="chip good">🏁 FINITA</span>' : '<span class="chip good">🟢 Bandiera verde</span>';
+  if (fs) { const h = sim.sc ? '<span class="flagplate sc"><i></i>Safety car</span>' : sim.finished ? '<span class="flagplate end"><i></i>Bandiera a scacchi</span>' : '<span class="flagplate green"><i></i>Bandiera verde</span>'; if (fs.innerHTML !== h) fs.innerHTML = h; }
 }
 
 // "Charles Leclair" -> "C. Leclair" so the tower stays readable on narrow screens
@@ -555,7 +556,7 @@ function updateBoard() {
     const gl = i ? sim.gapToLeader(c, leader) : 0;
     let gap, gcls = '';
     if (c.status === 'dnf') gap = 'RIT';
-    else if (i === 0) gap = c.status === 'finished' ? '🏁' : 'Leader';
+    else if (i === 0) gap = c.status === 'finished' ? 'Arrivo' : 'Leader';
     else if (interval && typeof gl === 'number' && typeof prevGap === 'number') {
       const iv = Math.max(0, gl - prevGap);
       gap = `+${iv.toFixed(iv < 10 ? 3 : 1)}`;
@@ -564,8 +565,8 @@ function updateBoard() {
     if (c.status !== 'dnf') prevGap = gl;
     const posDelta = c.grid - (i + 1);
     const fl = sim.fastest.key === c.key;
-    return `<div class="lb-row ${c.isPlayer ? 'me' : ''} ${c.status === 'dnf' ? 'dnf' : ''} ${c.inPit > 0 ? 'pit' : ''} ${c.key === R.focus ? 'focus' : ''}" data-a="focus" data-key="${c.key}" ${c.isPlayer ? `style="border-left-color:${c.team.car.livery.primary}"` : ''}>
-      <span class="pos p${i + 1}" style="font-size:14px">${i + 1}</span>${teamStripe(c.team)}
+    return `<div class="lb-row ${c.isPlayer ? 'me' : ''} ${c.status === 'dnf' ? 'dnf' : ''} ${c.inPit > 0 ? 'pit' : ''} ${c.key === R.focus ? 'focus' : ''}" data-a="focus" data-key="${c.key}">
+      <span class="pos p${i + 1}">${i + 1}</span>${teamStripe(c.team)}
       <span class="nm">${towerName(d.name)}${fl ? '<i class="fl" data-tip="Giro più veloce"></i>' : ''} ${posDelta > 0 ? `<span class="good tiny">▲${posDelta}</span>` : posDelta < 0 ? `<span class="bad tiny">▼${-posDelta}</span>` : ''}</span>
       <span>${c.status === 'dnf' ? '' : tyreBadge(c.tyre)}</span>
       <div>${c.status === 'dnf' ? `<span class="tiny bad">${esc(c.reason || '')}</span>` : c.inPit > 0 ? '<span class="chip warn tiny">BOX</span>' : `<div class="wear" data-tip="Gomme ${COMPOUNDS[c.tyre]?.name || ''}: ${Math.max(0, Math.round((1 - c.wear) * 100))}% · ${c.stintLap ?? 0} giri"><i style="width:${Math.max(0, 1 - c.wear) * 100}%;background:${c.wear > 0.8 ? 'var(--bad)' : c.wear > 0.55 ? 'var(--warn)' : 'var(--good)'}"></i></div>`}</div>
@@ -573,7 +574,7 @@ function updateBoard() {
   }).join('');
   const b = document.getElementById('board');
   const fk = sim.fastest.key && sim.cars.find((c) => c.key === sim.fastest.key);
-  if (b) b.innerHTML = `<div class="lb-row lb-head"><span>Pos</span><span></span><span>Pilota</span><span>Gom</span><span>Usura</span><span class="gapmode" data-a="gapmode" data-tip="Clicca per alternare distacco dal leader / intervallo con chi precede">${interval ? 'Interv.' : 'Gap'}</span></div>${html}<div class="lb-foot small muted"><i class="fl" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--purple);box-shadow:0 0 8px var(--purple)"></i>Giro veloce: ${fk ? `<b style="color:#fff">${esc(sim.driver(fk).name)}</b> <span class="lap-t">${fmtTime(sim.fastest.time)}</span>` : '—'}</div>`;
+  if (b) b.innerHTML = `<div class="lb-row lb-head"><span>Pos</span><span></span><span>Pilota</span><span>Gom</span><span>Usura</span><span class="gapmode" data-a="gapmode" data-tip="Clicca per alternare distacco dal leader / intervallo con chi precede">${interval ? 'Interv.' : 'Gap'}</span></div>${html}<div class="lb-foot muted"><i class="fl" style="display:inline-block;width:9px;height:9px;background:var(--purple)"></i>Giro veloce: ${fk ? `<b style="color:#fff">${esc(sim.driver(fk).name)}</b> <span class="lap-t">${fmtTime(sim.fastest.time)}</span>` : '—'}</div>`;
 }
 
 // Gap to the car ahead, sampled once per lap, for the sparkline in the control card
@@ -631,9 +632,9 @@ function updateControls(force) {
       <div class="wear" style="height:6px;margin:4px 0 6px"><i style="width:${c.ers}%;background:linear-gradient(90deg,#7c4dff,#00e5ff)"></i></div>
       <div class="seg">${[['harvest', 'Ricarica', 'Ricarica: perdi un po’ di passo ma riempi la batteria.'], ['balanced', 'Bilanciato', 'Bilanciato: usa e recupera energia in modo neutro.'], ['deploy', 'Override', 'Override: massima potenza elettrica. Usalo entro 1s da chi precede per sorpassare.']].map(([k, n, tip]) => `<div class="${c.ersMode === k ? 'on ' + (k === 'deploy' ? 'push' : k === 'harvest' ? 'save' : '') : ''}" data-a="ers" data-key="${c.key}" data-m="${k}" data-tip="${tip}">${n}</div>`).join('')}</div>
       <div class="tiny upper muted mt8 mb8">Pit stop</div>
-      <div class="row gap4 wrap">${sim.C.compounds.map((cp) => `<button class="btn sm ${pitSel === cp ? 'active' : ''}" style="padding:4px 6px" data-a="pitsel" data-key="${c.key}" data-c="${cp}" data-tip="Monta ${COMPOUNDS[cp].name} alla prossima sosta">${tyreBadge(cp)}</button>`).join('')}${sim.endurance ? `<button class="btn sm ${pitSel === 'none' ? 'active' : ''}" style="padding:4px 8px" data-a="pitsel" data-key="${c.key}" data-c="none">Solo ⛽</button>` : ''}</div>
+      <div class="row gap4 wrap">${sim.C.compounds.map((cp) => `<button class="btn sm ${pitSel === cp ? 'active' : ''}" style="padding:4px 6px" data-a="pitsel" data-key="${c.key}" data-c="${cp}" data-tip="Monta ${COMPOUNDS[cp].name} alla prossima sosta">${tyreBadge(cp)}</button>`).join('')}${sim.endurance ? `<button class="btn sm ${pitSel === 'none' ? 'active' : ''}" style="padding:4px 8px" data-a="pitsel" data-key="${c.key}" data-c="none">${icon('fuel')} Solo benzina</button>` : ''}</div>
       ${sim.endurance && c.driverIds.length > 1 ? `<button class="btn sm mt8 ${R.swap[c.key] ? 'active' : ''}" style="width:100%" data-a="swap" data-key="${c.key}">${icon('swap')} Cambio pilota → ${esc(st.drivers[c.driverIds[(c.driverIdx + 1) % c.driverIds.length]].name.split(' ').pop())}</button>` : ''}
-      <button class="btn ${c.pitReq ? 'danger' : 'team'} mt8 ${advice?.urgent && !c.pitReq ? 'pulse' : ''}" style="width:100%" data-a="pit" data-key="${c.key}">${c.pitReq ? `Annulla box (${c.pitReq.compound ? COMPOUNDS[c.pitReq.compound].short : '⛽'})` : `${icon('wrench')} Chiama ai box`}</button>
+      <button class="btn ${c.pitReq ? 'danger' : 'team'} mt8 ${advice?.urgent && !c.pitReq ? 'pulse' : ''}" style="width:100%" data-a="pit" data-key="${c.key}">${c.pitReq ? `Annulla box (${c.pitReq.compound ? COMPOUNDS[c.pitReq.compound].short : 'benzina'})` : `${icon('pit')} Chiama ai box`}</button>
       ${advice ? `<div class="small mt8 ${advice.urgent ? 'warn' : 'muted'}">${icon('info', 'ico', 'style="width:13px;vertical-align:-2px"')} ${advice.text}</div>` : ''}
       <div class="row between mt8 tiny"><span class="muted">Strategia automatica (ingegnere)</span><button class="btn sm ${c.auto ? 'active' : ''}" data-a="auto" data-key="${c.key}" data-tip="L’ingegnere decide ritmo e pit stop al posto tuo">${c.auto ? 'ON' : 'OFF'}</button></div>
       <div class="timing" data-tip="Viola: giro più veloce della gara · Verde: record personale · Giallo: più lento del tuo migliore"><div><span>Ultimo</span><b class="${lapCls(sim, c)}">${fmtTime(c.lastLap)}</b></div><div><span>Migliore</span><b class="${sim.fastest.key === c.key ? 't-purple' : c.bestLap ? 't-green' : ''}">${fmtTime(c.bestLap)}</b></div><div><span>Giri rim.</span><b>${lapsLeft.toFixed(1)}</b></div></div>` : ''}
@@ -642,7 +643,7 @@ function updateControls(force) {
   const plan = R.sim.weather.plan;
   const curLap = Math.floor(R.sim.progress * R.sim.laps);
   const wxHtml = `<div class="panel tight"><div class="row between tiny upper muted mb8"><span>Radar meteo</span><span>${R.sim.weather.isRain ? 'Pioggia prevista' : 'Asciutto'}</span></div><div class="weather-strip">${plan.slice(0, R.sim.laps).map((r, i) => `<i style="height:${Math.max(2, r * 20)}px;opacity:${i < curLap ? 0.25 : r > 0.05 ? 0.95 : 0.15};${i === curLap ? 'background:#fff' : ''}"></i>`).join('')}</div></div>`;
-  const radio = sim.radioQ.map((r) => { const c = sim.cars.find((x) => x.key === r.key); return `<div class="ctrl-card pulse" style="border-top-color:var(--warn)"><div class="tiny upper warn">📻 Radio · ${esc(sim.driver(c).name)}</div><div class="small mt8" style="font-weight:600">${esc(r.text.replace(/^[^:]+: /, ''))}</div><div class="row gap6 mt8"><button class="btn sm good grow" data-a="radio" data-id="${r.id}" data-y="1">${{ pit: 'Box, box!', pass: 'Ok, scambio', push: 'Vai, attacca!', rain: 'Box per intermedie', ers: 'Sì, ricarica' }[r.type]}</button><button class="btn sm grow" data-a="radio" data-id="${r.id}" data-y="0">${{ pit: 'Resta fuori', pass: 'Negativo', push: 'Gestisci', rain: 'Resta fuori', ers: 'No' }[r.type]}</button></div><div class="wear mt8" style="height:3px"><i style="width:${Math.max(0, (r.until - sim.time) / 40) * 100}%;background:var(--warn)"></i></div></div>`; }).join('');
+  const radio = sim.radioQ.map((r) => { const c = sim.cars.find((x) => x.key === r.key); return `<div class="ctrl-card radio-card"><div class="rc-h">${icon('radio')} Radio · ${esc(sim.driver(c).name)}</div><div class="mt8" style="font-weight:600;font-size:15px">${esc(r.text.replace(/^[^:]+: /, ''))}</div><div class="row gap6 mt8"><button class="btn sm good grow" data-a="radio" data-id="${r.id}" data-y="1">${{ pit: 'Box, box!', pass: 'Ok, scambio', push: 'Vai, attacca!', rain: 'Box per intermedie', ers: 'Sì, ricarica' }[r.type]}</button><button class="btn sm grow" data-a="radio" data-id="${r.id}" data-y="0">${{ pit: 'Resta fuori', pass: 'Negativo', push: 'Gestisci', rain: 'Resta fuori', ers: 'No' }[r.type]}</button></div><div class="wear mt8" style="height:3px"><i style="width:${Math.max(0, (r.until - sim.time) / 40) * 100}%;background:var(--warn)"></i></div></div>`; }).join('');
   const myTeam = mine[0]?.teamId;
   const orders = mine.length > 1 && mine.every((c) => c.status === 'running') ? `<div class="panel tight"><div class="tiny upper muted mb8">Ordini di scuderia</div><div class="seg">${[['free', 'Libera lotta'], ['hold', 'Mantenere'], ['swap', 'Scambio']].map(([k, n]) => `<div class="${(sim.teamOrders[myTeam] || 'free') === k ? 'on' : ''}" data-a="orders" data-o="${k}">${n}</div>`).join('')}</div></div>` : '';
   const full = radio + html + orders + wxHtml + (R.sim.finished ? `<button class="btn primary xl pulse" data-a="finish-race">${icon('chequered')} Risultati</button>` : '');
@@ -692,7 +693,7 @@ function updateFeed(force) {
   }
   const tab = R.tab || 'feed';
   const head = document.getElementById('feed-tabs');
-  if (head) head.innerHTML = [['feed', 'Cronaca'], ['tele', 'Telemetria'], ['lap', 'Analisi giro']].map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="tele-tab" data-t="${k}" style="padding:4px 12px;font-size:11px">${n}</div>`).join('') + `<div class="grow"></div><button class="btn sm ghost" data-a="lessons" style="padding:3px 10px">${icon('info')} Lezioni</button>`;
+  if (head) head.innerHTML = [['feed', 'Cronaca'], ['tele', 'Telemetria'], ['lap', 'Analisi giro']].map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="tele-tab" data-t="${k}">${n}</div>`).join('') + `<div class="grow"></div><button class="btn sm ghost" data-a="lessons" style="padding:3px 10px">${icon('info')} Lezioni</button>`;
   const f = document.getElementById('feed');
   if (!f) return;
   if (tab === 'feed') {
@@ -727,7 +728,7 @@ function onRaceFinished() {
   const best = Math.min(...mine.map((r) => (r.status === 'dnf' ? 99 : r.pos)));
   if (best <= 3) { sfx.win(); celebrate(best === 1 ? 260 : 120); music.setMood('win'); }
   const ov = document.getElementById('finish-overlay');
-  if (ov) ov.innerHTML = `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);z-index:3"><div class="panel glow" style="text-align:center;padding:30px 40px;animation:pop .4s"><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:44px">🏁 ${R.sim.isSprint ? 'SPRINT FINITA' : 'GARA FINITA'}</div><div class="muted mt8">${esc(st.drivers[res.classification[0].driverIds[0]].name)} vince · Il tuo miglior risultato: ${best === 99 ? 'Ritiro' : 'P' + best}</div><button class="btn primary xl mt16" data-a="finish-race">Vai ai risultati ${icon('right')}</button></div></div>`;
+  if (ov) ov.innerHTML = `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:3"><div class="finish-card"><div class="tiny upper muted mt8">Bandiera a scacchi</div><div class="fc-t">${R.sim.isSprint ? 'Sprint finita' : 'Gara finita'}</div><div class="mt16" style="color:var(--text2);font-size:16px"><b style="color:#fff">${esc(st.drivers[res.classification[0].driverIds[0]].name)}</b> vince · il tuo miglior risultato: <b style="color:#fff">${best === 99 ? 'Ritiro' : 'P' + best}</b></div><button class="btn primary xl mt24" data-a="finish-race">Vai ai risultati ${icon('right')}</button></div></div>`;
 }
 
 function finishRace() {
@@ -746,7 +747,7 @@ function finishRace() {
     const mine = w.sprintRes.filter((r) => r.teamId === st.playerTeam).map((r) => `${st.drivers[r.driverIds[0]].name}: ${r.status === 'dnf' ? 'RIT' : 'P' + r.pos}${r.pts ? ` (+${r.pts})` : ''}`).join(' · ');
     saveGame();
     App.refresh();
-    App.modal(`<div class="tiny upper muted" style="letter-spacing:.3em">Sprint conclusa</div><h2>⚡ Vince ${esc(win.name)}</h2><p class="muted">${esc(mine)}</p><p class="small muted">Ora il Gran Premio: la griglia è quella delle qualifiche. Gomme e carburante tornano nuovi.</p><div class="row mt16" style="justify-content:flex-end"><button class="btn primary" data-a="close-modal">Vai al Gran Premio</button></div>`);
+    App.modal(`<div class="tiny upper" style="color:var(--team)">Sprint conclusa</div><h2 class="mt8">Vince ${esc(win.name)}</h2><p class="muted">${esc(mine)}</p><p class="small muted">Ora il Gran Premio: la griglia è quella delle qualifiche. Gomme e carburante tornano nuovi.</p><div class="row mt16" style="justify-content:flex-end"><button class="btn primary" data-a="close-modal">Vai al Gran Premio</button></div>`);
     return;
   }
   if (w.sprintRes) res.sprint = w.sprintRes;
@@ -812,7 +813,7 @@ function startReplay(focusKey) {
   R.replay = { t0, t1, t: t0, focus: focusKey || R.focus, prevCam: r.camMode, prevDir: r.director, wasPaused: R.paused };
   r.director = false; r.camMode = 'chase'; r._cut = true; r.focusKey = R.replay.focus;
   const ov = document.getElementById('finish-overlay');
-  if (ov) ov.insertAdjacentHTML('beforeend', '<div id="replay-badge" style="position:absolute;top:16px;left:16px;z-index:6" class="chip bad pulse" >⟲ REPLAY · <span id="rp-cam">camera car</span></div>');
+  if (ov) ov.insertAdjacentHTML('beforeend', `<div id="replay-badge" class="replay-badge"><span class="tag red">${icon('replay')} Replay · <span id="rp-cam">camera car</span></span></div>`);
 }
 function stopReplay() {
   const r = R.r3d, rp = R.replay; if (!rp) return;
@@ -844,11 +845,11 @@ function showMoment(m) {
   if (m.key && m.key !== 'all') { R.focus = m.key; if (R.r3d) { R.r3d.director = false; R.r3d.camMode = m.type === 'sc' ? 'heli' : 'chase'; R.r3d._cut = true; R.r3d.focusKey = m.key; } }
   const ov = document.getElementById('finish-overlay'); if (!ov) return;
   const col = { sc: 'var(--warn)', rain: 'var(--info)', attack: 'var(--bad)', defend: 'var(--bad)', undercut: 'var(--warn)' }[m.type] || 'var(--team)';
-  ov.insertAdjacentHTML('beforeend', `<div id="moment" class="decision" style="border-color:${col};width:min(620px,92%)"><div class="tiny upper" style="color:${col};letter-spacing:.25em;font-weight:800">Momento chiave · gara in pausa</div>
-    <div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:26px;text-transform:uppercase;margin-top:4px">${esc(m.title)}</div>
-    <div class="small mt8" style="line-height:1.55">${esc(m.text)}</div>
+  ov.insertAdjacentHTML('beforeend', `<div id="moment" class="decision" style="border-top-color:${col};width:min(660px,92%)"><div class="m-eyebrow" style="color:${col}">Momento chiave · gara in pausa</div>
+    <div class="m-title">${esc(m.title)}</div>
+    <div class="mt8" style="line-height:1.55;color:var(--text2)">${esc(m.text)}</div>
     <div class="col gap6 mt16">${m.options.map((o, i) => `<div class="opt" data-a="moment" data-i="${i}"><div class="row between"><b>${esc(o.label)}</b><span class="kbd">${i + 1}</span></div><div class="small muted mt8">${esc(o.desc)}</div></div>`).join('')}</div>
-    <div class="row between mt16"><span class="tiny muted">Puoi disattivare queste pause nelle impostazioni del muretto.</span><button class="btn sm ghost" data-a="moments-off">Non chiedere più in questa gara</button></div></div>`);
+    <div class="row between mt16"><span class="small muted">Puoi disattivare queste pause nelle impostazioni del muretto.</span><button class="btn sm ghost" data-a="moments-off">Non chiedere più in questa gara</button></div></div>`);
 }
 function resolveMomentUI(i) {
   const m = R.moment; if (!m) return;

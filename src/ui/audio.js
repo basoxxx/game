@@ -62,8 +62,11 @@ function noise(dur, vol, type = 'bandpass', freq = 1000, q = 1, t0 = 0, bus = nu
 }
 
 export const sfx = {
-  click: () => tone(1500, 0.04, 'square', 0.025),
-  hover: () => tone(2400, 0.025, 'sine', 0.01),
+  // UI: short mechanical tick + low thump (press), airy tick (focus/hover), filtered sweep (screen wipe)
+  click: () => { noise(0.028, 0.05, 'highpass', 3800, 0.8); tone(170, 0.06, 'sine', 0.06, -70); },
+  hover: () => noise(0.02, 0.02, 'bandpass', 5200, 3),
+  whoosh: () => { noise(0.34, 0.045, 'bandpass', 500, 1.1, 0, null, 2800); },
+  back: () => tone(560, 0.07, 'triangle', 0.05, -220),
   ok: () => { tone(660, 0.1, 'triangle', 0.12); tone(990, 0.18, 'triangle', 0.1, 0, 0.08); },
   bad: () => { tone(300, 0.22, 'sawtooth', 0.06, -120); },
   notify: () => { tone(880, 0.08, 'sine', 0.1); tone(1320, 0.14, 'sine', 0.08, 0, 0.07); },

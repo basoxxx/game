@@ -22,48 +22,59 @@ registerScreen({
   render() {
     const saves = listSaves();
     const hasSave = saves.some((s) => !s.empty);
+    const last = saves.filter((x) => !x.empty).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0];
+    const item = (a, ic, label, desc, extra = '', cls = '') => `<div class="menu-item ${cls}" ${a} data-desc="${esc(desc)}">${icon(ic)}<span>${label}</span>${extra}</div>`;
     return `<div class="menu-screen">
-      <div class="menu-left anim-in">
+      <div class="menu-bg"><canvas id="menu-cv"></canvas></div>
+      <div id="menu-3d" class="menu-car"></div>
+      ${webglAvailable() ? '' : `<div class="menu-car-fallback">${carSVG('formula', { primary: '#e5141b', secondary: '#fff', accent: '#111', pattern: 1 }, { number: 1, sponsor: 'Apex Dynasty' })}</div>`}
+      <div class="menu-feature" id="menu-feature"><div class="mf-k">In pista</div><div class="mf-v" id="menu-track"></div><div class="mf-t" id="menu-car-name"></div></div>
+      <div class="menu-left">
+        <div class="menu-logo">${logoMark(64)}<div><div class="logo-big">Apex<span>Dynasty</span></div><div class="logo-sub">Formula · Rally · Endurance</div></div></div>
         <div>
-          <div class="row" style="gap:14px">${logoMark(56)}<div class="tiny upper muted" style="letter-spacing:.4em">Motorsport Manager</div></div>
-          <div class="logo-big mt16">Apex<span>Dynasty</span></div>
-          <div class="logo-sub">Formula · Rally · Endurance</div>
-        </div>
-        <div class="menu-list">
-          ${hasSave ? `<div class="menu-item" data-a="continue-last">${icon('play')} Continua</div>` : ''}
-          <div class="menu-item" data-a="nav" data-to="newgame">${icon('flag')} Nuova Carriera</div>
-          <div class="menu-item" data-a="nav" data-to="quickrace">${icon('speed')} Gara Rapida</div>
-          <div class="menu-item" data-a="nav" data-to="derby">${icon('car')} Scontro Totale <span class="chip warn tiny" style="margin-left:6px">NUOVO · GUIDA TU</span></div>
-          <div class="menu-item" data-a="nav" data-to="challenges">${icon('target')} Sfide</div>
-          <div class="menu-item ${hasSave ? '' : 'disabled'}" data-a="load">${icon('save')} Carica Partita</div>
-          <div class="menu-item" data-a="nav" data-to="settings" data-back="menu">${icon('settings')} Impostazioni</div>
-          <div class="menu-item" data-a="credits">${icon('info')} Come si gioca</div>
-          <div class="menu-item" data-a="lessons">${icon('sim')} Accademia Ingegneri</div>
-          ${window.apex?.quit ? `<div class="menu-item" data-a="quit">${icon('logout')} Esci</div>` : ''}
+          <nav class="menu-list" aria-label="Menu principale">
+            ${hasSave ? item('data-a="continue-last"', 'play', 'Continua', last ? `${last.team} · Stagione ${last.season} · Round ${Math.min(last.round + 1, last.total)}/${last.total}` : 'Riprendi l’ultima partita salvata') : ''}
+            ${item('data-a="nav" data-to="newgame"', 'flag', 'Nuova Carriera', 'Diventa Team Principal: Formula, Rally o Endurance. Scegli una squadra o fondane una tua.')}
+            ${item('data-a="nav" data-to="quickrace"', 'speed', 'Gara Rapida', 'Un weekend singolo con qualsiasi squadra, su qualsiasi pista.')}
+            ${item('data-a="nav" data-to="derby"', 'steering', 'Scontro Totale', 'Prendi il volante: corse a contatto, salti e derby della distruzione.', '<span class="tag">Guida tu</span>')}
+            ${item('data-a="nav" data-to="challenges"', 'target', 'Sfide', 'Scenari con un obiettivo e medaglie da conquistare.')}
+            <div class="menu-sep"></div>
+            ${item('data-a="load"', 'save', 'Carica Partita', 'Apri uno degli slot di salvataggio o importa un file.', '', `sm ${hasSave ? '' : 'disabled'}`)}
+            ${item('data-a="nav" data-to="settings" data-back="menu"', 'settings', 'Impostazioni', 'Audio, grafica 3D, filtri, realismo e accessibilità.', '', 'sm')}
+            ${item('data-a="credits"', 'info', 'Come si gioca', 'Le basi del gestionale in un minuto.', '', 'sm')}
+            ${item('data-a="lessons"', 'sim', 'Accademia Ingegneri', 'Lezioni interattive su gomme, strategia e assetto.', '', 'sm')}
+            ${window.apex?.quit ? item('data-a="quit"', 'logout', 'Esci', 'Chiudi il gioco.', '', 'sm') : ''}
+          </nav>
+          <div class="menu-desc" id="menu-desc" aria-live="polite"></div>
         </div>
       </div>
-      <div class="menu-right"><canvas id="menu-cv"></canvas>
-        <div id="menu-3d" style="position:absolute;right:0;bottom:0;width:72%;height:64%;"></div>
-        ${webglAvailable() ? '' : `<div style="position:absolute;right:40px;bottom:40px;width:46%;opacity:.95;filter:drop-shadow(0 30px 30px rgba(0,0,0,.7))" class="anim-in"><div>${carSVG('formula', { primary: '#e10600', secondary: '#fff', accent: '#111', pattern: 1 }, { number: 1, sponsor: 'Apex Dynasty' })}</div></div>`}
-        <div id="menu-track" class="tiny upper muted" style="position:absolute;left:40px;top:30px;letter-spacing:.3em"></div>
+      <div class="menu-foot">
+        <div class="version">v${__APP_VERSION__} · Gioco di fantasia: nomi e marchi sono parodie e non affiliati</div>
+        <div class="menu-hint"><span><span class="kbd">↑</span><span class="kbd">↓</span> Naviga</span><span><span class="kbd">Invio</span> Seleziona</span><span><span class="kbd">?</span> Comandi</span></div>
       </div>
-      <div class="version">v${__APP_VERSION__} · Gioco di fantasia: nomi e marchi sono parodie e non affiliati</div>
-      <div class="menu-hint"><span><span class="kbd">↑</span><span class="kbd">↓</span> Naviga</span><span><span class="kbd">Invio</span> Seleziona</span><span><span class="kbd">?</span> Comandi</span></div>
     </div>`;
   },
   mount() {
     const cv = document.getElementById('menu-cv');
     const demo = TRACKS.formula[Math.floor(Math.random() * TRACKS.formula.length)];
-    view = new TrackView(cv, circuitPath(demo.cid), { pad: 80, glow: 'rgba(225,6,0,0.5)' });
+    view = new TrackView(cv, circuitPath(demo.cid), { pad: 70, glow: 'rgba(0,0,0,0)', clear: true, width: 12 });
     view.demoName = demo.circuit;
-    const tl = document.getElementById('menu-track'); if (tl) tl.textContent = `${demo.circuit} · ${demo.name}`;
+    const tl = document.getElementById('menu-track'); if (tl) tl.textContent = demo.name;
+    const desc = document.getElementById('menu-desc');
+    const list = document.querySelector('.menu-list');
+    list?.addEventListener('focusin', (e) => { const it = e.target.closest('.menu-item'); if (it && desc) desc.textContent = it.dataset.desc || ''; });
+    list?.addEventListener('mouseleave', () => { const f = document.activeElement; if (f?.classList?.contains('menu-item') && desc) desc.textContent = f.dataset.desc || ''; });
+    // console-style: the first entry is selected as soon as the menu opens
+    const first = document.querySelector('.menu-list .menu-item:not(.disabled)');
+    first?.focus({ preventScroll: true });
     const m3 = document.getElementById('menu-3d');
     if (m3 && webglAvailable()) {
       try {
         const cats = ['formula', 'formula', 'endurance', 'rally'];
         const c = cats[Math.floor(Math.random() * cats.length)];
         const t = TEAMS[c][Math.floor(Math.random() * TEAMS[c].length)];
-        garage = new Garage3D(m3, c, { primary: t.colors[0], secondary: t.colors[1], accent: t.colors[2] }, { accent: t.colors[0] === '#f0f0f0' ? t.colors[1] : t.colors[0], number: Math.floor(1 + Math.random() * 63), sponsor: t.short, dist: 15 });
+        garage = new Garage3D(m3, c, { primary: t.colors[0], secondary: t.colors[1], accent: t.colors[2] }, { accent: t.colors[0] === '#f0f0f0' ? t.colors[1] : t.colors[0], number: Math.floor(1 + Math.random() * 63), sponsor: t.short, dist: 13 });
+        const cn = document.getElementById('menu-car-name'); if (cn) cn.textContent = `${t.name} · ${CATEGORIES[c]?.name || ''}`;
       } catch (e) { console.warn(e); }
     }
     const cars = DEMO_COLORS.map((c, i) => ({ p: -i * 0.012, v: 0.06 + Math.random() * 0.002, c }));

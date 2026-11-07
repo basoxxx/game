@@ -28,7 +28,7 @@ function rivalPanel(st) {
   let list = [];
   try { list = rivalryList(st).filter((r) => r.heat >= 12).slice(0, 4); } catch { return ''; }
   if (!list.length) return '';
-  return `<div class="panel"><div class="panel-head"><h3>🔥 Tensione tra piloti</h3></div><div class="col gap8">${list.map((r) => { const a = st.drivers[r.a], b = st.drivers[r.b]; const c = heatColor(r.heat); return `<div class="rival-row ${r.mine ? 'mine' : ''}"><div class="row between small"><b>${esc(a.name.split(' ').slice(-1)[0])} <span class="dim">vs</span> ${esc(b.name.split(' ').slice(-1)[0])}</b><span class="tiny" style="color:${c};font-weight:800">${heatLabel(r.heat).toUpperCase()}</span></div><div class="heat"><i style="width:${Math.round(r.heat)}%;background:linear-gradient(90deg,#ffc400,${c})"></i></div><div class="tiny muted">${r.mates ? 'Compagni di squadra · ' : ''}${esc(r.why)}</div></div>`; }).join('')}</div></div>`;
+  return `<div class="panel"><div class="panel-head"><h3>${icon('flame')} Tensione tra piloti</h3></div><div>${list.map((r) => { const a = st.drivers[r.a], b = st.drivers[r.b]; const c = heatColor(r.heat); return `<div class="rival-row ${r.mine ? 'mine' : ''}"><div class="row between"><b style="font-family:var(--display);font-size:18px;text-transform:uppercase">${esc(a.name.split(' ').slice(-1)[0])} <span class="dim">vs</span> ${esc(b.name.split(' ').slice(-1)[0])}</b><span style="font-family:var(--display);font-size:13px;letter-spacing:.1em;color:${c};font-weight:800">${heatLabel(r.heat).toUpperCase()}</span></div><div class="heat"><i style="width:${Math.round(r.heat)}%;background:${c}"></i></div><div class="small muted">${r.mates ? 'Compagni di squadra · ' : ''}${esc(r.why)}</div></div>`; }).join('')}</div></div>`;
 }
 
 registerScreen({
@@ -54,66 +54,75 @@ registerScreen({
     for (const d of myDrivers) { if (d.rivalOffer) todo.unshift(['bad', `${d.name} ha un’offerta da ${st.teams[d.rivalOffer.teamId]?.name}: rinnova o lo perderai`, 'drivers']); else if (d.nextTeam && d.nextTeam !== t.id) todo.push(['warn', `${d.name} partirà a fine anno: trova un sostituto`, 'market']); }
 
     let hero = '';
+    const myD0 = myDrivers[0];
+    const heroCar = carImg(st.category, t.car.livery, { number: myD0?.number, sponsor: t.sponsors[0]?.name, helmet: myD0?.helmet.c1 }, 900, 400);
     if (info) {
       const { ev, tr } = info;
       const path = st.category === 'rally' ? genStage(tr.seed, STAGE_STYLE[tr.id]) : circuitPath(tr.cid);
       const sub = st.category === 'rally' ? `${ev.stages.length} prove speciali · ${ev.stages.reduce((a, b) => a + b.km, 0)} km` : `${tr.circuit}${tr.hours ? ` · ${tr.hours} ore` : ''}`;
-      const surfaces = st.category === 'rally' ? [...new Set(ev.stages.map((x) => x.surface))].map((x) => `<span class="chip" style="border-color:${SURFACES[x].color}">${SURFACES[x].name}</span>`).join('') : '';
-      let traits = '';
-      if (st.category !== 'rally') {
+      const fact = (v, l, cls = '') => `<div class="${cls}"><b>${v}</b><span>${l}</span></div>`;
+      let facts = '';
+      if (st.category === 'rally') {
+        facts = [...new Set(ev.stages.map((x) => x.surface))].map((x) => fact(`<i style="display:inline-block;width:10px;height:16px;margin-right:6px;background:${SURFACES[x].color};transform:skewX(-12deg)"></i>${SURFACES[x].name}`, 'Fondo')).join('');
+      } else {
         const sens = partSensitivity(st.category, tr);
         const ts = trackStats(st.category, tr);
         const key = Object.entries(sens).sort((a, b) => b[1] - a[1])[0][0];
-        traits = `<span class="chip">${(ts.len / 1000).toFixed(3)} km · ${ts.corners} curve</span><span class="chip">V. max ${Math.round(ts.vmax)} km/h</span><span class="chip warn">Chiave: ${partName(st, key)}</span>`;
+        facts = fact(`${(ts.len / 1000).toFixed(3)}<small>km</small>`, 'Lunghezza') + fact(ts.corners, 'Curve') + fact(`${Math.round(ts.vmax)}<small>km/h</small>`, 'Velocità max') + fact(partName(st, key), 'Fattore chiave', 'key');
       }
-      hero = `<div class="hero">
-        <div>
-          <div class="row"><span class="chip">Round ${ev.round} di ${st.calendar.length}</span>${ev.sprint ? '<span class="chip warn">⚡ Weekend Sprint</span>' : ''}${tr.night ? `<span class="chip info">${icon('moon', 'ico', 'style="width:13px"')} Notturna</span>` : ''}${tr.double ? '<span class="chip warn">Punti doppi</span>' : ''}</div>
-          <div class="row mt16" style="gap:14px">${flagSVG(tr.nat, 46, 30)}<div class="evname">${esc(tr.name)}</div></div>
-          <div class="muted mt8 upper small">${esc(sub)}</div>
-          <div class="row wrap mt16 gap6">${surfaces}${traits}<span class="chip ${tr.rain > 0.35 ? 'info' : ''}">${icon(tr.rain > 0.35 ? 'rain' : 'sun', 'ico', 'style="width:13px"')} Pioggia ${Math.round(tr.rain * 100)}%</span>${tr.ovt != null ? `<span class="chip">Sorpassi: ${tr.ovt > 0.6 ? 'facili' : tr.ovt > 0.3 ? 'medi' : 'difficili'}</span>` : ''}</div>
-          <div class="row mt24"><button class="btn primary xl" data-a="continue">${st.weekend ? 'Riprendi il Weekend' : 'Vai al Weekend'} ${icon('right')}</button></div>
+      facts += fact(`${Math.round(tr.rain * 100)}<small>%</small>`, 'Rischio pioggia') + (tr.ovt != null ? fact(tr.ovt > 0.6 ? 'Facili' : tr.ovt > 0.3 ? 'Medi' : 'Difficili', 'Sorpassi', 'f-opt') : '');
+      const tags = `${ev.sprint ? `<span class="tag">${icon('bolt')} Sprint</span>` : ''}${tr.night ? `<span class="tag dark">${icon('moon')} Notturna</span>` : ''}${tr.double ? '<span class="tag">Punti doppi</span>' : ''}`;
+      hero = `<section class="hub-hero">
+        <div class="hh-info">
+          <div class="hh-eyebrow">Prossimo evento · Round ${ev.round} / ${st.calendar.length} ${tags}</div>
+          <div class="hh-name">${flagSVG(tr.nat, 48, 32)}<span>${esc(tr.name)}</span></div>
+          <div class="hh-circ">${esc(sub)}</div>
+          <div class="hh-facts">${facts}</div>
+          <div class="hh-cta"><button class="btn primary xl" data-a="continue">${st.weekend ? 'Riprendi il Weekend' : 'Vai al Weekend'} ${icon('right')}</button></div>
         </div>
-        <div style="display:flex;align-items:center;justify-content:center">${trackSVG(path, { w: 420, h: 220, glow: 'var(--team)', color: '#e9edf3' })}</div>
-      </div>`;
-    } else hero = `<div class="hero"><div><div class="evname">Stagione conclusa</div><div class="muted mt8">Tutti gli eventi sono stati disputati.</div><div class="row mt24"><button class="btn primary xl" data-a="continue">Bilancio di fine stagione ${icon('right')}</button></div></div></div>`;
+        <div class="hh-visual"><div class="hh-track">${trackSVG(path, { w: 520, h: 300, glow: null, color: 'rgba(255,255,255,.85)', width: 4, under: 'rgba(0,0,0,.35)' })}</div><div class="hh-car">${heroCar}</div></div>
+      </section>`;
+    } else hero = `<section class="hub-hero"><div class="hh-info"><div class="hh-eyebrow">Stagione ${st.season}</div><div class="hh-name">Stagione conclusa</div><div class="hh-circ">Tutti gli eventi sono stati disputati.</div><div class="hh-cta" style="margin-top:28px"><button class="btn primary xl" data-a="continue">Bilancio di fine stagione ${icon('right')}</button></div></div><div class="hh-visual"><div class="hh-car">${heroCar}</div></div></section>`;
 
     const parts = C.parts.map((p) => {
       const rank = partRanking(st, p.id).indexOf(t.id) + 1;
-      return `<div class="stat" style="grid-template-columns:120px 1fr 34px 34px"><span class="muted">${p.name}</span>${bar(t.car.parts[p.id])}<b class="right mono">${Math.round(t.car.parts[p.id])}</b><span class="rank small ${rank <= 3 ? 'good' : rank > 7 ? 'bad' : 'muted'}">${rank}°</span></div>`;
+      return `<div class="stat" style="grid-template-columns:120px 1fr 40px 34px"><span style="color:var(--text2)">${p.name}</span>${bar(t.car.parts[p.id])}<b class="right mono">${Math.round(t.car.parts[p.id])}</b><span class="rank ${rank <= 3 ? 'good' : rank > 7 ? 'bad' : 'muted'}">${rank}°</span></div>`;
     }).join('');
+    const myPts = s.teams.find((x) => x.id === t.id)?.pts || 0;
+    const leaderPts = s.teams[0]?.pts || 0;
+    const conf = st.board.confidence;
 
     return `<div class="screen-title"><div><div class="sub">${esc(C.full)} · Stagione ${st.season}</div><h1>Panoramica</h1></div></div>
-      <div class="col gap24 anim-in">
+      <div class="col gap16 anim-in">
         ${hero}
-        <div class="grid4">
-          <div class="panel"><div class="kpi"><b>${tpos}°</b><span>Costruttori (obiettivo ${st.board.target}°)</span></div></div>
-          <div class="panel"><div class="kpi"><b>${s.teams.find((x) => x.id === t.id)?.pts || 0}</b><span>Punti squadra</span></div></div>
-          <div class="panel"><div class="kpi"><b class="${t.money < 0 ? 'bad' : ''}">${fmtM(t.money)}</b><span>Budget disponibile</span></div></div>
-          <div class="panel"><div class="kpi"><b>${st.board.confidence}%</b><span>Fiducia del consiglio</span></div>${bar(st.board.confidence, st.board.confidence < 30 ? 'red' : st.board.confidence > 65 ? 'green' : 'gold')}</div>
+        <div class="hub-kpis">
+          <div><b class="${tpos <= st.board.target ? '' : 'bad'}">${tpos}°<small>obiettivo ${st.board.target}°</small></b><span>Campionato costruttori</span></div>
+          <div><b>${myPts}${leaderPts > myPts ? `<small>−${leaderPts - myPts} dal leader</small>` : myPts ? '<small>in testa</small>' : ''}</b><span>Punti squadra</span></div>
+          <div><b class="${t.money < 0 ? 'bad' : ''}">${fmtM(t.money)}</b><span>Budget disponibile</span></div>
+          <div><b style="color:${conf < 30 ? 'var(--bad)' : conf > 65 ? 'var(--good)' : 'var(--warn)'}">${conf}%</b><span>Fiducia del consiglio</span>${bar(conf, conf < 30 ? 'red' : conf > 65 ? 'green' : 'gold')}</div>
         </div>
-        <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px">
+        <div class="hub-grid">
           <div class="col gap16">
-            ${info && st.category !== 'rally' ? insightPanel(st, info.tr, t) : ''}
             <div class="panel"><div class="panel-head"><h3>I tuoi piloti</h3><button class="btn sm ghost" data-a="nav" data-to="drivers">Dettagli ${icon('right')}</button></div>
-              <div class="grid2">${myDrivers.map((d) => { const p = s.drivers.findIndex((x) => x.id === d.id) + 1; const pts = s.drivers.find((x) => x.id === d.id)?.pts || 0; return `<div class="card row" style="gap:12px">${helmetSVG(d.helmet, 54)}<div class="grow"><div class="row">${flagSVG(d.nat)}<b>${esc(d.name)}</b></div><div class="small muted mt8">#${d.number} · ${d.age} anni · ${p}° (${pts} pt)</div><div class="mt8">${moraleChip(d.morale)}</div></div>${ratingBox(ovr(st, d), false)}</div>`; }).join('') || '<div class="muted">Nessun pilota</div>'}</div>
+              ${myDrivers.map((d) => { const p = s.drivers.findIndex((x) => x.id === d.id) + 1; const pts = s.drivers.find((x) => x.id === d.id)?.pts || 0; return `<div class="drv-row"><div class="row" style="gap:12px"><span class="drv-num">${d.number}</span>${helmetSVG(d.helmet, 52)}</div><div style="min-width:0"><div class="row" style="gap:8px">${flagSVG(d.nat)}<span class="drv-name">${esc(d.name)}</span></div><div class="drv-meta">${p}° in classifica · ${pts} pt · ${d.age} anni</div><div class="mt8">${moraleChip(d.morale)}</div></div>${ratingBox(ovr(st, d), false)}</div>`; }).join('') || '<div class="muted">Nessun pilota</div>'}
             </div>
+            ${info && st.category !== 'rally' ? insightPanel(st, info.tr, t) : ''}
             <div class="panel"><div class="panel-head"><h3>La vettura</h3><button class="btn sm ghost" data-a="nav" data-to="car">Centro Tecnico ${icon('right')}</button></div>
-              <div style="display:grid;grid-template-columns:1fr 1.1fr;gap:18px;align-items:center"><div class="car-stage" style="min-height:160px"><div class="grid-floor"></div>${carImg(st.category, t.car.livery, { number: myDrivers[0]?.number, sponsor: t.sponsors[0]?.name, helmet: myDrivers[0]?.helmet.c1 })}</div><div class="col gap6">${parts}</div></div>
-              ${t.projects.length ? `<div class="row wrap mt16 gap6">${t.projects.map((p) => `<span class="chip info">${icon('rd', 'ico', 'style="width:13px"')} ${partName(st, p.part)} · ${RD_TIERS[p.tier].name} · ${p.racesLeft} ${p.racesLeft === 1 ? 'evento' : 'eventi'}</span>`).join('')}</div>` : ''}
+              <div class="col" style="gap:12px">${parts}</div>
+              ${t.projects.length ? `<div class="row wrap mt16 gap6">${t.projects.map((p) => `<span class="chip info">${icon('rd')} ${partName(st, p.part)} · ${RD_TIERS[p.tier].name} · ${p.racesLeft} ${p.racesLeft === 1 ? 'evento' : 'eventi'}</span>`).join('')}</div>` : ''}
             </div>
           </div>
           <div class="col gap16">
-            ${st.objectives?.length ? `<div class="panel"><div class="panel-head"><h3>Obiettivi stagionali</h3><span class="chip">Lv ${st.career.level || 1}</span></div><div class="col gap6">${st.objectives.map((o) => `<div class="row small">${icon(o.done ? 'check' : 'target', 'ico', `style="width:16px;color:${o.done ? 'var(--good)' : 'var(--muted)'}"`)}<span class="grow ${o.done ? 'good' : ''}">${esc(o.text)}</span><span class="tiny muted">${o.xp} XP</span></div>`).join('')}</div></div>` : ''}
-            ${todo.length ? `<div class="panel"><div class="panel-head"><h3>Da fare</h3></div><div class="col gap6">${todo.map(([cls, txt, to]) => `<div class="card click row" data-a="nav" data-to="${to}" style="padding:10px 12px"><span class="chip ${cls}" style="width:10px;height:10px;padding:0"></span><span class="grow small">${txt}</span>${icon('right', 'ico', 'style="width:14px;opacity:.5"')}</div>`).join('')}</div></div>` : ''}
+            ${todo.length ? `<div class="panel"><div class="panel-head"><h3>Da fare</h3><span class="small muted">${todo.length}</span></div><div>${todo.map(([cls, txt, to]) => `<div class="todo t-${cls}" data-a="nav" data-to="${to}"><span class="grow">${txt}</span>${icon('right')}</div>`).join('')}</div></div>` : ''}
+            ${st.objectives?.length ? `<div class="panel"><div class="panel-head"><h3>Obiettivi stagionali</h3><span class="small muted">Manager Lv ${st.career.level || 1}</span></div><div>${st.objectives.map((o) => `<div class="obj-row">${icon(o.done ? 'check' : 'target', 'ico', `style="width:18px;height:18px;flex:none;color:${o.done ? 'var(--good)' : 'var(--dim)'}"`)}<span class="grow ${o.done ? 'good' : ''}">${esc(o.text)}</span><span class="small muted mono">${o.xp} XP</span></div>`).join('')}</div></div>` : ''}
             <div class="panel"><div class="panel-head"><h3>Classifica piloti</h3><button class="btn sm ghost" data-a="nav" data-to="standings">Tutte ${icon('right')}</button></div>
-              <table class="tbl"><tbody>${s.drivers.slice(0, 6).map((x, i) => { const d = st.drivers[x.id]; const tm = st.teams[d.teamId]; return `<tr class="${d.teamId === t.id ? 'me' : ''}"><td class="pos p${i + 1}">${i + 1}</td><td>${tm ? teamStripe(tm) : ''}</td><td>${driverChip(st, d, { helmet: false })}</td><td class="right mono"><b>${x.pts}</b></td></tr>`; }).join('')}</tbody></table>
+              <table class="tbl"><tbody>${s.drivers.slice(0, 6).map((x, i) => { const d = st.drivers[x.id]; const tm = st.teams[d.teamId]; return `<tr class="${d.teamId === t.id ? 'me' : ''}"><td class="pos p${i + 1}">${i + 1}</td><td style="width:8px;padding-left:0;padding-right:0">${tm ? teamStripe(tm) : ''}</td><td>${driverChip(st, d, { helmet: false })}</td><td class="right mono"><b>${x.pts}</b></td></tr>`; }).join('')}</tbody></table>
             </div>
             <div class="panel"><div class="panel-head"><h3>Posta recente</h3><button class="btn sm ghost" data-a="nav" data-to="inbox">Apri ${icon('right')}</button></div>
-              <div class="col gap4">${st.inbox.slice(0, 4).map((m) => `<div class="mail ${m.read ? '' : 'unread'} ${m.type}" data-a="nav" data-to="inbox" data-mail="${m.id}"><div class="ic">${icon(m.icon || 'mail')}</div><div class="grow" style="min-width:0"><div class="subj small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject)}</div><div class="tiny muted">${esc(m.from)}</div></div></div>`).join('') || '<div class="muted small">Nessun messaggio</div>'}</div>
+              <div style="margin:-6px -20px -20px">${st.inbox.slice(0, 4).map((m) => `<div class="mail ${m.read ? '' : 'unread'} ${m.type}" data-a="nav" data-to="inbox" data-mail="${m.id}"><div class="ic">${icon(m.icon || 'mail')}</div><div class="grow" style="min-width:0"><div class="subj" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject)}</div><div class="tiny muted">${esc(m.from)}</div></div></div>`).join('') || '<div class="muted small" style="padding:14px 20px">Nessun messaggio</div>'}</div>
             </div>
             ${rivalPanel(st)}
-            ${st.news.length ? `<div class="panel"><div class="panel-head"><h3>Dal paddock</h3></div><div class="col gap6 small">${st.news.slice(0, 5).map((n) => `<div class="row" style="align-items:flex-start"><span class="dim">●</span><span>${esc(n.text)}</span></div>`).join('')}</div></div>` : ''}
+            ${st.news.length ? `<div class="panel"><div class="panel-head"><h3>Dal paddock</h3></div><div>${st.news.slice(0, 5).map((n) => `<div class="news-item"><span>${esc(n.text)}</span></div>`).join('')}</div></div>` : ''}
           </div>
         </div>
       </div>`;
@@ -124,26 +133,26 @@ registerScreen({
     if (st.tutorialSeen && !st.quick) maybeTechDecision(st);
     if (st.pendingTech && st.tutorialSeen) {
       const pt = st.pendingTech;
-      App.modal(`<div class="tiny upper" style="letter-spacing:.3em;color:var(--accent)">Decisione tecnica · ${esc(pt.tag || '')} · ${esc(pt.from)}</div><h2 style="margin-top:6px;font-style:italic">${esc(pt.title)}</h2><p class="muted" style="line-height:1.6">${esc(pt.text)}</p>
-        <div class="tech-grid mt16">${pt.a.map((a, i) => `<div class="card click tech-opt ${a.risk ? 'risk' : ''}" data-a="choose" data-i="${i}"><div class="tiny upper muted">Opzione ${i + 1}${a.risk ? ' · rischio' : ''}</div><b style="font-size:16px">${esc(a.t)}</b><div class="small mt8" style="color:var(--text2,#cfd3da)">${esc(a.note)}</div></div>`).join('')}</div>`,
+      App.modal(`<div class="tiny upper" style="color:var(--team)">Decisione tecnica · ${esc(pt.tag || '')} · ${esc(pt.from)}</div><h2 style="margin-top:8px">${esc(pt.title)}</h2><p>${esc(pt.text)}</p>
+        <div class="tech-grid mt16">${pt.a.map((a, i) => `<div class="card click tech-opt ${a.risk ? 'risk' : ''}" data-a="choose" data-i="${i}"><div class="tiny upper ${a.risk ? 'warn' : 'muted'}">Opzione ${i + 1}${a.risk ? ' · rischio' : ''}</div><b style="display:block;font-family:var(--display);font-size:20px;text-transform:uppercase;line-height:1.1;margin-top:6px">${esc(a.t)}</b><div class="small mt8" style="color:var(--text2)">${esc(a.note)}</div></div>`).join('')}</div>`,
         { choose(el) { const out = resolveTechDecision(st, +el.dataset.i); sfx.ok(); App.closeModal(); App.toast?.('Decisione tecnica', out); App.refresh(); } }, 'locked');
       return;
     }
     if (st.pendingEvent && st.tutorialSeen) {
       const pe = st.pendingEvent;
-      App.modal(`<div class="tiny upper warn" style="letter-spacing:.3em">Decisione dal paddock · ${esc(pe.from)}</div><h2 style="margin-top:6px">${esc(pe.title)}</h2><p class="muted" style="line-height:1.6">${esc(pe.text)}</p>
-        <div class="col gap6 mt16">${pe.a.map((a, i) => `<div class="card click" data-a="choose" data-i="${i}"><b>${esc(a.t)}</b><div class="tiny muted mt8">${esc(a.note)}</div></div>`).join('')}</div>`,
+      App.modal(`<div class="tiny upper warn">Decisione dal paddock · ${esc(pe.from)}</div><h2 style="margin-top:8px">${esc(pe.title)}</h2><p>${esc(pe.text)}</p>
+        <div class="col gap6 mt16">${pe.a.map((a, i) => `<div class="card click" data-a="choose" data-i="${i}"><b style="font-family:var(--display);font-size:19px;text-transform:uppercase">${esc(a.t)}</b><div class="small muted mt8">${esc(a.note)}</div></div>`).join('')}</div>`,
         { choose(el) { resolvePaddockEvent(st, +el.dataset.i); sfx.ok(); App.closeModal(); App.refresh(); } }, 'locked');
       return;
     }
     if (!st.tutorialSeen) {
       st.tutorialSeen = true;
       const C = cat(st);
-      App.modal(`<div class="tiny upper muted" style="letter-spacing:.3em">Benvenuto, Team Principal</div><h2 style="font-size:28px;font-style:italic">La tua prima stagione</h2>
+      App.modal(`<div class="tiny upper" style="color:var(--team)">Benvenuto, Team Principal</div><h2 style="font-size:40px;margin-top:6px">La tua prima stagione</h2>
       <div class="col gap16 mt16">
-        ${[['car', 'Centro Tecnico', 'Scegli il concetto dell’auto (solo in pre-stagione!), la livrea e avvia i progetti R&D.'], ['money', 'Sponsor & Finanze', 'Hai 3 spazi sponsor: firmali subito per avere entrate ad ogni evento.'], ['users', 'Piloti & Mercato', 'Controlla morale e contratti. Il mercato è sempre aperto, ma i top driver costano.'], ['flag', 'Weekend di gara', C.type === 'rally' ? 'Shakedown per l’assetto, poi gomme e ritmo per ogni prova. Rispondi alle chiamate del copilota!' : 'Prove libere per l’assetto, qualifiche, poi in gara gestisci ritmo, gomme e pit stop.']].map(([ic, t, d]) => `<div class="row" style="align-items:flex-start;gap:14px"><div class="rating" style="flex:none">${icon(ic)}</div><div><b>${t}</b><div class="small muted">${d}</div></div></div>`).join('')}
+        ${[['car', 'Centro Tecnico', 'Scegli il concetto dell’auto (solo in pre-stagione!), la livrea e avvia i progetti R&D.'], ['money', 'Sponsor & Finanze', 'Hai 3 spazi sponsor: firmali subito per avere entrate ad ogni evento.'], ['users', 'Piloti & Mercato', 'Controlla morale e contratti. Il mercato è sempre aperto, ma i top driver costano.'], ['flag', 'Weekend di gara', C.type === 'rally' ? 'Shakedown per l’assetto, poi gomme e ritmo per ogni prova. Rispondi alle chiamate del copilota!' : 'Prove libere per l’assetto, qualifiche, poi in gara gestisci ritmo, gomme e pit stop.']].map(([ic, t, d]) => `<div class="row" style="align-items:flex-start;gap:16px"><div class="rating" style="flex:none;background:var(--team);color:#fff">${icon(ic)}</div><div><b style="font-family:var(--display);font-size:19px;text-transform:uppercase">${t}</b><div class="small" style="color:var(--text2)">${d}</div></div></div>`).join('')}
       </div>
-      <div class="card mt16 small">Obiettivo del consiglio: <b>${st.board.target}° posto</b> tra i costruttori. Se la fiducia scende troppo... potresti essere licenziato!</div>
+      <div class="card mt24" style="box-shadow:inset 4px 0 0 var(--warn)">Obiettivo del consiglio: <b>${st.board.target}° posto</b> tra i costruttori. Se la fiducia scende troppo... potresti essere licenziato!</div>
       <div class="row mt24" style="justify-content:flex-end"><button class="btn primary lg" data-a="close-modal">Al lavoro! ${icon('right')}</button></div>`);
     }
   },
@@ -156,9 +165,9 @@ function insightPanel(st, tr, t) {
   const gap = laps[myI].lap - laps[0].lap;
   const sens = partSensitivity(st.category, tr);
   const maxS = Math.max(...Object.values(sens));
-  const rows = laps.slice(0, Math.min(laps.length, 11)).map((x, i) => `<div class="row small" style="gap:8px"><span class="mono muted" style="width:22px">${i + 1}</span><span class="teamstripe" style="background:${x.t.colors[0]}"></span><span class="grow ${x.t.id === t.id ? '' : 'muted'}" style="${x.t.id === t.id ? 'font-weight:700;color:#fff' : ''}">${esc(x.t.name)}</span><span class="mono ${i ? '' : 'good'}">${i ? '+' + (x.lap - laps[0].lap).toFixed(3) : 'riferimento'}</span></div>`).join('');
+  const rows = laps.slice(0, Math.min(laps.length, 11)).map((x, i) => `<div class="insight-row ${x.t.id === t.id ? 'me' : ''}"><span class="mono muted">${i + 1}</span><span class="teamstripe" style="background:${x.t.colors[0]};height:16px"></span><span class="${x.t.id === t.id ? '' : 'muted'}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.t.name)}</span><span class="mono ${i ? '' : 'good'}">${i ? '+' + (x.lap - laps[0].lap).toFixed(3) : 'Rif.'}</span></div>`).join('');
   return `<div class="panel"><div class="panel-head"><h3>Analisi ingegneri · ${esc(tr.circuit)}</h3><span class="chip ${myI < 3 ? 'good' : myI < 6 ? 'warn' : 'bad'}">Passo previsto: ${myI + 1}ª forza (+${gap.toFixed(2)}s)</span></div>
-    <div class="grid2" style="gap:18px"><div><div class="tiny upper muted mb8">Simulazione giro (vettura, asciutto)</div><div class="col gap4">${rows}</div></div>
-    <div><div class="tiny upper muted mb8">Cosa conta su questa pista (+5 punti valgono…)</div>${Object.entries(sens).map(([k, v]) => `<div class="stat" style="grid-template-columns:110px 1fr 60px"><span class="muted small">${partName(st, k)}</span>${bar((v / maxS) * 100, 'gold')}<b class="right mono small">-${v.toFixed(2)}s</b></div>`).join('')}
-    <div class="small muted mt16" style="line-height:1.5">Suggerimento: sviluppa <b style="color:#fff">${partName(st, Object.entries(sens).sort((a, b) => b[1] - a[1])[0][0])}</b> per il prossimo GP. I valori vengono dalla fisica del tracciato reale.</div></div></div></div>`;
+    <div class="grid2" style="gap:28px"><div><div class="tiny upper muted mb8">Simulazione giro (vettura, asciutto)</div><div>${rows}</div></div>
+    <div><div class="tiny upper muted mb8">Cosa conta su questa pista (+5 punti valgono…)</div>${Object.entries(sens).map(([k, v]) => `<div class="stat" style="grid-template-columns:110px 1fr 62px;margin-bottom:10px"><span style="color:var(--text2)">${partName(st, k)}</span>${bar((v / maxS) * 100, 'gold')}<b class="right mono">-${v.toFixed(2)}s</b></div>`).join('')}
+    <div class="small mt16" style="line-height:1.5;color:var(--text2)">Suggerimento: sviluppa <b style="color:#fff">${partName(st, Object.entries(sens).sort((a, b) => b[1] - a[1])[0][0])}</b> per il prossimo GP. I valori vengono dalla fisica del tracciato reale.</div></div></div></div>`;
 }

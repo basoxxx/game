@@ -158,8 +158,8 @@ export function teamBadge(team, size = 34) {
 }
 
 export function logoMark(size = 30) {
-  return `<svg class="mark" width="${size}" height="${size}" viewBox="0 0 40 40"><defs><linearGradient id="lmg" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#ff5a4a"/><stop offset="1" stop-color="#a00400"/></linearGradient></defs>
-  <path d="M4 34 L18 4 L24 4 L38 34 L30 34 L21 14 L12 34 Z" fill="url(#lmg)"/><path d="M14 28 L28 28 L30 34 L12 34 Z" fill="#fff"/></svg>`;
+  // flat, angular "A": brand red legs, white slanted crossbar
+  return `<svg class="mark" width="${size}" height="${size}" viewBox="0 0 40 40"><path d="M3 36 L17 4 L25 4 L39 36 L30.5 36 L21 13.5 L11.5 36 Z" fill="#e5141b"/><path d="M14.5 27 L29 27 L31 32 L12.3 32 Z" fill="#fff"/></svg>`;
 }
 
 export function categoryArt(cat) {
@@ -172,7 +172,7 @@ export function categoryArt(cat) {
   return carSVG(cat, sample, { sponsor: cat === 'rally' ? 'Rally Apex' : 'Apex' });
 }
 
-export function trackSVG(path, { w = 300, h = 180, color = '#fff', glow = '#e10600', width = 5 } = {}) {
+export function trackSVG(path, { w = 300, h = 180, color = '#fff', glow = '#e10600', width = 5, start = true, under = null, fill = false } = {}) {
   const pad = 14;
   const asp = path.aspect;
   let tw = w - pad * 2, th = tw / asp;
@@ -181,6 +181,6 @@ export function trackSVG(path, { w = 300, h = 180, color = '#fff', glow = '#e106
   const d = path.pts.map(([x, y], i) => `${i ? 'L' : 'M'}${(ox + x * tw).toFixed(1)} ${(oy + y * th).toFixed(1)}`).join(' ') + (path.closed ? ' Z' : '');
   const s = path.pts[0];
   const e = path.pts[path.pts.length - 1];
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-height:${h}px"><path d="${d}" fill="none" stroke="${glow}" stroke-opacity="0.35" stroke-width="${width + 8}" stroke-linejoin="round" stroke-linecap="round" style="filter:blur(4px)"/><path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linejoin="round" stroke-linecap="round"/>
-  <circle cx="${ox + s[0] * tw}" cy="${oy + s[1] * th}" r="${width + 1.5}" fill="#22d37a" stroke="#000" stroke-width="2"/>${!path.closed ? `<circle cx="${ox + e[0] * tw}" cy="${oy + e[1] * th}" r="${width + 1.5}" fill="#fff" stroke="#000" stroke-width="2"/>` : ''}</svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-height:${h}px">${glow ? `<path d="${d}" fill="none" stroke="${glow}" stroke-opacity="0.35" stroke-width="${width + 8}" stroke-linejoin="round" stroke-linecap="round" style="filter:blur(4px)"/>` : ''}${under ? `<path d="${d}" fill="${fill || 'none'}" stroke="${under}" stroke-width="${width * 2.6}" stroke-linejoin="round" stroke-linecap="round"/>` : ''}<path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linejoin="round" stroke-linecap="round"/>
+  ${start ? `<circle cx="${ox + s[0] * tw}" cy="${oy + s[1] * th}" r="${width + 1.5}" fill="#2fd77f" stroke="#000" stroke-width="2"/>${!path.closed ? `<circle cx="${ox + e[0] * tw}" cy="${oy + e[1] * th}" r="${width + 1.5}" fill="#fff" stroke="#000" stroke-width="2"/>` : ''}` : ''}</svg>`;
 }

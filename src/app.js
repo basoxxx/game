@@ -1,5 +1,5 @@
 import { icon } from './ui/icons.js';
-import { teamBadge, logoMark, luminance, flagSVG } from './ui/art.js';
+import { teamBadge, logoMark, luminance, flagSVG, trackSVG } from './ui/art.js';
 import { esc } from './ui/dom.js';
 import { sfx, music } from './ui/audio.js';
 import { S, saveGame } from './engine/state.js';
@@ -31,13 +31,17 @@ export const App = {
     document.addEventListener('input', (e) => this.onEvent(e, 'input'));
     document.addEventListener('change', (e) => this.onEvent(e, 'change'));
     document.addEventListener('keydown', (e) => this.onKeyDown(e));
-    document.addEventListener('mouseover', (e) => { const b = e.target.closest?.('.menu-item, .nav'); if (b && b !== this._lastHover) { this._lastHover = b; sfx.hover(); } });
+    document.addEventListener('mouseover', (e) => {
+      const b = e.target.closest?.('.menu-item, .nav, .qr-track, .dz-venue, .dz-car, .cat-card, .team-card, .ch-card');
+      if (b && b !== this._lastHover) { this._lastHover = b; sfx.hover(); if (b.classList.contains('menu-item') && document.activeElement !== b) b.focus({ preventScroll: true }); }
+    });
     initTooltips();
     try { if (JSON.parse(localStorage.getItem('apexdynasty_settings') || '{}').reduceMotion) document.documentElement.classList.add('reduce-motion'); } catch {}
   },
   onKeyDown(e) {
     const modal = document.querySelector('.modal-wrap');
     if (e.key === 'Escape' && modal) { if (!modal.querySelector('.modal.locked')) this.closeModal(); return; }
+    if (e.key === 'Escape' && !modal) { const back = document.querySelector('.ph-back'); if (back) { e.preventDefault(); back.click(); return; } }
     if (e.key === 'F11' && window.apex?.toggleFullscreen) { e.preventDefault(); window.apex.toggleFullscreen(); return; }
     const tgt = e.target;
     const typing = tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || tgt.isContentEditable);
@@ -98,7 +102,18 @@ export const App = {
     document.querySelector('.coach')?.remove();
     const mood = { menu: 'menu', newgame: 'menu', settings: S() ? 'manage' : 'menu', weekend: null, rally: null, results: 'win', seasonend: 'win', quickrace: 'menu' }[id];
     if (mood !== null) music.setMood(mood || 'manage');
+    if (prev && prev.id !== id) this.wipe();
     this.render();
+  },
+  // Visual screen wipe: a slanted livery slab sweeps across. Never blocks input or delays rendering.
+  wipe() {
+    if (document.documentElement.classList.contains('reduce-motion')) return;
+    document.querySelector('.wipe')?.remove();
+    const w = document.createElement('div');
+    w.className = 'wipe'; w.innerHTML = '<i></i><i></i>';
+    document.body.appendChild(w);
+    try { sfx.whoosh?.(); } catch {}
+    setTimeout(() => w.remove(), 700);
   },
   render() {
     const s = screens[this.cur];
@@ -125,7 +140,7 @@ export const App = {
     makeFocusable(this.root);
     s.mount?.(this.root, this.params);
     if (st?._toast) { this.toast(st._toast.title, st._toast.text, 'good'); sfx.win(); st._toast = null; }
-    if (st?._levelUp) { this.toast(`⭐ Livello manager ${st._levelUp}!`, 'Hai ottenuto un punto abilità: spendilo in Carriera.', 'good'); sfx.levelup(); st._levelUp = null; }
+    if (st?._levelUp) { this.toast(`Livello manager ${st._levelUp}!`, 'Hai ottenuto un punto abilità: spendilo in Carriera.', 'good'); sfx.levelup(); st._levelUp = null; }
   },
   refresh() { this.render(); },
   shell(content) {
@@ -139,19 +154,26 @@ export const App = {
     const tr = ev ? getTrack(st.category, ev.trackId) : null;
     const confCol = conf < 30 ? 'var(--bad)' : conf > 70 ? 'var(--good)' : 'var(--warn)';
     const navKey = (i) => (i < 10 ? `<span class="nav-key">${(i + 1) % 10}</span>` : '');
+    let mini = '';
+    if (tr && st.category !== 'rally') { try { mini = trackSVG(circuitPath(tr.cid), { w: 120, h: 80, glow: null, color: '#fff', width: 4, start: false }); } catch {} }
     return `<div class="shell">
       <div class="topbar">
-        <div class="brand">${logoMark(30)}<div>Apex Dynasty<small>${esc(C.name)}</small></div></div>
-        <div class="tb-team" data-tip="${esc(t.name)} · ${esc(C.full || C.name)}">${teamBadge(t, 30)}<div><b style="font-family:var(--display)">${esc(t.name)}</b><div class="tiny muted">${esc(st.playerName)} · Team Principal</div></div></div>
-        <div class="tb-stat"><b>${st.season}</b><span>Stagione</span></div>
-        <div class="tb-stat" data-tip="Evento attuale del calendario"><b>${seasonOver ? 'Fine' : `${st.round + 1}/${st.calendar.length}`}</b><span>Round</span></div>
-        <div class="tb-stat" data-tip="Liquidità della squadra. Entrate: diritti commerciali, sponsor e premi. Uscite: stipendi, logistica, R&amp;D e strutture."><b class="${t.money < 0 ? 'bad' : ''}">${fmtM(t.money)}</b><span>Budget</span></div>
-        <div class="tb-stat" data-tip="Fiducia del consiglio (obiettivo: ${st.board.target}° tra i costruttori). Se crolla rischi il licenziamento."><b style="color:${confCol}">${conf}%</b><span>Fiducia CdA</span><div class="tb-meter"><i style="width:${conf}%;background:${confCol}"></i></div></div>
-        <div class="tb-stat" style="cursor:pointer" data-a="nav" data-to="career" data-tip="Livello manager: guadagni XP con risultati e obiettivi.${st.career.points ? ` Hai ${st.career.points} punti abilità da spendere!` : ''}"><b>Lv ${st.career.level || 1}${st.career.points ? ` <span class="badge">+${st.career.points}</span>` : ''}</b><span>Manager</span></div>
+        <div class="tb-livery"></div>
+        <div class="brand">${logoMark(28)}<div>Apex Dynasty<small>${esc(C.name)}</small></div></div>
+        <div class="tb-team" data-tip="${esc(t.name)} · ${esc(C.full || C.name)}">${teamBadge(t, 36)}<div><b>${esc(t.name)}</b><span class="tb-sub">${esc(st.playerName)} · Team Principal</span></div></div>
+        <div class="tb-stats">
+          <div class="tb-stat tb-opt"><b>${st.season}</b><span>Stagione</span></div>
+          <div class="tb-stat" data-tip="Evento attuale del calendario"><b>${seasonOver ? 'Fine' : `${st.round + 1}<small style="font-size:15px;color:var(--muted)">/${st.calendar.length}</small>`}</b><span>Round</span></div>
+          <div class="tb-stat" data-tip="Liquidità della squadra. Entrate: diritti commerciali, sponsor e premi. Uscite: stipendi, logistica, R&amp;D e strutture."><b class="${t.money < 0 ? 'bad' : ''}">${fmtM(t.money)}</b><span>Budget</span></div>
+          <div class="tb-stat" data-tip="Fiducia del consiglio (obiettivo: ${st.board.target}° tra i costruttori). Se crolla rischi il licenziamento."><b style="color:${confCol}">${conf}%</b><span>Fiducia CdA</span><div class="tb-meter"><i style="width:${conf}%;background:${confCol}"></i></div></div>
+          <div class="tb-stat" style="cursor:pointer" data-a="nav" data-to="career" data-tip="Livello manager: guadagni XP con risultati e obiettivi.${st.career.points ? ` Hai ${st.career.points} punti abilità da spendere!` : ''}"><b>Lv ${st.career.level || 1}${st.career.points ? ` <span class="badge">+${st.career.points}</span>` : ''}</b><span>Manager</span></div>
+        </div>
         <div class="grow"></div>
-        <button class="btn icon-btn ghost" data-a="shortcuts" data-tip="Scorciatoie da tastiera (?)" aria-label="Scorciatoie da tastiera" style="font-weight:800;font-size:15px">?</button>
-        <button class="btn icon-btn ghost" data-a="quick-save" data-tip="Salvataggio rapido (Ctrl+S)" aria-label="Salva">${icon('save')}</button>
-        <button class="btn icon-btn ghost" data-a="nav" data-to="settings" data-tip="Impostazioni" aria-label="Impostazioni">${icon('settings')}</button>
+        <div class="tb-actions">
+          <button class="btn icon-btn ghost" data-a="shortcuts" data-tip="Scorciatoie da tastiera (?)" aria-label="Scorciatoie da tastiera">${icon('gamepad')}</button>
+          <button class="btn icon-btn ghost" data-a="quick-save" data-tip="Salvataggio rapido (Ctrl+S)" aria-label="Salva">${icon('save')}</button>
+          <button class="btn icon-btn ghost" data-a="nav" data-to="settings" data-tip="Impostazioni" aria-label="Impostazioni">${icon('settings')}</button>
+        </div>
         <button class="btn primary lg continue-btn" data-a="continue" data-tip="Scorciatoia: Invio">${seasonOver ? 'Fine Stagione' : st.weekend ? 'Torna al Weekend' : 'Weekend di Gara'} ${icon('right')}</button>
       </div>
       <div class="sidebar">
@@ -159,7 +181,7 @@ export const App = {
         <div class="nav-sep"></div>
         <div class="nav" data-a="to-menu">${icon('logout')}<span>Menu Principale</span></div>
         <div class="grow"></div>
-        ${ev && tr ? `<div class="nav-event" data-a="continue" data-tip="Vai al weekend di gara (Invio)"><div class="tiny muted upper" style="letter-spacing:.14em">Prossimo evento</div><div class="ne-name">${flagSVG(tr.nat, 22, 15)}<span>${esc(trackName(st, ev))}</span></div><div class="ne-meta"><span>Round ${st.round + 1}/${st.calendar.length}</span><span>${[tr.night && 'Notturna', ev.sprint && 'Sprint'].filter(Boolean).join(' · ')}</span></div></div>` : ''}
+        ${ev && tr ? `<div class="nav-event" data-a="continue" data-tip="Vai al weekend di gara (Invio)">${mini ? `<div class="ne-track">${mini}</div>` : ''}<div class="ne-k">Prossimo evento</div><div class="ne-name">${flagSVG(tr.nat, 24, 16)}<span>${esc(trackName(st, ev))}</span></div><div class="ne-meta"><span>Round ${st.round + 1}/${st.calendar.length}</span><span>${[tr.night && 'Notturna', ev.sprint && 'Sprint'].filter(Boolean).join(' · ')}</span></div></div>` : ''}
       </div>
       <div class="main">${content}</div>
     </div>`;
@@ -181,6 +203,7 @@ export const App = {
     if (!box) { box = document.createElement('div'); box.className = 'toasts'; document.body.appendChild(box); }
     const t = document.createElement('div');
     t.className = `toast ${type}`;
+    title = String(title).replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '');
     t.innerHTML = `<div class="t-ic">${icon(type === 'bad' ? 'alert' : type === 'good' ? 'check' : 'info')}</div><b>${title}</b><div class="small muted">${text}</div><i class="t-bar"></i>`;
     while (box.children.length >= 4) box.firstElementChild.remove();
     box.appendChild(t);
@@ -193,6 +216,7 @@ export const App = {
 };
 
 import { getTrack } from './engine/world.js';
+import { circuitPath } from './ui/trackview.js';
 export function trackName(st, ev) { return getTrack(st.category, ev.trackId)?.name || ev.trackId; }
 
 const globalActions = {
@@ -222,7 +246,7 @@ export function coach(id, title, text) {
   document.querySelector('.coach')?.remove();
   const el = document.createElement('div');
   el.className = 'coach';
-  el.innerHTML = `<div class="tiny upper" style="color:var(--team);letter-spacing:.2em;font-weight:700">💡 Consiglio dell’ingegnere</div><b style="display:block;margin-top:4px">${title}</b><div class="small muted mt8" style="line-height:1.5">${text}</div><div class="row mt8" style="justify-content:flex-end"><button class="btn sm">Ho capito</button></div>`;
+  el.innerHTML = `<div class="coach-h">${icon('bulb')} Consiglio dell’ingegnere</div><b style="display:block;margin-top:6px">${title}</b><div class="small mt8" style="line-height:1.55;color:var(--text2)">${text}</div><div class="row mt16" style="justify-content:flex-end"><button class="btn sm">Ho capito</button></div>`;
   el.querySelector('button').onclick = () => el.remove();
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 16000);
