@@ -146,6 +146,24 @@ function rod(a, b, r, m) {
 }
 
 // ---------------- wheels ----------------
+function blurMat(rimColor) {
+  return cached('blur' + rimColor, () => {
+    const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+    const R = 64;
+    // tyre outer ring (radial gradient), smeared rim and spokes
+    g.clearRect(0, 0, 128, 128);
+    const gr = g.createRadialGradient(R, R, 0, R, R, R);
+    gr.addColorStop(0, '#d8dadd'); gr.addColorStop(0.16, '#6b6f75'); gr.addColorStop(0.26, '#1c1e22'); gr.addColorStop(0.6, rimColor); gr.addColorStop(0.86, '#4a4f57'); gr.addColorStop(0.93, '#2a2d32'); gr.addColorStop(1, '#16181b');
+    g.fillStyle = gr; g.beginPath(); g.arc(R, R, R, 0, Math.PI * 2); g.fill();
+    for (let k = 0; k < 40; k++) { g.strokeStyle = `rgba(255,255,255,${0.02 + Math.random() * 0.05})`; g.lineWidth = 1; g.beginPath(); g.arc(R, R, 10 + Math.random() * 50, 0, Math.PI * 2); g.stroke(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.4, metalness: 0.6 });
+  });
+}
+export function setWheelBlur(car, on) {
+  if (car.userData._blur === on) return; car.userData._blur = on;
+  for (const w of car.userData.wheels || []) { w.userData.blur?.forEach((b) => (b.visible = on)); w.userData.faces?.forEach((f) => (f.visible = !on)); }
+}
 function wheel(r, w, tyreColor, rimColor = '#2c3038', spokes = 10) {
   const grp = new THREE.Group();
   const spin = new THREE.Group(); grp.add(spin);
@@ -175,6 +193,14 @@ function wheel(r, w, tyreColor, rimColor = '#2c3038', spokes = 10) {
     if (sgn < 0) face.rotation.y = Math.PI;
     spin.add(face);
   }
+  // motion-blurred rim discs, swapped in for the spoked faces at speed (see setWheelBlur)
+  const blurs = [];
+  for (const sgn of [1, -1]) {
+    const b = new THREE.Mesh(new THREE.CircleGeometry(rimR * 0.99, 32), blurMat(rimColor)); b.position.z = sgn * (w * 0.4 + 0.004); if (sgn < 0) b.rotation.y = Math.PI;
+    b.visible = false; b.castShadow = false; grp.add(b); blurs.push(b);
+  }
+  grp.userData.blur = blurs;
+  grp.userData.faces = spin.children.filter((o) => o.isGroup);
   grp.userData.spin = [spin];
   grp.userData.spinAxis = 'z';
   return grp;
