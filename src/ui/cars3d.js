@@ -28,8 +28,10 @@ export const MAT = {
 // ---------------- livery painting ----------------
 function luma(hex) { const n = parseInt((hex || '#000').slice(1), 16); return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; }
 // u: 0 rear -> 1 front ; v: 0 right side (mid height) -> 0.25 top -> 0.5 left -> 0.75 bottom
-function liveryTexture(L, { number, sponsor, pattern = L.pattern ?? 1, kind }) {
-  const key = ['liv', kind, L.primary, L.secondary, L.accent, pattern, number, sponsor].join('|');
+const SPONSORS = ['PETRONIX', 'ROLEXA', 'DHX', 'ORACLO', 'BREMBI', 'LAVAZZO', 'PUMO', 'LENOVA', 'MONSTRO', 'SANTANDOR', 'CRYPTO.CAM', 'ARAMCORE', 'TAG HEUERR', 'VELOXA', 'KAPPA-ONE', 'NORDLINK'];
+function hashStr(t) { let h = 2166136261; for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; }
+function liveryTexture(L, { number, sponsor, pattern = L.pattern ?? 1, kind, dirt = 0 }) {
+  const key = ['liv', kind, L.primary, L.secondary, L.accent, pattern, number, sponsor, dirt].join('|');
   return cached(key, () => {
     const W = 1024, H = 512;
     const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
@@ -64,10 +66,54 @@ function liveryTexture(L, { number, sponsor, pattern = L.pattern ?? 1, kind }) {
         g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(sponsor.toUpperCase(), 0, 4);
       }, spU, vC, flip);
     }
+    // carbon weave showing through the lower band, accent pinstripe on the paint edge
+    {
+      const y0 = Y(0.88), y1 = Y(0.62);
+      for (let y = y1; y < y0; y += 4) for (let x = 0; x < W; x += 4) { if (((x + y) >> 2) % 2) { g.fillStyle = 'rgba(255,255,255,0.045)'; g.fillRect(x, y, 4, 2); } }
+      g.fillStyle = L.accent; band(0.615, 0.622); band(0.878, 0.885);
+    }
+    // secondary sponsors: sidepod / engine cover, cockpit side, nose top, small technical
+    // partner decals; chosen per team from its colours so every car is consistent
+    {
+      const h0 = hashStr(L.primary + L.secondary + (sponsor || ''));
+      const pick = (k) => SPONSORS[(h0 + k * 7) % SPONSORS.length];
+      const decal = (txt, uC, vC, maxW, size0, rot, boxed) => {
+        g.save(); g.translate(uC * W, Y(vC)); g.rotate(rot);
+        let size = size0; g.font = `italic 900 ${size}px "Exo 2", sans-serif`;
+        while (g.measureText(txt).width > maxW * W && size > 10) { size -= 2; g.font = `italic 900 ${size}px "Exo 2", sans-serif`; }
+        const tw = g.measureText(txt).width;
+        if (boxed) { g.fillStyle = boxed; g.fillRect(-tw / 2 - 8, -size * 0.62, tw + 16, size * 1.24); }
+        g.fillStyle = boxed ? (luma(boxed) > 0.6 ? '#111' : '#fff') : ink; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, 0, 2); g.restore();
+      };
+      const sA = pick(1), sB = pick(2), sC = pick(3);
+      const top = kind === 'formula' ? [[0.22, sA], [0.62, sB]] : [[kind === 'rally' ? 0.6 : 0.68, sA], [0.25, sB]];
+      for (const [u, t] of top) decal(t, u, 0.25, 0.16, 46, 0, null);
+      for (const [vC, flip] of [[0.1, 0], [0.4, Math.PI]]) {
+        decal(sC, kind === 'formula' ? 0.56 : kind === 'rally' ? 0.3 : 0.82, vC + (flip ? 0.04 : -0.04), 0.1, 30, flip, kind === 'formula' ? null : L.secondary);
+        decal(sB, kind === 'formula' ? 0.18 : 0.12, vC, 0.1, 30, flip, null);
+        // technical partners: tiny white/black patches
+        for (let k = 0; k < 3; k++) decal(pick(5 + k), (kind === 'formula' ? 0.47 : 0.42) + k * 0.045, vC - (flip ? -0.07 : 0.07), 0.035, 16, flip, k % 2 ? '#ffffff' : '#111111');
+      }
+    }
     // top number (formula nose)
     if (number != null && kind === 'formula') { g.save(); g.translate(W * 0.86, Y(0.25)); g.rotate(Math.PI / 2); g.fillStyle = ink; g.font = 'italic 900 60px "Exo 2", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(number), 0, 0); g.restore(); }
+    if (dirt > 0) {
+      // mud and dust (v .5-.75 = left side below the belt, .75-1 = right side): caked on the
+      // sills and lower doors, fading up the sides, speckled spray, dusty rear
+      let seed = 5; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+      const mc = (a) => `rgba(${118 + rnd() * 30},${90 + rnd() * 20},${58 + rnd() * 16},${a})`;
+      g.fillStyle = `rgba(112,86,58,${0.82 * dirt})`; g.fillRect(0, Y(0.94), W, Y(0.56) - Y(0.94));
+      const fade = (va, vb) => { const gr = g.createLinearGradient(0, Y(va), 0, Y(vb)); gr.addColorStop(0, `rgba(122,94,62,${0.8 * dirt})`); gr.addColorStop(1, 'rgba(122,94,62,0)'); g.fillStyle = gr; g.fillRect(0, Math.min(Y(va), Y(vb)), W, Math.abs(Y(va) - Y(vb))); };
+      fade(0.56, 0.44); fade(0.94, 1.0); fade(0.0, 0.07);
+      for (let i = 0; i < 3200 * dirt; i++) {
+        const u = rnd(), r = rnd(); const v = r < 0.45 ? 0.42 + rnd() * 0.16 : r < 0.75 ? 0.9 + rnd() * 0.1 : rnd() * 0.1;
+        g.fillStyle = mc(0.2 + rnd() * 0.55); g.fillRect(u * W, Y(v), 1 + rnd() * 6, 1 + rnd() * 3);
+      }
+      const rear = g.createLinearGradient(0, 0, W * 0.16, 0); rear.addColorStop(0, `rgba(120,92,60,${0.65 * dirt})`); rear.addColorStop(1, 'rgba(120,92,60,0)'); g.fillStyle = rear; g.fillRect(0, 0, W * 0.16, H);
+      g.fillStyle = `rgba(150,128,100,${0.12 * dirt})`; g.fillRect(0, 0, W, H);
+    }
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
-    return new THREE.MeshPhysicalMaterial({ map: t, roughness: 0.32, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.04, normalMap: flakeTex(), normalScale: new THREE.Vector2(0.07, 0.07) });
+    return new THREE.MeshPhysicalMaterial({ map: t, roughness: dirt > 0 ? 0.32 + dirt * 0.35 : 0.32, metalness: 0.2, clearcoat: 1 - dirt * 0.6, clearcoatRoughness: 0.04 + dirt * 0.4, normalMap: flakeTex(), normalScale: new THREE.Vector2(0.07, 0.07) });
   });
 }
 
@@ -326,6 +372,7 @@ function wheel(r, w, tyreColor, { rim = '#1c1f24', kind = 'gt', rimFrac = 0.66, 
   }
   if (kind !== 'f1') { const cal = mesh(new THREE.BoxGeometry(rimR * 0.5, rimR * 0.35, 0.06), MAT.paint('#c8102e')); cal.position.set(rimR * 0.45, rimR * 0.45, 0); grp.add(cal); }
   grp.userData.spin = [spin]; grp.userData.spinAxis = 'z';
+  grp.userData.rimR = rimR; grp.userData.w = w; grp.userData.kind = kind;
   return grp;
 }
 
