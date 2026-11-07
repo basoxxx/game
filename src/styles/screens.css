@@ -357,3 +357,8 @@
 .drv-card::before { content: ''; position: absolute; right: -60px; top: 0; width: 360px; height: 150px; background: linear-gradient(180deg, color-mix(in srgb, var(--team) 22%, transparent), transparent); transform: skewX(calc(-1 * var(--slant))); pointer-events: none; }
 .drv-card > * { position: relative; }
 .drv-card > .drv-bignum { position: absolute; right: 96px; top: -26px; font-family: var(--display); font-weight: 800; font-style: italic; font-size: 160px; line-height: 1; color: color-mix(in srgb, var(--team) 24%, transparent); pointer-events: none; }
+
+/* Scontro Totale: full-screen game container (the in-race HUD styles live in src/derby/derby.css) */
+.dz-root { position: fixed; inset: 0; background: #000; overflow: hidden; }
+.dz-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-size: 22px; color: #ddd; }
+.dz-menu { padding-bottom: 140px; }
