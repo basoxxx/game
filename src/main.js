@@ -12,6 +12,7 @@ import './screens/results.js';
 import './screens/seasonend.js';
 import './screens/quickrace.js';
 import './screens/challenges.js';
+import './screens/derby.js';
 import { S, saveGame } from './engine/state.js';
 
 App.init();

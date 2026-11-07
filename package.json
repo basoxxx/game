@@ -24,6 +24,7 @@
     "vite": "^7.3.7"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.14.0",
     "@fontsource/exo-2": "^5.3.0",
     "@fontsource/titillium-web": "^5.3.0",
     "three": "^0.170.0"
@@ -31,7 +32,7 @@
   "build": {
     "appId": "com.apexdynasty.game",
     "productName": "Apex Dynasty",
-    "copyright": "Apex Dynasty \u2013 gioco di fantasia",
+    "copyright": "Apex Dynasty – gioco di fantasia",
     "directories": {
       "output": "release",
       "buildResources": "build"
