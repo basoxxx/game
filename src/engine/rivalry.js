@@ -114,6 +114,43 @@ export function radioContact(att, def, heat) {
   ]);
 }
 
+// furious exchanges: the victim screams, the other answers back a few seconds later
+export function radioFury(victim, culprit, heat) {
+  const L = last(culprit), F = first(victim);
+  const lines = heat >= 70 ? [
+    `📻 ${F}: «È UN IDIOTA! ${L} è un idiota! Lo sapevo che l’avrebbe fatto! Voglio la bandiera nera!»`,
+    `📻 ${F}: «Ma ci state guardando?! ${L} mi ha speronato! Se lo trovo nel paddock…»`,
+    `📻 ${F}: «Basta, ogni gara la stessa storia! ${L} non dovrebbe avere la superlicenza!»`,
+    `📻 ${F}: «*** ${L}! *** Avete visto?! Lo faccio squalificare!»`,
+  ] : heat >= 40 ? [
+    `📻 ${F}: «Ancora ${L}! Ma cosa ha nel cervello? Chiedete ai commissari!»`,
+    `📻 ${F}: «Mi ha spinto fuori, punto. Voglio un’investigazione su ${L}.»`,
+    `📻 ${F}: «Incredibile, ${L} frena in curva e mi chiude la porta in faccia!»`,
+  ] : [
+    `📻 ${F}: «${L} mi ha toccato, controllate i danni.»`,
+    `📻 ${F}: «Contatto con ${L}, è stato al limite.»`,
+  ];
+  return pick(lines);
+}
+export function radioReply(culprit, victim, heat) {
+  const L = last(victim), F = first(culprit);
+  const lines = heat >= 60 ? [
+    `📻 ${F}: «Si lamenta sempre. Se non sa difendersi, cambi mestiere.»`,
+    `📻 ${F}: «${L}? Ha frenato a metà rettilineo. Che vada a piangere dai commissari.»`,
+    `📻 ${F}: «Non me ne frega niente di cosa dice ${L}. Ero davanti.»`,
+    `📻 ${F}: «Ha cominciato lui due gare fa. Adesso siamo pari.»`,
+  ] : [
+    `📻 ${F}: «Ero già affiancato, ${L} ha chiuso la traiettoria.»`,
+    `📻 ${F}: «Contatto di gara, nessuna colpa.»`,
+    `📻 ${F}: «Avevo spazio, ha sterzato lui verso di me.»`,
+  ];
+  return pick(lines);
+}
+export function commentaryFury(victim, culprit, heat) {
+  return heat >= 60 ? pick([`🎙 Che tensione! ${last(victim)} è furioso con ${last(culprit)}, si vedono i gesti dall’abitacolo!`, `🎙 Volano parole grosse via radio tra ${last(victim)} e ${last(culprit)}. Questa storia non finisce qui.`, `🎙 ${last(victim)} agita il pugno verso ${last(culprit)}! Il paddock stasera sarà rovente.`])
+    : pick([`🎙 Contatto tra ${last(culprit)} e ${last(victim)}: i commissari prendono nota.`, `🎙 Ruota contro ruota, ${last(victim)} non l’ha presa bene.`]);
+}
+
 export function radioOrders(yielder, mate) {
   return pick([
     `📻 ${first(yielder)}: «Mi state chiedendo di farlo passare? Davvero? ...Ricevuto. Ma non finisce qui.»`,

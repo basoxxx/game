@@ -6,7 +6,7 @@ import { tyreModel, degPenalty, tempPenalty, weatherFactor, strategyOptions } fr
 import { rand, randInt, chance, clamp, gauss, pick } from './rng.js';
 import { hasPerk } from './progress.js';
 import { getSettings } from './state.js';
-import { ensureRivalries, duelModifiers, radioAfterPass, radioContact, radioOrders, commentaryPass, commentaryBattle, commentaryGeneric } from './rivalry.js';
+import { ensureRivalries, duelModifiers, radioAfterPass, radioContact, radioOrders, radioFury, radioReply, commentaryFury, commentaryPass, commentaryBattle, commentaryGeneric } from './rivalry.js';
 
 function fmtLapShort(t) { const m = Math.floor(t / 60); const r = t - m * 60; return `${m}:${r.toFixed(3).padStart(6, '0')}`; }
 
@@ -295,7 +295,8 @@ export class CircuitSim {
     this.log(text, 'comm', key, false);
   }
   // driver-to-pit radio outbursts about other drivers
-  rivalRadio(text, key, force = false) { if (!text) return; if (!force && this.time - (this.rrT ?? -99) < 30) return; this.rrT = this.time; { this.log(text, 'rradio', key, true); this.lastRadio = { t: this.time, text, key }; } }
+  rivalRadio(text, key, force = false, angry = false) { if (!text) return; if (!force && this.time - (this.rrT ?? -99) < 30) return; this.rrT = this.time; { this.log(text, 'rradio', key, true); this.lastRadio = { t: this.time, text, key, angry }; } }
+  queueRadio(delay, text, key, angry) { (this.radioLater ||= []).push({ at: this.time + delay, text, key, angry }); }
   rivalHeat(a, b, amt, why) { const da = this.driver(a), db = this.driver(b); if (da && db) this.rivalEvents.push({ a: da.id, b: db.id, amt, why }); }
 
   setMode(key, mode) { const c = this.cars.find((x) => x.key === key); if (c && c.status === 'running') { c.mode = mode; c.lapTarget = this.computeLap(c); } }
@@ -719,7 +720,12 @@ export class CircuitSim {
             if ((duel.heat >= 45 || mates) && (visible || duel.heat >= 70) && chance(0.4 + duel.heat / 250)) this.rivalRadio(radioAfterPass(db, da, duel.heat, mates), chance(0.5) ? a.key : b.key);
             if (chance(0.006 * (1.5 - db.attrs.race / 100) * duel.contactMult)) {
               this.rivalHeat(a, b, 17, mates ? 'Contatto tra compagni di squadra' : 'Contatto in pista');
-              this.rivalRadio(radioContact(db, da, duel.heat), a.key, true);
+              const hh = duel.heat + 17;
+              if (hh >= 30 || a.isPlayer || b.isPlayer) {
+                this.rivalRadio(radioFury(da, db, hh), a.key, true, hh >= 40);
+                this.queueRadio(5 + Math.random() * 5, radioReply(db, da, hh), b.key, hh >= 60);
+                this.comment(commentaryFury(da, db, hh), a.key, true);
+              } else this.rivalRadio(radioContact(db, da, duel.heat), a.key, true);
               if (chance(0.3)) this.retire(a, 'Contatto in duello', true);
               else { a.damage += rand(0.3, 0.9); this.log(`⚠ Contatto tra ${db.name} e ${da.name}: ala danneggiata!`, 'warn', a.key, a.isPlayer || b.isPlayer); a.lapTarget = this.computeLap(a); }
             }
@@ -741,6 +747,7 @@ export class CircuitSim {
     }
     const all = this.classification();
     all.forEach((c, i) => (c.pos = i + 1));
+    if (this.radioLater?.length) { const due = this.radioLater.filter((r) => r.at <= this.time); this.radioLater = this.radioLater.filter((r) => r.at > this.time); for (const r of due) this.rivalRadio(r.text, r.key, true, r.angry); }
     // race-narrative commentary
     const ld = all[0];
     if (ld && !this.leaderFinished) {

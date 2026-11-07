@@ -8,16 +8,47 @@ const G = 9.81;
 const DS = 5; // meters per sample
 const geoCache = {};
 
+// Clean raw circuit points: drop near-duplicates and spikes (points that make the line
+// double back on itself), which otherwise create cusps and tiny loops in the spline.
+function cleanPts(pts) {
+  let p = pts.slice();
+  const segLen = (i) => Math.hypot(p[(i + 1) % p.length][0] - p[i][0], p[(i + 1) % p.length][1] - p[i][1]);
+  for (let pass = 0; pass < 6; pass++) {
+    const n = p.length; let mean = 0; for (let i = 0; i < n; i++) mean += segLen(i); mean /= n;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const a = p[(i - 1 + n) % n], b = p[i], c = p[(i + 1) % n];
+      const ux = b[0] - a[0], uy = b[1] - a[1], vx = c[0] - b[0], vy = c[1] - b[1];
+      const lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
+      if (lu < mean * 0.18) continue; // duplicate
+      const cos = (ux * vx + uy * vy) / (lu * lv || 1);
+      if (cos < -0.35) continue; // spike: turns back more than ~110°
+      out.push(b);
+    }
+    if (out.length === p.length) break;
+    p = out;
+  }
+  return p;
+}
+
+// Centripetal Catmull-Rom (alpha 0.5): no cusps or self-intersections inside a segment
 function catmullClosed(pts, sub) {
   const n = pts.length, out = [];
+  const tj = (ti, a, b) => ti + Math.max(1e-6, Math.sqrt(Math.hypot(b[0] - a[0], b[1] - a[1])));
   for (let i = 0; i < n; i++) {
-    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+    const P0 = pts[(i - 1 + n) % n], P1 = pts[i], P2 = pts[(i + 1) % n], P3 = pts[(i + 2) % n];
+    const t0 = 0, t1 = tj(t0, P0, P1), t2 = tj(t1, P1, P2), t3 = tj(t2, P2, P3);
     for (let s = 0; s < sub; s++) {
-      const t = s / sub, t2 = t * t, t3 = t2 * t;
-      out.push([
-        0.5 * (2 * p1[0] + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3),
-        0.5 * (2 * p1[1] + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3),
-      ]);
+      const t = t1 + (t2 - t1) * (s / sub);
+      const pt = [0, 1].map((k) => {
+        const A1 = (t1 - t) / (t1 - t0) * P0[k] + (t - t0) / (t1 - t0) * P1[k];
+        const A2 = (t2 - t) / (t2 - t1) * P1[k] + (t - t1) / (t2 - t1) * P2[k];
+        const A3 = (t3 - t) / (t3 - t2) * P2[k] + (t - t2) / (t3 - t2) * P3[k];
+        const B1 = (t2 - t) / (t2 - t0) * A1 + (t - t0) / (t2 - t0) * A2;
+        const B2 = (t3 - t) / (t3 - t1) * A2 + (t - t1) / (t3 - t1) * A3;
+        return (t2 - t) / (t2 - t1) * B1 + (t - t1) / (t2 - t1) * B2;
+      });
+      out.push(pt);
     }
   }
   return out;
@@ -27,7 +58,7 @@ export function trackGeometry(cid) {
   if (geoCache[cid]) return geoCache[cid];
   const C = CIRCUITS[cid];
   if (!C) return null;
-  const dense = catmullClosed(C.pts, 12);
+  const dense = catmullClosed(cleanPts(C.pts), 12);
   // arc length
   const L = [0];
   for (let i = 1; i <= dense.length; i++) { const a = dense[i - 1], b = dense[i % dense.length]; L.push(L[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
@@ -45,6 +76,43 @@ export function trackGeometry(cid) {
     x[i] = (a[0] + (b[0] - a[0]) * f) * scale; y[i] = (a[1] + (b[1] - a[1]) * f) * scale;
   }
   const ds = total / N;
+  // light smoothing of the resampled line (±10 m), 2 passes
+  for (let pass = 0; pass < 2; pass++) {
+    const sx = new Float64Array(N), sy = new Float64Array(N);
+    for (let i = 0; i < N; i++) { let ax = 0, ay = 0; for (let q = -2; q <= 2; q++) { const w = 3 - Math.abs(q); ax += x[(i + q + N) % N] * w; ay += y[(i + q + N) % N] * w; } sx[i] = ax / 9; sy[i] = ay / 9; }
+    x.set(sx); y.set(sy);
+  }
+  // keep separate parts of the circuit at least MIN_SEP apart (data is coarse: parallel
+  // sections can overlap). True crossings (Suzuka) are kept and turned into a bridge.
+  const MIN_SEP = 24;
+  const cross = [];
+  {
+    const near = (i, j) => { let d = Math.abs(i - j); d = Math.min(d, N - d); return d < 24; };
+    const segX = (i, j) => { const a = i, b = (i + 1) % N, c = j, d = (j + 1) % N; const d1 = (x[b] - x[a]) * (y[c] - y[a]) - (y[b] - y[a]) * (x[c] - x[a]); const d2 = (x[b] - x[a]) * (y[d] - y[a]) - (y[b] - y[a]) * (x[d] - x[a]); const d3 = (x[d] - x[c]) * (y[a] - y[c]) - (y[d] - y[c]) * (x[a] - x[c]); const d4 = (x[d] - x[c]) * (y[b] - y[c]) - (y[d] - y[c]) * (x[b] - x[c]); return d1 * d2 < 0 && d3 * d4 < 0; };
+    for (let i = 0; i < N; i++) for (let j = i + 24; j < N; j++) if (!near(i, j) && Math.abs(x[i] - x[j]) < 12 && Math.abs(y[i] - y[j]) < 12 && segX(i, j)) cross.push([i, j]);
+    const isCross = (i, j) => cross.some(([a, b]) => { const da = Math.min(Math.abs(a - i), N - Math.abs(a - i)), db = Math.min(Math.abs(b - j), N - Math.abs(b - j)); const ea = Math.min(Math.abs(a - j), N - Math.abs(a - j)), eb = Math.min(Math.abs(b - i), N - Math.abs(b - i)); return (da < 16 && db < 16) || (ea < 16 && eb < 16); });
+    let cand = [];
+    for (let i = 0; i < N; i++) for (let j = i + 24; j < N; j++) if (!near(i, j) && Math.abs(x[i] - x[j]) < MIN_SEP + 6 && Math.abs(y[i] - y[j]) < MIN_SEP + 6 && !isCross(i, j)) cand.push([i, j]);
+    for (let it = 0; it < 40 && cand.length; it++) {
+      const dx = new Float64Array(N), dy = new Float64Array(N); let moved = 0;
+      for (const [i, j] of cand) {
+        const vx = x[j] - x[i], vy = y[j] - y[i]; const d = Math.hypot(vx, vy) || 0.01;
+        if (d >= MIN_SEP) continue;
+        const push = (MIN_SEP - d) * 0.25; const ux = vx / d, uy = vy / d;
+        dx[i] -= ux * push; dy[i] -= uy * push; dx[j] += ux * push; dy[j] += uy * push; moved++;
+      }
+      if (!moved) break;
+      // spread displacement smoothly to neighbours so the line stays fair
+      for (let pass = 0; pass < 3; pass++) { const ax = new Float64Array(N), ay = new Float64Array(N); for (let i = 0; i < N; i++) { ax[i] = (dx[(i - 1 + N) % N] + 2 * dx[i] + dx[(i + 1) % N]) / 4; ay[i] = (dy[(i - 1 + N) % N] + 2 * dy[i] + dy[(i + 1) % N]) / 4; } dx.set(ax); dy.set(ay); }
+      for (let i = 0; i < N; i++) { x[i] += dx[i] * 1.6; y[i] += dy[i] * 1.6; }
+      cand.moved = true;
+    }
+    if (cand.moved) for (let pass = 0; pass < 4; pass++) {
+      const sx = new Float64Array(N), sy = new Float64Array(N);
+      for (let i = 0; i < N; i++) { let ax = 0, ay = 0; for (let q = -3; q <= 3; q++) { const w = 4 - Math.abs(q); ax += x[(i + q + N) % N] * w; ay += y[(i + q + N) % N] * w; } sx[i] = ax / 16; sy[i] = ay / 16; }
+      x.set(sx); y.set(sy);
+    }
+  }
   // heading & curvature (smoothed)
   const hdg = new Float64Array(N), k = new Float64Array(N);
   for (let i = 0; i < N; i++) { const b = (i + 1) % N, a = (i - 1 + N) % N; hdg[i] = Math.atan2(y[b] - y[a], x[b] - x[a]); }
@@ -68,7 +136,7 @@ export function trackGeometry(cid) {
     for (let q = -14; q <= 14; q++) if (q && Math.abs(ks[(i + q + N) % N]) > a) { peak = false; break; }
     if (peak && (!corners.length || i - corners[corners.length - 1].i > 16)) corners.push({ i, dir: Math.sign(ks[i]), r: 1 / a });
   }
-  const g = { cid, name: C.name, N, ds, len: total, x, y, hdg, k: ks, corners, bbox: [minx, miny, maxx, maxy] };
+  const g = { cid, name: C.name, N, ds, len: total, x, y, hdg, k: ks, corners, cross, bbox: [minx, miny, maxx, maxy] };
   geoCache[cid] = g;
   return g;
 }

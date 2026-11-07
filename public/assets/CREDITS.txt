@@ -2,3 +2,6 @@ Textures and HDRIs: Poly Haven (https://polyhaven.com) - CC0 1.0 Public Domain.
 asphalt_02, aerial_grass_rock, gravel_floor, snow_02, concrete_floor_worn_001, rocky_trail,
 kloofendal_48d_partly_cloudy_puresky, qwantani_dusk_2_puresky, moonless_golf.
 Circuit geometry: bacinger/f1-circuits (MIT).
+Vegetation impostors (veg/trees.webp): rendered from Poly Haven CC0 models
+fir_sapling_medium, pine_sapling_small, searsia_lucida, searsia_burchellii, shrub_02,
+quiver_tree_02, othonna_cerarioides (https://polyhaven.com/models) - CC0 1.0 Public Domain.

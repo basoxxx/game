@@ -18,6 +18,15 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 3.2
+
+- **Tracciati corretti**: eliminate le cuspidi e i mini-anelli nei dati dei circuiti (auto che giravano su se stesse e si teletrasportavano), tratti paralleli separati, **ponte** sugli incroci (Suzuka), barriere che non invadono i tratti vicini
+- **Vegetazione fotorealistica**: alberi e cespugli da modelli Poly Haven (CC0) trasformati in impostor a 8 viste, migliaia per circuito, con ombre di contatto
+- **Barriere vere**: guard-rail in acciaio su pali, blocchi Tecpro nelle vie di fuga, muri in cemento nei cittadini, reti di protezione
+- **Ambient occlusion** (GTAO) e asfalto bagnato più realistico
+- **Camera "Pilota"** dall'abitacolo: halo, volante con display, specchietti
+- **Team radio furiosi**: botta e risposta tra piloti dopo i contatti, con sottotitoli rossi
+
 ## Novità della versione 3.1
 
 - **Rivalità tra piloti**: tensione per ogni coppia di piloti (duelli, contatti, ordini di scuderia), faide più aggressive in pista, drammi nel paddock e gerarchia di squadra

@@ -6,6 +6,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 
 const BASE = './assets/';
 const texLoader = new THREE.TextureLoader();
@@ -51,7 +52,7 @@ export function applyHDRI(renderer, scene, kind = 'day', { background = true, in
   });
 }
 
-export function makeComposer(renderer, scene, camera, { bloom = 0.22, low = false } = {}) {
+export function makeComposer(renderer, scene, camera, { bloom = 0.22, low = false, ao = false } = {}) {
   if (low) return null;
   try {
     const size0 = renderer.getSize(new THREE.Vector2());
@@ -60,6 +61,15 @@ export function makeComposer(renderer, scene, camera, { bloom = 0.22, low = fals
     const comp = new EffectComposer(renderer, rt);
     comp.addPass(new RenderPass(scene, camera));
     const size = renderer.getSize(new THREE.Vector2());
+    if (ao) {
+      try {
+        const g = new GTAOPass(scene, camera, size.x, size.y);
+        g.updateGtaoMaterial({ radius: 1.6, distanceExponent: 1.6, thickness: 2, scale: 1, samples: 12 });
+        g.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
+        g.blendIntensity = 0.85;
+        comp.addPass(g); comp.ao = g;
+      } catch (e) { console.warn('AO off', e); }
+    }
     const b = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), bloom, 0.55, 0.88);
     comp.addPass(b);
     comp.addPass(new OutputPass());

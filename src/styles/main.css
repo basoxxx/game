@@ -375,3 +375,7 @@ label.lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; 
 .tech-opt { border-top: 3px solid var(--accent); transition: transform .15s, box-shadow .15s; }
 .tech-opt:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(225,6,0,.25); }
 .tech-opt.risk { border-top-color: var(--warn); }
+
+.race-sub .sub.angry { border-left-color: #ff2a2a; background: rgba(40,4,4,.88); color: #fff; font-weight: 700; animation: rise .3s ease both, shake .45s ease .3s 1; box-shadow: 0 0 0 1px rgba(255,40,40,.45), 0 10px 30px rgba(255,0,0,.25); }
+.race-sub .sub.angry .sub-tag { background: #ff2a2a; color: #fff; }
+@keyframes shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }

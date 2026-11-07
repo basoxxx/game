@@ -364,7 +364,7 @@ function stopRace() { R.moment = null; R.replay = null; R.rbuf = []; cancelAnima
 function renderViewBtns() {
   const el = document.getElementById('view-btns'); if (!el) return;
   const can3d = webglAvailable();
-  el.innerHTML = (can3d ? `<button class="btn sm" data-a="replay" title="Rivedi gli ultimi 10 secondi">⟲ Replay</button>` : '') + [['2d', 'Mappa 2D'], ['auto', 'Regia'], ['tv', 'TV 3D'], ['chase', 'Camera car'], ['onboard', 'Onboard'], ['heli', 'Elicottero']].map(([k, n]) => `<button class="btn sm ${((R.view3d || '2d') === k) ? 'active' : ''}" data-a="${k === '2d' ? 'view2d' : 'cam'}" data-c="${k}" ${k !== '2d' && !can3d ? 'disabled' : ''}>${n}</button>`).join('');
+  el.innerHTML = (can3d ? `<button class="btn sm" data-a="replay" title="Rivedi gli ultimi 10 secondi">⟲ Replay</button>` : '') + [['2d', 'Mappa 2D'], ['auto', 'Regia'], ['tv', 'TV 3D'], ['chase', 'Camera car'], ['onboard', 'Onboard'], ...(['formula', 'junior'].includes(S().category) ? [['cockpit', 'Pilota']] : []), ['heli', 'Elicottero']].map(([k, n]) => `<button class="btn sm ${((R.view3d || '2d') === k) ? 'active' : ''}" data-a="${k === '2d' ? 'view2d' : 'cam'}" data-c="${k}" ${k !== '2d' && !can3d ? 'disabled' : ''}>${n}</button>`).join('');
 }
 function enable3D(cam) {
   const st = S(); const sim = R.sim;
@@ -469,7 +469,7 @@ function updateSub() {
       R['_sub' + k] = m;
       const c = m.key && sim.cars.find((x) => x.key === m.key);
       const col = c ? c.team.car.livery.primary : 'var(--accent)';
-      el.insertAdjacentHTML('afterbegin', `<div class="sub ${cls}" data-t="${now}" style="--sc:${col}">${cls === 'radio' ? '<span class="sub-tag">RADIO</span>' : '<span class="sub-tag">LIVE</span>'}${esc(m.text.replace(/^(🎙|📻)\s*/u, ''))}</div>`);
+      el.insertAdjacentHTML('afterbegin', `<div class="sub ${cls}${m.angry ? ' angry' : ''}" data-t="${now}" style="--sc:${col}">${cls === 'radio' ? '<span class="sub-tag">RADIO</span>' : '<span class="sub-tag">LIVE</span>'}${esc(m.text.replace(/^(🎙|📻)\s*/u, ''))}</div>`);
       if (cls === 'radio' && c) try { sfx.radio?.(); } catch {}
     }
   }

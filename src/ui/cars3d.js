@@ -207,6 +207,24 @@ function formula(L, opts) {
   const cp = mesh(loft([{ x: -0.62, w: 0.46, h: 0.06, y: 0.79, n: 3 }, { x: -0.1, w: 0.5, h: 0.06, y: 0.77, n: 3 }, { x: 0.25, w: 0.32, h: 0.05, y: 0.73, n: 3 }], { seg: 10, around: 20 }), MAT.rubber()); car.add(cp);
   const helmet = mesh(new THREE.SphereGeometry(0.15, 20, 14), MAT.paint(opts.helmet || '#ffd400')); helmet.position.set(-0.32, 0.88, 0); helmet.scale.set(1.15, 1, 1); car.add(helmet);
   const visor = mesh(new THREE.SphereGeometry(0.152, 20, 10, -0.9, 1.8, 1.2, 0.5), MAT.glass()); visor.position.copy(helmet.position); visor.scale.copy(helmet.scale); car.add(visor);
+  car.userData.helmetParts = [helmet, visor];
+  // cockpit interior (seen from the driver's camera): steering wheel with display, mirrors
+  {
+    const sw = new THREE.Group();
+    const body = mesh(new THREE.BoxGeometry(0.035, 0.13, 0.27), MAT.carbon ? MAT.carbon() : cf); sw.add(body);
+    for (const z of [-0.15, 0.15]) { const g = mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.15, 10), MAT.rubber()); g.position.set(0, -0.01, z); sw.add(g); const glove = mesh(new THREE.SphereGeometry(0.035, 10, 8), MAT.rubber()); glove.position.set(-0.025, 0.0, z); glove.scale.set(1.2, 1, 0.8); sw.add(glove); }
+    const dc = document.createElement('canvas'); dc.width = 128; dc.height = 64; const dx = dc.getContext('2d');
+    dx.fillStyle = '#05070a'; dx.fillRect(0, 0, 128, 64); dx.fillStyle = '#18e06a'; dx.font = 'bold 34px monospace'; dx.textAlign = 'center'; dx.fillText('7', 64, 44); dx.font = 'bold 12px monospace'; dx.fillStyle = '#ffd400'; dx.fillText('-0.142', 26, 58); dx.fillStyle = '#4fc3ff'; dx.fillText('ERS 78%', 100, 58);
+    for (let k = 0; k < 10; k++) { dx.fillStyle = k < 4 ? '#18e06a' : k < 7 ? '#ff3030' : '#4f7dff'; dx.fillRect(10 + k * 11, 4, 8, 6); }
+    const dt = new THREE.CanvasTexture(dc); dt.colorSpace = THREE.SRGBColorSpace;
+    const disp = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.05), new THREE.MeshBasicMaterial({ map: dt })); disp.position.set(-0.019, 0.01, 0); disp.rotation.y = -Math.PI / 2; sw.add(disp);
+    sw.position.set(-0.1, 0.74, 0); sw.rotation.z = 0.45; car.add(sw);
+    for (const z of [-0.56, 0.56]) {
+      const stalk = rod([-0.1, 0.66, z * 0.75], [0.05, 0.76, z], 0.012, cf); car.add(stalk);
+      const mir = mesh(new THREE.BoxGeometry(0.025, 0.05, 0.12), MAT.paint(L.primary || '#333')); mir.position.set(0.05, 0.76, z); car.add(mir);
+      const glass = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.05), new THREE.MeshStandardMaterial({ color: 0x9fb6c8, metalness: 1, roughness: 0.05 })); glass.position.set(0.032, 0.76, z); glass.rotation.y = -Math.PI / 2; car.add(glass);
+    }
+  }
   // halo
   const haloCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(-0.62, 0.8, 0.3), new THREE.Vector3(-0.35, 1.06, 0.29), new THREE.Vector3(0.05, 1.06, 0.18), new THREE.Vector3(0.22, 1.02, 0), new THREE.Vector3(0.05, 1.06, -0.18), new THREE.Vector3(-0.35, 1.06, -0.29), new THREE.Vector3(-0.62, 0.8, -0.3)]);
   car.add(mesh(new THREE.TubeGeometry(haloCurve, 40, 0.032, 8), cf));
