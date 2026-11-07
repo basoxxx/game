@@ -91,7 +91,7 @@ export class Race3D {
     for (const c of cars) this.addCar(c);
     this.camPos = new THREE.Vector3(0, 50, 0);
     this.camLook = new THREE.Vector3();
-    this.tvCams = this.makeTvCams();
+    this.tvCams ||= this.makeTvCams();
     this.rain = null;
     this.resize();
     this._ro = new ResizeObserver(() => this.resize());
@@ -490,7 +490,10 @@ export class Race3D {
     const pickKind = () => { let r = Math.random(); for (const [k, w] of weights) { if ((r -= w) <= 0) return k; } return weights[0][0]; };
     const target = Math.round((street > 0.7 ? 260 : desert ? 900 : 3000) * (this.low ? 0.35 : 1));
     const items = [];
-    const ok = (px, pz, r) => this.clearOfTrack(px, pz, W / 2 + 7 + r) && !this.obstacles.some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.r + r) ** 2);
+    // keep a clear line of sight between every TV camera and the track
+    const N0 = this.geo.N; const sight = (this.tvCams || []).flatMap((c) => [0, -15, -30].map((d) => { const j = (c.i + d + N0) % N0; return { x0: c.pos.x, z0: c.pos.z, x1: this.geo.x[j], z1: this.geo.y[j] }; }));
+    const blocksCam = (px, pz) => sight.some((v) => { const dx = v.x1 - v.x0, dz = v.z1 - v.z0; const L2 = dx * dx + dz * dz || 1; const t = Math.max(-0.4, Math.min(1, ((px - v.x0) * dx + (pz - v.z0) * dz) / L2)); const qx = v.x0 + dx * t, qz = v.z0 + dz * t; return (px - qx) ** 2 + (pz - qz) ** 2 < 26 * 26; });
+    const ok = (px, pz, r) => this.clearOfTrack(px, pz, W / 2 + 7 + r) && !blocksCam(px, pz) && !this.obstacles.some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.r + r) ** 2);
     let guard = 0;
     while (items.length < target && guard++ < target * 6) {
       const i = Math.floor(Math.random() * N); const side = Math.random() < 0.5 ? 1 : -1;
@@ -638,6 +641,7 @@ export class Race3D {
     }
     inst.castShadow = true;
     if (count) this.scene.add(inst);
+    this.tvCams ||= this.makeTvCams();
     this.buildForest(street);
     // trackside sponsor billboards
     const brands = ['PETRONIX', 'ORACLO', 'ARAMCORE', 'ROLEXA', 'HEINEKAN 0.0', 'DHX', 'PIRELLO', 'LENOVA', 'SANTANDOR', 'MONSTRO', 'PUMO', 'BREMBI', 'CRYPTO.CAM', 'LAVAZZO', 'TAG HEUERR', 'APEX DYNASTY'];
