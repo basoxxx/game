@@ -60,7 +60,7 @@ export const TEAMS = {
     { id: 'lancisa', name: 'Lancisa Corse HF', short: 'LAN', colors: ['#0a2a66', '#ffcc00', '#ffffff'], works: true, rep: 78, budget: 28, base: 77, bias: { engine: 1, suspension: -1, chassis: 2, gearbox: 0, reliability: -1 }, principal: 'Luca Napolitani', hq: 'Torino, ITA',
       d: [['Andrea Crugnoli', 'ITA', 36, 83, 82, 81, 84, 81, 85, 83], ['Roberto Dapretti', 'ITA', 24, 82, 76, 80, 79, 77, 45, 89]] },
     { id: 'subaro', name: 'Subaro World Rally', short: 'SUB', colors: ['#1d4ec2', '#f5d300', '#0a1640'], works: true, rep: 74, budget: 24, base: 76, bias: { engine: 2, suspension: 1, chassis: -1, gearbox: 2, reliability: -2 }, principal: 'Prodrive Richards', hq: 'Banbury, GBR',
-      d: [['Takamoto Katsumata', 'JPN', 33, 85, 76, 82, 82, 79, 80, 86], ['Sami Pajarinen', 'FIN', 24, 84, 78, 80, 80, 78, 50, 89]] },
+      d: [['Takamoto Katsuyama', 'JPN', 33, 85, 76, 82, 82, 79, 80, 86], ['Sami Pajarinen', 'FIN', 24, 84, 78, 80, 80, 78, 50, 89]] },
   ],
   endurance: [
     { id: 'toyoda', name: 'Toyoda Gazoo Hypercar', short: 'TOY', colors: ['#101010', '#eb0a1e', '#ffffff'], works: true, rep: 95, budget: 85, base: 88, bias: { engine: 1, aero: 1, efficiency: 2, tyre: 1, reliability: 3 }, principal: 'Kazuki Nakajimo', hq: 'Köln, GER',

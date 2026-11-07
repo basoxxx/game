@@ -18,6 +18,12 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 3.4
+
+- **Grafica**: sole e nebbia ricavati dal cielo HDRI, colline all'orizzonte, cordoli 3D e cordoli "a salsiccia", vie di fuga verniciate, gomma e segni di frenata sull'asfalto, cartelli 150/100/50, postazioni dei commissari, torri TV, passerella, nuovo semaforo di partenza, pioggia e notte più realistiche, pozzanghere riflettenti, ombre di contatto, camera car e onboard dinamiche, stage rally con terreno e alberi veri
+- **Meccaniche**: mercato piloti vivo (personalità, procuratori, controfferte, offerte rivali, precontratti), crescita e declino dei piloti, power unit e cambi contingentati con penalità in griglia, commissari (track limits, collisioni, unsafe release, punti patente e squalifica), parco chiuso, allocazione gomme, previsioni meteo incerte, strategie IA con undercut/overcut, ultimatum del consiglio, eredità della dinastia con 19 traguardi
+- **Interfaccia**: design system coerente, colori dei settori, torre dei tempi con intervalli, grafici dei distacchi, tooltip, scorciatoie da tastiera (premi ?), navigazione completa da tastiera, supporto 1440p
+
 ## Novità della versione 3.3
 
 - **Vetture rifatte sulle proporzioni reali**: monoposto a effetto suolo (ala a 4 elementi, pance con undercut, fondo e diffusore, beam wing, coprimozzi 18"), Rally1 hatchback (padiglione con vetri, passaruota squadrati, alettone, paraspruzzi), Hypercar (parafanghi alti, abitacolo a goccia, coda lunga con pinna), GT per il traffico Endurance
