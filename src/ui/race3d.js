@@ -6,8 +6,8 @@ import { trackGeometry, speedProfile, sampleAtTimeFrac } from '../engine/trackph
 import { genStage, STAGE_STYLE } from './trackview.js';
 import { getSettings } from '../engine/state.js';
 import { passBy } from './audio.js';
-import { buildCar, setTyreColor } from './cars3d.js';
-import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET } from './gfx.js';
+import { buildCar, setTyreColor, MAT } from './cars3d.js';
+import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, updateSunFlare } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // Tree geometry (origin at the base, height 1) with vertex colours: trunk + layered foliage
@@ -94,7 +94,7 @@ export class Race3D {
       if (hz && this.scene.fog) { this.scene.fog.color.copy(hz); this.fogDay = hz.clone(); this._wetApplied = -1; }
       if (sd) { const el = Math.min(0.95, Math.max(0.45, Math.asin(sd.y))); const az = Math.atan2(sd.z, sd.x); this.sunDir.set(Math.cos(az) * Math.cos(el), Math.sin(el), Math.sin(az) * Math.cos(el)); }
     });
-    this.composer = makeComposer(this.renderer, this.scene, this.camera, { bloom: night ? 0.45 : 0.18, low: this.low, ao: true });
+    this.composer = makeComposer(this.renderer, this.scene, this.camera, { bloom: night ? 0.45 : 0.18, low: this.low, ao: true, flare: !night });
     this.cars = new Map();
     for (const c of cars) this.addCar(c);
     this.camPos = new THREE.Vector3(0, 50, 0);
@@ -113,6 +113,7 @@ export class Race3D {
     this.renderer.domElement.remove();
     this.labels.remove();
     this.scene.traverse((o) => { o.geometry?.dispose?.(); });
+    MAT.light('#ff2020', 3).emissiveIntensity = 3;
   }
 
   resize() {
@@ -982,11 +983,49 @@ export class Race3D {
     // night lighting poles
     if (this.night) {
       const poleMat = new THREE.MeshStandardMaterial({ color: 0xfff6dd, emissive: 0xfff3c8, emissiveIntensity: 2 });
+      const heads = [], poles = [], pools = [], cones = [];
+      this.nightLamps = [];
+      const q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
       for (let i = 0; i < N; i += 24) {
-        const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 3), poleMat);
-        this.placeAt(lamp, i, (i / 24) % 2 ? W / 2 + 6 : -W / 2 - 6, 16);
-        this.scene.add(lamp);
+        const side = (i / 24) % 2 ? 1 : -1;
+        const lamp = new THREE.Object3D();
+        this.placeAt(lamp, i, side * (W / 2 + 6), 16); lamp.updateMatrix(); heads.push(lamp.matrix.clone());
+        const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
+        const p = lamp.position;
+        poles.push(new THREE.Matrix4().compose(new THREE.Vector3(p.x + nx * side * 1.6, 8, p.z + nz * side * 1.6), q, one));
+        // pool of light on the asphalt and a faint beam in the night air, aimed at the track
+        const gx = this.geo.x[i] + nx * side * (W / 2 - 2.5), gz = this.geo.y[i] + nz * side * (W / 2 - 2.5);
+        const gy = this.geo.h ? this.geo.h[i] : 0;
+        pools.push(new THREE.Matrix4().compose(new THREE.Vector3(gx, gy + 0.06, gz), q, new THREE.Vector3(26, 1, 26)));
+        const top = new THREE.Vector3(p.x, 15.6, p.z), bot = new THREE.Vector3(gx, gy, gz), dir = bot.clone().sub(top);
+        cones.push(new THREE.Matrix4().compose(top, new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir.clone().normalize()), new THREE.Vector3(1, dir.length(), 1)));
+        this.nightLamps.push(new THREE.Vector3(gx, gy + 9, gz));
       }
+      const inst = (geo, mat, list, shadow = false) => { const im = new THREE.InstancedMesh(geo, mat, list.length); list.forEach((m, k) => im.setMatrixAt(k, m)); im.castShadow = shadow; im.computeBoundingSphere(); this.scene.add(im); return im; };
+      inst(new THREE.BoxGeometry(0.8, 0.5, 3), poleMat, heads);
+      inst(new THREE.CylinderGeometry(0.14, 0.2, 16, 8), new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.5, metalness: 0.7 }), poles, true);
+      const poolTex = canvasTex(128, 128, (c, w, h) => { const g = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); g.addColorStop(0, 'rgba(255,240,215,1)'); g.addColorStop(0.35, 'rgba(255,236,205,0.55)'); g.addColorStop(1, 'rgba(255,230,200,0)'); c.clearRect(0, 0, w, h); c.fillStyle = g; c.fillRect(0, 0, w, h); });
+      poolTex.wrapS = poolTex.wrapT = THREE.ClampToEdgeWrapping;
+      this.poolMat = new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, fog: true });
+      inst(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), this.poolMat, pools).renderOrder = 1;
+      // beams: open cone (apex at the lamp), additive, brightest near the lamp, soft at the
+      // silhouette (view-angle falloff) and faded with distance
+      const coneGeo = new THREE.CylinderGeometry(0.4, 9, 1, 24, 1, true).translate(0, -0.5, 0);
+      const beamMat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+        uniforms: { uAmt: { value: this.low ? 0.6 : 1 } },
+        vertexShader: `varying float vH; varying vec3 vN; varying vec3 vV; varying float vD;
+          void main() { vH = uv.y; vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
+            vN = normalize(mat3(modelMatrix * instanceMatrix) * normal); vV = normalize(cameraPosition - wp.xyz); vD = distance(cameraPosition, wp.xyz);
+            gl_Position = projectionMatrix * viewMatrix * wp; }`,
+        fragmentShader: `uniform float uAmt; varying float vH; varying vec3 vN; varying vec3 vV; varying float vD;
+          void main() { float f = abs(dot(normalize(vN), normalize(vV))); float a = pow(vH, 1.6) * f * f * 0.08 * uAmt * smoothstep(520.0, 80.0, vD);
+            gl_FragColor = vec4(vec3(1.0, 0.92, 0.78) * a, 1.0); }`,
+      });
+      inst(coneGeo, beamMat, cones).renderOrder = 3;
+      // a handful of real lights follow the camera from lamp to lamp: cars passing under the
+      // floodlights pick up moving highlights on paint and wet asphalt
+      if (!this.low) { this.lampLights = [0, 1, 2, 3].map(() => { const l = new THREE.PointLight(0xfff0d8, 0, 55, 2); this.scene.add(l); return l; }); }
       this.scene.add(new THREE.AmbientLight(0xfff0d8, 0.22));
     }
   }
@@ -1189,6 +1228,16 @@ export class Race3D {
     }
     if (this.wet > 0.3 && !this.open) this.updateSpray(dt);
     else if (this.spray) this.spray.visible = false;
+    if (this.lampLights && this.nightLamps?.length) {
+      const c = this.camLook, near = this.nightLamps.map((p, k) => [p.distanceToSquared(c), k]).sort((a, b) => a[0] - b[0]);
+      this.lampLights.forEach((l, j) => { const e = near[j]; if (!e) { l.intensity = 0; return; } const p = this.nightLamps[e[1]]; l.position.copy(p); const d = Math.sqrt(e[0]); l.intensity = 120 * THREE.MathUtils.smoothstep(150 - d, 0, 90); });
+    }
+    // formula cars flash their rain light on a wet track
+    if (this.category === 'formula' || this.category === 'junior') {
+      const rl = MAT.light('#ff2020', 3), on = (this.wet || 0) > 0.25 ? (Math.floor(performance.now() / 250) % 2 ? 4.5 : 0.25) : 3;
+      if (rl.emissiveIntensity !== on) rl.emissiveIntensity = on;
+    }
+    if (this.composer?.flare) updateSunFlare(this.composer, this.camera, this.hdr && hdriSun('day'), (1 - (this._night || 0)) * (1 - 0.9 * (this.wet || 0)) * (this.camMode === 'cockpit' ? 1.2 : 1));
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
     this.updateLabels();
   }
@@ -1381,8 +1430,13 @@ export class Race3D {
     this.camera.updateProjectionMatrix();
     this.camera.lookAt(this.camLook);
     // shadow frustum centred a little ahead of the camera, snapped to texels to avoid shimmering
-    const fc = this.camMode === 'tv' || this.camMode === 'heli' ? target.clone() : this.camera.position.clone().lerp(target, 0.5).addScaledVector(fwd, 18);
-    const tex = 140 / 2048; fc.x = Math.round(fc.x / tex) * tex; fc.z = Math.round(fc.z / tex) * tex;
+    // the frustum is only as wide as the view needs: close cameras get ~3 cm shadow texels
+    // (crisp self-shadowing on the cars), the helicopter keeps the wide one
+    const half = this.camMode === 'heli' ? 70 : this.camMode === 'tv' ? 60 : this.camMode === 'chase' ? 40 : 46;
+    const sc = this.sun.shadow.camera;
+    if (sc.right !== half) { sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.updateProjectionMatrix(); this.sun.shadow.normalBias = 0.03 * Math.max(0.5, half / 70); }
+    const fc = this.camMode === 'tv' || this.camMode === 'heli' ? target.clone() : this.camera.position.clone().lerp(target, 0.5).addScaledVector(fwd, half * 0.45);
+    const tex = (2 * half) / this.sun.shadow.mapSize.x; fc.x = Math.round(fc.x / tex) * tex; fc.z = Math.round(fc.z / tex) * tex;
     this.sun.position.copy(fc).addScaledVector(this.sunDir, 400);
     this.sun.target.position.copy(fc);
     this.skyDome.position.copy(this.camera.position);
