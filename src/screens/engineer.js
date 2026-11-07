@@ -81,6 +81,7 @@ export function breakdownHTML(sim, c) {
     ['Degrado gomme', b.deg, `Età gomma: ${c.age.toFixed(1)} giri reali · usura ${Math.round(c.wear * 100)}%`],
     ['Temperatura gomme', b.temp, `${Math.round(c.temp)}°C · finestra ideale ${tyreModel(sim.cat, c.tyre).win}°C ±6`],
     ['Carburante', b.fuel, 'Più carburante = più peso (≈0,03 s/kg).'],
+    ['Lift & coast', b.lift || 0, 'Risparmio carburante: si alza il piede prima delle staccate.'],
     ['Evoluzione pista', b.evo, 'La gomma depositata aumenta il grip.'],
     ['Meteo', b.weather, ''],
     ['Ritmo pilota', b.mode, 'Attacco: più veloce ma scalda e consuma le gomme.'],

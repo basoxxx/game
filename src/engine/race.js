@@ -3,6 +3,7 @@ import { CATEGORIES, COMPOUNDS } from '../data/categories.js';
 import { pointsFor } from './season.js';
 import { physicsLap } from './trackphys.js';
 import { tyreModel, degPenalty, tempPenalty, weatherFactor, strategyOptions } from './tyres.js';
+import { optimise, planCost, normalizePlan, FUEL_SAVE } from './strategy.js';
 import { rand, randInt, chance, clamp, gauss, pick, mulberry32 } from './rng.js';
 import { compEnabled, compLapFactor, compFailMult, failureComponent, prepareComponents, applyGridPenalties } from './components.js';
 import { substituteBanned } from './stewards.js';
@@ -155,34 +156,39 @@ export function weekendForm(state, d) {
   if (!d._form || d._form.k !== key) d._form = { k: key, v: gauss(0, 0.0026) };
   return d._form.v;
 }
-function driverFactor(d, rain, state) {
+export function driverFactor(d, rain, state) {
   const pace = d.attrs.pace * (1 - rain) + d.attrs.wet * rain;
   return 1 - (pace - 80) * 0.00048 - (d.morale - 70) * 0.00005 + (state ? weekendForm(state, d) : 0);
 }
 
 // ------------------ QUALIFYING ------------------
+// Common tail of every qualifying (instant or live): tyre sets left for the race, grid penalties.
+// `liveSets` (weekend.sets from the live sessions: key -> [{c, used}]) replaces the estimated usage.
+export function finalizeQualifying(state, entries, q, compNotes = [], rainLevel = 0, liveSets = null) {
+  const byKey = Object.fromEntries(entries.map((e) => [e.key, e]));
+  const alloc = TYRE_ALLOC[state.category];
+  if (alloc && !state.quick) {
+    const sets = {};
+    for (const e of entries) {
+      const ls = liveSets?.[e.key];
+      if (ls) { sets[e.key] = { soft: 0, medium: 0, hard: 0 }; for (const x of ls) if (!x.used && sets[e.key][x.c] != null) sets[e.key][x.c]++; continue; }
+      const pu = practiceUse(state, e.key);
+      const runs = rainLevel > 0.2 ? 0 : q.sessions.filter((ss) => ss.results.some((r) => r.key === e.key)).length * 2;
+      sets[e.key] = { soft: Math.max(0, alloc.soft - pu.soft - runs), medium: Math.max(0, alloc.medium - pu.medium), hard: Math.max(0, alloc.hard - pu.hard) };
+    }
+    state._sets = { season: state.season, round: state.round, sets };
+    q.sets = sets;
+  }
+  const { grid, pens } = applyGridPenalties(state, q.grid, byKey);
+  q.qualiOrder = q.grid; q.grid = grid; q.gridPens = pens; q.compNotes = compNotes.map((n) => ({ driverId: n.d?.id ?? n.driverId, type: n.type, pen: n.pen, forced: n.forced }));
+  return q;
+}
 export function runQualifying(state, track, setups, rainLevel = 0, playerRisk = {}) {
   const entries = buildEntries(state);
   const C = CATEGORIES[state.category];
   const cat = state.category;
   const compNotes = prepareComponents(state, track, entries);
-  const finish = (q) => {
-    const byKey = Object.fromEntries(entries.map((e) => [e.key, e]));
-    const alloc = TYRE_ALLOC[cat];
-    if (alloc && !state.quick) {
-      const sets = {};
-      for (const e of entries) {
-        const pu = practiceUse(state, e.key);
-        const runs = rainLevel > 0.2 ? 0 : q.sessions.filter((ss) => ss.results.some((r) => r.key === e.key)).length * 2;
-        sets[e.key] = { soft: Math.max(0, alloc.soft - pu.soft - runs), medium: Math.max(0, alloc.medium - pu.medium), hard: Math.max(0, alloc.hard - pu.hard) };
-      }
-      state._sets = { season: state.season, round: state.round, sets };
-      q.sets = sets;
-    }
-    const { grid, pens } = applyGridPenalties(state, q.grid, byKey);
-    q.qualiOrder = q.grid; q.grid = grid; q.gridPens = pens; q.compNotes = compNotes.map((n) => ({ driverId: n.d.id, type: n.type, pen: n.pen, forced: n.forced }));
-    return q;
-  };
+  const finish = (q) => finalizeQualifying(state, entries, q, compNotes, rainLevel);
   const soft = tyreModel(cat, rainLevel > 0.55 ? 'wet' : rainLevel > 0.2 && C.compounds.includes('inter') ? 'inter' : 'soft');
   const laps = entries.map((e) => {
     const team = state.teams[e.teamId];
@@ -272,7 +278,9 @@ export class CircuitSim {
         driverIdx: 0, stintCount: 0, battleT: 0, damage: 0, penalty: 0, lapTarget: track.lap, finishTime: null,
         auto: !e.isPlayer, smart: e.isPlayer ? 0.9 : clamp(smart + rand(-0.12, 0.08), 0.3, 1), aiRainReact: rand(0, 0.15), gapAhead: 9, drs: false, dirty: false,
         stintLap: 0, plan: null, planIdx: 0, ers: 100, ersMode: 'balanced',
+        fuelSave: false, crew: 'normal', planAuto: true, endPlan: null, tankMax: this.endurance ? this.stintLaps * effEff : 1,
       };
+      if (!this.endurance) car.fuel = car.fuelMax = e.isPlayer ? 1.01 : 1.004 + rand(0, 0.012);
       return car;
     });
     { const ws = weekendSets(state); this.sets = ws ? JSON.parse(JSON.stringify(ws)) : null; }
@@ -370,7 +378,8 @@ export class CircuitSim {
     out.compound = m.pace * ls;
     out.deg = degPenalty(m, c.age, this.life(c)) * ls;
     out.temp = tempPenalty(m, c.temp) * ls;
-    out.fuel = this.endurance ? (c.fuel / c.fuelMax) * 1.6 * ls : (1 - clamp(c.dist / this.laps, 0, 1)) * 3.1 * ls;
+    out.fuel = this.endurance ? (c.fuel / (c.tankMax || c.fuelMax)) * 1.6 * ls : Math.max(0, c.fuel) * 3.1 * ls;
+    out.lift = c.fuelSave ? FUEL_SAVE.cost * ls : 0;
     out.evo = -Math.min(1, this.progress * 2.5) * 0.45 * ls;
     out.weather = base * (weatherFactor(c.tyre, rain) - 1) + (rain > 0.05 && !m.wet ? 0 : 0);
     out.mode = { push: -0.32, normal: 0, save: 0.45 }[c.mode] * ls;
@@ -417,6 +426,174 @@ export class CircuitSim {
   setOrders(teamId, o) { this.teamOrders[teamId] = o; if (o === 'swap') this.log('📻 Ordine di scuderia: scambio di posizioni.', 'radio', null, true); else if (o === 'hold') this.log('📻 Ordine di scuderia: mantenete le posizioni.', 'radio', null, true); }
   requestPit(key, req) { const c = this.cars.find((x) => x.key === key); if (c && c.status === 'running') c.pitReq = req; }
   cancelPit(key) { const c = this.cars.find((x) => x.key === key); if (c) c.pitReq = null; }
+
+  // ---------- FUEL ----------
+  // laps of fuel in hand beyond what the remaining distance needs at the normal rate (negative = short)
+  fuelMargin(c) {
+    if (this.endurance) return null;
+    const left = Math.max(0, this.laps - c.dist);
+    return c.fuel * this.laps - left;
+  }
+  setFuelLoad(c, load) { if (this.endurance) return; c.fuel = c.fuelMax = clamp(load, 0.9, 1.08); c.lapTarget = this.computeLap(c); }
+  setFuelSave(key, on) { const c = this.cars.find((x) => x.key === key); if (!c || c.status !== 'running') return; c.fuelSave = !!on; c._saveAuto = false; c._saveOff = !on && (this.fuelMargin(c) ?? 1) < 0; c.lapTarget = this.computeLap(c); }
+  fuelManage(c) {
+    if (this.endurance || c.status !== 'running') return;
+    const left = this.laps - c.dist; if (left < 0.3) return;
+    const m = this.fuelMargin(c);
+    // the race need is computed at the normal rate; lift & coast saves (1 - cons) per lap
+    if (m < (c.isPlayer ? -0.05 : 0.03) && !c.fuelSave && !c._saveOff) {
+      c.fuelSave = true; c._saveAuto = true;
+      if (c.isPlayer) this.log(`📻 Ingegnere a ${this.driver(c).name.split(' ')[0]}: «Siamo corti di ${(-m).toFixed(1)} giri di benzina: lift and coast, alza prima delle staccate.»`, 'radio', c.key, true);
+    } else if (c.fuelSave && c._saveAuto && m > 0.3) {
+      c.fuelSave = false; c._saveAuto = false;
+      if (c.isPlayer) this.log(`📻 Ingegnere a ${this.driver(c).name.split(' ')[0]}: «Benzina a posto, puoi tornare a spingere normalmente.»`, 'radio', c.key, true);
+    }
+    if (c.isPlayer && c._saveOff && m < -0.6 && !c._fuelAlarm) { c._fuelAlarm = true; this.log(`📻 Ingegnere: «Senza lift and coast non arriviamo alla fine! Mancano ${(-m).toFixed(1)} giri di benzina.»`, 'radio', c.key, true); }
+  }
+
+  // ---------- PLAYER STRATEGY ----------
+  stratCtx(c) { return { cat: this.cat, track: this.track, scale: this.scale, wm: this.wearMult(c, 'normal'), pitLoss: this.pitLoss + (this.endurance ? 25 : 2.4), comps: this.C.compounds }; }
+  // the car reached the planned stop lap: box (dry plans only, unless the player disabled it)
+  planPit(c) {
+    if (this.endurance || !c.plan || c.planAuto === false || COMPOUNDS[c.tyre].wet) return;
+    const st = c.plan[c.planIdx], nx = c.plan[c.planIdx + 1];
+    if (!st || !nx) return;
+    if (c.stintLap >= st.laps) {
+      c.pitReq = { compound: nx.c, fuel: true, crew: c.crew, repair: c.repair !== false };
+      this.log(`📻 Ingegnere a ${this.driver(c).name.split(' ')[0]}: «Box, box: sosta ${c.planIdx + 1} come da piano, gomme ${COMPOUNDS[nx.c].name}.»`, 'radio', c.key, true);
+    }
+  }
+  // keep the plan in sync with the stop that actually happened
+  planAfterStop(c, comp) {
+    if (COMPOUNDS[comp].wet) { c.plan = null; c.planIdx = 0; return; }
+    if (!c.plan) return;
+    const done = c.stintLap;
+    c.plan[c.planIdx].laps = Math.max(1, done);
+    if (!c.plan[c.planIdx + 1]) c.plan.push({ c: comp, laps: 1 });
+    c.planIdx++;
+    c.plan[c.planIdx].c = comp;
+    normalizePlan(c.plan, this.laps);
+  }
+  // endurance: pit request honouring the fuel / tyre / driver plan
+  endPitReq(c) {
+    const p = c.endPlan || { fuelFrac: 1, tyreEvery: 1, swapEvery: 1, comp: null };
+    const n = (c.pitStops || 0) + 1;
+    const wear = c.age / this.life(c);
+    const left = this.laps - c.dist;
+    const tyres = wear > 0.8 || n % (p.tyreEvery || 1) === 0;
+    const comp = tyres ? (COMPOUNDS[c.tyre].wet ? c.tyre : (p.comp || this.dryChoice(c, left))) : null;
+    // never take more fuel than the distance still needs
+    const need = (left + 0.4) / (c.tankMax || 1);
+    const frac = clamp(Math.min(p.fuelFrac ?? 1, need), 0.25, 1);
+    return { compound: comp, fuel: true, fuelFrac: frac, swap: c.driverIds.length > 1 && n % (p.swapEvery || 1) === 0, crew: c.crew };
+  }
+  setEndPlan(c, p) { c.endPlan = { ...p }; c.fuel = c.fuelMax = c.tankMax * clamp(p.fuelFrac ?? 1, 0.3, 1); c.lapTarget = this.computeLap(c); }
+
+  // remaining race from the current lap: first stint continues on the current tyre
+  replan(c, stops = null) {
+    if (this.endurance || COMPOUNDS[c.tyre].wet) return null;
+    const L = Math.max(1, this.laps - c.lap);
+    const usedDry = [...c.compoundsUsed].filter((x) => !COMPOUNDS[x].wet);
+    const opts = optimise(this.stratCtx(c), { L, first: { c: c.tyre, age: c.age }, stops, maxStops: 3, usedDry, mustTwo: !this.weather.isRain && (this.C.id === 'formula' || this.C.id === 'junior') });
+    return opts[0] || null;
+  }
+  remainingPlan(c) {
+    if (!c.plan) return [{ c: c.tyre, laps: Math.max(1, this.laps - c.lap) }];
+    const rest = c.plan.slice(c.planIdx).map((s) => ({ ...s }));
+    rest[0].laps = Math.max(1, rest[0].laps - c.stintLap);
+    const total = rest.reduce((a, s) => a + s.laps, 0);
+    rest[rest.length - 1].laps += Math.max(1, this.laps - c.lap) - total;
+    if (rest[rest.length - 1].laps < 1) rest[rest.length - 1].laps = 1;
+    return rest;
+  }
+  // write a remaining-race plan (first stint = current tyre) back into the car's full plan
+  applyRemaining(c, stints) {
+    const head = c.plan ? c.plan.slice(0, c.planIdx).map((s) => ({ ...s })) : [];
+    const cur = { c: c.tyre, laps: c.stintLap + stints[0].laps };
+    c.plan = [...head, cur, ...stints.slice(1).map((s) => ({ ...s }))];
+    c.planIdx = head.length;
+    normalizePlan(c.plan, this.laps);
+    c.planAuto = true;
+  }
+  // live engineer recommendation for a player car (cached per lap / situation)
+  advise(c) {
+    if (c.status !== 'running') return null;
+    const key = `${c.lap}|${c.tyre}|${!!this.sc}|${!!this.vsc}|${Math.round(this.rain * 10)}|${c.pitReq ? 1 : 0}|${c.planIdx}|${(c.plan || []).map((s) => s.c + s.laps).join(',')}|${c.fuelSave}`;
+    if (c._adv && c._adv.k === key) return c._adv.v;
+    let v = null;
+    try { v = this.computeAdvice(c); } catch (e) { console.warn(e); }
+    c._adv = { k: key, v };
+    return v;
+  }
+  computeAdvice(c) {
+    const left = this.laps - c.dist;
+    const comp = COMPOUNDS[c.tyre];
+    const rain = this.rain;
+    const wetC = this.C.compounds.includes('inter') ? 'inter' : 'wet';
+    const nextRain = Math.max(...this.weather.plan.slice(c.lap + 1, c.lap + 3), 0);
+    if (c.pitReq) return null;
+    if (!comp.wet && (rain > 0.3 || (nextRain > 0.4 && rain > 0.12)) && left > 1.5) { const w = rain > 0.7 ? 'wet' : wetC; return { id: 'wet', urgent: true, text: `Pioggia in aumento: box subito per le ${COMPOUNDS[w].name}.`, act: { pit: w } }; }
+    if (comp.wet && rain < 0.1 && left > 2 && !this.endurance) {
+      const dry = this.dryChoice(c, left);
+      return { id: 'dry', urgent: true, text: `La pista è asciutta: rientra per le ${COMPOUNDS[dry].name} e arriva in fondo.`, act: { pit: dry } };
+    }
+    if (this.endurance) {
+      const p = c.endPlan;
+      if (c.stintCount >= 2 && c.driverIds.length > 1 && !(p && p.swapEvery === 1)) return { id: 'tired', text: `${this.driver(c).name} è al ${c.stintCount + 1}° stint di fila: alla prossima sosta cambia pilota.`, act: { endPlan: { ...(p || { fuelFrac: 1, tyreEvery: 1, comp: null }), swapEvery: 1 } } };
+      if ((this.sc || this.vsc) && c.fuel < c.tankMax * 0.45 && left > 2) return { id: 'sc', urgent: true, text: `${this.sc ? 'Safety car' : 'Slow zone'}: rabbocca ora, la sosta costa molto meno.`, act: { pitEnd: true } };
+      return null;
+    }
+    if (comp.wet) return null;
+    if (this.fuelMargin(c) < -0.4 && !c.fuelSave) return { id: 'fuel', urgent: true, text: `Mancano ${(-this.fuelMargin(c)).toFixed(1)} giri di benzina: attiva il lift and coast.`, act: { fuelSave: true } };
+    const ctx = this.stratCtx(c);
+    const cur = this.remainingPlan(c);
+    const curCost = planCost(ctx, cur, { age: c.age });
+    const mustTwo = !this.weather.isRain && (this.C.id === 'formula' || this.C.id === 'junior');
+    // safety car: a cheaper stop now?
+    if ((this.sc || this.vsc) && left > 3 && c.wear > 0.28) {
+      const disc = this.pitLoss * (this.sc ? 0.5 : 0.35);
+      const alt = optimise(ctx, { L: Math.max(1, this.laps - c.lap - 1), maxStops: Math.max(0, cur.length - 2), usedDry: [...c.compoundsUsed].filter((x) => !COMPOUNDS[x].wet), mustTwo })[0];
+      if (alt) {
+        const stopNow = planCost(ctx, [{ c: c.tyre, laps: 1 }], { age: c.age }) + ctx.pitLoss - disc + alt.time;
+        if (stopNow < curCost - 1) return { id: 'sc', urgent: true, text: `${this.sc ? 'Safety car' : 'VSC'}: fermati ora per le ${COMPOUNDS[alt.stints[0].c].name}${alt.stints.length > 1 ? ` (poi ${alt.stints.slice(1).map((s) => COMPOUNDS[s.c].short).join('-')})` : ' fino alla fine'}. Guadagno stimato ${(curCost - stopNow).toFixed(1)}s.`, act: { plan: [{ c: c.tyre, laps: 1 }, ...alt.stints] } };
+      }
+    }
+    // wear above the plan: bring the stop forward
+    if (cur.length > 1) {
+      const dA = this.scale * this.track.wear * this.wearMult(c, 'normal');
+      const life = this.life(c);
+      const wearAtStop = (c.age + cur[0].laps * dA) / life;
+      if (wearAtStop > 1.06 && cur[0].laps > 1) {
+        const safe = Math.max(1, Math.floor((life * 0.98 - c.age) / dA));
+        if (safe < cur[0].laps) {
+          const np = cur.map((s) => ({ ...s })); const d = np[0].laps - safe; np[0].laps = safe; np[1].laps += d;
+          return { id: 'early', urgent: safe <= 2, text: `Le gomme calano più del previsto (usura ${Math.round(wearAtStop * 100)}% alla sosta): anticipa il box di ${d} ${d === 1 ? 'giro' : 'giri'}, al giro ${c.lap + safe}.`, act: { plan: np } };
+        }
+      }
+    }
+    const best = this.replan(c);
+    if (best && best.time < curCost - 1.5) {
+      const ns = best.stints.length - 1;
+      const txt = ns !== cur.length - 1 ? `Passa a ${ns === 0 ? 'nessuna sosta' : ns === 1 ? '1 sosta' : ns + ' soste'}` : 'Ritocca il piano';
+      const pl = best.stints.length > 1 ? ` (box al giro ${c.lap + best.stints[0].laps}, ${best.stints.slice(1).map((s) => COMPOUNDS[s.c].short).join('-')})` : '';
+      return { id: 'replan', urgent: best.stints[0].laps <= 1, text: `${txt}${pl}: guadagno stimato ${(curCost - best.time).toFixed(1)}s.`, act: { plan: best.stints } };
+    }
+    if (cur.length > 1 && cur[0].laps <= 3) return { id: 'info', text: `Piano: box tra ${cur[0].laps} ${cur[0].laps === 1 ? 'giro' : 'giri'} per le ${COMPOUNDS[cur[1].c].name}.` };
+    return { id: 'ok', text: 'Il piano attuale è ancora il migliore. Avanti così.' };
+  }
+  acceptAdvice(key) {
+    const c = this.cars.find((x) => x.key === key); if (!c) return null;
+    const a = this.advise(c); if (!a?.act) return null;
+    if (a.act.plan) this.applyRemaining(c, a.act.plan);
+    if (a.act.fuelSave) this.setFuelSave(key, true);
+    if (a.act.endPlan) c.endPlan = { ...a.act.endPlan };
+    if (a.act.pitEnd) c.pitReq = this.endPitReq(c);
+    if (a.act.pit) c.pitReq = { compound: a.act.pit, fuel: true, crew: c.crew, repair: c.repair !== false };
+    else if (a.act.plan && a.act.plan[0].laps <= 1 && a.act.plan[1]) c.pitReq = { compound: a.act.plan[1].c, fuel: true, crew: c.crew, repair: c.repair !== false };
+    c._adv = null;
+    this.log(`📻 Muretto a ${this.driver(c).name.split(' ')[0]}: «${a.text.split(/[:.]/)[0]}. Confermato.»`, 'radio', c.key, true);
+    return a;
+  }
 
   aiThink(c) {
     const rain = this.rain;
@@ -588,14 +765,17 @@ export class CircuitSim {
     const crew = c.team.facilities.pitcrew;
     let stat = this.endurance ? 26 + rand(0, 6) - mech / 30 - crew * 0.6 : 2.15 + rand(0, 0.5) + (100 - mech) / 95 - crew * 0.08;
     let slow = '';
-    if (chance(0.06 * (1.25 - mech / 100) * (1.2 - crew * 0.08))) { const x = rand(2.5, 8); stat += x; slow = ` (pit stop lento +${x.toFixed(1)}s!)`; }
+    const fast = req.crew === 'fast';
+    if (fast) stat -= this.endurance ? 2 : 0.35;
+    if (chance(0.06 * (1.25 - mech / 100) * (1.2 - crew * 0.08) * (fast ? 2.2 : 1))) { const x = rand(2.5, 8); stat += x; slow = ` (pit stop lento +${x.toFixed(1)}s!)`; }
+    if (this.endurance && req.fuelFrac != null && req.fuel !== false) stat -= 14 * (1 - req.fuelFrac);
     if (req.swap && this.endurance) stat += 4;
     if (c.isPlayer && hasPerk(this.state, 'fast_crew')) stat -= 0.3;
     if (!req.compound && this.endurance) stat -= 9;
     const loss = this.pitLoss * (this.sc ? 0.5 : this.vsc ? 0.65 : 1);
     // pit lane infringements
     const infr = this.endurance ? 0.2 : 1;
-    if (chance(infr * 0.008 * (1.3 - mech / 100) * (1.2 - crew * 0.08) * (this.sc || this.vsc ? 2.4 : 1))) this.penalize(c, 'unsafe', 5, 0, '5s per rilascio non sicuro dalla piazzola', 0.05 * (this.C.budgetScale || 1));
+    if (chance(infr * 0.008 * (1.3 - mech / 100) * (1.2 - crew * 0.08) * (this.sc || this.vsc ? 2.4 : 1) * (fast ? 2.5 : 1))) this.penalize(c, 'unsafe', 5, 0, '5s per rilascio non sicuro dalla piazzola', 0.05 * (this.C.budgetScale || 1));
     else if (chance(infr * 0.0035)) this.penalize(c, 'speed', 5, 0, '5s per eccesso di velocità in pit lane', 0.02 * (this.C.budgetScale || 1));
     // rivals react: the car just ahead covers the undercut, a car on good tyres goes long (overcut)
     if (!this.sc && !this.vsc && !this.endurance) {
@@ -609,9 +789,11 @@ export class CircuitSim {
     if (c.damage > 0 && req.repair !== false) { stat += c.damage * 12; c.damage = 0; }
     c.inPit = loss + stat;
     c.pitStops++;
-    if (c.isPlayer && !c.auto && c.plan && req.compound && c.plan[c.planIdx + 1]) c.planIdx++;
+    // a stop answers any pending 'box?' radio call from this driver
+    if (this.radioQ.length) this.radioQ = this.radioQ.filter((r) => !(r.key === c.key && (r.type === 'pit' || r.type === 'rain')));
+    if (c.isPlayer && !c.auto && req.compound) this.planAfterStop(c, req.compound);
     if (req.compound) { c.tyre = req.compound; this.fitTyre(c, req.compound); c.temp = (this.endurance ? 72 : 70) + (c.isPlayer && hasPerk(this.state, 'outlap') ? 18 : 0); c.compoundsUsed.add(req.compound); c.stintLap = 0; }
-    if (this.endurance) { c.fuel = c.fuelMax; c.stintCount++; }
+    if (this.endurance) { c.fuel = req.fuelFrac != null ? Math.max(c.fuel, c.tankMax * req.fuelFrac) : c.tankMax; c.fuelMax = c.fuel; c.stintCount++; }
     if (req.swap && c.driverIds.length > 1) { c.driverIdx = (c.driverIdx + 1) % c.driverIds.length; c.stintCount = 0; }
     const d = this.driver(c);
     const tyreTxt = req.compound ? `gomme ${COMPOUNDS[req.compound].name}` : 'solo carburante';
@@ -788,9 +970,11 @@ export class CircuitSim {
     if (wear > 1.12 && !comp.wet && chance(0.25)) { c.damage += 0.6; c.pitReq = c.pitReq || { compound: this.dryChoice(c, this.laps - c.dist), fuel: true }; this.log(`💥 Foratura per ${d.name}! Gomme oltre il limite.`, 'warn', c.key, true); c.dist -= 0.15; }
     this.stewardsLap(c, d);
     if (c.auto) { const req = this.aiThink(c); if (req) c.pitReq = req; }
-    if (c.isPlayer && !c.auto && this.endurance && c.fuel < 1.05 && !c.pitReq) { c.pitReq = { compound: null, fuel: true }; this.log(`⛽ Ingegnere: ${d.name} chiamato ai box per carburante (automatico).`, 'pit', c.key, true); }
+    if (c.isPlayer && !c.auto && this.endurance && c.fuel < 1.05 && !c.pitReq) { c.pitReq = this.endPitReq(c); this.log(`⛽ Ingegnere: ${d.name} chiamato ai box per carburante${c.pitReq.compound ? ' e gomme ' + COMPOUNDS[c.pitReq.compound].name : ''} (come da piano).`, 'pit', c.key, true); }
     if (c.isPlayer && !c.auto && wear > 1.1 && !c.pitReq && this.laps - c.dist > 2) this.log(`📻 Ingegnere a ${d.name.split(' ')[0]}: «Le gomme sono finite, dobbiamo fermarci!»`, 'radio', c.key, true);
     if (c.isPlayer && !c.auto) { this.maybeRadio(c); this.checkMoments(); }
+    this.fuelManage(c);
+    if (c.isPlayer && !c.auto && !c.pitReq && this.laps - c.dist > 1) this.planPit(c);
     if (c.pitReq && c.lap < this.laps) this.enterPit(c);
     c.lapTarget = this.computeLap(c);
   }
@@ -825,6 +1009,11 @@ export class CircuitSim {
       c.age += (dt / lt) * this.scale * this.track.wear * this.wearMult(c) * (this.sc || this.vsc ? 0.35 : 1) * (Math.abs(c.temp - tyreModel(this.cat, c.tyre).win) > 12 ? 1.25 : 1) * (COMPOUNDS[c.tyre].wet && rain < 0.3 ? 2.2 : 1);
       c.wear = c.age / this.life(c);
       const lapFrac = dt / lt;
+      if (!this.endurance) {
+        c.fuel -= (lapFrac / this.laps) * { push: 1.05, normal: 1, save: 0.95 }[c.mode] * (c.fuelSave ? FUEL_SAVE.cons : 1) * (this.sc || this.vsc ? 0.45 : 1) * (c.ersMode === 'deploy' ? 1.015 : 1) * (1 - rain * 0.12);
+        // dry tank: on the last few hundred metres the car coasts home, otherwise it stops
+        if (c.fuel <= 0) { c.fuel = 0; if (this.laps - c.dist > 0.3 && !this.leaderFinished) { this.retire(c, 'Senza carburante', false); continue; } }
+      }
       const rate = { deploy: -32, balanced: 3, harvest: 26 }[c.ersMode] * (this.sc || this.vsc ? 0 : 1) + (this.sc || this.vsc ? 30 : 0);
       const before = c.ersMode;
       c.ers = clamp(c.ers + rate * lapFrac, 0, 100);

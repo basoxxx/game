@@ -20,40 +20,13 @@ import { hasPerk } from '../engine/progress.js';
 import { Race3D, webglAvailable } from '../ui/race3d.js';
 import { trackGeometry, drsZones, partSensitivity, trackStats } from '../engine/trackphys.js';
 import { planOptions, stintBar, degChartSVG, drawTelemetry, breakdownHTML, openLessons, wearError } from './engineer.js';
-
-const SETUP_PARAMS = [
-  { id: 'aero', info: 'Più ala = più grip in curva ma meno velocità sul dritto.', name: 'Carico Aerodinamico', lo: 'Poco carico: la macchina scivola in curva', hi: 'Troppo carico: lenti sul dritto' },
-  { id: 'susp', info: 'Rigida = reattiva, morbida = sfrutta i cordoli.', name: 'Rigidezza Sospensioni', lo: 'Troppo morbida: rollio eccessivo', hi: 'Troppo rigida: salta sui cordoli' },
-  { id: 'height', info: 'Bassa = più effetto suolo, ma rischio di toccare.', name: 'Altezza da Terra', lo: 'Troppo bassa: tocca il fondo', hi: 'Troppo alta: perdiamo carico' },
-  { id: 'gear', info: 'Lunghi per i rettilinei, corti per la trazione.', name: 'Rapporti Cambio', lo: 'Rapporti corti: limitatore in rettilineo', hi: 'Rapporti lunghi: poca spinta in uscita' },
-  { id: 'brake', info: 'Ripartizione della frenata tra anteriore e posteriore.', name: 'Bilanciamento Freni', lo: 'Troppo dietro: il posteriore si scompone', hi: 'Troppo avanti: blocca l’anteriore' },
-];
+import { SETUP_PARAMS, idealFor, setupQuality } from './setup.js';
+import { isLiveSession, sessionRender, sessionMount, sessionStop, sessionActions, sessionKey, simulateQualifying } from './sessions.js';
+import { plannerPanel, plannerActions, raceStrategyHTML, adviceHTML, ensurePlan, isDryPlan } from './planner.js';
+import { optimise, normalizePlan } from '../engine/strategy.js';
 
 function shortName(n) { const p = n.split(' '); return (p[p.length - 1] || n).replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase(); }
 export { shortName };
-
-function trackSetupBase(st, tr) {
-  if (st.category === 'rally') return null;
-  const sens = partSensitivity(st.category, tr); const ts = trackStats(st.category, tr);
-  const aeroShare = sens.aero / (sens.aero + sens.engine);
-  return {
-    aero: 15 + aeroShare * 85 * 1.15 - 10,
-    gear: 25 + Math.max(0, Math.min(1, (ts.vmax - 310) / 40)) * 55,
-    height: 30 + (tr.street || 0) * 35,
-    susp: 60 - (tr.street || 0) * 25 + (sens.chassis > 0.17 ? 10 : 0),
-    brake: 50,
-  };
-}
-function idealFor(st, key, trackSeed, tr) {
-  const r = mulberry32((trackSeed * 31 + key.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 17 + st.season) >>> 0);
-  const base = tr ? trackSetupBase(st, tr) : null;
-  return Object.fromEntries(SETUP_PARAMS.map((p) => [p.id, Math.round(Math.max(8, Math.min(92, base ? base[p.id] + (r() - 0.5) * 26 : 15 + r() * 70)))]));
-}
-function setupQuality(vals, ideal) {
-  const diffs = SETUP_PARAMS.map((p) => Math.abs(vals[p.id] - ideal[p.id]));
-  const m = diffs.reduce((a, b) => a + b, 0) / diffs.length;
-  return clamp(1 - (m / 40) ** 0.9, 0, 1);
-}
 
 function initWeekend(st) {
   const ev = st.calendar[st.round];
@@ -87,7 +60,9 @@ registerScreen({
     if (!st.weekend) { ensureSeats(st); initWeekend(st); }
     const w = st.weekend;
     if (st.quickSkip && w.phase === 'practice') { for (const c of Object.values(w.cars)) c.q = aiSetupQuality(st, playerTeam(st)); w.phase = 'quali'; }
+    if (st.quickSkip && w.phase === 'quali' && !w.quali) simulateQualifying(st);
     if (w.phase === 'race') return raceScreen(st);
+    if (isLiveSession(w)) return sessionRender(st);
     const tr = getTrack(st.category, w.trackId);
     const steps = [['practice', 'Prove Libere'], ['quali', st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'], ...(w.sprint ? [['sprint', 'Sprint']] : []), ['race', 'Gara']];
     const idx = steps.findIndex((s) => s[0] === w.phase);
@@ -99,17 +74,18 @@ registerScreen({
         <div class="grow"></div>
         <div class="stepper">${steps.map((s, i) => `<div class="step ${i < idx ? 'done' : i === idx ? 'cur' : ''}"><span class="n">${i < idx ? icon('check', 'ico', 'style="width:15px;height:15px"') : i + 1}</span>${s[1]}</div>`).join('')}</div>
       </div>
-      <div class="wk-body">${w.phase === 'practice' ? practiceView(st, tr) : qualiView(st, tr)}</div>
+      <div class="wk-body">${qualiView(st, tr)}</div>
     </div>`;
   },
   mount() {
     const w = S().weekend;
+    if (isLiveSession(w)) { sessionMount(); return; }
     if (w?.phase === 'race') { mountRace(); setTimeout(() => App.cur === 'weekend' && coach('race', 'Sei al muretto box', 'Clicca un pilota in classifica per seguirlo. Usa <b>Override</b> quando sei entro 1 secondo per sorpassare, gestisci le gomme con il <b>ritmo</b> e chiama i box al giro giusto. Rispondi alle <b>chiamate radio</b>!'), 7000); }
-    else if (w?.phase === 'practice') coach('practice', 'Trova l’assetto', 'Sposta un parametro alla volta e premi <b>Giro di prova</b>: il pilota ti dice se è troppo alto o troppo basso. Più verde = più veloce. Oppure lascia fare all’ingegnere.');
-    else if (w?.phase === 'quali' && w.quali) coach('strategy', 'Scegli la strategia', 'Il grafico mostra quanto rallenta ogni mescola. La linea tratteggiata indica il <b>cliff</b>: fermati prima! La strategia “OTTIMA” è calcolata per la tua auto.');
+    else if (w?.phase === 'quali' && w.quali) coach('strategy', 'Pianifica la gara', 'Scegli <b>quante soste</b>, la mescola di ogni stint e il <b>giro del box</b> con i tasti − / +. Il tempo previsto ti dice quanto perdi rispetto al piano migliore. In gara potrai cambiare tutto dal pannello <b>Strategia</b>.');
   },
-  unmount() { stopRace(); },
+  unmount() { stopRace(); sessionStop(); },
   onKey(e) {
+    if (sessionKey(e)) return;
     if (!R.sim) return;
     if (R.moment && /^Digit[1-3]$/.test(e.code)) { resolveMomentUI(+e.code.slice(5) - 1); return; }
     if (e.code === 'Space') { e.preventDefault(); R.paused = !R.paused; updateSpeedUI(); }
@@ -118,55 +94,20 @@ registerScreen({
     if (e.code === 'KeyR' && R.r3d) { if (R.replay) stopReplay(); else startReplay(R.lastHighlight && R.sim.time - R.lastHighlight.t < 12 ? R.lastHighlight.key : R.focus); }
   },
   actions: {
+    ...sessionActions,
+    ...plannerActions(App, S, getTrack, buildEntries),
+    'ctab'(el) { R.ctab[el.dataset.key] = el.dataset.t; updateControls(true); },
+    'rs-lap'(el) { const c = rc(el); if (!c?.plan) return; const i = c.planIdx; const d = +el.dataset.d; if (c.plan[i].laps + d <= c.stintLap || c.plan[i + 1].laps - d < 1) return; c.plan[i].laps += d; c.plan[i + 1].laps -= d; normalizePlan(c.plan, R.sim.laps); updateControls(true); },
+    'rs-comp'(el) { const c = rc(el); if (!c?.plan?.[c.planIdx + 1]) return; c.plan[c.planIdx + 1].c = el.dataset.c; R.pitSel[c.key] = el.dataset.c; if (c.pitReq) c.pitReq.compound = el.dataset.c; updateControls(true); },
+    'rs-auto'(el) { const c = rc(el); if (c) c.planAuto = c.planAuto === false; updateControls(true); },
+    'rs-stops'(el) { const c = rc(el); if (!c) return; const n = +el.dataset.n; const best = R.sim.replan(c, n < 0 ? null : n); if (!best) { App.toast('Piano non possibile', 'Non ci sono abbastanza giri per queste soste.', 'bad'); return; } R.sim.applyRemaining(c, best.stints); if (best.stints[0].laps <= 1 && best.stints[1]) c.pitReq = { compound: best.stints[1].c, fuel: true, crew: c.crew, repair: c.repair !== false }; R.pitSel[c.key] = defaultPitTyre(c); sfx.radio?.(); updateControls(true); },
+    'rs-crew'(el) { const c = rc(el); if (!c) return; c.crew = el.dataset.v; if (c.pitReq) c.pitReq.crew = c.crew; updateControls(true); },
+    'rs-repair'(el) { const c = rc(el); if (!c) return; c.repair = c.repair === false; if (c.pitReq) c.pitReq.repair = c.repair; updateControls(true); },
+    'rs-lift'(el) { const c = rc(el); if (!c) return; R.sim.setFuelSave(c.key, !c.fuelSave); updateControls(true); },
+    'rs-end'(el) { const c = rc(el); if (!c) return; c.endPlan ||= { fuelFrac: 1, tyreEvery: 1, swapEvery: 1, comp: null }; c.endPlan[el.dataset.f] = +el.dataset.v; updateControls(true); },
+    'rs-accept'(el) { const a = R.sim?.acceptAdvice(el.dataset.key); if (a) { sfx.radio?.(); const c = R.sim.cars.find((x) => x.key === el.dataset.key); R.pitSel[c.key] = c.pitReq?.compound || defaultPitTyre(c); } updateControls(true); },
     exit() { App.go(S().quick ? (S().challenge ? 'challenges' : 'quickrace') : 'hub'); },
-    slider(el) {
-      const st = S(); const c = st.weekend.cars[el.dataset.key];
-      c.vals[el.dataset.p] = +el.value;
-      const lab = document.getElementById(`v-${el.dataset.key}-${el.dataset.p}`); if (lab) lab.textContent = el.value;
-    },
-    run(el) {
-      const st = S(); const w = st.weekend; const key = el.dataset.key; const c = w.cars[key];
-      if (c.runs <= 0) return;
-      const team = playerTeam(st);
-      const tr = getTrack(st.category, w.trackId);
-      const eng = st.staff[team.staff.engineer]?.rating || 65;
-      const car = buildEntries(st).find((e) => e.key === key);
-      const d = st.drivers[car.driverIds[0]];
-      c.runs--;
-      c.q = setupQuality(c.vals, c.ideal);
-      const tol = 5 + (100 - eng) / 12 + (100 - d.attrs.exp) / 25 - (hasPerk(st, 'data') ? 2 : 0);
-      c.fb = Object.fromEntries(SETUP_PARAMS.map((p) => {
-        const diff = c.vals[p.id] - c.ideal[p.id];
-        const noisy = diff + rand(-tol * 0.4, tol * 0.4);
-        const a = Math.abs(noisy);
-        return [p.id, a < tol ? 'ok' : a < tol * 2.6 ? (noisy > 0 ? 'hi' : 'lo') : (noisy > 0 ? 'vhi' : 'vlo')];
-      }));
-      const lap = tr.lap - (c.q * 0.45) + rand(-0.15, 0.15) + 0.9 - (d.attrs.pace - 80) * 0.04;
-      c.laps.push(lap);
-      sfx.ok(); App.refresh();
-    },
-    autosetup(el) {
-      const st = S(); const c = st.weekend.cars[el.dataset.key];
-      const team = playerTeam(st);
-      const q = aiSetupQuality(st, team);
-      // move values toward ideal proportionally to engineer quality
-      for (const p of SETUP_PARAMS) c.vals[p.id] = Math.round(c.ideal[p.id] + (c.vals[p.id] - c.ideal[p.id]) * (1 - q) + rand(-6, 6) * (1 - q));
-      c.q = setupQuality(c.vals, c.ideal); c.runs = Math.max(0, c.runs - 2); c.fb = null;
-      App.refresh();
-    },
-    copy(el) {
-      const st = S(); const w = st.weekend; const from = w.cars[el.dataset.from]; const to = w.cars[el.dataset.to];
-      to.vals = { ...from.vals }; to.q = setupQuality(to.vals, to.ideal); to.fb = null; App.refresh();
-    },
     'to-quali'() { S().weekend.phase = 'quali'; App.refresh(); },
-    longrun(el) {
-      const st = S(); const w = st.weekend; w.longRuns ||= {};
-      const car = Object.values(w.cars)[0]; if (car.runs < 2) return;
-      car.runs -= 2; w.longRuns[el.dataset.c] = true; sfx.ok();
-      App.toast('Long run completato', `Dati di degrado della ${COMPOUNDS[el.dataset.c].name} acquisiti: la strategia è più precisa.`, 'good');
-      App.refresh();
-    },
-    risk(el) { S().weekend.risk[el.dataset.key] = el.dataset.v; App.refresh(); },
     bias(el) { const w = S().weekend; if (w.quali) return; (w.bias ||= {})[el.dataset.key] = el.dataset.v; App.refresh(); },
     'fit-comp'(el) {
       const st = S(); const d = st.drivers[el.dataset.id]; const type = el.dataset.t;
@@ -175,19 +116,7 @@ registerScreen({
       if (x.nextPenalty) App.confirm(`Montare un nuovo ${x.name}?`, `${esc(d.name)} supererebbe l’allocazione stagionale (${x.used}/${x.pool}): penalità di <b>${x.nextPenalty} posizioni</b> in griglia. In cambio: componente fresco, più potenza e molto meno rischio di guasto.`, doIt, 'Monta e accetta la penalità', true);
       else doIt();
     },
-    'run-quali'() {
-      const st = S(); const w = st.weekend;
-      const tr = getTrack(st.category, w.trackId);
-      const setups = Object.fromEntries(Object.entries(w.cars).map(([k, c]) => [k, c.q]));
-      const q = runQualifying(st, tr, setups, w.qualiRain, w.risk);
-      w.quali = q; w.qualiAnim = true;
-      for (const n of q.compNotes || []) App.toast(`${n.type === 'ice' ? 'Power unit' : 'Cambio'} sostituito d’ufficio`, `${st.drivers[n.driverId]?.name}: componente rotto${n.pen ? `, penalità di ${n.pen} posizioni` : ''}`, n.pen ? 'bad' : '');
-      App.refresh();
-      animateQuali(st, q);
-    },
-    'skip-quali'() { const w = S().weekend; w.qualiAnim = false; App.refresh(); },
     'start-tyre'(el) { S().weekend.startTyre[el.dataset.key] = el.dataset.c; App.refresh(); },
-    'pick-plan'(el) { const st = S(); const w = st.weekend; const tr = getTrack(st.category, w.trackId); const team = playerTeam(st); const e = buildEntries(st).find((x) => x.key === el.dataset.key); const o = planOptions(st, tr, w.laps, team, st.drivers[e.driverIds[0]], w.weather.trackTemp)[+el.dataset.i]; w.plans[el.dataset.key] = o.stints; w.startTyre[el.dataset.key] = o.stints[0].c; App.refresh(); },
     lessons() { openLessons(); },
     cam(el) { R.view3d = el.dataset.c; R.cam = R.view3d; enable3D(R.view3d); renderViewBtns(); },
     view2d() { disable3D(); renderViewBtns(); },
@@ -205,7 +134,7 @@ registerScreen({
     'moments-off'() { if (R.sim) { R.sim.momentsOn = false; R.sim.moments = []; } document.getElementById('moment')?.remove(); R.moment = null; R.last = performance.now(); },
     radio(el) { R.sim?.answerRadio(+el.dataset.id, el.dataset.y === '1'); sfx.radio(); updateControls(true); },
     pitsel(el) { R.pitSel[el.dataset.key] = el.dataset.c; updateControls(true); },
-    pit(el) { const k = el.dataset.key; const c = R.sim.cars.find((x) => x.key === k); if (c.pitReq) R.sim.cancelPit(k); else R.sim.requestPit(k, { compound: R.pitSel[k] === 'none' ? null : R.pitSel[k], fuel: true, swap: !!R.swap[k] }); updateControls(true); },
+    pit(el) { const k = el.dataset.key; const c = R.sim.cars.find((x) => x.key === k); if (c.pitReq) R.sim.cancelPit(k); else R.sim.requestPit(k, R.sim.endurance ? { ...R.sim.endPitReq(c), compound: R.pitSel[k] === 'none' ? null : R.pitSel[k], swap: !!R.swap[k] } : { compound: (c.plan?.[c.planIdx + 1]?.c && R.ctab?.[k] === 'strat') ? c.plan[c.planIdx + 1].c : R.pitSel[k] === 'none' ? null : R.pitSel[k], fuel: true, swap: !!R.swap[k], crew: c.crew, repair: c.repair !== false }); updateControls(true); },
     swap(el) { R.swap[el.dataset.key] = !R.swap[el.dataset.key]; const c = R.sim.cars.find((x) => x.key === el.dataset.key); if (c.pitReq) c.pitReq.swap = R.swap[el.dataset.key]; updateControls(true); },
     auto(el) { const c = R.sim.cars.find((x) => x.key === el.dataset.key); c.auto = !c.auto; updateControls(true); },
     speed(el) { R.speed = +el.dataset.v; R.paused = false; updateSpeedUI(); },
@@ -215,107 +144,26 @@ registerScreen({
   },
 });
 
-// ---------------- PRACTICE ----------------
-function practiceView(st, tr) {
-  const w = st.weekend;
-  const entries = buildEntries(st).filter((e) => e.isPlayer);
-  const team = playerTeam(st);
-  const keys = Object.keys(w.cars);
-  const fbTxt = (p, f) => f === 'ok' ? 'Perfetto' : f === 'hi' ? 'Un po’ alto' : f === 'lo' ? 'Un po’ basso' : f === 'vhi' ? 'Troppo alto' : 'Troppo basso';
-  const sb = trackSetupBase(st, tr);
-  const hint = sb ? `${sb.aero > 60 ? 'pista da <b>alto carico</b>: parti con ali alte' : sb.aero < 40 ? 'pista veloce: <b>ali scariche</b>' : 'carico <b>medio</b>'}, ${sb.gear > 55 ? '<b>rapporti lunghi</b> per i rettilinei' : 'rapporti <b>corti</b> per la trazione'}${sb.height > 50 ? ', <b>altezza da terra alta</b> per sconnessioni e cordoli' : ''}.` : '';
-  return `<div class="wk-phase"><div style="max-width:760px"><div class="tiny upper muted">Sessione 1 · Venerdì</div><h2 class="mt8">Prove Libere · Assetto</h2><div class="small mt8" style="color:var(--text2);line-height:1.5">Regola i parametri e manda il pilota in pista: ascolta il feedback per avvicinarti all’assetto ideale. Un buon assetto vale fino a mezzo secondo al giro.</div>${hint ? `<div class="small mt8">${icon('info', 'ico', 'style="width:13px;vertical-align:-2px"')} Ingegnere: ${hint}</div>` : ''}</div>
-    <div class="row">${st.category !== 'rally' ? `<div class="panel tight small"><div class="tiny upper muted mb8">Long run (simulazione di stint · 2 giri di prova)</div><div class="row gap4">${['soft', 'medium', 'hard'].map((c) => `<button class="btn sm ${w.longRuns?.[c] ? 'active' : ''}" data-a="longrun" data-c="${c}" ${w.longRuns?.[c] || Object.values(w.cars)[0].runs < 2 ? 'disabled' : ''}>${tyreBadge(c)} ${w.longRuns?.[c] ? icon('check') : ''}</button>`).join('')}</div><div class="tiny ${Math.abs(wearError(st)) < 0.03 ? 'good' : 'warn'} mt8">Dati degrado: ${Math.abs(wearError(st)) < 0.03 ? 'misurati' : 'stimati (±' + Math.round(Math.abs(wearError(st)) * 100 + 4) + '%)'}</div></div>` : ''}<div class="panel tight row small" style="gap:14px">${(() => { const fc = weatherForecast(st, w, tr); return `${icon(fc.prob >= 50 ? 'rain' : 'sun')}<div><b>Previsioni gara</b><div class="muted">${fc.summary} · pioggia ${fc.prob}%</div><div class="tiny dim">Affidabilità previsione ${fc.perfect ? 'radar preciso' : fc.acc + '%'}</div></div>`; })()}${w.qualiRain ? `<span class="chip info">Qualifiche bagnate</span>` : ''}</div><button class="btn primary lg" data-a="to-quali">${st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'} ${icon('right')}</button></div></div>
-  <div class="grid2 anim-in">${entries.map((e, i) => {
-    const c = w.cars[e.key]; const d = st.drivers[e.driverIds[0]];
-    const other = keys.find((k) => k !== e.key);
-    return `<div class="panel">
-      <div class="row" style="gap:12px">${helmetSVG(d.helmet, 48)}<div class="grow"><div class="tiny upper muted">Auto #${d.number}${e.driverIds.length > 1 ? ' · ' + e.driverIds.map((id) => st.drivers[id].name.split(' ').pop()).join(' / ') : ''}</div><h3 style="font-size:24px;letter-spacing:.02em">${esc(d.name)}</h3></div>
-        <div style="width:220px"><div class="row between small"><span class="muted">Fiducia assetto</span><b>${Math.round(c.q * 100)}%</b></div>${bar(c.q * 100, c.q > 0.8 ? 'green' : c.q > 0.55 ? 'gold' : 'red')}</div></div>
-      <div class="mt16">${SETUP_PARAMS.map((p) => { const f = c.fb?.[p.id]; return `<div class="setup-slider"><div><div style="font-family:var(--display);font-weight:700;font-size:17px;text-transform:uppercase;letter-spacing:.02em" title="${p.info}">${p.name}</div><div class="tiny ${f && f !== 'ok' ? 'warn' : 'dim'}">${f && f !== 'ok' ? (f.endsWith('lo') ? p.lo : p.hi) : p.info}</div></div><div class="row"><span class="tiny dim">MIN</span><input type="range" min="0" max="100" value="${c.vals[p.id]}" data-input="slider" data-key="${e.key}" data-p="${p.id}"><span class="tiny dim">MAX</span><b class="mono" id="v-${e.key}-${p.id}" style="width:28px;text-align:right">${c.vals[p.id]}</b></div><div class="fb ${f || 'unk'}">${f ? fbTxt(p, f) : 'Nessun dato'}</div></div>`; }).join('')}</div>
-      <div class="row mt16 between"><div class="row gap6"><button class="btn primary" data-a="run" data-key="${e.key}" ${c.runs <= 0 ? 'disabled' : ''}>${icon('play')} Giro di prova (${c.runs})</button><button class="btn sm ghost" data-a="autosetup" data-key="${e.key}" ${c.runs < 2 ? 'disabled' : ''} title="L’ingegnere imposta un assetto (costa 2 giri)">${icon('wrench')} Ingegnere</button>${other ? `<button class="btn sm ghost" data-a="copy" data-from="${other}" data-to="${e.key}" title="Copia l’assetto del compagno">${icon('swap')} Copia</button>` : ''}</div>
-      <div class="small muted">${c.laps.length ? `Ultimo: <b class="mono" style="color:#fff">${fmtTime(c.laps[c.laps.length - 1])}</b> · Best ${fmtTime(Math.min(...c.laps))}` : 'Nessun giro'}</div></div>
-      ${biasCard(st, w, e.key)}
-      ${compCard(st, d)}
-    </div>`;
-  }).join('')}</div>`;
-}
-
-// Parc fermé: the setup orientation chosen now is used both in qualifying and in the race
-function biasCard(st, w, key) {
-  if (st.category === 'rally') return '';
-  const b = w.bias?.[key] || 'balanced';
-  return `<div class="card mt16"><div class="row between"><b class="small">${icon('wrench', 'ico', 'style="width:14px;vertical-align:-2px"')} Orientamento assetto · parco chiuso</b><span class="tiny muted">Bloccato dopo le qualifiche</span></div>
-    <div class="seg mt8">${Object.entries(SETUP_BIAS).map(([k, x]) => `<div class="${b === k ? 'on' : ''}" data-a="bias" data-key="${key}" data-v="${k}">${x.name}</div>`).join('')}</div>
-    <div class="tiny muted mt8">${SETUP_BIAS[b].desc}.</div></div>`;
-}
-function compCard(st, d) {
-  if (!compEnabled(st)) return '';
-  const cs = compStatus(st, d);
-  const lp = licencePoints(d);
-  const fitted = d.gridPen && d.gridPen.season === st.season && d.gridPen.round === st.round ? d.gridPen : null;
-  return `<div class="card mt8"><div class="row between"><b class="small">${icon('car', 'ico', 'style="width:14px;vertical-align:-2px"')} Componenti power unit</b>${fitted ? `<span class="chip bad">Penalità griglia: ${fitted.places >= 15 ? 'fondo griglia' : '-' + fitted.places + ' posizioni'}</span>` : ''}</div>
-    ${Object.values(cs).map((x) => `<div class="row mt8 small" style="gap:10px"><span style="width:86px">${x.name}</span><span class="mono ${x.over ? 'bad' : ''}" style="width:42px">${x.used}/${x.pool}</span><div class="grow">${bar(Math.min(100, x.wear * 100), x.destroyed || x.wear > 1 ? 'red' : x.wear > 0.75 ? 'gold' : 'green')}</div><span class="tiny mono" style="width:44px">${x.destroyed ? 'ROTTO' : Math.round(x.wear * 100) + '%'}</span><button class="btn sm ${x.destroyed ? 'primary' : 'ghost'}" data-a="fit-comp" data-id="${d.id}" data-t="${x.type}" ${x.wear < 0.05 ? 'disabled' : ''}>Nuovo${x.nextPenalty ? ` (−${x.nextPenalty})` : ''}</button></div>`).join('')}
-    <div class="tiny muted mt8">Una PU usurata perde potenza e si rompe più facilmente. Oltre l’allocazione stagionale: 10 posizioni (prima PU extra), poi 5 per ogni elemento. Da 15 posizioni in su si parte in fondo.${lp ? ` · <span class="${lp >= 8 ? 'bad' : 'warn'}">Superlicenza: ${lp}/${BAN_POINTS} punti</span>` : ''}</div></div>`;
-}
-
 // ---------------- QUALIFYING ----------------
-let qTimer = null;
-function animateQuali(st, q) {
-  clearInterval(qTimer);
-  let si = 0, ri = 0;
-  const w = st.weekend;
-  w.qReveal = { si: 0, ri: 0 };
-  qTimer = setInterval(() => {
-    if (!w.qualiAnim || App.cur !== 'weekend') { clearInterval(qTimer); return; }
-    const ses = q.sessions[si];
-    ri += 1;
-    if (ri > ses.results.length) { si++; ri = 0; if (si >= q.sessions.length) { w.qualiAnim = false; clearInterval(qTimer); sfx.win(); App.refresh(); return; } }
-    w.qReveal = { si, ri };
-    sfx.click();
-    const box = document.getElementById('qbox'); if (box) box.innerHTML = qualiTable(st, q, si, ri);
-  }, 110);
-}
-function qualiTable(st, q, si, ri) {
-  const ses = q.sessions[si];
-  const shown = ses.results.slice(0, ri).slice().sort((a, b) => a.time - b.time);
-  const best = shown[0]?.time;
-  const n = ses.results.length;
-  const cut = si === 0 && q.sessions.length > 1 ? n - Math.round(n * 0.27) : si === 1 ? 10 : n;
-  return `<div class="row between mb8"><h3>${ses.name}</h3><span class="small muted">${ri}/${n} tempi</span></div><table class="tbl"><tbody>${shown.map((r, i) => {
-    const [tid] = r.key.split('#'); const tm = st.teams[tid]; const e = buildEntries(st).find((x) => x.key === r.key); const d = st.drivers[e.driverIds[0]];
-    return `<tr class="${tm.isPlayer ? 'me' : ''}" style="${i === cut ? 'border-top:2px solid var(--bad)' : ''}"><td class="pos p${i + 1}">${i + 1}</td><td>${teamStripe(tm)}</td><td>${driverChip(st, d, { size: 22 })}</td><td class="small muted">${tm.short}</td><td class="right mono"><b>${fmtTime(r.time)}</b></td><td class="right mono small muted">${i ? '+' + (r.time - best).toFixed(3) : ''}</td></tr>`;
-  }).join('')}</tbody></table>`;
-}
 function qualiView(st, tr) {
   const w = st.weekend;
   const entries = buildEntries(st).filter((e) => e.isPlayer);
-  if (!w.quali) {
-    return `<div class="grid2 anim-in" style="max-width:1100px;margin:0 auto">
-      <div class="panel"><div class="panel-head"><h3>Approccio alla qualifica</h3></div>
-        ${entries.map((e) => { const d = st.drivers[e.driverIds[0]]; const r = w.risk[e.key] || 'normal'; return `<div class="card mb8"><div class="row">${helmetSVG(d.helmet, 34)}<b class="grow drv-name" style="font-size:19px">${esc(d.name)}</b><span class="chip">Assetto ${Math.round(w.cars[e.key].q * 100)}%</span></div><div class="seg mt8">${[['safe', 'Prudente'], ['normal', 'Normale'], ['push', 'Al limite']].map(([k, n]) => `<div class="${r === k ? 'on ' + (k === 'push' ? 'push' : k === 'safe' ? 'save' : '') : ''}" data-a="risk" data-key="${e.key}" data-v="${k}">${n}</div>`).join('')}</div></div>`; }).join('')}
-        <div class="small muted">Al limite: tempi migliori ma più rischio di errore. ${w.qualiRain ? '<span class="info">Pista bagnata in qualifica!</span>' : ''}</div>
-        <button class="btn primary xl mt16" style="width:100%" data-a="run-quali">${icon('play')} Avvia ${st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'}</button>
-      </div>
-      <div class="panel" style="display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--team) 14%, var(--s1)), var(--s1) 70%)">${trackSVG(circuitPath(tr.cid), { w: 480, h: 320, glow: null, color: '#fff', width: 5, under: 'rgba(0,0,0,.45)' })}</div>
-    </div>`;
-  }
   const q = w.quali;
-  if (w.qualiAnim) return `<div class="panel" style="max-width:900px;margin:0 auto"><div id="qbox">${qualiTable(st, q, w.qReveal?.si || 0, w.qReveal?.ri || 0)}</div><div class="row mt16" style="justify-content:flex-end"><button class="btn" data-a="skip-quali">Salta ${icon('ff')}</button></div></div>`;
   const entriesAll = buildEntries(st);
   const C = cat(st);
-  return `<div style="display:grid;grid-template-columns:1.2fr 1fr;gap:16px" class="anim-in">
+  return `<div class="grid-plan anim-in">
     <div class="panel"><div class="panel-head"><h3>Griglia di partenza</h3></div><table class="tbl"><tbody>${q.grid.map((k, i) => {
       const e = entriesAll.find((x) => x.key === k); const tm = st.teams[e.teamId]; const d = st.drivers[e.driverIds[0]];
       const gp = (q.gridPens || []).find((p) => p.key === k);
       const best = q.times[(q.qualiOrder || q.grid)[0]];
-      return `<tr class="${tm.isPlayer ? 'me' : ''}"><td class="pos p${i + 1}">${i + 1}</td><td>${teamStripe(tm)}</td><td>${driverChip(st, d, { size: 22 })}${gp ? ` <span class="chip bad tiny" title="${esc(gp.items.join(', '))}">${gp.back ? 'Fondo griglia' : '-' + gp.places + ' pos.'}</span>` : ''}</td><td class="small muted">${esc(tm.name)}</td><td class="right mono">${fmtTime(q.times[k])}</td><td class="right mono small muted">${q.times[k] > best ? '+' + (q.times[k] - best).toFixed(3) : 'POLE'}</td></tr>`;
+      const qt = q.times[k];
+      return `<tr class="${tm.isPlayer ? 'me' : ''}"><td class="pos p${i + 1}">${i + 1}</td><td>${teamStripe(tm)}</td><td>${driverChip(st, d, { size: 22 })}${gp ? ` <span class="chip bad tiny" title="${esc(gp.items.join(', '))}">${gp.back ? 'Fondo griglia' : '-' + gp.places + ' pos.'}</span>` : ''}</td><td class="small muted">${esc(tm.short || tm.name)}</td><td class="right mono">${fmtTime(qt)}</td><td class="right mono small muted">${qt == null ? 'NT' : qt > best ? '+' + (qt - best).toFixed(3) : 'POLE'}</td></tr>`;
     }).join('')}</tbody></table>${(q.gridPens || []).length ? `<div class="tiny muted mt8" style="padding:0 12px 10px">Penalità in griglia: ${q.gridPens.map((p) => `${esc(st.drivers[p.driverId]?.name || '')} (${esc(p.items.join(', '))}: dalla P${p.from} alla P${p.to})`).join(' · ')}</div>` : ''}</div>
     <div class="col gap16">
       <div class="panel"><div class="panel-head"><h3>Meteo gara</h3></div><div class="row">${(() => { const fc = weatherForecast(st, w, tr); return `${icon(fc.prob >= 50 ? 'rain' : 'sun', 'ico', 'style="width:36px;height:36px"')}<div><b>${fc.summary}</b><div class="small muted">Probabilità di pioggia stimata: ${fc.prob}% · affidabilità ${fc.perfect ? '100' : fc.acc}%</div></div>`; })()}</div>
         <div class="weather-strip mt16">${forecast(st, w).map((r) => `<i style="height:${Math.max(2, r * 20)}px;opacity:${r > 0.05 ? 0.9 : 0.15}"></i>`).join('')}</div>${hasPerk(st, 'meteo') ? '<div class="tiny good">Radar preciso (abilità Meteorologo)</div>' : '<div class="tiny muted">Previsione indicativa: sblocca “Meteorologo” per il radar preciso.</div>'}<div class="row between tiny muted"><span>Giro 1</span><span>Giro ${w.laps}</span></div>
       </div>
-      ${strategyPanel(st, w, tr, entries, q, C)}
+      ${plannerPanel(st, w, tr, entries, q, C)}
       <button class="btn primary xl pulse" data-a="to-race">${icon('flag')} Vai in griglia</button>
     </div>
   </div>`;
@@ -366,7 +214,15 @@ function mountRace() {
     setTimeout(() => document.getElementById('pit-ov')?.remove(), 3500);
   };
   if (isSprint) R.sim.log('⚡ SPRINT: gara breve, punti ai primi 8 (8-7-6-5-4-3-2-1).', 'start', null, true);
-  for (const c of R.sim.cars) if (c.isPlayer) { R.sim.setStartTyre(c, w.startTyre[c.key] || c.tyre); c.compoundsUsed = new Set([c.tyre]); c.plan = !isSprint && w.plans?.[c.key] ? w.plans[c.key].map((x) => ({ ...x })) : null; c.planIdx = 0; c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c); }
+  for (const c of R.sim.cars) if (c.isPlayer) {
+    R.sim.setStartTyre(c, w.startTyre[c.key] || c.tyre); c.compoundsUsed = new Set([c.tyre]);
+    c.plan = !isSprint && w.plans?.[c.key] && isDryPlan(st, w) ? normalizePlan(w.plans[c.key].map((x) => ({ ...x })), R.sim.laps) : null; c.planIdx = 0;
+    if (c.plan && c.plan[0].c !== c.tyre) c.plan[0].c = c.tyre;
+    if (!R.sim.endurance && w.fuel?.[c.key] != null && !isSprint) R.sim.setFuelLoad(c, w.fuel[c.key]);
+    if (R.sim.endurance && w.endPlan?.[c.key]) R.sim.setEndPlan(c, w.endPlan[c.key]);
+    c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c);
+  }
+  R.ctab = {};
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {}; R.gh = {};
   R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, padTop: 40, glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' || st.category === 'junior' ? drsZones('formula', tr) : [] });
   R.last = performance.now(); R.uiT = 0;
@@ -472,6 +328,7 @@ function update3D(dt) {
   }
 }
 
+function rc(el) { return R.sim?.cars.find((x) => x.key === el.dataset.key && x.status === 'running'); }
 function defaultPitTyre(c) {
   const comps = R.sim.C.compounds;
   if (c.plan && c.plan[c.planIdx + 1]) return c.plan[c.planIdx + 1].c;
@@ -618,8 +475,15 @@ function updateControls(force) {
     const wearTxt = Math.max(0, Math.round((1 - c.wear) * 100));
     const advice = engineerAdvice(sim, c);
     const pitSel = R.pitSel[c.key];
+    const tab = R.ctab?.[c.key] || 'drive';
+    const tabs = c.status === 'running' ? `<div class="ctabs"><div class="${tab === 'drive' ? 'on' : ''}" data-a="ctab" data-key="${c.key}" data-t="drive">Pilota</div><div class="${tab === 'strat' ? 'on' : ''}" data-a="ctab" data-key="${c.key}" data-t="strat">Strategia${(() => { const a = sim.advise(c); return a?.urgent && a.act ? ' <i class="ctab-dot"></i>' : ''; })()}</div></div>` : '';
+    if (c.status === 'running' && tab === 'strat') return `<div class="ctrl-card" style="border-top-color:${c.team.car.livery.primary}">
+      <div class="row">${helmetSVG(d.helmet, 34)}<div class="grow"><b>${esc(d.name)}</b><div class="tiny muted">P${i + 1} · ${COMPOUNDS[c.tyre].name} ${c.stintLap} giri · usura ${Math.round(c.wear * 100)}% · soste ${c.pitStops}</div></div><span class="pos p${i + 1}" style="font-size:26px">P${i + 1}</span></div>${tabs}
+      ${raceStrategyHTML(sim, c, R)}
+      <button class="btn ${c.pitReq ? 'danger' : 'team'} mt8" style="width:100%" data-a="pit" data-key="${c.key}">${c.pitReq ? `Annulla box (${c.pitReq.compound ? COMPOUNDS[c.pitReq.compound].short : 'benzina'})` : `${icon('pit')} Box ora`}</button>
+    </div>`;
     return `<div class="ctrl-card" style="border-top-color:${c.team.car.livery.primary}">
-      <div class="row">${helmetSVG(d.helmet, 34)}<div class="grow"><b>${esc(d.name)}</b><div class="tiny muted">${c.status === 'dnf' ? `<span class="bad">Ritirato: ${esc(c.reason)}</span>` : c.status === 'finished' ? 'Arrivato' : `P${i + 1} · Partito P${c.grid} · Soste ${c.pitStops}`}</div></div><span class="pos p${i + 1}" style="font-size:26px">P${i + 1}</span></div>
+      <div class="row">${helmetSVG(d.helmet, 34)}<div class="grow"><b>${esc(d.name)}</b><div class="tiny muted">${c.status === 'dnf' ? `<span class="bad">Ritirato: ${esc(c.reason)}</span>` : c.status === 'finished' ? 'Arrivato' : `P${i + 1} · Partito P${c.grid} · Soste ${c.pitStops}`}</div></div><span class="pos p${i + 1}" style="font-size:26px">P${i + 1}</span></div>${tabs}
       ${c.status === 'running' ? `
       <div class="grid2 mt8 small" style="gap:6px"><div class="muted">Davanti <b style="color:#fff" class="mono">${gA != null && gA < 60 ? '-' + Math.max(0, gA).toFixed(1) + 's' : '—'}</b></div><div class="muted right">Dietro <b style="color:#fff" class="mono">${gB != null && gB < 60 ? '+' + Math.max(0, gB).toFixed(1) + 's' : '—'}</b></div></div>
       <div class="row mt8">${tyreBadge(c.tyre)}<div class="grow"><div class="row between tiny"><span>${COMPOUNDS[c.tyre].name} · ${c.stintLap} giri</span><span class="${tempCls(sim, c)}">${Math.round(c.temp)}°C</span><span class="${c.wear > 0.75 ? 'bad' : ''}">${wearTxt}%</span></div><div class="wear" style="height:6px"><i style="width:${wearTxt}%;background:${c.wear > 0.7 ? 'var(--bad)' : c.wear > 0.45 ? 'var(--warn)' : 'var(--good)'}"></i></div></div></div>
@@ -635,7 +499,8 @@ function updateControls(force) {
       <div class="row gap4 wrap">${sim.C.compounds.map((cp) => `<button class="btn sm ${pitSel === cp ? 'active' : ''}" style="padding:4px 6px" data-a="pitsel" data-key="${c.key}" data-c="${cp}" data-tip="Monta ${COMPOUNDS[cp].name} alla prossima sosta">${tyreBadge(cp)}</button>`).join('')}${sim.endurance ? `<button class="btn sm ${pitSel === 'none' ? 'active' : ''}" style="padding:4px 8px" data-a="pitsel" data-key="${c.key}" data-c="none">${icon('fuel')} Solo benzina</button>` : ''}</div>
       ${sim.endurance && c.driverIds.length > 1 ? `<button class="btn sm mt8 ${R.swap[c.key] ? 'active' : ''}" style="width:100%" data-a="swap" data-key="${c.key}">${icon('swap')} Cambio pilota → ${esc(st.drivers[c.driverIds[(c.driverIdx + 1) % c.driverIds.length]].name.split(' ').pop())}</button>` : ''}
       <button class="btn ${c.pitReq ? 'danger' : 'team'} mt8 ${advice?.urgent && !c.pitReq ? 'pulse' : ''}" style="width:100%" data-a="pit" data-key="${c.key}">${c.pitReq ? `Annulla box (${c.pitReq.compound ? COMPOUNDS[c.pitReq.compound].short : 'benzina'})` : `${icon('pit')} Chiama ai box`}</button>
-      ${advice ? `<div class="small mt8 ${advice.urgent ? 'warn' : 'muted'}">${icon('info', 'ico', 'style="width:13px;vertical-align:-2px"')} ${advice.text}</div>` : ''}
+      ${(() => { const a = sim.advise(c); if (a?.urgent && a.act) return adviceHTML(a, c, true); return advice ? `<div class="small mt8 ${advice.urgent ? 'warn' : 'muted'}">${icon('info', 'ico', 'style="width:13px;vertical-align:-2px"')} ${advice.text}</div>` : ''; })()}
+      ${!sim.endurance && sim.fuelMargin(c) < 0.2 ? `<div class="row between tiny mt8"><span class="${sim.fuelMargin(c) < 0 ? 'bad' : 'warn'}">${icon('fuel', 'ico', 'style="width:12px;vertical-align:-2px"')} Benzina ${sim.fuelMargin(c) >= 0 ? '+' : ''}${sim.fuelMargin(c).toFixed(1)} giri</span><button class="btn sm ${c.fuelSave ? 'active' : ''}" data-a="rs-lift" data-key="${c.key}">Lift &amp; coast ${c.fuelSave ? 'ON' : 'OFF'}</button></div>` : ''}
       <div class="row between mt8 tiny"><span class="muted">Strategia automatica (ingegnere)</span><button class="btn sm ${c.auto ? 'active' : ''}" data-a="auto" data-key="${c.key}" data-tip="L’ingegnere decide ritmo e pit stop al posto tuo">${c.auto ? 'ON' : 'OFF'}</button></div>
       <div class="timing" data-tip="Viola: giro più veloce della gara · Verde: record personale · Giallo: più lento del tuo migliore"><div><span>Ultimo</span><b class="${lapCls(sim, c)}">${fmtTime(c.lastLap)}</b></div><div><span>Migliore</span><b class="${sim.fastest.key === c.key ? 't-purple' : c.bestLap ? 't-green' : ''}">${fmtTime(c.bestLap)}</b></div><div><span>Giri rim.</span><b>${lapsLeft.toFixed(1)}</b></div></div>` : ''}
     </div>`;
@@ -762,31 +627,6 @@ function finishRace() {
   saveGame();
   App.go('results', { idx: evIdx });
   if (st.quick) st.quickDone = true;
-}
-
-function strategyPanel(st, w, tr, entries, q, C) {
-  const dry = w.weather.plan[0] <= 0.2 && (C.id === 'formula' || C.id === 'junior');
-  w.plans = w.plans || {};
-  const team = playerTeam(st);
-  let html = `<div class="panel"><div class="panel-head"><h3>Strategia</h3><button class="btn sm ghost" data-a="lessons">${icon('info')} Lezioni</button></div>`;
-  if (dry) {
-    const d0 = st.drivers[entries[0].driverIds[0]];
-    const we = Math.abs(wearError(st));
-    html += `<div class="small muted mb8">Curve di degrado previste a ${esc(tr.circuit)} (asfalto ${w.weather.trackTemp}°C, usura tracciato ×${tr.wear}). <span class="${we < 0.03 ? 'good' : 'warn'}">${we < 0.03 ? 'Dati misurati con i long run.' : 'Dati stimati: senza long run l’errore può arrivare al ' + Math.round(we * 100 + 4) + '%.'}</span></div>${degChartSVG(st, tr, w.laps, team, d0)}`;
-    for (const e of entries) {
-      const d = st.drivers[e.driverIds[0]];
-      const opts = planOptions(st, tr, w.laps, team, d, w.weather.trackTemp);
-      if (!w.plans[e.key]) { w.plans[e.key] = opts[0].stints; w.startTyre[e.key] = opts[0].stints[0].c; }
-      const cur = w.plans[e.key].map((x) => x.c).join('-');
-      const ns = q.sets?.[e.key];
-      html += `<div class="card mt8"><div class="row"><span class="pos">P${q.grid.indexOf(e.key) + 1}</span><b class="grow drv-name" style="font-size:19px">${esc(d.name)}</b>${ns ? `<span class="tiny muted" title="Set nuovi rimasti per la gara (gli altri sono usati)">Set nuovi: ${['soft', 'medium', 'hard'].map((cp) => `${tyreBadge(cp)}<b class="${ns[cp] ? '' : 'bad'}">${ns[cp]}</b>`).join(' ')}</span>` : ''}<span class="tiny muted">Piano scelto</span></div><div class="col gap4 mt8">${opts.map((o, i) => `<div class="row" style="gap:8px;cursor:pointer;padding:4px;border-radius:8px;${o.stints.map((x) => x.c).join('-') === cur ? 'background:color-mix(in srgb, var(--team) 18%, transparent);outline:1px solid var(--team)' : ''}" data-a="pick-plan" data-key="${e.key}" data-i="${i}"><span class="tiny mono" style="width:56px">${i === 0 ? '<b class="good">OTTIMA</b>' : '+' + (o.time - opts[0].time).toFixed(1) + 's'}</span><div class="grow">${stintBar(o.stints, w.laps)}</div><span class="tiny muted" style="width:44px">${o.stints.length - 1} ${o.stints.length === 2 ? 'sosta' : 'soste'}</span></div>`).join('')}</div></div>`;
-    }
-    html += `<div class="small muted mt8">L’ingegnere ti avviserà quando arriva il giro di sosta previsto. Puoi sempre cambiare idea in gara (safety car, pioggia, undercut…). Regola: almeno due mescole diverse.</div>`;
-  } else {
-    html += entries.map((e) => { const d = st.drivers[e.driverIds[0]]; const pos = q.grid.indexOf(e.key) + 1; const sel = w.startTyre[e.key] || (w.weather.plan[0] > 0.55 ? 'wet' : w.weather.plan[0] > 0.2 ? (C.compounds.includes('inter') ? 'inter' : 'wet') : 'medium'); w.startTyre[e.key] = sel; return `<div class="card mb8"><div class="row"><span class="pos">P${pos}</span><b class="grow drv-name" style="font-size:19px">${esc(d.name)}</b></div><div class="row gap6 mt8 wrap">${C.compounds.map((cp) => `<button class="btn sm ${sel === cp ? 'active' : ''}" data-a="start-tyre" data-key="${e.key}" data-c="${cp}">${tyreBadge(cp)} ${COMPOUNDS[cp].name}</button>`).join('')}</div></div>`; }).join('');
-    html += `<div class="small muted">${C.id === 'endurance' ? 'Endurance: uno stint dura circa 45 minuti di carburante. Le gomme possono fare doppio stint; alterna i piloti per evitare la fatica.' : 'Pioggia prevista: scegli le gomme in base all’intensità (intermedie per pioggia leggera, full wet per diluvio).'}</div>`;
-  }
-  return html + '</div>';
 }
 
 function tempCls(sim, c) {
