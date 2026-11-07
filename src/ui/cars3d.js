@@ -1,6 +1,7 @@
 // Procedural 3D race cars: smooth lofted bodies, painted liveries (canvas texture),
 // physical materials (clear-coat paint, carbon, rubber). +x = forward, y = up.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // ---------------- materials ----------------
 const cache = new Map();
@@ -146,6 +147,13 @@ function rod(a, b, r, m) {
 }
 
 // ---------------- wheels ----------------
+function spokeGeo(rimR, spokes) {
+  return cached('spk' + rimR.toFixed(4) + ':' + spokes, () => {
+    const parts = []; const m = new THREE.Matrix4();
+    for (let k = 0; k < spokes; k++) { const a = (k / spokes) * Math.PI * 2; const g = new THREE.BoxGeometry(rimR * 0.95, rimR * 0.1, 0.02); m.makeRotationZ(a).setPosition(Math.cos(a) * rimR * 0.48, Math.sin(a) * rimR * 0.48, 0); g.applyMatrix4(m); parts.push(g); }
+    return mergeGeometries(parts);
+  });
+}
 function blurMat(rimColor) {
   return cached('blur' + rimColor, () => {
     const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
@@ -188,7 +196,8 @@ function wheel(r, w, tyreColor, rimColor = '#2c3038', spokes = 10) {
   for (const sgn of [1, -1]) {
     const face = new THREE.Group(); face.position.z = sgn * w * 0.4;
     face.add(mesh(new THREE.CircleGeometry(rimR * 0.98, 24), MAT.rim('#121417')));
-    for (let k = 0; k < spokes; k++) { const s = mesh(new THREE.BoxGeometry(rimR * 0.95, rimR * 0.1, 0.02), MAT.rim(rimColor)); s.position.x = Math.cos((k / spokes) * Math.PI * 2) * rimR * 0.48; s.position.y = Math.sin((k / spokes) * Math.PI * 2) * rimR * 0.48; s.rotation.z = (k / spokes) * Math.PI * 2; face.add(s); }
+    // spokes merged into one mesh (one draw call per wheel face)
+    face.add(mesh(spokeGeo(rimR, spokes), MAT.rim(rimColor)));
     const hub = mesh(new THREE.CylinderGeometry(rimR * 0.18, rimR * 0.18, 0.06, 12), MAT.chrome()); hub.rotation.x = Math.PI / 2; face.add(hub);
     if (sgn < 0) face.rotation.y = Math.PI;
     spin.add(face);

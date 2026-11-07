@@ -101,6 +101,7 @@ export class Race3D {
     this.camLook = new THREE.Vector3();
     this.tvCams ||= this.makeTvCams();
     this.rain = null;
+    if (this.open && wet) this.setRain(0.6);
     this.resize();
     this._ro = new ResizeObserver(() => this.resize());
     this._ro.observe(container);
@@ -411,11 +412,48 @@ export class Race3D {
     const cols = { gravel: ['#8b6a43', '#6d5232'], rough: ['#7a5534', '#5a3d22'], tarmac: ['#3d4046', '#2e3035'], snow: ['#e9f2f8', '#c7d7e3'] }[surf];
     const road = canvasTex(256, 256, (c, w, h) => { noise(c, w, h, cols[0], 255, 14000, 3); c.fillStyle = 'rgba(0,0,0,0.12)'; c.fillRect(w * 0.25, 0, w * 0.12, h); c.fillRect(w * 0.63, 0, w * 0.12, h); if (surf === 'tarmac') { c.fillStyle = '#e8e8e8'; for (let y = 0; y < h; y += 64) c.fillRect(w / 2 - 2, y, 4, 32); } });
     const roadId = { tarmac: 'asphalt_02', gravel: 'gravel_floor', rough: 'rocky_trail', snow: 'snow_02' }[surf];
-    this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ map: road, roughness: surf === 'snow' ? 0.5 : 0.95 }) : pbr(roadId, { color: surf === 'tarmac' ? 0x9a9a9a : surf === 'gravel' ? 0xd8c2a0 : 0xffffff, roughness: surf === 'snow' ? 0.6 : 1 });
+    this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ map: road, roughness: surf === 'snow' ? 0.5 : 0.95 }) : detailPatch(pbr(roadId, { color: surf === 'tarmac' ? 0x8a8a8a : surf === 'gravel' ? 0xd0b998 : 0xffffff, roughness: surf === 'snow' ? 0.6 : 1 }), { macro: 0.12, macroScale: 0.05, wet: surf !== 'snow', key: 'stage-road' });
     const vergeMat = this.low ? new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (c, w, h) => noise(c, w, h, cols[1], 255, 5000, 3)), roughness: 1 }) : pbr(surf === 'snow' ? 'snow_02' : 'rocky_trail', { color: surf === 'snow' ? 0xffffff : 0xa89a80 });
     const groundCol = surf === 'snow' ? '#dfe9f1' : surf === 'tarmac' ? '#4f6b3a' : '#5d6b38';
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(30000, 30000), this.low ? new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (c, w, h) => noise(c, w, h, groundCol, 255, 12000, 3), [600, 600]), roughness: 1 }) : pbr(surf === 'snow' ? 'snow_02' : 'aerial_grass_rock', { repeat: [3000, 3000], color: surf === 'snow' ? 0xffffff : 0xb5c99a }));
-    ground.rotation.x = -Math.PI / 2; ground.position.set((this.geo.bbox[0] + this.geo.bbox[2]) / 2, -0.05, (this.geo.bbox[1] + this.geo.bbox[3]) / 2); ground.receiveShadow = true;
+    const N = this.geo.N, gx = this.geo.x, gz = this.geo.y, gh = this.geo.h || new Float64Array(N);
+    let hAvg = 0, hMin = Infinity; for (let i = 0; i < N; i++) { hAvg += gh[i]; hMin = Math.min(hMin, gh[i]); } hAvg /= N;
+    // terrain heightfield that hugs the road (road height near it, rolling ground further away)
+    const C = 40, cells = new Map();
+    for (let i = 0; i < N; i++) { const k = Math.floor(gx[i] / C) + ',' + Math.floor(gz[i] / C); if (!cells.has(k)) cells.set(k, []); cells.get(k).push(i); }
+    const near = (x, z) => {
+      const cx = Math.floor(x / C), cz = Math.floor(z / C); let bd = Infinity, bi = -1;
+      for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) { const l = cells.get((cx + a) + ',' + (cz + b)); if (l) for (const i of l) { const d = (gx[i] - x) ** 2 + (gz[i] - z) ** 2; if (d < bd) { bd = d; bi = i; } } }
+      return [bd, bi];
+    };
+    const ph = [0, 1, 2, 3].map(() => Math.random() * 6.283);
+    const [bx0, bz0, bx1, bz1] = this.geo.bbox; const M = 320;
+    const X0 = bx0 - M, Z0 = bz0 - M, X1 = bx1 + M, Z1 = bz1 + M;
+    const G = this.low ? 110 : 220; const cellW = Math.max((X1 - X0) / G, (Z1 - Z0) / Math.max(20, Math.round(G * (Z1 - Z0) / (X1 - X0))));
+    const sm = (a, b, t) => { const u = Math.max(0, Math.min(1, (t - a) / (b - a))); return u * u * (3 - 2 * u); };
+    const terrH = (x, z) => {
+      const edge = Math.max(sm(X0 + M * 0.8, X0, x), sm(X1 - M * 0.8, X1, x), sm(Z0 + M * 0.8, Z0, z), sm(Z1 - M * 0.8, Z1, z));
+      let T = hAvg + 7 * Math.sin(x * 0.004 + ph[0]) * Math.cos(z * 0.0035 + ph[1]) + 3 * Math.sin(x * 0.011 + z * 0.009 + ph[2]);
+      T = T + (hMin - 2.5 - T) * edge;
+      const [d2, i] = near(x, z); if (i < 0) return T;
+      const d = Math.sqrt(d2); const w = sm(W / 2 + 2.5 + cellW * 1.3, 90, d);
+      return gh[i] - 0.3 + (T + 2.5 * sm(10, 40, d) * (1 - edge) - (gh[i] - 0.3)) * w;
+    };
+    this.terrH = terrH;
+    {
+      const nx = G, nz = Math.max(20, Math.round(G * (Z1 - Z0) / (X1 - X0)));
+      const pos = new Float32Array((nx + 1) * (nz + 1) * 3), uv = new Float32Array((nx + 1) * (nz + 1) * 2), idx = [];
+      for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
+        const x = X0 + (X1 - X0) * i / nx, z = Z0 + (Z1 - Z0) * j / nz, k = j * (nx + 1) + i;
+        pos[k * 3] = x; pos[k * 3 + 1] = terrH(x, z); pos[k * 3 + 2] = z; uv[k * 2] = x / 9; uv[k * 2 + 1] = z / 9;
+        if (i < nx && j < nz) idx.push(k, k + nx + 1, k + 1, k + 1, k + nx + 1, k + nx + 2);
+      }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+      const tm = this.low ? new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (c, w, h) => noise(c, w, h, groundCol, 255, 12000, 3), [1, 1]), roughness: 1 })
+        : detailPatch(pbr(surf === 'snow' ? 'snow_02' : 'aerial_grass_rock', { color: surf === 'snow' ? 0xffffff : 0xb5c99a }), { macro: 0.2, macroScale: 0.01, tint: surf === 'snow' ? 0xdfe8f0 : 0xc9b27a, tintAmt: 0.35, key: 'stage' });
+      const terr = new THREE.Mesh(g, tm); terr.receiveShadow = true; this.scene.add(terr);
+    }
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(30000, 30000), this.low ? new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (c, w, h) => noise(c, w, h, groundCol, 255, 12000, 3), [600, 600]), roughness: 1 }) : detailPatch(pbr(surf === 'snow' ? 'snow_02' : 'aerial_grass_rock', { repeat: [3000, 3000], color: surf === 'snow' ? 0xffffff : 0xb5c99a }), { macro: 0.2, macroScale: 0.01 }));
+    ground.rotation.x = -Math.PI / 2; ground.position.set((bx0 + bx1) / 2, hMin - 3, (bz0 + bz1) / 2); ground.receiveShadow = true;
     this.scene.add(ground);
     this.scene.add(this.ribbon(W / 2, W / 2 + 2.5, 0.01, vergeMat, 1 / 4, 1, 0.6));
     this.scene.add(this.ribbon(-W / 2 - 2.5, -W / 2, 0.01, vergeMat, 1 / 4, 1, 0.6));
@@ -424,31 +462,27 @@ export class Race3D {
       const bankMat = new THREE.MeshStandardMaterial({ color: 0xf4f8fb, roughness: 0.6 });
       for (const side of [1, -1]) { const m = this.ribbon(side * (W / 2 + 2.4), side * (W / 2 + 3.4), 0.5, bankMat, 0.05, 2); this.scene.add(m); }
     }
-    // dense forest along the road
-    const N = this.geo.N;
-    const count = this.low ? 600 : 1800;
-    const cone = surf === 'rough' ? bushGeo() : treeGeo();
-    const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
-    const inst = new THREE.InstancedMesh(cone, treeMat, count);
-    const tint = new THREE.Color();
-    const dummy = new THREE.Object3D();
-    let placed = 0;
-    for (let k = 0; k < count * 3 && placed < count; k++) {
+    // dense forest along the road (photoreal impostors standing on the terrain)
+    const kinds = surf === 'rough' ? [['bush', 0.4], ['broad', 0.35], ['desert', 0.25]] : surf === 'snow' ? [['conifer', 1]] : [['conifer', 0.7], ['broad', 0.3]];
+    const pool = vegOfKind(kinds.map((k) => k[0]));
+    const pick = () => { let r = Math.random(); for (const [k, w] of kinds) { if ((r -= w) <= 0) return k; } return kinds[0][0]; };
+    const items = []; const target = this.low ? 800 : 2600;
+    for (let k = 0; k < target * 3 && items.length < target; k++) {
       const i = Math.floor(Math.random() * N); const side = Math.random() < 0.5 ? 1 : -1;
-      const off = side * (W / 2 + 6 + Math.random() ** 1.5 * 90);
+      const off = side * (W / 2 + 7 + Math.random() ** 1.5 * 120);
       const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
-      const px = this.geo.x[i] + nx * off, pz = this.geo.y[i] + nz * off;
-      let ok = true;
-      for (let j = Math.max(0, i - 400); j < Math.min(N, i + 400); j += 5) { const dx = this.geo.x[j] - px, dz = this.geo.y[j] - pz; if (dx * dx + dz * dz < (W / 2 + 5) ** 2) { ok = false; break; } }
-      if (!ok) continue;
-      const h = surf === 'rough' ? 4 + Math.random() * 5 : 9 + Math.random() * 14; const wd = surf === 'rough' ? 3 + Math.random() * 3 : 2.2 + Math.random() * 2;
-      const baseH = this.geo.h ? this.geo.h[i] * 0.85 : 0;
-      dummy.position.set(px, baseH, pz); dummy.scale.set(wd * 2, h, wd * 2); dummy.rotation.y = Math.random() * 6; dummy.updateMatrix();
-      tint.setHSL(surf === 'rough' ? 0.16 : 0.27, surf === 'snow' ? 0.15 : 0.35, surf === 'snow' ? 0.9 : 0.7 + Math.random() * 0.4); inst.setColorAt(placed, tint);
-      inst.setMatrixAt(placed++, dummy.matrix);
+      const cx = gx[i] + nx * off, cz = gz[i] + nz * off;
+      const kind = pick(); const opts = pool.filter((m) => m.kind === kind); if (!opts.length) continue;
+      for (let q = 0; q < 3 && items.length < target; q++) {
+        const px = cx + (Math.random() - 0.5) * 16, pz = cz + (Math.random() - 0.5) * 16;
+        const [d2] = near(px, pz); if (d2 < (W / 2 + 5.5) ** 2) continue;
+        const meta = opts[Math.floor(Math.random() * opts.length)];
+        const h = { conifer: 11 + Math.random() * 10, broad: 6 + Math.random() * 6, bush: 1.8 + Math.random() * 2, desert: 4 + Math.random() * 3 }[meta.kind];
+        const v = (0.82 + Math.random() * 0.26) * (meta.kind === 'bush' ? 1.25 : 1);
+        items.push({ x: px, y: terrH(px, pz) - 0.2, z: pz, h, meta, rot: Math.random() * 6.283, tint: surf === 'snow' ? [v * 0.9, v * 0.95, v] : [v * (0.95 + Math.random() * 0.1), v, v * 0.9] });
+      }
     }
-    inst.count = placed; inst.castShadow = true;
-    this.scene.add(inst);
+    if (items.length) { this.scene.add(makeTreeShadows(items)); this.forest = makeForest(items); this.scene.add(this.forest); }
     // start & finish arches
     for (const [i, col] of [[2, 0x22d37a], [N - 3, 0xffffff]]) {
       const g = new THREE.Group(); const m = new THREE.MeshStandardMaterial({ color: col, roughness: 0.5 });
@@ -456,9 +490,7 @@ export class Race3D {
       const beam = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, W + 2.8), m); beam.position.y = 5; g.add(beam);
       this.placeAt(g, i, 0, this.geo.h ? this.geo.h[i] : 0); this.scene.add(g);
     }
-    // terrain skirt under the road so the hills look solid
-    if (this.geo.h) for (const side of [1, -1]) { const m = this.ribbon(side * (W / 2 + 2.5), side * (W / 2 + 40), -0.3, new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (c, w, hgt) => noise(c, w, hgt, groundCol, 255, 4000, 3)), roughness: 1 }), 0.05, 2); this.scene.add(m); }
-    if (this.scene.fog) { this.scene.fog.near = 150; this.scene.fog.far = 1400; }
+    if (this.scene.fog) { this.scene.fog = new THREE.FogExp2(this.scene.fog.color, 0.0011); this.fogDensity = this.scene.fog.density; }
   }
 
   buildRacingLine() {
@@ -660,11 +692,11 @@ export class Race3D {
     }
     // forest on the surrounding hills
     if (this.hillH) {
-      const [cx, cz] = this.hillC; const nH = Math.round((desert ? 300 : 1800) * (this.low ? 0.3 : 1));
+      const [cx, cz] = this.hillC; const nH = Math.round((desert ? 300 : street > 0.7 ? 900 : 2600) * (this.low ? 0.3 : 1));
       const conif = byKind(desert ? 'desert' : 'conifer').concat(desert ? [] : byKind('broad'));
       for (let k = 0, guard2 = 0; k < nH && conif.length && guard2 < nH * 3; guard2++) {
         const a = Math.random() * 6.283; const r = this.hillR0 + 30 + Math.random() ** 1.8 * 900;
-        const cl = 0.5 + 0.5 * Math.sin(a * 9 + r * 0.004); if (Math.random() > cl * cl) continue;
+        const cl = 0.5 + 0.5 * Math.sin(a * 9 + r * 0.004) * Math.cos(a * 4 - r * 0.002); if (Math.random() > cl * cl * cl) continue;
         const px = cx + Math.cos(a) * r, pz = cz + Math.sin(a) * r;
         const meta = conif[Math.floor(Math.random() * conif.length)];
         const h = (meta.kind === 'conifer' ? 14 : 9) * (0.8 + Math.random() * 0.6);
@@ -781,7 +813,7 @@ export class Race3D {
         for (const side of [k % 2 ? 1 : -1, k % 2 ? -1 : 1]) {
           const off = side * (this.wallOff(ii, side) + 3.2);
           this.placeAt(dummy, ii, off, 0);
-          if (!this.clearOfTrack(dummy.position.x, dummy.position.z, W / 2 + 4.5) || this.obstacles.some((o) => (o.x - dummy.position.x) ** 2 + (o.z - dummy.position.z) ** 2 < (o.r + 2) ** 2)) continue;
+          if (!this.clearOfTrack(dummy.position.x, dummy.position.z, W / 2 + 4.5) || (this.tvCams || []).some((c) => (c.pos.x - dummy.position.x) ** 2 + (c.pos.z - dummy.position.z) ** 2 < 49) || this.obstacles.some((o) => (o.x - dummy.position.x) ** 2 + (o.z - dummy.position.z) ** 2 < (o.r + 2) ** 2)) continue;
           const px = dummy.position.x, pz = dummy.position.z;
           const rot = side > 0 ? Math.PI : 0;
           huts.push(mtx(ii, off, hAt(ii), rot)); roofs.push(mtx(ii, off, hAt(ii) + 2.55, rot)); panels.push(mtx(ii, off - side * 1.16, hAt(ii) + 1.6, rot));
@@ -1304,8 +1336,10 @@ export class Race3D {
       look = m.localToWorld(new THREE.Vector3(30, formula ? -0.6 : 0.8, formula ? 0 : 0.35));
       fov = 70 + Math.min(8, spd * 0.08);
     } else if (this.camMode === 'onboard') {
-      pos = target.clone().addScaledVector(fwd, this.category === 'formula' || this.category === 'junior' ? -1.25 : 0.2).add(new THREE.Vector3(0, this.category === 'formula' || this.category === 'junior' ? 1.55 : 1.3, 0));
-      look = target.clone().addScaledVector(fwd, 35).add(new THREE.Vector3(0, 0.9, 0));
+      // formula: T-cam above the airbox; closed cars: bonnet camera ahead of the windscreen
+      const fm = this.category === 'formula' || this.category === 'junior', ra = this.category === 'rally';
+      pos = target.clone().addScaledVector(fwd, fm ? -1.25 : ra ? 1.5 : 0.95).add(new THREE.Vector3(0, fm ? 1.55 : ra ? 1.36 : 1.08, 0));
+      look = target.clone().addScaledVector(fwd, 35).add(new THREE.Vector3(0, fm ? 0.9 : 1.2, 0));
       fov = 62 + Math.min(10, spd * 0.1);
     } else if (this.camMode === 'heli') {
       pos = target.clone().addScaledVector(fwd, -40).add(new THREE.Vector3(18, 55, 0));
