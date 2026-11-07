@@ -5,7 +5,11 @@ import { maybePaddockEvent } from './events.js';
 import { decayRivalries } from './rivalry.js';
 import { maybeTechDecision } from './techdecisions.js';
 import { gainXP, checkObjectives, ensureProgress, makeObjectives, hasPerk } from './progress.js';
-import { driverOverall, salaryFor, generateRookie, generateVeteranFreeAgent, makeSponsorOffers, buildCalendar, getTrack, makeStaff, STAFF_ROLES, FACILITIES, avgPart } from './world.js';
+import { driverOverall, salaryFor, makeSponsorOffers, buildCalendar, getTrack, makeStaff, STAFF_ROLES, FACILITIES, avgPart } from './world.js';
+import { bindMarket, evaluateOffer, marketTick, developDriver, seasonMarket, aiSignings } from './market.js';
+import { postRaceComponents } from './components.js';
+import { processStewards } from './stewards.js';
+import { updateLegacy, recordCareerRace, legacyInfo } from './legacy.js';
 
 export const fmtM = (v) => `${v < 0 ? '-' : ''}€${Math.abs(v).toFixed(Math.abs(v) >= 100 ? 0 : 1)}M`;
 
@@ -232,6 +236,10 @@ export function applyRoundResults(state, results) {
   const fac = Object.values(pt.facilities).reduce((a, b) => a + b, 0);
   addFinance(state, 'Costi operativi e logistica', -((pt.baseBudget * 0.1 + fac * 0.4 * C.budgetScale) / n));
   if (results.damageCost) addFinance(state, 'Riparazioni danni', -results.damageCost);
+  if (!state.quick) {
+    postRaceComponents(state, results, track);
+    processStewards(state, results, { addMail, addNews, addFinance, playerTeam });
+  }
 
   // ----- R&D progress -----
   for (const team of Object.values(state.teams)) {
@@ -267,6 +275,7 @@ export function applyRoundResults(state, results) {
   const myTeamPos = st.teams.findIndex((t) => t.id === pt.id) + 1;
   const delta = clamp((state.board.target - myTeamPos) * 1.5 + (bestPos <= 3 ? 3 : 0) - (myRes.every((r) => r.status === 'dnf') ? 4 : 0), -7, 7);
   state.board.confidence = clamp(Math.round(state.board.confidence + (delta < 0 && hasPerk(state, 'diplomat') ? delta / 2 : delta)), 0, 100);
+  if (!state.quick) boardUltimatum(state, st, myTeamPos);
 
   // reputation
   pt.rep = clamp(+(pt.rep + (bestPos <= 3 ? 0.8 : bestPos <= 10 ? 0.15 : -0.2)).toFixed(1), 20, 100);
@@ -313,13 +322,43 @@ export function applyRoundResults(state, results) {
     state._toast = { title: '🎯 Obiettivo stagionale completato', text: o.text };
   }
   postRoundMail(state, results, track, myTeamPos);
+  if (!state.quick) recordCareerRace(state, myRes, results);
   state.round++;
+  if (!state.quick) { marketTick(state); updateLegacy(state); }
   state.pressPending = !state.quick;
   if (!state.quick) { decayRivalries(state); maybeTechDecision(state); }
   maybePaddockEvent(state);
   state.weekend = null;
   if (pt.money < 0) addMail(state, { from: 'Direttore Finanziario', type: 'bad', icon: 'money', subject: 'Conti in rosso!', body: 'Il nostro bilancio è negativo. Il consiglio è preoccupato: riduci le spese di sviluppo o trova nuovi sponsor.' });
   if (pt.money < 0) state.board.confidence = clamp(state.board.confidence - 4, 0, 100);
+}
+
+// Board ultimatum: when confidence collapses mid-season the board sets a short-term points target
+function boardUltimatum(state, st, myTeamPos) {
+  const pt = playerTeam(state);
+  const myPts = st.teams.find((t) => t.id === pt.id)?.pts || 0;
+  const u = state.ultimatum;
+  if (u && u.season === state.season) {
+    if (state.round + 1 >= u.until || myPts - u.start >= u.need) {
+      const ok = myPts - u.start >= u.need;
+      state.board.confidence = clamp(state.board.confidence + (ok ? 18 : -12), 0, 100);
+      addMail(state, ok
+        ? { from: 'Consiglio di Amministrazione', icon: 'board', type: 'good', subject: 'Ultimatum superato', body: `Hai conquistato ${myPts - u.start} punti (richiesti ${u.need}). Il consiglio ti rinnova la fiducia: continua così.` }
+        : { from: 'Consiglio di Amministrazione', icon: 'board', type: 'bad', subject: 'Ultimatum fallito', body: `Solo ${myPts - u.start} punti su ${u.need} richiesti. La tua posizione è a forte rischio: un’altra delusione e a fine anno verrai sostituito.` });
+      state.ultimatum = null;
+    }
+    return;
+  }
+  const n = state.calendar.length;
+  if (state.board.confidence >= 25 || state.round < 2 || state.round > n - 4) return;
+  if (u && u.season === state.season) return;
+  if (state.ultimatumSeason === state.season) return;
+  const ref = st.teams[Math.max(0, state.board.target - 1)]?.pts || 0;
+  const per = ref / Math.max(1, state.round + 1);
+  const need = Math.max(1, Math.round(per * 3 * 0.7));
+  state.ultimatum = { season: state.season, start: myPts, need, until: state.round + 1 + 3 };
+  state.ultimatumSeason = state.season;
+  addMail(state, { from: 'Consiglio di Amministrazione', icon: 'board', type: 'bad', subject: 'Ultimatum del consiglio', body: `La fiducia è crollata al ${state.board.confidence}%. Il consiglio pretende almeno ${need} punti nei prossimi 3 eventi. Se ci riesci la fiducia risale, altrimenti la tua panchina scotta davvero.` });
 }
 
 export function unlock(state, id, name, desc) {
@@ -359,16 +398,10 @@ function postRoundMail(state, results, track, myTeamPos) {
 // ---------- Contracts & market ----------
 export function freeAgents(state) { return Object.values(state.drivers).filter((d) => !d.teamId && !d.retired); }
 
-export function driverInterest(state, d, team, salary, years) {
-  const C = state.category;
-  const ask = salaryFor(d, C) * (d.teamId ? 1.15 : 1) * (hasPerk(state, 'negotiator') ? 0.9 : 1);
-  const ranking = overallCarRanking(state);
-  const carScore = 1 - ranking.indexOf(team.id) / ranking.length; // 0..1
-  const ov = driverOverall(d, C);
-  const ambition = (ov - 70) / 30; // top drivers care about cars
-  let score = (salary / ask) * 0.55 + carScore * (0.25 + ambition * 0.35) + team.rep / 100 * 0.25 + (years >= 2 && d.age > 32 ? 0.08 : 0) + (d.age < 23 ? 0.1 : 0);
-  if (d.teamId === team.id) score += 0.15;
-  return { score, ask: +ask.toFixed(2) };
+// score is normalised so that 1 = the driver's acceptance threshold (kept for the UI: >=1 accepts)
+export function driverInterest(state, d, team, salary, years, opts = {}) {
+  const ev = evaluateOffer(state, d, team, salary, years, opts);
+  return { score: ev.score / ev.threshold, raw: ev.score, threshold: ev.threshold, ask: ev.ask, ev };
 }
 
 export function buyoutCost(state, d) {
@@ -376,11 +409,11 @@ export function buyoutCost(state, d) {
   return +(d.salary * Math.max(1, d.contract) * 0.8).toFixed(2);
 }
 
-export function signDriver(state, driverId, salary, years, replaceId) {
+export function signDriver(state, driverId, salary, years, replaceId, prechecked = false) {
   const d = state.drivers[driverId];
   const t = playerTeam(state);
-  const { score } = driverInterest(state, d, t, salary, years);
-  if (score < 0.82) return { ok: false, msg: `${d.name} ha rifiutato l’offerta.` };
+  if (!prechecked) { const { score } = driverInterest(state, d, t, salary, years); if (score < 1) return { ok: false, msg: `${d.name} ha rifiutato l’offerta.` }; }
+  if (d.nextTeam && d.nextTeam !== t.id) return { ok: false, msg: `${d.name} ha già firmato con ${state.teams[d.nextTeam]?.name} per la prossima stagione.` };
   const buy = buyoutCost(state, d);
   const signing = +(salary * 0.25).toFixed(2);
   if (t.money < buy + signing) return { ok: false, msg: 'Fondi insufficienti per clausola e bonus firma.' };
@@ -392,13 +425,11 @@ export function signDriver(state, driverId, salary, years, replaceId) {
     aiFillSeats(state, old);
   }
   addFinance(state, `Bonus firma ${d.name}`, -signing);
-  if (replaceId) {
-    const r = state.drivers[replaceId];
-    releaseDriver(state, r, true);
-    const idx = t.drivers.indexOf(replaceId);
-    t.drivers[idx] = d.id;
-  } else t.drivers.push(d.id);
-  d.teamId = t.id; d.salary = salary; d.contract = years; d.morale = 80;
+  const idx = replaceId ? t.drivers.indexOf(replaceId) : -1;
+  if (replaceId) releaseDriver(state, state.drivers[replaceId], true);
+  if (idx >= 0) t.drivers.splice(idx, 0, d.id); else t.drivers.push(d.id);
+  d.teamId = t.id; d.salary = salary; d.contract = years; d.morale = 80; d.rivalOffer = null; d._s0 = d.stats.starts; d.joinedTeam = t.id; d.joinedAge = d.age;
+  if (d.reserveFor) { const rt = state.teams[d.reserveFor]; if (rt?.reserve === d.id) rt.reserve = null; d.reserveFor = null; }
   addNews(state, `${d.name} firma con ${t.name}!`);
   unlock(state, 'signing', 'Colpo di mercato', 'Ingaggia un nuovo pilota.');
   return { ok: true };
@@ -407,22 +438,11 @@ export function signDriver(state, driverId, salary, years, replaceId) {
 export function releaseDriver(state, d, payout) {
   if (payout && d.contract > 0 && d.teamId === state.playerTeam) addFinance(state, `Rescissione ${d.name}`, -(d.salary * d.contract * 0.5));
   const t = state.teams[d.teamId];
-  if (t) t.drivers = t.drivers.filter((x) => x !== d.id);
-  d.teamId = null; d.contract = 0; d.salary = salaryFor(d, state.category);
+  if (t) { t.drivers = t.drivers.filter((x) => x !== d.id); if (t.number1 === d.id) t.number1 = null; }
+  d.teamId = null; d.contract = 0; d.salary = salaryFor(d, state.category); d.releaseAtEnd = false; d.rivalOffer = null;
 }
 
-export function aiFillSeats(state, team) {
-  const need = seatsPerTeam(state) - team.drivers.length;
-  for (let i = 0; i < need; i++) {
-    const pool = freeAgents(state).sort((a, b) => driverOverall(b, state.category) - driverOverall(a, state.category));
-    // stronger teams pick better drivers, weaker teams pick randomly from the middle
-    const r = 1 - team.rep / 100;
-    const d = pool[Math.min(pool.length - 1, Math.floor(r * 4 * Math.random()))] || generateRookie(state.category);
-    if (!state.drivers[d.id]) state.drivers[d.id] = d;
-    d.teamId = team.id; d.contract = randInt(1, 3); d.salary = salaryFor(d, state.category);
-    team.drivers.push(d.id);
-  }
-}
+export function aiFillSeats(state, team) { aiSignings(state, team, !team.isPlayer); }
 
 export function hireStaff(state, staffId) {
   const s = state.staff[staffId];
@@ -480,6 +500,11 @@ export function endSeason(state) {
   if (sum.st.teams[0].id === pt.id) { state.career.trophies.push({ season: state.season, category: state.category, type: 'Costruttori', name: pt.name }); unlock(state, 'team_title', 'Dinastia', 'Vinci il titolo costruttori.'); }
   state.career.history.push({ season: state.season, category: state.category, team: pt.name, teamId: pt.id, pos: sum.teamPos, target: sum.target, colors: pt.colors });
   state.career.seasonsManaged++;
+  if (sum.champ.teamId === pt.id && sum.champ.joinedTeam === pt.id && (sum.champ.joinedAge ?? 99) <= 22) state.career.homegrownTitle = { season: state.season, name: sum.champ.name };
+  if (sum.st.teams[0].id === pt.id && (state.seasonStartRank ?? 1) >= 4) state.career.underdogTitle = { season: state.season };
+  const legacyBefore = legacyInfo(state).score;
+  updateLegacy(state);
+  sum.legacy = { ...legacyInfo(state), gained: legacyInfo(state).score - legacyBefore };
   // board verdict
   const diff = sum.target - sum.teamPos;
   state.board.confidence = clamp(state.board.confidence + diff * 8, 0, 100);
@@ -541,52 +566,23 @@ export function newSeason(state) {
   state.round = 0;
   state.phase = 'preseason';
   if (state.rivalries) { for (const r of Object.values(state.rivalries)) r.heat *= 0.6; }
-  // age & development
+  // age & development (aging curve, see market.js)
   for (const d of Object.values(state.drivers)) {
     if (d.retired) continue;
     d.history.push({ season: state.season - 1, team: d.teamId ? state.teams[d.teamId]?.short : '-', pts: 0 });
     d.age++;
-    const ov = driverOverall(d, catId);
-    const a = d.attrs;
-    const academy = d.teamId ? (state.teams[d.teamId].facilities.academy - 3) * 0.3 : 0;
-    const sim = d.teamId ? (state.teams[d.teamId].facilities.simulator - 3) * 0.2 : 0;
-    if (d.age <= 27 && d.pot > ov) {
-      const g = (d.pot - ov) * rand(0.15, 0.4) + academy + sim;
-      for (const k of Object.keys(a)) a[k] = clamp(Math.round(a[k] + g * rand(0.6, 1.3)), 30, 99);
-      a.exp = clamp(a.exp + randInt(6, 14), 0, 99);
-    } else if (d.age >= 33) {
-      const dec = (d.age - 32) * rand(0.3, 0.9);
-      a.pace = clamp(Math.round(a.pace - dec), 30, 99);
-      a.cons = clamp(Math.round(a.cons - dec * 0.3 + rand(-0.5, 1)), 30, 99);
-      a.exp = clamp(a.exp + randInt(1, 4), 0, 99);
-    } else {
-      a.exp = clamp(a.exp + randInt(3, 8), 0, 99);
-      for (const k of ['pace', 'cons', 'race', 'tyre']) a[k] = clamp(Math.round(a[k] + rand(-1, 1.4)), 30, 99);
-    }
+    const note = developDriver(state, d);
+    if (note === 'breakout' && d.teamId === state.playerTeam) addMail(state, { from: 'Accademia', icon: 'star', type: 'good', subject: `${d.name} è esploso!`, body: `Durante l’inverno ${d.name} ha fatto un salto di qualità impressionante: il suo potenziale è cresciuto.` });
     // retirement
     const retireAge = catId === 'endurance' ? 44 : catId === 'rally' ? 42 : 39;
-    if (d.age >= retireAge && chance(0.25 + (d.age - retireAge) * 0.2) && !(d.teamId === state.playerTeam && d.contract > 1)) {
-      if (d.teamId) { const t = state.teams[d.teamId]; t.drivers = t.drivers.filter((x) => x !== d.id); }
+    if (d.age >= retireAge && chance(0.25 + (d.age - retireAge) * 0.2) && !(d.teamId === state.playerTeam && d.contract > 1) && !d.nextTeam) {
+      if (d.teamId) { const t = state.teams[d.teamId]; t.drivers = t.drivers.filter((x) => x !== d.id); if (t.number1 === d.id) t.number1 = null; }
       d.teamId = null; d.retired = true;
       addNews(state, `${d.name} annuncia il ritiro a ${d.age} anni. Leggenda.`);
-      continue;
-    }
-    if (d.teamId) {
-      d.contract--;
-      if (d.contract <= 0) {
-        const t = state.teams[d.teamId];
-        const ov2 = driverOverall(d, catId);
-        if (!t.isPlayer && ov2 > 74 && chance(0.6)) { d.contract = randInt(1, 3); d.salary = salaryFor(d, catId); }
-        else if (!t.isPlayer) { t.drivers = t.drivers.filter((x) => x !== d.id); d.teamId = null; d.salary = salaryFor(d, catId); }
-        else if (t.isPlayer) { t.drivers = t.drivers.filter((x) => x !== d.id); d.teamId = null; d.salary = salaryFor(d, catId); addMail(state, { from: 'Ufficio Contratti', icon: 'driver', type: 'bad', subject: `Contratto scaduto: ${d.name}`, body: `${d.name} non è più sotto contratto. Il sedile è libero: ingaggia un pilota dal Mercato prima del primo evento.` }); }
-      }
     }
   }
-  // new rookies
-  for (let i = 0; i < 6; i++) { const d = generateRookie(catId); d.salary = salaryFor(d, catId); d.number = randInt(2, 99); state.drivers[d.id] = d; }
-  if (freeAgents(state).length < 10) for (let i = 0; i < 4; i++) { const d = generateVeteranFreeAgent(catId); d.salary = salaryFor(d, catId); d.number = randInt(2, 99); state.drivers[d.id] = d; }
-  // AI market: big teams poach
-  for (const t of Object.values(state.teams)) if (!t.isPlayer) aiFillSeats(state, t);
+  // contracts, pre-contract transfers, rookies and AI signings
+  seasonMarket(state);
   // prune retired drivers with no team older than 3 seasons
   for (const [id, d] of Object.entries(state.drivers)) if (d.retired && !d.teamId && d.age > 48) delete state.drivers[id];
 
@@ -627,6 +623,7 @@ export function newSeason(state) {
   const base = Math.round((last + ranking.indexOf(pt.id) + 1) / 2);
   state.board.target = clamp(base - (last <= prevTarget && last > 1 ? 1 : 0) + (state.difficulty === 'easy' ? 1 : 0), 1, ranking.length);
   if (state.board.confidence < 30) state.board.confidence = 30;
+  state.seasonStartRank = ranking.indexOf(pt.id) + 1;
   state.objectives = makeObjectives(state);
   addMail(state, { from: 'Consiglio di Amministrazione', icon: 'board', type: 'info', subject: `Obiettivi stagione ${state.season}`, body: `Benvenuto nella stagione ${state.season}. Il consiglio si aspetta almeno il ${state.board.target}° posto nel campionato costruttori. Progetta la nuova vettura nel Centro Tecnico prima del primo evento.` });
 }
@@ -650,3 +647,5 @@ export function changeEngine(state, team, supId) {
   team.car.parts.reliability = clamp(+(team.car.parts.reliability + (nw.rel - old.rel) * 0.5).toFixed(1), 30, 99.5);
   team.engine = supId;
 }
+
+bindMarket({ avgPart, fmtM, addMail, addNews, addFinance, unlock, signDriver, releaseDriver, seatsPerTeam, freeAgents });

@@ -7,7 +7,9 @@ import { S, saveGame, getSettings } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { applyRaceRivalry } from '../engine/rivalry.js';
 import { cat, playerTeam, teamDrivers, applyRoundResults, standings, seatsPerTeam, aiFillSeats, addMail } from '../engine/season.js';
-import { buildEntries, runQualifying, makeWeatherPlan, raceLaps, CircuitSim, aiSetupQuality } from '../engine/race.js';
+import { buildEntries, runQualifying, makeWeatherPlan, raceLaps, CircuitSim, aiSetupQuality, weatherForecast, SETUP_BIAS } from '../engine/race.js';
+import { compEnabled, compStatus, fitComponent } from '../engine/components.js';
+import { licencePoints, BAN_POINTS } from '../engine/stewards.js';
 import { COMPOUNDS } from '../data/categories.js';
 import { circuitPath, arcFrac, speedAtTimeFrac, TrackView } from '../ui/trackview.js';
 import { mulberry32, clamp, chance, rand } from '../engine/rng.js';
@@ -164,12 +166,21 @@ registerScreen({
       App.refresh();
     },
     risk(el) { S().weekend.risk[el.dataset.key] = el.dataset.v; App.refresh(); },
+    bias(el) { const w = S().weekend; if (w.quali) return; (w.bias ||= {})[el.dataset.key] = el.dataset.v; App.refresh(); },
+    'fit-comp'(el) {
+      const st = S(); const d = st.drivers[el.dataset.id]; const type = el.dataset.t;
+      const x = compStatus(st, d)[type];
+      const doIt = () => { const pen = fitComponent(st, d, type); sfx.ok(); App.toast(`${x.name} nuovo montato`, pen ? `${d.name}: penalità di ${pen} posizioni in griglia` : `${d.name}: elemento n.${x.used + 1} di ${x.pool}`, pen ? 'bad' : 'good'); App.refresh(); };
+      if (x.nextPenalty) App.confirm(`Montare un nuovo ${x.name}?`, `${esc(d.name)} supererebbe l’allocazione stagionale (${x.used}/${x.pool}): penalità di <b>${x.nextPenalty} posizioni</b> in griglia. In cambio: componente fresco, più potenza e molto meno rischio di guasto.`, doIt, 'Monta e accetta la penalità', true);
+      else doIt();
+    },
     'run-quali'() {
       const st = S(); const w = st.weekend;
       const tr = getTrack(st.category, w.trackId);
       const setups = Object.fromEntries(Object.entries(w.cars).map(([k, c]) => [k, c.q]));
       const q = runQualifying(st, tr, setups, w.qualiRain, w.risk);
       w.quali = q; w.qualiAnim = true;
+      for (const n of q.compNotes || []) App.toast(`${n.type === 'ice' ? 'Power unit' : 'Cambio'} sostituito d’ufficio`, `${st.drivers[n.driverId]?.name}: componente rotto${n.pen ? `, penalità di ${n.pen} posizioni` : ''}`, n.pen ? 'bad' : '');
       App.refresh();
       animateQuali(st, q);
     },
@@ -212,7 +223,7 @@ function practiceView(st, tr) {
   const sb = trackSetupBase(st, tr);
   const hint = sb ? `${sb.aero > 60 ? 'pista da <b>alto carico</b>: parti con ali alte' : sb.aero < 40 ? 'pista veloce: <b>ali scariche</b>' : 'carico <b>medio</b>'}, ${sb.gear > 55 ? '<b>rapporti lunghi</b> per i rettilinei' : 'rapporti <b>corti</b> per la trazione'}${sb.height > 50 ? ', <b>altezza da terra alta</b> per sconnessioni e cordoli' : ''}.` : '';
   return `<div class="row between mb16"><div><h2>Prove Libere · Assetto</h2><div class="small muted">Regola i parametri e manda il pilota in pista: ascolta il feedback per avvicinarti all’assetto ideale. Un buon assetto vale fino a mezzo secondo al giro.</div>${hint ? `<div class="small mt8">${icon('info', 'ico', 'style="width:13px;vertical-align:-2px"')} Ingegnere: ${hint}</div>` : ''}</div>
-    <div class="row">${st.category !== 'rally' ? `<div class="panel tight small"><div class="tiny upper muted mb8">Long run (simulazione di stint · 2 giri di prova)</div><div class="row gap4">${['soft', 'medium', 'hard'].map((c) => `<button class="btn sm ${w.longRuns?.[c] ? 'active' : ''}" data-a="longrun" data-c="${c}" ${w.longRuns?.[c] || Object.values(w.cars)[0].runs < 2 ? 'disabled' : ''}>${tyreBadge(c)} ${w.longRuns?.[c] ? '✓' : ''}</button>`).join('')}</div><div class="tiny ${Math.abs(wearError(st)) < 0.03 ? 'good' : 'warn'} mt8">Dati degrado: ${Math.abs(wearError(st)) < 0.03 ? 'misurati ✓' : 'stimati (±' + Math.round(Math.abs(wearError(st)) * 100 + 4) + '%)'}</div></div>` : ''}<div class="panel tight row small" style="gap:14px">${icon(w.weather.isRain ? 'rain' : 'sun')}<div><b>Previsioni gara</b><div class="muted">${w.weather.summary}</div></div>${w.qualiRain ? `<span class="chip info">Qualifiche bagnate</span>` : ''}</div><button class="btn primary lg" data-a="to-quali">${st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'} ${icon('right')}</button></div></div>
+    <div class="row">${st.category !== 'rally' ? `<div class="panel tight small"><div class="tiny upper muted mb8">Long run (simulazione di stint · 2 giri di prova)</div><div class="row gap4">${['soft', 'medium', 'hard'].map((c) => `<button class="btn sm ${w.longRuns?.[c] ? 'active' : ''}" data-a="longrun" data-c="${c}" ${w.longRuns?.[c] || Object.values(w.cars)[0].runs < 2 ? 'disabled' : ''}>${tyreBadge(c)} ${w.longRuns?.[c] ? '✓' : ''}</button>`).join('')}</div><div class="tiny ${Math.abs(wearError(st)) < 0.03 ? 'good' : 'warn'} mt8">Dati degrado: ${Math.abs(wearError(st)) < 0.03 ? 'misurati ✓' : 'stimati (±' + Math.round(Math.abs(wearError(st)) * 100 + 4) + '%)'}</div></div>` : ''}<div class="panel tight row small" style="gap:14px">${(() => { const fc = weatherForecast(st, w, tr); return `${icon(fc.prob >= 50 ? 'rain' : 'sun')}<div><b>Previsioni gara</b><div class="muted">${fc.summary} · pioggia ${fc.prob}%</div><div class="tiny dim">Affidabilità previsione ${fc.perfect ? 'radar preciso' : fc.acc + '%'}</div></div>`; })()}${w.qualiRain ? `<span class="chip info">Qualifiche bagnate</span>` : ''}</div><button class="btn primary lg" data-a="to-quali">${st.category === 'endurance' ? 'Hyperpole' : 'Qualifiche'} ${icon('right')}</button></div></div>
   <div class="grid2 anim-in">${entries.map((e, i) => {
     const c = w.cars[e.key]; const d = st.drivers[e.driverIds[0]];
     const other = keys.find((k) => k !== e.key);
@@ -222,8 +233,28 @@ function practiceView(st, tr) {
       <div class="mt16">${SETUP_PARAMS.map((p) => { const f = c.fb?.[p.id]; return `<div class="setup-slider"><div><div style="font-weight:600;font-size:13.5px" title="${p.info}">${p.name}</div><div class="tiny ${f && f !== 'ok' ? 'warn' : 'dim'}">${f && f !== 'ok' ? (f.endsWith('lo') ? p.lo : p.hi) : p.info}</div></div><div class="row"><span class="tiny dim">MIN</span><input type="range" min="0" max="100" value="${c.vals[p.id]}" data-input="slider" data-key="${e.key}" data-p="${p.id}"><span class="tiny dim">MAX</span><b class="mono" id="v-${e.key}-${p.id}" style="width:28px;text-align:right">${c.vals[p.id]}</b></div><div class="fb ${f || 'unk'}">${f ? fbTxt(p, f) : 'Nessun dato'}</div></div>`; }).join('')}</div>
       <div class="row mt16 between"><div class="row gap6"><button class="btn primary" data-a="run" data-key="${e.key}" ${c.runs <= 0 ? 'disabled' : ''}>${icon('play')} Giro di prova (${c.runs})</button><button class="btn sm ghost" data-a="autosetup" data-key="${e.key}" ${c.runs < 2 ? 'disabled' : ''} title="L’ingegnere imposta un assetto (costa 2 giri)">${icon('wrench')} Ingegnere</button>${other ? `<button class="btn sm ghost" data-a="copy" data-from="${other}" data-to="${e.key}" title="Copia l’assetto del compagno">${icon('swap')} Copia</button>` : ''}</div>
       <div class="small muted">${c.laps.length ? `Ultimo: <b class="mono" style="color:#fff">${fmtTime(c.laps[c.laps.length - 1])}</b> · Best ${fmtTime(Math.min(...c.laps))}` : 'Nessun giro'}</div></div>
+      ${biasCard(st, w, e.key)}
+      ${compCard(st, d)}
     </div>`;
   }).join('')}</div>`;
+}
+
+// Parc fermé: the setup orientation chosen now is used both in qualifying and in the race
+function biasCard(st, w, key) {
+  if (st.category === 'rally') return '';
+  const b = w.bias?.[key] || 'balanced';
+  return `<div class="card mt16"><div class="row between"><b class="small">${icon('wrench', 'ico', 'style="width:14px;vertical-align:-2px"')} Orientamento assetto · parco chiuso</b><span class="tiny muted">Bloccato dopo le qualifiche</span></div>
+    <div class="seg mt8">${Object.entries(SETUP_BIAS).map(([k, x]) => `<div class="${b === k ? 'on' : ''}" data-a="bias" data-key="${key}" data-v="${k}">${x.name}</div>`).join('')}</div>
+    <div class="tiny muted mt8">${SETUP_BIAS[b].desc}.</div></div>`;
+}
+function compCard(st, d) {
+  if (!compEnabled(st)) return '';
+  const cs = compStatus(st, d);
+  const lp = licencePoints(d);
+  const fitted = d.gridPen && d.gridPen.season === st.season && d.gridPen.round === st.round ? d.gridPen : null;
+  return `<div class="card mt8"><div class="row between"><b class="small">${icon('car', 'ico', 'style="width:14px;vertical-align:-2px"')} Componenti power unit</b>${fitted ? `<span class="chip bad">Penalità griglia: ${fitted.places >= 15 ? 'fondo griglia' : '-' + fitted.places + ' posizioni'}</span>` : ''}</div>
+    ${Object.values(cs).map((x) => `<div class="row mt8 small" style="gap:10px"><span style="width:86px">${x.name}</span><span class="mono ${x.over ? 'bad' : ''}" style="width:42px">${x.used}/${x.pool}</span><div class="grow">${bar(Math.min(100, x.wear * 100), x.destroyed || x.wear > 1 ? 'red' : x.wear > 0.75 ? 'gold' : 'green')}</div><span class="tiny mono" style="width:44px">${x.destroyed ? 'ROTTO' : Math.round(x.wear * 100) + '%'}</span><button class="btn sm ${x.destroyed ? 'primary' : 'ghost'}" data-a="fit-comp" data-id="${d.id}" data-t="${x.type}" ${x.wear < 0.05 ? 'disabled' : ''}>Nuovo${x.nextPenalty ? ` (−${x.nextPenalty})` : ''}</button></div>`).join('')}
+    <div class="tiny muted mt8">Una PU usurata perde potenza e si rompe più facilmente. Oltre l’allocazione stagionale: 10 posizioni (prima PU extra), poi 5 per ogni elemento. Da 15 posizioni in su si parte in fondo.${lp ? ` · <span class="${lp >= 8 ? 'bad' : 'warn'}">Superlicenza: ${lp}/${BAN_POINTS} punti</span>` : ''}</div></div>`;
 }
 
 // ---------------- QUALIFYING ----------------
@@ -274,10 +305,12 @@ function qualiView(st, tr) {
   return `<div style="display:grid;grid-template-columns:1.2fr 1fr;gap:16px" class="anim-in">
     <div class="panel"><div class="panel-head"><h3>Griglia di partenza</h3></div><table class="tbl"><tbody>${q.grid.map((k, i) => {
       const e = entriesAll.find((x) => x.key === k); const tm = st.teams[e.teamId]; const d = st.drivers[e.driverIds[0]];
-      return `<tr class="${tm.isPlayer ? 'me' : ''}"><td class="pos p${i + 1}">${i + 1}</td><td>${teamStripe(tm)}</td><td>${driverChip(st, d, { size: 22 })}</td><td class="small muted">${esc(tm.name)}</td><td class="right mono">${fmtTime(q.times[k])}</td><td class="right mono small muted">${i ? '+' + (q.times[k] - q.times[q.grid[0]]).toFixed(3) : 'POLE'}</td></tr>`;
-    }).join('')}</tbody></table></div>
+      const gp = (q.gridPens || []).find((p) => p.key === k);
+      const best = q.times[(q.qualiOrder || q.grid)[0]];
+      return `<tr class="${tm.isPlayer ? 'me' : ''}"><td class="pos p${i + 1}">${i + 1}</td><td>${teamStripe(tm)}</td><td>${driverChip(st, d, { size: 22 })}${gp ? ` <span class="chip bad tiny" title="${esc(gp.items.join(', '))}">${gp.back ? 'Fondo griglia' : '-' + gp.places + ' pos.'}</span>` : ''}</td><td class="small muted">${esc(tm.name)}</td><td class="right mono">${fmtTime(q.times[k])}</td><td class="right mono small muted">${q.times[k] > best ? '+' + (q.times[k] - best).toFixed(3) : 'POLE'}</td></tr>`;
+    }).join('')}</tbody></table>${(q.gridPens || []).length ? `<div class="tiny muted mt8" style="padding:0 12px 10px">Penalità in griglia: ${q.gridPens.map((p) => `${esc(st.drivers[p.driverId]?.name || '')} (${esc(p.items.join(', '))}: dalla P${p.from} alla P${p.to})`).join(' · ')}</div>` : ''}</div>
     <div class="col gap16">
-      <div class="panel"><div class="panel-head"><h3>Meteo gara</h3></div><div class="row">${icon(w.weather.isRain ? 'rain' : 'sun', 'ico', 'style="width:36px;height:36px"')}<div><b>${w.weather.summary}</b><div class="small muted">Probabilità di pioggia stimata: ${w.weather.isRain ? Math.round(60 + Math.random() * 30) : Math.round(tr.rain * 40)}%</div></div></div>
+      <div class="panel"><div class="panel-head"><h3>Meteo gara</h3></div><div class="row">${(() => { const fc = weatherForecast(st, w, tr); return `${icon(fc.prob >= 50 ? 'rain' : 'sun', 'ico', 'style="width:36px;height:36px"')}<div><b>${fc.summary}</b><div class="small muted">Probabilità di pioggia stimata: ${fc.prob}% · affidabilità ${fc.perfect ? '100' : fc.acc}%</div></div>`; })()}</div>
         <div class="weather-strip mt16">${forecast(st, w).map((r) => `<i style="height:${Math.max(2, r * 20)}px;opacity:${r > 0.05 ? 0.9 : 0.15}"></i>`).join('')}</div>${hasPerk(st, 'meteo') ? '<div class="tiny good">Radar preciso (abilità Meteorologo)</div>' : '<div class="tiny muted">Previsione indicativa: sblocca “Meteorologo” per il radar preciso.</div>'}<div class="row between tiny muted"><span>Giro 1</span><span>Giro ${w.laps}</span></div>
       </div>
       ${strategyPanel(st, w, tr, entries, q, C)}
@@ -655,7 +688,7 @@ function finishRace() {
     return;
   }
   if (w.sprintRes) res.sprint = w.sprintRes;
-  res.pole = st.weekend.quali ? buildEntries(st).find((e) => e.key === st.weekend.quali.grid[0])?.driverIds[0] : null;
+  res.pole = st.weekend.quali ? buildEntries(st).find((e) => e.key === (st.weekend.quali.qualiOrder || st.weekend.quali.grid)[0])?.driverIds[0] : null;
   res.track = st.weekend.trackId;
   res.wet = sim.weather.isRain;
   const evIdx = st.round;
@@ -699,6 +732,8 @@ function tempCls(sim, c) {
 }
 
 function forecast(st, w) {
+  const tr = getTrack(st.category, w.trackId);
+  if (tr) return weatherForecast(st, w, tr).laps;
   const plan = w.weather.plan.slice(0, w.laps);
   if (hasPerk(st, 'meteo')) return plan;
   if (!w._fc) { const shift = Math.round((Math.random() - 0.5) * w.laps * 0.3); w._fc = plan.map((_, i) => { const r = plan[Math.min(plan.length - 1, Math.max(0, i + shift))] || 0; return Math.max(0, Math.min(1, r * (0.6 + Math.random() * 0.7))); }); }
