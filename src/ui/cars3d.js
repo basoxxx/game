@@ -1,6 +1,7 @@
 // Procedural 3D race cars: smooth lofted bodies, painted liveries (canvas texture),
 // physical materials (clear-coat paint, carbon, rubber). +x = forward, y = up.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // ---------------- materials ----------------
 const cache = new Map();
@@ -20,7 +21,7 @@ export const MAT = {
   glass: () => cached('glass', () => new THREE.MeshPhysicalMaterial({ color: 0x0a0d12, roughness: 0.04, metalness: 0.5, clearcoat: 1, transmission: 0 })),
   chrome: () => cached('chrome', () => new THREE.MeshStandardMaterial({ color: 0xdadde2, roughness: 0.12, metalness: 1 })),
   light: (c = '#fff6d8', ei = 2.2) => cached('light' + c + ei, () => new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: ei, roughness: 0.2 })),
-  paint: (hex) => cached('p' + hex, () => new THREE.MeshPhysicalMaterial({ color: hex, roughness: 0.35, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.06 })),
+  paint: (hex) => cached('p' + hex, () => new THREE.MeshPhysicalMaterial({ color: hex, roughness: 0.32, metalness: 0.22, clearcoat: 1, clearcoatRoughness: 0.05, normalMap: flakeTex(), normalScale: new THREE.Vector2(0.07, 0.07) })),
   band: (hex) => cached('b' + hex, () => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.55, metalness: 0, emissive: hex, emissiveIntensity: 0.08 })),
 };
 
@@ -66,7 +67,7 @@ function liveryTexture(L, { number, sponsor, pattern = L.pattern ?? 1, kind }) {
     // top number (formula nose)
     if (number != null && kind === 'formula') { g.save(); g.translate(W * 0.86, Y(0.25)); g.rotate(Math.PI / 2); g.fillStyle = ink; g.font = 'italic 900 60px "Exo 2", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(number), 0, 0); g.restore(); }
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
-    return new THREE.MeshPhysicalMaterial({ map: t, roughness: 0.35, metalness: 0.12, clearcoat: 1, clearcoatRoughness: 0.05 });
+    return new THREE.MeshPhysicalMaterial({ map: t, roughness: 0.32, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.04, normalMap: flakeTex(), normalScale: new THREE.Vector2(0.07, 0.07) });
   });
 }
 
@@ -228,9 +229,57 @@ function sidewallTex(color, brand = 'PIRELLO  P ZERO') {
     const S = 512, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d');
     g.clearRect(0, 0, S, S); g.translate(S / 2, S / 2);
     g.strokeStyle = color; g.lineWidth = 16; g.beginPath(); g.arc(0, 0, S * 0.44, 0, Math.PI * 2); g.stroke();
-    g.fillStyle = '#f2f2f2'; g.font = 'bold 30px "Exo 2", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    for (const base of [0, Math.PI]) { const txt = brand; const R = S * 0.385; let ang = base - (txt.length * 0.052) / 2; for (const ch of txt) { g.save(); g.rotate(ang + Math.PI / 2); g.translate(0, -R); g.fillText(ch, 0, 0); g.restore(); ang += 0.052; } }
+    g.fillStyle = '#e4e4e4'; g.font = 'bold 28px "Exo 2", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (const base of [0, Math.PI]) { const txt = brand; const R = S * 0.385; let ang = base - (txt.length * 0.082) / 2; for (const ch of txt) { g.save(); g.rotate(ang + Math.PI / 2); g.translate(0, -R); g.fillText(ch, 0, 0); g.restore(); ang += 0.082; } }
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+  });
+}
+// tyre rubber mapped on the lathe UVs (u = around, v = across the profile: 0 / 1 at the
+// rim, tread between v .467 and .533): satin sidewall, dusty worn tread with rubber
+// streaks along the rolling direction (they also make the rotation visible), grooved
+// blocks for gravel tyres; matching roughness and bump maps
+function tyreMat(kind) {
+  return cached('tyre' + kind, () => {
+    const W = 512, H = 256, mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return [c, c.getContext('2d')]; };
+    const [cc, g] = mk(), [rc, gr] = mk(), [bc, gb] = mk();
+    let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const V0 = 0.4, T0 = 0.467, T1 = 0.533, V1 = 0.6;
+    for (let y = 0; y < H; y++) {
+      const v = 1 - (y + 0.5) / H;
+      const tread = v > T0 && v < T1 ? 1 : 0, shoulder = !tread && v > V0 && v < V1 ? 1 - Math.min(Math.abs(v - T0), Math.abs(v - T1)) / (T0 - V0) : 0;
+      const base = tread ? 40 : 22 + shoulder * 10;
+      g.fillStyle = `rgb(${base},${base - 1},${base - 2})`; g.fillRect(0, y, W, 1);
+      const ro = tread ? 236 : 175 + shoulder * 40; gr.fillStyle = `rgb(${ro},${ro},${ro})`; gr.fillRect(0, y, W, 1);
+      gb.fillStyle = 'rgb(128,128,128)'; gb.fillRect(0, y, W, 1);
+    }
+    const ty0 = (1 - T1) * H, ty1 = (1 - T0) * H;
+    // streaks / graining on the tread, faint moulding lines on the sidewall
+    for (let i = 0; i < 900; i++) {
+      const y = ty0 + rnd() * (ty1 - ty0), x = rnd() * W, len = 6 + rnd() * 60, a = rnd();
+      g.fillStyle = a > 0.5 ? `rgba(70,64,58,${0.25 + rnd() * 0.35})` : `rgba(8,8,9,${0.3 + rnd() * 0.3})`; g.fillRect(x, y, len, 1);
+      gb.fillStyle = a > 0.5 ? 'rgba(160,160,160,0.6)' : 'rgba(100,100,100,0.6)'; gb.fillRect(x, y, len, 1);
+    }
+    for (let i = 0; i < 400; i++) { const y = rnd() < 0.5 ? rnd() * ty0 * 0.95 : ty1 + rnd() * (H - ty1) * 0.95, x = rnd() * W; gr.fillStyle = `rgba(120,120,120,${0.2 + rnd() * 0.2})`; gr.fillRect(x, y, 1 + rnd() * 3, 1 + rnd() * 2); }
+    if (kind === 'rally') {
+      // block tread: lateral grooves alternating across the centre, a circumferential groove
+      for (let k = 0; k < 44; k++) {
+        const x = (k / 44) * W, off = (k % 2) * 5;
+        for (const [ctx, col] of [[g, 'rgb(10,10,11)'], [gb, 'rgb(20,20,20)'], [gr, 'rgb(255,255,255)']]) { ctx.fillStyle = col; ctx.fillRect(x + off, ty0 - 6, 3, (ty1 - ty0) / 2 + 4); ctx.fillRect(x + 5 - off, ty0 + (ty1 - ty0) / 2 + 2, 3, (ty1 - ty0) / 2 + 4); }
+      }
+      for (const [ctx, col] of [[g, 'rgb(10,10,11)'], [gb, 'rgb(20,20,20)']]) { ctx.fillStyle = col; ctx.fillRect(0, (ty0 + ty1) / 2 - 1, W, 2); }
+    }
+    const tex = (c, srgb) => { const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };
+    return new THREE.MeshStandardMaterial({ map: tex(cc, true), roughnessMap: tex(rc), bumpMap: tex(bc), bumpScale: kind === 'rally' ? 2.5 : 0.6, roughness: 1, metalness: 0 });
+  });
+}
+// metallic-flake normal noise under the clear coat (the coat itself stays mirror-smooth)
+function flakeTex() {
+  return cached('flake', () => {
+    const S = 128, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'); const im = g.createImageData(S, S);
+    let seed = 11; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < S * S; i++) { const x = rnd() * 2 - 1, y = rnd() * 2 - 1; im.data[i * 4] = 128 + x * 110; im.data[i * 4 + 1] = 128 + y * 110; im.data[i * 4 + 2] = 255; im.data[i * 4 + 3] = 255; }
+    g.putImageData(im, 0, 0);
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(36, 22); return t;
   });
 }
 function sidewallMat(color) { return cached('swm' + color, () => new THREE.MeshStandardMaterial({ map: sidewallTex(color), transparent: true, roughness: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 })); }
@@ -244,7 +293,7 @@ function wheel(r, w, tyreColor, { rim = '#1c1f24', kind = 'gt', rimFrac = 0.66, 
   for (let k = 0; k <= 6; k++) { const a = (k / 6) * (Math.PI / 2); prof.push(new THREE.Vector2(r - rr + Math.cos(a) * rr, w / 2 - rr + Math.sin(a) * rr)); }
   prof.push(new THREE.Vector2(rimR, w / 2 - 0.01));
   const tg = new THREE.LatheGeometry(prof, 44); tg.rotateX(Math.PI / 2);
-  spin.add(mesh(tg, MAT.rubber()));
+  spin.add(mesh(tg, tyreMat(kind === 'rally' ? 'rally' : 'slick')));
   // sidewall branding with compound colour (planar UV on a disc)
   if (decal) for (const sgn of [1, -1]) {
     const d = new THREE.Mesh(new THREE.RingGeometry(rimR * 1.01, r * 0.985, 48, 1), sidewallMat(tyreColor || '#ffd400'));
@@ -542,6 +591,63 @@ export function buildCar(category, livery, opts = {}) {
   const car = category === 'rally' ? rally(L, opts) : category === 'gt' ? rally(L, { ...opts, gt: true }) : category === 'endurance' ? endurance(L, opts) : formula(L, opts);
   if (category === 'junior') car.scale.setScalar(0.94);
   car.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  if (opts.merge !== false) mergeStatic(car);
+  return car;
+}
+
+// ---------------- draw-call reduction ----------------
+// A car is built from ~100 small meshes; static parts that share a material are baked into
+// one mesh (car-local space). Kept separate: wheel groups (spin + steering), helmet parts
+// (hidden in the cockpit view) and tyre sidewall decals (swapped by setTyreColor). Inside
+// each wheel the rotating parts are merged per material within their spin group.
+const KEEP_ATTR = ['position', 'normal', 'uv'];
+function bakeGeometry(src, rel) {
+  const g = src.clone();
+  for (const k of Object.keys(g.attributes)) if (!KEEP_ATTR.includes(k)) g.deleteAttribute(k);
+  g.morphAttributes = {}; g.clearGroups();
+  if (!g.attributes.normal) g.computeVertexNormals();
+  const n = g.attributes.position.count;
+  if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2), 2));
+  if (!g.index) { const idx = new (n > 65535 ? Uint32Array : Uint16Array)(n); for (let i = 0; i < n; i++) idx[i] = i; g.setIndex(new THREE.BufferAttribute(idx, 1)); }
+  g.applyMatrix4(rel);
+  return g;
+}
+function mergeInto(root, meshes) {
+  root.updateMatrixWorld(true);
+  const inv = root.matrixWorld.clone().invert();
+  const groups = new Map();
+  for (const m of meshes) {
+    if (Array.isArray(m.material)) continue;
+    const k = m.material.uuid + (m.castShadow ? 's' : '') + (m.receiveShadow ? 'r' : '') + m.renderOrder + (m.userData.band ? 'b' : '');
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(m);
+  }
+  const rel = new THREE.Matrix4();
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    const merged = mergeGeometries(list.map((m) => bakeGeometry(m.geometry, rel.multiplyMatrices(inv, m.matrixWorld))), false);
+    if (!merged) continue;
+    merged.computeBoundingSphere();
+    const mm = new THREE.Mesh(merged, list[0].material);
+    mm.castShadow = list[0].castShadow; mm.receiveShadow = list[0].receiveShadow; mm.renderOrder = list[0].renderOrder;
+    mm.userData.merged = list.length; if (list[0].userData.band) mm.userData.band = true;
+    root.add(mm);
+    for (const m of list) m.removeFromParent();
+  }
+}
+export function mergeStatic(car) {
+  const keep = new Set([...(car.userData.wheels || []), ...(car.userData.helmetParts || [])]);
+  const stat = [];
+  const walk = (o) => { for (const c of o.children) { if (keep.has(c)) continue; if (c.isMesh) { if (!c.userData.band && c.visible) stat.push(c); } else walk(c); } };
+  walk(car);
+  mergeInto(car, stat);
+  for (const w of car.userData.wheels || []) for (const sp of w.userData.spin || []) {
+    const parts = []; sp.traverse((o) => { if (o.isMesh) parts.push(o); });
+    mergeInto(sp, parts);
+  }
+  // drop the now empty helper groups
+  const prune = (o) => { for (const c of [...o.children]) { if (keep.has(c)) continue; prune(c); if (!c.isMesh && c.type === 'Group' && !c.children.length) c.removeFromParent(); } };
+  prune(car);
   return car;
 }
 

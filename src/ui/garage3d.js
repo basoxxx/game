@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { buildCar } from './cars3d.js';
-import { applyHDRI } from './gfx.js';
+import { applyHDRI, applyFilterSettings } from './gfx.js';
 
 export class Garage3D {
   constructor(container, category, livery, opts = {}) {
@@ -14,6 +14,7 @@ export class Garage3D {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
+    applyFilterSettings(this.renderer.domElement);
     Object.assign(this.renderer.domElement.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', cursor: 'grab' });
     this.scene = new THREE.Scene();
     try { const pm = new THREE.PMREMGenerator(this.renderer); this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; this.scene.environmentIntensity = 0.6; } catch {}

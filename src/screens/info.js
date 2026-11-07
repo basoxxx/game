@@ -10,6 +10,7 @@ import { CATEGORIES } from '../data/categories.js';
 import { driverChip, teamStripe, ratingBox, ovr } from './common.js';
 import { openLoad } from './menu.js';
 import { applyVolumes, sfx } from '../ui/audio.js';
+import { applyFilterSettings, FILTER_PRESETS, COLORBLIND_MODES } from '../ui/gfx.js';
 import { PERKS, xpForLevel, ensureProgress, buyPerk } from '../engine/progress.js';
 import { legacyInfo } from '../engine/legacy.js';
 
@@ -171,6 +172,10 @@ registerScreen({
         <div class="row between mt16"><span>Qualità grafica 3D</span><div class="row gap6"><button class="btn sm ${s.gfx !== 'low' ? 'active' : ''}" data-a="gfx" data-v="high">Alta</button><button class="btn sm ${s.gfx === 'low' ? 'active' : ''}" data-a="gfx" data-v="low">Prestazioni</button></div></div>
         <div class="row between mt16"><span data-tip="Riduce transizioni e animazioni dell’interfaccia">Riduci animazioni</span><button class="btn sm ${s.reduceMotion ? 'active' : ''}" data-a="motion">${s.reduceMotion ? 'ON' : 'OFF'}</button></div>
         <div class="row between mt16"><span>Vista 3D in gara</span><button class="btn sm ${s.view3d !== false ? 'active' : ''}" data-a="toggle" data-k="view3d">${s.view3d !== false ? 'ON' : 'OFF'}</button></div>
+        <div class="panel-head mt24"><h3>Filtri visivi 3D</h3></div>
+        <div><span data-tip="Correzione colore applicata alla gara, al garage e a tutte le viste 3D">Stile immagine</span><div class="row wrap gap6 mt8">${Object.entries(FILTER_PRESETS).map(([k, p]) => `<button class="btn sm ${(s.gfxFilter || 'naturale') === k ? 'active' : ''}" data-a="gfxf" data-v="${k}" data-tip="${p.desc}">${p.label}</button>`).join('')}</div></div>
+        ${[['gfxSharpen', 'Nitidezza adattiva', 'Rende più definiti bordi e dettagli lontani', false], ['gfxGrain', 'Grana pellicola', 'Leggera grana cinematografica animata', false], ['gfxVignette', 'Vignettatura', 'Scurisce leggermente i bordi dell’immagine', true]].map(([k, n, tip, def]) => `<div class="row between mt8"><span data-tip="${tip}">${n}</span><button class="btn sm ${(s[k] ?? def) ? 'active' : ''}" data-a="gfxt" data-k="${k}" data-d="${def ? 1 : 0}">${(s[k] ?? def) ? 'ON' : 'OFF'}</button></div>`).join('')}
+        <div class="mt8"><span data-tip="Corregge i colori per chi ha un deficit nella percezione dei colori">Modalità daltonici</span><div class="row wrap gap6 mt8">${Object.entries(COLORBLIND_MODES).map(([k, l]) => `<button class="btn sm ${(s.gfxColorblind || 'off') === k ? 'active' : ''}" data-a="gfxcb" data-v="${k}">${l}</button>`).join('')}</div></div>
         <div class="panel-head mt24"><h3>Realismo gara</h3></div>
         ${[['failures', 'Guasti meccanici'], ['damage', 'Incidenti e danni'], ['aiAggr', 'Aggressività avversari']].map(([k, n]) => `<div class="row between mt8"><span>${n}</span><div class="row gap6">${[[0.3, 'Bassi'], [1, 'Realistici'], [1.6, 'Alti']].map(([v, l]) => `<button class="btn sm ${(s[k] ?? 1) === v ? 'active' : ''}" data-a="real" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div></div>`).join('')}
         ${window.apex?.toggleFullscreen ? `<div class="row between mt16"><span>Schermo intero</span><button class="btn sm" data-a="fs">${icon('fullscreen')} F11</button></div>` : ''}
@@ -187,6 +192,9 @@ registerScreen({
     mvol(el) { setSettings({ musicVol: +el.value }); applyVolumes(); },
     speed(el) { setSettings({ raceSpeed: +el.dataset.v }); App.refresh(); },
     gfx(el) { setSettings({ gfx: el.dataset.v }); App.refresh(); },
+    gfxf(el) { setSettings({ gfxFilter: el.dataset.v }); applyFilterSettings(); App.refresh(); },
+    gfxt(el) { const k = el.dataset.k; setSettings({ [k]: !(getSettings()[k] ?? el.dataset.d === '1') }); applyFilterSettings(); App.refresh(); },
+    gfxcb(el) { setSettings({ gfxColorblind: el.dataset.v }); applyFilterSettings(); App.refresh(); },
     real(el) { setSettings({ [el.dataset.k]: +el.dataset.v }); App.refresh(); },
     fs() { window.apex?.toggleFullscreen?.(); },
     motion() { const v = !getSettings().reduceMotion; setSettings({ reduceMotion: v }); document.documentElement.classList.toggle('reduce-motion', v); App.refresh(); },
