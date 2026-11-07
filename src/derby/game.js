@@ -332,7 +332,7 @@ export class DerbyGame {
     b.resetForces(true); b.resetTorques(true); // user forces persist in Rapier: rebuild them every frame
     const r = b.rotation(); const q = tmpQ.set(r.x, r.y, r.z, r.w);
     const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(q), up = new THREE.Vector3(0, 1, 0).applyQuaternion(q), side = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
-    const lv = b.linvel(); const vel = new THREE.Vector3(lv.x, lv.y, lv.z);
+    const lv = b.linvel(); const vel = new THREE.Vector3(lv.x, lv.y, lv.z); car.preV = { x: lv.x, y: lv.y, z: lv.z };
     const vF = vel.dot(fwd), vLat = vel.dot(side), speed = vel.length();
     const dead = car.hp <= 0, mass = s.mass;
     let grounded = 0; for (let i = 0; i < 4; i++) if (vc.wheelIsInContact(i)) grounded++;
@@ -470,12 +470,19 @@ export class DerbyGame {
         const eff = J * scale; if (eff < 1500) continue;
         const dmg = Math.min(42, (eff - 1500) / (400 * car.spec.armor)) * (this.track.arena ? 0.8 : 1);
         // impact point: contact manifold if available, else along the force direction
-        let wp = null;
-        try { this.world.contactPair(e.collider1(), e.collider2(), (man) => { if (!wp && man.numSolverContacts?.() > 0) { const c = man.solverContactPoint(0); wp = new THREE.Vector3(c.x, c.y, c.z); } }); } catch {}
-        const bt = car.body.translation(), br = car.body.rotation(); const q = new THREE.Quaternion(br.x, br.y, br.z, br.w);
-        if (!wp) { const fd = e.maxForceDirection(); wp = new THREE.Vector3(bt.x - fd.x * 1.5, bt.y + 0.5, bt.z - fd.z * 1.5); }
-        const local = wp.clone().sub(new THREE.Vector3(bt.x, bt.y, bt.z)).applyQuaternion(q.clone().invert());
+        // impact point: towards the other body (cars, props), along the motion (walls) or below/above (ground),
+        // projected onto the car's box so dents land on the panel that was actually hit
+        const bt = car.body.translation(), br = car.body.rotation(); const q = new THREE.Quaternion(br.x, br.y, br.z, br.w), qi = q.clone().invert();
+        let dirW;
+        if (other.kind === 'car' || other.kind === 'prop') { const ot = (other.kind === 'car' ? other.car.body : other.body).translation(); dirW = new THREE.Vector3(ot.x - bt.x, (ot.y - bt.y) * 0.3, ot.z - bt.z); }
+        else if (other.kind === 'ground') { const up = car.dyn?.up || UP; dirW = up.y < 0 ? up.clone() : up.clone().negate(); const lv = car.preV || car.body.linvel(); dirW.addScaledVector(new THREE.Vector3(lv.x, 0, lv.z).normalize(), 0.6); }
+        else { const lv = car.preV || car.body.linvel(); dirW = new THREE.Vector3(lv.x, 0, lv.z); if (dirW.lengthSq() < 1) dirW.set(1, 0, 0).applyQuaternion(q); }
+        const dl = dirW.applyQuaternion(qi).normalize(); const { L: cL, W: cW } = car.mesh.userData.dims;
+        const sc = Math.min(cL / Math.max(1e-3, Math.abs(dl.x)), cW / Math.max(1e-3, Math.abs(dl.z)), 0.6 / Math.max(1e-3, Math.abs(dl.y)));
+        const local = new THREE.Vector3(dl.x * sc, 0.62 + dl.y * sc, dl.z * sc);
+        const wp = local.clone().applyQuaternion(q).add(new THREE.Vector3(bt.x, bt.y, bt.z));
         const inward = new THREE.Vector3(-local.x, -local.y * 0.3, -local.z).normalize();
+        if (car.isPlayer) (this.simStats.hitLocal ||= []).push([other.kind, +local.x.toFixed(2), +local.y.toFixed(2), +local.z.toFixed(2), Math.round(dmg)]);
         car.lastImpactT = this.time; const ds = (this.simStats.dmgBy ||= {}); ds[other.kind] = Math.round((ds[other.kind] || 0) + dmg); if (other.kind === 'ground' && this.state === 'race' && this.time > 1 && (this.simStats.gl ||= []).length < 25) { const lv = car.body.linvel(); this.simStats.gl.push([car.name.slice(0, 4), Math.round(eff), Math.round(dmg), +lv.y.toFixed(1), +Math.hypot(lv.x, lv.z).toFixed(0), +(car.dyn?.up.y ?? 1).toFixed(2), car.dyn?.grounded, +this.time.toFixed(1), car.hp | 0]); }
         this.applyDamage(car, dmg, local, inward, other.kind === 'car' ? other.car : null, wp);
         if (eff > 2400) for (let k = 0; k < Math.min(34, eff / 500); k++) this.sparks.emit(wp.x, wp.y, wp.z, (Math.random() - 0.5) * 10, Math.random() * 5, (Math.random() - 0.5) * 10, 0.25 + Math.random() * 0.35, 0.35, 1, 0.75 + Math.random() * 0.2, 0.35, 1);
@@ -490,7 +497,7 @@ export class DerbyGame {
   carCrash(a, b, J) {
     const key = a.num < b.num ? a.num * 100 + b.num : b.num * 100 + a.num;
     this.pairCool ||= new Map(); if (this.time - (this.pairCool.get(key) ?? -9) < 0.9) return;
-    const pa = a.body.translation(), pb = b.body.translation(), va = a.body.linvel(), vb = b.body.linvel();
+    const pa = a.body.translation(), pb = b.body.translation(), va = a.preV || a.body.linvel(), vb = b.preV || b.body.linvel();
     const dx = pb.x - pa.x, dz = pb.z - pa.z, dl = Math.hypot(dx, dz) || 1, nx = dx / dl, nz = dz / dl;
     const ca = va.x * nx + va.z * nz, cb = -(vb.x * nx + vb.z * nz), closing = ca + cb;
     if (closing < 6 || J < 1800) return;
@@ -516,6 +523,9 @@ export class DerbyGame {
   slowmo(t) { this.slowT = t; this.slowCool = 7; }
   applyDamage(car, dmg, local, dir, by, wp) {
     if (dmg <= 0.5) return;
+    // the nose is the battering ram, flanks are soft, the boot is the derby driver's best shield
+    const Lz = car.mesh.userData.dims.L;
+    dmg *= local.x > Lz * 0.45 ? 0.9 : local.x < -Lz * 0.45 ? 0.75 : 1.2;
     const before = car.hp; car.hp = Math.max(0, car.hp - dmg);
     dent(car.mesh, local, dir, Math.min(0.32, dmg * 0.012));
     const ud = car.mesh.userData, L = ud.dims.L;
@@ -533,7 +543,7 @@ export class DerbyGame {
     // parts in the hit zone lose hit points and may fly off
     for (const pt of [...ud.parts]) if (pt.userData.zone === zone) { pt.userData.hp -= dmg; if (pt.userData.hp <= 0) this.detach(car, pt); }
     // a huge hit near a wheel can tear it off
-    if ((dmg > 22 || (dmg > 14 && car.hp < 45)) && Math.random() < 0.55) {
+    if ((dmg > 22 || (dmg > 14 && car.hp < 45)) && Math.abs(local.z) > ud.dims.W * 0.45 && Math.random() < 0.55) {
       let wi = -1, wd = 1.3; ud.wheelPos.forEach(([x, z], i) => { const d = Math.hypot(local.x - x, local.z - z); if (d < wd && !car.wheelLost[i]) { wd = d; wi = i; } });
       if (wi >= 0 && car.wheelLost.filter(Boolean).length < 2) this.detachWheel(car, wi);
     }
@@ -577,7 +587,7 @@ export class DerbyGame {
     if (killer?.isPlayer || car.isPlayer) this.crashCandidate(24, [car, killer].filter(Boolean), car.isPlayer ? 'La tua auto distrutta' : `Demolizione di ${car.name}`);
     // explosion
     const p = car.body.translation();
-    for (let k = 0; k < 40; k++) this.fire.emit(p.x, p.y + 0.8, p.z, (Math.random() - 0.5) * 6, 2 + Math.random() * 5, (Math.random() - 0.5) * 6, 0.5 + Math.random() * 0.5, 1.4, 1, 0.5 + Math.random() * 0.3, 0.1, 1);
+    for (let k = 0; k < 40; k++) this.fire.emit(p.x, p.y + 0.8, p.z, (Math.random() - 0.5) * 6, 2 + Math.random() * 5, (Math.random() - 0.5) * 6, 0.4 + Math.random() * 0.5, 1.1, 1, 0.35 + Math.random() * 0.3, 0.06, 0.9);
     for (let k = 0; k < 20; k++) this.smoke.emit(p.x, p.y + 1, p.z, (Math.random() - 0.5) * 3, 2 + Math.random() * 2, (Math.random() - 0.5) * 3, 3, 1.6, 0.08, 0.08, 0.08, 0.75);
     if (this.track.arena) { car.out = true; car.outT = this.time; }
     else car.wreckT = 4.5; // respawn after a pause, with patched-up car
@@ -756,9 +766,9 @@ export class DerbyGame {
       car.smokeT = burning ? 0.02 : car.hp < 30 ? 0.04 : 0.09;
       const hp = ud.dims.L - 0.4; const ep = new THREE.Vector3(hp, 0.95, 0).applyQuaternion(q).add(car.mesh.position);
       const k = burning ? 0.06 : car.hp < 30 ? 0.16 : 0.45; this.smoke.emit(ep.x, ep.y + 0.2, ep.z, (Math.random() - 0.5) * 1.5 - lv.x * 0.2, 1.8 + Math.random(), (Math.random() - 0.5) * 1.5 - lv.z * 0.2, burning ? 3.2 : 2, burning ? 1.3 : 0.9, k, k * 0.95, k * 0.9, burning ? 0.7 : 0.5);
-      if (burning) for (let n = 0; n < 2; n++) this.fire.emit(ep.x + (Math.random() - 0.5) * 0.6, ep.y, ep.z + (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) - lv.x * 0.1, 2 + Math.random() * 2.5, (Math.random() - 0.5) - lv.z * 0.1, 0.45 + Math.random() * 0.3, car.burnT > 0 ? 1.1 : 0.75, 1, 0.42 + Math.random() * 0.3, 0.08, 0.9);
+      if (burning) for (let n = 0; n < 2; n++) this.fire.emit(ep.x + (Math.random() - 0.5) * 0.7, ep.y, ep.z + (Math.random() - 0.5) * 0.7, (Math.random() - 0.5) - lv.x * 0.1, 1.6 + Math.random() * 2.2, (Math.random() - 0.5) - lv.z * 0.1, 0.35 + Math.random() * 0.35, car.burnT > 0 ? 0.8 : 0.55, 1, 0.3 + Math.random() * 0.25, 0.04, 0.75);
     }
-    if (car.boost) { const ep = new THREE.Vector3(-ud.dims.L - 0.2, 0.33, -0.5).applyQuaternion(q).add(car.mesh.position); for (let k = 0; k < 3; k++) this.fire.emit(ep.x, ep.y, ep.z, -fwd.x * 8, 0.3, -fwd.z * 8, 0.12, 0.45, 0.4, 0.6, 1, 0.9); }
+    if (car.boost) { const ep = new THREE.Vector3(-ud.dims.L - 0.2, 0.33, -0.5).applyQuaternion(q).add(car.mesh.position); for (let k = 0; k < 2; k++) this.fire.emit(ep.x, ep.y, ep.z, -fwd.x * 7 + lv.x * 0.8, 0.3, -fwd.z * 7 + lv.z * 0.8, 0.1, 0.32, 0.35 + Math.random() * 0.4, 0.45, 1, 0.8); }
   }
 
   render(dt, frozen, pin, dtReal = dt) {

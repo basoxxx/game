@@ -3,6 +3,8 @@
 // bonnet, boot lid and spoiler are separate meshes that can be torn off and thrown into the world.
 // The visible body sits in a "shell" group that leans with weight transfer; wheels stay on the root.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeStatic } from './merge.js';
 
 // Handling fields (all optional for the menu): steer = max lock (rad), steerRate (rad/s),
 // drive = 'rwd'|'fwd'|'awd', gears, engine (synth preset), comY (centre of mass height), roll (visual lean),
@@ -145,16 +147,17 @@ function wheel(r, w) {
     for (let k = 0; k <= 5; k++) { const a = (k / 5) * (Math.PI / 2); prof.push(new THREE.Vector2(r - rr + Math.cos(a) * rr, w / 2 - rr + Math.sin(a) * rr)); }
     prof.push(new THREE.Vector2(rimR, w / 2));
     const tg = new THREE.LatheGeometry(prof, 24); tg.rotateX(Math.PI / 2);
-    const disc = new THREE.CylinderGeometry(rimR, rimR * 0.9, 0.04, 18); disc.rotateX(Math.PI / 2);
-    const nut = new THREE.CylinderGeometry(0.035, 0.035, 0.05, 6); nut.rotateX(Math.PI / 2);
-    _wheelCache.set(key, { tg, disc, nut, rimR });
+    // steel rims with hub nuts, merged into one geometry (one draw call)
+    const bits = [];
+    for (const sg of [1, -1]) {
+      const d = new THREE.CylinderGeometry(rimR, rimR * 0.9, 0.04, 18); d.rotateX(Math.PI / 2); d.translate(0, 0, sg * w * 0.32); bits.push(d.toNonIndexed());
+      for (let k = 0; k < 5; k++) { const a = (k / 5) * Math.PI * 2; const n = new THREE.CylinderGeometry(0.035, 0.035, 0.05, 6); n.rotateX(Math.PI / 2); n.translate(Math.cos(a) * rimR * 0.55, Math.sin(a) * rimR * 0.55, sg * w * 0.35); bits.push(n.toNonIndexed()); }
+      const hub = new THREE.CylinderGeometry(rimR * 0.22, rimR * 0.22, 0.06, 10); hub.rotateX(Math.PI / 2); hub.translate(0, 0, sg * w * 0.34); bits.push(hub.toNonIndexed());
+    }
+    _wheelCache.set(key, { tg, rim: mergeGeometries(bits) });
   }
-  const { tg, disc, nut, rimR } = _wheelCache.get(key);
-  spin.add(mesh(tg, M.rubber));
-  for (const sg of [1, -1]) {
-    const d = mesh(disc, M.steel); d.position.z = sg * w * 0.32; spin.add(d);
-    for (let k = 0; k < 5; k++) { const h = mesh(nut, M.dark); const a = (k / 5) * Math.PI * 2; h.position.set(Math.cos(a) * rimR * 0.55, Math.sin(a) * rimR * 0.55, sg * w * 0.35); spin.add(h); }
-  }
+  const { tg, rim } = _wheelCache.get(key);
+  spin.add(mesh(tg, M.rubber)); spin.add(mesh(rim, M.steel));
   grp.userData.spin = spin; grp.userData.r = r; grp.userData.w = w; return grp;
 }
 export function makeWheel(r, w) { return wheel(r, w); }
@@ -265,6 +268,8 @@ export function buildBanger(type, color, number = 7, seed = 1) {
   // keep the original body vertices for deformation
   body.geometry.userData.orig = Float32Array.from(body.geometry.attributes.position.array);
   cab.geometry.userData.orig = Float32Array.from(cab.geometry.attributes.position.array);
+  // one mesh per material for everything that never moves on its own (cage, trims, interior, lights...)
+  mergeStatic(shell, new Set([body, cab, ...parts]));
   car.userData = { wheels, wheelPos, wr, ww, shell, body, cab, parts, dims: { L, W: Wd, H: roofY, beltY }, paint, dirt, glass: { tex: winTex, WIN, cracked: {} }, sign };
   return car;
 }

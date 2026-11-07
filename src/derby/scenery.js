@@ -6,6 +6,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { pbr } from '../ui/gfx.js';
 import { makeForest, makeTreeShadows, vegOfKind } from '../ui/vegetation.js';
+import { mergeStatic } from './merge.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
@@ -37,13 +38,16 @@ function sponsorAtlas() {
   return _atlas;
 }
 // plane showing sponsor i (uv sub-rect of the atlas)
+function bannerMat() { return (MATS.bannerM ||= new THREE.MeshStandardMaterial({ map: sponsorAtlas(), roughness: 0.62 })); }
 function bannerGeo(w, h, i) { const g = new THREE.PlaneGeometry(w, h); const uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setY(k, 1 - (i + 1 - uv.getY(k)) / 8); return g; }
 
 const MATS = {};
 function mats() {
   if (MATS.ready) return MATS;
   MATS.ready = true;
-  MATS.corr = (color) => new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (g, W, H) => { g.fillStyle = color; g.fillRect(0, 0, W, H); for (let x = 0; x < W; x += 16) { const gr = g.createLinearGradient(x, 0, x + 16, 0); gr.addColorStop(0, 'rgba(0,0,0,0.28)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.12)'); gr.addColorStop(1, 'rgba(0,0,0,0.28)'); g.fillStyle = gr; g.fillRect(x, 0, 16, H); } for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(${110 + Math.random() * 40},${50 + Math.random() * 20},20,${Math.random() * 0.5})`; g.beginPath(); g.ellipse(Math.random() * W, Math.random() * H, 4 + Math.random() * 18, 3 + Math.random() * 30, 0, 0, 7); g.fill(); } }, [2, 1]), roughness: 0.65, metalness: 0.45 });
+  const corrCache = new Map();
+  MATS.corr = (color) => corrCache.get(color) || corrCache.set(color, MATS.corrMake(color)).get(color);
+  MATS.corrMake = (color) => new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (g, W, H) => { g.fillStyle = color; g.fillRect(0, 0, W, H); for (let x = 0; x < W; x += 16) { const gr = g.createLinearGradient(x, 0, x + 16, 0); gr.addColorStop(0, 'rgba(0,0,0,0.28)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.12)'); gr.addColorStop(1, 'rgba(0,0,0,0.28)'); g.fillStyle = gr; g.fillRect(x, 0, 16, H); } for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(${110 + Math.random() * 40},${50 + Math.random() * 20},20,${Math.random() * 0.5})`; g.beginPath(); g.ellipse(Math.random() * W, Math.random() * H, 4 + Math.random() * 18, 3 + Math.random() * 30, 0, 0, 7); g.fill(); } }, [2, 1]), roughness: 0.65, metalness: 0.45 });
   MATS.barn = new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (g, W, H) => { g.fillStyle = '#8e2a1e'; g.fillRect(0, 0, W, H); for (let x = 0; x < W; x += 21) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x, 0, 2, H); g.fillStyle = `rgba(255,255,255,${Math.random() * 0.06})`; g.fillRect(x + 2, 0, 19, H); } }, [3, 1]), roughness: 0.9 });
   MATS.white = new THREE.MeshStandardMaterial({ color: 0xe8e4da, roughness: 0.8 });
   MATS.concrete = pbr('concrete_floor_worn_001', { color: 0xbab3a6, repeat: [4, 1] });
@@ -52,7 +56,9 @@ function mats() {
   MATS.roofRed = new THREE.MeshStandardMaterial({ color: 0xa33a2a, roughness: 0.6, metalness: 0.3 });
   MATS.lamp = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff2d0, emissiveIntensity: 3 });
   MATS.wood = new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (g, W, H) => { g.fillStyle = '#7a5a3a'; g.fillRect(0, 0, W, H); for (let y = 0; y < H; y += 16) { g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, y, W, 2); } }), roughness: 0.9 });
+  MATS.banner = null;
   MATS.crowd = canvasTex(512, 256, (g, W, H) => { g.fillStyle = '#2e2c2a'; g.fillRect(0, 0, W, H); for (let y = 6; y < H; y += 16) for (let x = 3 + (y % 32 ? 4 : 0); x < W; x += 9) { if (Math.random() < 0.12) continue; g.fillStyle = `hsl(${Math.random() * 360},${45 + Math.random() * 40}%,${30 + Math.random() * 40}%)`; g.fillRect(x - 3, y + 2, 7, 9); g.fillStyle = ['#f1c9a5', '#c58c62', '#8d5a3b', '#e6b892'][Math.floor(Math.random() * 4)]; g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); } }, [4, 1]);
+  MATS.crowdMat = new THREE.MeshStandardMaterial({ map: MATS.crowd, roughness: 0.9 });
   return MATS;
 }
 
@@ -176,19 +182,19 @@ function shed(kind, R) {
 }
 function grandstand(len, rows = 8, roofed = true) {
   const M = mats(), grp = new THREE.Group(), step = 0.8, rise = 0.55;
-  const crowd = new THREE.MeshStandardMaterial({ map: M.crowd.clone(), roughness: 0.9 }); crowd.map.repeat.set(len / 10, 1); crowd.map.needsUpdate = true;
   for (let r = 0; r < rows; r++) {
     const tier = new THREE.Mesh(new THREE.BoxGeometry(len, rise, step), M.concrete); tier.position.set(0, rise * (r + 0.5), -r * step); grp.add(tier);
   }
   // crowd sheet over the tiers
-  const sheet = new THREE.Mesh(new THREE.PlaneGeometry(len - 0.4, Math.hypot(rows * step, rows * rise)), crowd);
+  const sg = new THREE.PlaneGeometry(len - 0.4, Math.hypot(rows * step, rows * rise)); { const uv = sg.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setX(k, uv.getX(k) * len / 40); }
+  const sheet = new THREE.Mesh(sg, M.crowdMat);
   sheet.position.set(0, rows * rise / 2 + 0.3, -rows * step / 2 + step / 2); grp.add(sheet);
   sheet.rotation.set(-(Math.PI / 2 - Math.atan2(rise, step)), 0, 0);
   const back = new THREE.Mesh(new THREE.BoxGeometry(len, rows * rise + 2.5, 0.4), M.concrete); back.position.set(0, (rows * rise + 2.5) / 2, -rows * step - 0.2); grp.add(back);
   const front = new THREE.Mesh(new THREE.BoxGeometry(len, 1.1, 0.25), M.white); front.position.set(0, 0.55, step / 2 + 0.2); grp.add(front);
   // sponsor boards on the front wall
   const atlas = sponsorAtlas();
-  for (let x = -len / 2 + 4; x < len / 2 - 3; x += 8) { const b = new THREE.Mesh(bannerGeo(7.6, 0.95, Math.floor(Math.random() * 8)), new THREE.MeshStandardMaterial({ map: atlas, roughness: 0.6 })); b.position.set(x + 0.2, 0.55, step / 2 + 0.34); grp.add(b); }
+  for (let x = -len / 2 + 4; x < len / 2 - 3; x += 8) { const b = new THREE.Mesh(bannerGeo(7.6, 0.95, Math.floor(Math.random() * 8)), bannerMat()); b.position.set(x + 0.2, 0.55, step / 2 + 0.34); grp.add(b); }
   if (roofed) {
     const top = rows * rise + 4.2;
     const roof = new THREE.Mesh(new THREE.BoxGeometry(len + 1, 0.3, rows * step + 3), M.roofRed); roof.position.set(0, top, -rows * step / 2 + 0.6); roof.rotation.x = -0.08; grp.add(roof);
@@ -198,7 +204,7 @@ function grandstand(len, rows = 8, roofed = true) {
 }
 function banner(i, w = 7.5, h = 1.5) {
   const M = mats(), grp = new THREE.Group();
-  const b = new THREE.Mesh(bannerGeo(w, h, i), new THREE.MeshStandardMaterial({ map: sponsorAtlas(), roughness: 0.65, side: THREE.DoubleSide })); b.position.y = 1.0 + h / 2; grp.add(b);
+  const b = new THREE.Mesh(bannerGeo(w, h, i), bannerMat()); b.position.y = 1.0 + h / 2; grp.add(b);
   for (const x of [-w / 2, w / 2]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.1 + h, 6), M.steel); p.position.set(x, (1.1 + h) / 2, -0.05); grp.add(p); }
   return shadowy(grp);
 }
@@ -216,24 +222,31 @@ function clearOf(game, x, z, r) { const tr = game.track; if (tr.arena) return tr
 export function buildScenery(game) {
   const v = game.venue, tr = game.track, T = game.terrain, scene = game.scene, R = rng((v.seed || 9) * 17 + 3);
   game.blockers = []; // [x, z, r] for tree placement
-  const place = (obj, x, z, yaw, info) => { const y = T.heightAt(x, z); obj.position.set(x, y - 0.05, z); obj.rotation.y = yaw; scene.add(obj); game.blockers.push([x, z, Math.max(...info.half) + 2]); if (info.half) solid(game, x, y, z, yaw, info.half[0], (info.h || 4) / 2, info.half[1], info.round || 0); };
+  game.S = new THREE.Group(); scene.add(game.S);
+  buildSceneryInner(game, R);
+  // static dressing: one mesh per material
+  mergeStatic(game.S);
+}
+function buildSceneryInner(game, R) {
+  const v = game.venue, tr = game.track, T = game.terrain, scene = game.scene;
+  const place = (obj, x, z, yaw, info) => { const y = T.heightAt(x, z); obj.position.set(x, y - 0.05, z); obj.rotation.y = yaw; game.S.add(obj); game.blockers.push([x, z, Math.max(...info.half) + 2]); if (info.half) solid(game, x, y, z, yaw, info.half[0], (info.h || 4) / 2, info.half[1], info.round || 0); };
   if (tr.arena) { buildArena(game, R); return; }
   const hw = tr.width / 2;
   // start / finish gantry
   const p0 = tr.pts[0], nx = -Math.sin(p0.h), nz = Math.cos(p0.h);
   const bannerTex = canvasTex(1024, 128, (g) => { g.fillStyle = '#111'; g.fillRect(0, 0, 1024, 128); for (let i = 0; i < 32; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? '#fff' : '#111'; g.fillRect(i * 32, j * 32, 32, 32); } g.fillStyle = '#e10600'; g.fillRect(256, 14, 512, 100); g.fillStyle = '#fff'; g.font = 'italic 900 56px "Exo 2", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('SCONTRO TOTALE', 512, 66, 480); });
   const M = mats();
-  for (const sd of [1, -1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.5, 7.5, 0.5), M.steel); p.position.set(p0.x + nx * sd * (hw + 1.5), p0.y + 3.75, p0.z + nz * sd * (hw + 1.5)); p.castShadow = true; scene.add(p); }
+  for (const sd of [1, -1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.5, 7.5, 0.5), M.steel); p.position.set(p0.x + nx * sd * (hw + 1.5), p0.y + 3.75, p0.z + nz * sd * (hw + 1.5)); p.castShadow = true; game.S.add(p); }
   const ban = new THREE.Mesh(new THREE.BoxGeometry(tr.width + 3.5, 1.8, 0.3), [M.steel, M.steel, M.steel, M.steel, new THREE.MeshStandardMaterial({ map: bannerTex, roughness: 0.6 }), new THREE.MeshStandardMaterial({ map: bannerTex, roughness: 0.6 })]);
-  ban.position.set(p0.x, p0.y + 6.6, p0.z); ban.rotation.y = -p0.h + Math.PI / 2; ban.castShadow = true; scene.add(ban);
+  ban.position.set(p0.x, p0.y + 6.6, p0.z); ban.rotation.y = -p0.h + Math.PI / 2; ban.castShadow = true; game.S.add(ban);
   const chk = new THREE.Mesh(new THREE.PlaneGeometry(1.6, tr.width), new THREE.MeshStandardMaterial({ map: bannerTex, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2 }));
-  chk.rotation.x = -Math.PI / 2; chk.rotation.z = -p0.h; chk.position.set(p0.x, T.heightAt(p0.x, p0.z) + 0.04, p0.z); scene.add(chk);
+  chk.rotation.x = -Math.PI / 2; chk.rotation.z = -p0.h; chk.position.set(p0.x, T.heightAt(p0.x, p0.z) + 0.04, p0.z); game.S.add(chk);
   // grandstands
   const stands = v.stadium ? [] : [0.03, 0.5, ...(v.farm ? [] : [0.27])];
   for (const fr of stands) {
     const i = Math.floor(fr * tr.N), p = tr.pts[i], k = p.k, sd = k > 0 ? 1 : -1, ox = -Math.sin(p.h) * sd, oz = Math.cos(p.h) * sd, off = hw + 15;
     const x = p.x + ox * off, z = p.z + oz * off; if (!clearOf(game, x, z, 8)) continue;
-    const g = grandstand(40, 8); g.position.set(x, T.heightAt(x, z) - 0.2, z); g.rotation.y = Math.atan2(ox, oz) + Math.PI; scene.add(g); game.blockers.push([x, z, 24]);
+    const g = grandstand(40, 8); g.position.set(x, T.heightAt(x, z) - 0.2, z); g.rotation.y = Math.atan2(ox, oz) + Math.PI; game.S.add(g); game.blockers.push([x, z, 24]);
   }
   // sponsor banners and light poles along the track, outside the berm
   const poles = [], lamps = [];
@@ -241,7 +254,7 @@ export function buildScenery(game) {
   for (let i = 0; i < tr.N; i += 22) {
     const p = tr.pts[i]; const sd = (i / 22) % 2 ? 1 : -1; const ox = -Math.sin(p.h) * sd, oz = Math.cos(p.h) * sd;
     const bx = p.x + ox * (hw + 12.5), bz = p.z + oz * (hw + 12.5);
-    if (clearOf(game, bx, bz, -2.5)) { const b = banner(bi++ % 8); b.position.set(bx, T.heightAt(bx, bz) - 0.1, bz); b.rotation.y = Math.atan2(ox, oz) + Math.PI; scene.add(b); }
+    if (clearOf(game, bx, bz, -2.5)) { const b = banner(bi++ % 8); b.position.set(bx, T.heightAt(bx, bz) - 0.1, bz); b.rotation.y = Math.atan2(ox, oz) + Math.PI; game.S.add(b); }
     if (i % 44 === 0) { const lx = p.x - ox * (hw + 13), lz = p.z - oz * (hw + 13); if (clearOf(game, lx, lz, -2.5)) poles.push([lx, T.heightAt(lx, lz), lz, Math.atan2(-ox, -oz) + Math.PI]); }
   }
   if (poles.length) {
@@ -251,7 +264,7 @@ export function buildScenery(game) {
     const armI = new THREE.InstancedMesh(new THREE.BoxGeometry(0.12, 0.12, 1.4).translate(0, ph - 0.1, 0.6), M.steel, poles.length);
     const d = new THREE.Object3D();
     poles.forEach(([x, y, z, yaw], i) => { d.position.set(x, y - 0.2, z); d.rotation.y = yaw; d.updateMatrix(); poleI.setMatrixAt(i, d.matrix); lampI.setMatrixAt(i, d.matrix); armI.setMatrixAt(i, d.matrix); });
-    for (const m of [poleI, armI]) { m.castShadow = true; scene.add(m); } scene.add(lampI);
+    for (const m of [poleI, armI]) { m.castShadow = true; game.S.add(m); } game.S.add(lampI);
     game.lamps = lampI;
   }
   // buildings
@@ -288,14 +301,14 @@ function buildQuarry(game, R) {
   }
   const inst = new THREE.InstancedMesh(base, rockMat, list.length); const d = new THREE.Object3D();
   list.forEach(([x, y, z, s], i) => { d.position.set(x, y + s * 0.25, z); d.rotation.set(R() * 3, R() * 3, R() * 3); d.scale.set(s * (0.8 + R() * 0.5), s, s * (0.8 + R() * 0.5)); d.updateMatrix(); inst.setMatrixAt(i, d.matrix); if (s > 1) { const b = game.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, y + s * 0.2, z)); const c = game.world.createCollider(RAPIER.ColliderDesc.ball(s * 0.75), b); game.handles.set(c.handle, { kind: 'wall' }); } });
-  inst.castShadow = true; inst.receiveShadow = true; game.scene.add(inst);
+  inst.castShadow = true; inst.receiveShadow = true; game.S.add(inst);
   // conveyor belt gantry crossing high over the track
   const i = Math.floor(tr.N * 0.4), p = tr.pts[i], M = mats();
   const grp = new THREE.Group(); const span = tr.width + 30;
   const belt = new THREE.Mesh(new THREE.BoxGeometry(span, 1.2, 1.6), M.corr('#c98a1a')); belt.position.y = 9; grp.add(belt);
   for (let x = -span / 2; x <= span / 2; x += span / 4) { if (Math.abs(x) < hw + 3) continue; const l = new THREE.Mesh(new THREE.BoxGeometry(0.4, 9, 0.4), M.steel); l.position.set(x, 4.5, 0); grp.add(l); }
   const tx = new THREE.Mesh(new THREE.BoxGeometry(span, 0.2, 0.2), M.steel); tx.position.set(0, 10, 0.8); grp.add(tx);
-  shadowy(grp); grp.position.set(p.x, p.y, p.z); grp.rotation.y = -p.h + Math.PI / 2; game.scene.add(grp);
+  shadowy(grp); grp.position.set(p.x, p.y, p.z); grp.rotation.y = -p.h + Math.PI / 2; game.S.add(grp);
 }
 
 function buildFarm(game, R) {
@@ -308,7 +321,7 @@ function buildFarm(game, R) {
   const post = new THREE.InstancedMesh(new THREE.BoxGeometry(0.16, 1.3, 0.16).translate(0, 0.65, 0), M.wood, rails.length);
   const rail = new THREE.InstancedMesh(mergeGeometries([new THREE.BoxGeometry(10.2, 0.14, 0.06).translate(0, 0.55, 0), new THREE.BoxGeometry(10.2, 0.14, 0.06).translate(0, 1.05, 0)]), M.wood, rails.length);
   const d = new THREE.Object3D(); rails.forEach(([x, y, z, yaw], i) => { d.position.set(x, y, z); d.rotation.y = yaw; d.updateMatrix(); post.setMatrixAt(i, d.matrix); rail.setMatrixAt(i, d.matrix); });
-  post.castShadow = rail.castShadow = true; game.scene.add(post); game.scene.add(rail);
+  post.castShadow = rail.castShadow = true; game.S.add(post); game.S.add(rail);
   // tractor
   for (let n = 0; n < 2; n++) {
     const i = Math.floor(R() * tr.N), p = tr.pts[i], off = hw + 20, sd = n ? 1 : -1, x = p.x - Math.sin(p.h) * sd * off, z = p.z + Math.cos(p.h) * sd * off;
@@ -317,7 +330,7 @@ function buildFarm(game, R) {
     const b = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.0, 1.1), red); b.position.set(0.4, 1.3, 0); g.add(b);
     const cab = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 1.3), new THREE.MeshStandardMaterial({ color: 0x1a2228, roughness: 0.2, metalness: 0.5, transparent: true, opacity: 0.6 })); cab.position.set(-0.7, 2.4, 0); g.add(cab);
     for (const [wx, wr] of [[-0.8, 0.95], [1.3, 0.55]]) for (const wz of [-0.85, 0.85]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(wr, wr, 0.45, 16), M.dark); w.rotation.x = Math.PI / 2; w.position.set(wx, wr, wz); g.add(w); }
-    shadowy(g); g.position.set(x, T.heightAt(x, z), z); g.rotation.y = R() * 6; game.scene.add(g); solid(game, x, T.heightAt(x, z), z, 0, 1.6, 1.4, 1.2);
+    shadowy(g); g.position.set(x, T.heightAt(x, z), z); g.rotation.y = R() * 6; game.S.add(g); solid(game, x, T.heightAt(x, z), z, 0, 1.6, 1.4, 1.2);
   }
 }
 
@@ -326,19 +339,19 @@ function buildStadium(game, R) {
   const [x0, z0, x1, z1] = tr.bbox, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, ex = (x1 - x0) / 2 + 30, ez = (z1 - z0) / 2 + 30;
   // grandstands on all four sides, facing the infield
   for (const [x, z, len, yaw] of [[cx, cz - ez, (x1 - x0) + 30, 0], [cx, cz + ez, (x1 - x0) + 30, Math.PI], [cx - ex, cz, (z1 - z0) + 20, Math.PI / 2], [cx + ex, cz, (z1 - z0) + 20, -Math.PI / 2]]) {
-    const g = grandstand(len, 12); g.position.set(x, T.heightAt(x, z) - 0.3, z); g.rotation.y = yaw; scene.add(g);
+    const g = grandstand(len, 12); g.position.set(x, T.heightAt(x, z) - 0.3, z); g.rotation.y = yaw; game.S.add(g);
   }
   // concrete retaining wall inside the stands (fixed colliders)
   const wallM = M.concrete;
   for (const [x, z, w, d] of [[cx, cz - ez + 3, (x1 - x0) + 40, 0.6], [cx, cz + ez - 3, (x1 - x0) + 40, 0.6], [cx - ex + 3, cz, 0.6, (z1 - z0) + 40], [cx + ex - 3, cz, 0.6, (z1 - z0) + 40]]) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 1.4, d), wallM); m.position.set(x, T.heightAt(x, z) + 0.7, z); m.castShadow = m.receiveShadow = true; scene.add(m); solid(game, x, T.heightAt(x, z), z, 0, w / 2, 0.7, d / 2);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 1.4, d), wallM); m.position.set(x, T.heightAt(x, z) + 0.7, z); m.castShadow = m.receiveShadow = true; game.S.add(m); solid(game, x, T.heightAt(x, z), z, 0, w / 2, 0.7, d / 2);
   }
   // floodlight towers at the corners with real spot lights
   for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
     const x = cx + sx * (ex + 6), z = cz + sz * (ez + 6), y = T.heightAt(x, z);
-    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 34, 8).translate(0, 17, 0), M.steel); tower.position.set(x, y, z); tower.castShadow = true; scene.add(tower);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 0.6), M.lamp); head.position.set(x, y + 34, z); head.lookAt(cx, 0, cz); scene.add(head);
-    const sp = new THREE.SpotLight(0xfff1dc, 2600, 320, 0.62, 0.55, 1.4); sp.position.set(x, y + 34, z); sp.target.position.set(cx - sx * 20, 0, cz - sz * 15); scene.add(sp); scene.add(sp.target);
+    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 34, 8).translate(0, 17, 0), M.steel); tower.position.set(x, y, z); tower.castShadow = true; game.S.add(tower);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 0.6), M.lamp); head.position.set(x, y + 34, z); head.lookAt(cx, 0, cz); game.S.add(head);
+    const sp = new THREE.SpotLight(0xfff1dc, 1100, 320, 0.62, 0.55, 1.35); sp.position.set(x, y + 34, z); sp.target.position.set(cx - sx * 20, 0, cz - sz * 15); game.S.add(sp); game.S.add(sp.target);
   }
   // wreck pile and tyre mountains in the infield lobes
 }
@@ -346,15 +359,15 @@ function buildStadium(game, R) {
 function buildArena(game, R) {
   const tr = game.track, s = game.scene, T = game.terrain, M = mats();
   const wallMat = pbr('concrete_floor_worn_001', { color: 0xb8b0a0, repeat: [20, 1] });
-  const wall = new THREE.Mesh(new THREE.CylinderGeometry(tr.R + 10.5, tr.R + 10.5, 3, 96, 1, true), wallMat); wall.position.set(T.cx, 7.6, T.cz); wall.material.side = THREE.DoubleSide; wall.receiveShadow = true; s.add(wall);
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(tr.R + 10.5, tr.R + 10.5, 3, 96, 1, true), wallMat); wall.position.set(T.cx, 7.6, T.cz); wall.material.side = THREE.DoubleSide; wall.receiveShadow = true; game.S.add(wall);
   // sponsor boards on the inner ring
-  for (let k = 0; k < 24; k++) { const a = (k / 24) * Math.PI * 2, r = tr.R + 6; const b = new THREE.Mesh(bannerGeo(9, 1.4, k % 8), new THREE.MeshStandardMaterial({ map: sponsorAtlas(), roughness: 0.6 })); const x = T.cx + Math.cos(a) * r, z = T.cz + Math.sin(a) * r; b.position.set(x, T.heightAt(x, z) + 1.2, z); b.lookAt(T.cx, b.position.y, T.cz); s.add(b); }
+  for (let k = 0; k < 24; k++) { const a = (k / 24) * Math.PI * 2, r = tr.R + 6; const b = new THREE.Mesh(bannerGeo(9, 1.4, k % 8), bannerMat()); const x = T.cx + Math.cos(a) * r, z = T.cz + Math.sin(a) * r; b.position.set(x, T.heightAt(x, z) + 1.2, z); b.lookAt(T.cx, b.position.y, T.cz); game.S.add(b); }
   // grandstands around the bowl
-  for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2 + 0.26, r = tr.R + 26; const g = grandstand(34, 10); const x = T.cx + Math.cos(a) * r, z = T.cz + Math.sin(a) * r; g.position.set(x, T.heightAt(x, z) - 0.5, z); g.rotation.y = Math.atan2(T.cx - x, T.cz - z); s.add(g); }
+  for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2 + 0.26, r = tr.R + 26; const g = grandstand(34, 10); const x = T.cx + Math.cos(a) * r, z = T.cz + Math.sin(a) * r; g.position.set(x, T.heightAt(x, z) - 0.5, z); g.rotation.y = Math.atan2(T.cx - x, T.cz - z); game.S.add(g); }
   for (let k = 0; k < 6; k++) {
     const a = (k / 6) * Math.PI * 2; const x = T.cx + Math.cos(a) * (tr.R + 16), z = T.cz + Math.sin(a) * (tr.R + 16);
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 26, 8), M.steel); m.position.set(x, T.heightAt(x, z) + 13, z); m.castShadow = true; s.add(m);
-    const lamp = new THREE.Mesh(new THREE.BoxGeometry(3, 1.4, 0.6), M.lamp); lamp.position.set(x, m.position.y + 13.5, z); lamp.lookAt(T.cx, 0, T.cz); s.add(lamp);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 26, 8), M.steel); m.position.set(x, T.heightAt(x, z) + 13, z); m.castShadow = true; game.S.add(m);
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(3, 1.4, 0.6), M.lamp); lamp.position.set(x, m.position.y + 13.5, z); lamp.lookAt(T.cx, 0, T.cz); game.S.add(lamp);
   }
 }
 
@@ -367,7 +380,7 @@ export function buildTrees(game) {
   const bl = game.blockers || [];
   const clear = (x, z) => {
     if (tr.arena) return Math.hypot(x - T.cx, z - T.cz) > tr.R + 44;
-    if (v.stadium) { const [x0, z0, x1, z1] = tr.bbox; if (x > x0 - 130 && x < x1 + 130 && z > z0 - 130 && z < z1 + 130) return false; }
+    if (v.stadium) { const [x0, z0, x1, z1] = tr.bbox; if (x > x0 - 190 && x < x1 + 190 && z > z0 - 190 && z < z1 + 190) return false; }
     for (let i = 0; i < tr.N; i += 3) { const p = tr.pts[i]; if ((p.x - x) ** 2 + (p.z - z) ** 2 < (tr.width / 2 + 16) ** 2) return false; }
     for (const [bx, bz, br] of bl) if ((bx - x) ** 2 + (bz - z) ** 2 < br * br) return false;
     if (T.waterAt(x, z) > 0.05) return false;
