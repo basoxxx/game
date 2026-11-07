@@ -18,6 +18,14 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 3.3
+
+- **Vetture rifatte sulle proporzioni reali**: monoposto a effetto suolo (ala a 4 elementi, pance con undercut, fondo e diffusore, beam wing, coprimozzi 18"), Rally1 hatchback (padiglione con vetri, passaruota squadrati, alettone, paraspruzzi), Hypercar (parafanghi alti, abitacolo a goccia, coda lunga con pinna), GT per il traffico Endurance
+- Gomme con scritte sul fianco del colore della mescola
+- **Fisica visiva**: ruote che sterzano, rollio in curva, beccheggio in frenata e accelerazione, spruzzi d'acqua sul bagnato
+- **Grafica TV dei duelli** quando due auto sono sotto il secondo
+- Verifica automatica di tutti i 30 circuiti (nessun salto, nessuna auto fuori traiettoria)
+
 ## Novità della versione 3.2
 
 - **Tracciati corretti**: eliminate le cuspidi e i mini-anelli nei dati dei circuiti (auto che giravano su se stesse e si teletrasportavano), tratti paralleli separati, **ponte** sugli incroci (Suzuka), barriere che non invadono i tratti vicini
