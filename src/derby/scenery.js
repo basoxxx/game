@@ -112,12 +112,13 @@ export function buildGround(game) {
   mat.customProgramCacheKey = () => 'dzground' + v.id;
   const ground = new THREE.Mesh(g, mat); ground.receiveShadow = true; scene.add(ground);
   const far = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshStandardMaterial({ color: rockGround ? 0x9c8e70 : 0x6f8a52, roughness: 1 }));
-  far.rotation.x = -Math.PI / 2; far.position.set(T.cx, -2, T.cz); scene.add(far);
+  let hMin = 1e9; for (let k = 0; k < T.H.length; k += 7) hMin = Math.min(hMin, T.H[k]);
+  far.rotation.x = -Math.PI / 2; far.position.set(T.cx, hMin - 4, T.cz); scene.add(far);
   return ground;
 }
 
 // ------------------------------------------------------------------ water
-function waterMat() { return new THREE.MeshStandardMaterial({ color: 0x23332f, roughness: 0.04, metalness: 0.15, transparent: true, opacity: 0.82, envMapIntensity: 1.4 }); }
+function waterMat() { return new THREE.MeshPhysicalMaterial({ color: 0x0f1c20, roughness: 0.03, metalness: 0.0, transparent: true, opacity: 0.9, envMapIntensity: 0.75, clearcoat: 1, clearcoatRoughness: 0.05 }); }
 export function buildWaterMeshes(game) {
   const W = game.water, T = game.terrain, scene = game.scene;
   for (const s of W.streams) {
@@ -128,6 +129,7 @@ export function buildWaterMeshes(game) {
       if (q) { const b = (q - 1) * 2; idx.push(b, b + 2, b + 1, b + 1, b + 2, b + 3); }
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); g.setIndex(idx); g.computeVertexNormals();
+    if (g.attributes.normal.getY(0) < 0) { for (let k = 0; k < idx.length; k += 3) { const t = idx[k + 1]; idx[k + 1] = idx[k + 2]; idx[k + 2] = t; } g.setIndex(idx); g.computeVertexNormals(); }
     const m = new THREE.Mesh(g, waterMat()); m.receiveShadow = true; scene.add(m);
     // reeds and stones along the banks (off-track)
   }
