@@ -5,6 +5,8 @@ import { esc } from '../ui/dom.js';
 import { sfx, music } from '../ui/audio.js';
 import { VENUES, buildTrack } from '../derby/tracks.js';
 import { BANGERS } from '../derby/cars.js';
+import { FILTER_PRESETS, applyFilterSettings } from '../ui/gfx.js';
+import { getSettings, setSettings } from '../engine/state.js';
 
 const KEY = 'apexdynasty_derby';
 const PRICES = { berlina: 0, utilitaria: 0, muscle: 20000, pickup: 35000 };
@@ -43,6 +45,8 @@ registerScreen({
               <div class="dz-stats"><span>Potenza</span>${bar(b.power / 1.3)}<span>Velocità</span>${bar(b.top / 1.15)}<span>Resistenza</span>${bar(b.armor / 1.5)}<span>Tenuta</span>${bar(b.grip / 1.15)}</div></div>`; }).join('')}</div>
             <div class="row gap6 mt16" style="flex-wrap:wrap"><span class="small muted" style="width:70px">Colore</span>${COLORS.map((c) => `<div class="swatch ${(D.color || car.color) === c ? 'sel' : ''}" style="background:${c}" data-a="dz-color" data-c="${c}"></div>`).join('')}</div>
             <div class="row gap6 mt8"><span class="small muted" style="width:70px">Avversari</span>${[3, 5, 7].map((n) => `<button class="btn sm ${D.opponents === n ? 'active' : ''}" data-a="dz-opp" data-v="${n}">${n}</button>`).join('')}</div>
+            <div class="row gap6 mt8" style="flex-wrap:wrap"><span class="small muted" style="width:70px">Filtro</span>${Object.entries(FILTER_PRESETS).map(([k, f]) => `<button class="btn sm ${(getSettings().gfxFilter || 'naturale') === k ? 'active' : ''}" data-a="dz-filter" data-v="${k}" data-tip="${esc(f.desc)}">${esc(f.label)}</button>`).join('')}</div>
+            <div class="row gap6 mt8"><span class="small muted" style="width:70px">Vista</span><button class="btn sm ${getSettings().dzMarker !== false ? 'active' : ''}" data-a="dz-marker">Freccia sopra la mia auto</button></div>
             <button class="btn primary xl mt24 pulse" style="width:100%" data-a="dz-go">${icon('flag')} Si parte!</button>
             <div class="tiny muted mt8">Tastiera: W/S gas e freno · A/D sterzo · Spazio freno a mano · Shift nitro · R riposiziona · C cambia camera. Gamepad: grilletti, stick sinistro, A nitro, B freno a mano.</div></div>
           <div class="panel small"><b>Come si gioca</b><div class="muted mt8">Il nitro si ricarica facendo volare l’auto e colpendo gli avversari. Le lamiere si piegano e i pezzi si staccano: oltre il limite l’auto prende fuoco ed è distrutta. Vinci gare e derby per guadagnare crediti e comprare auto più potenti.</div></div>
@@ -76,6 +80,8 @@ registerScreen({
       D.car = id; D.color = null; sfx.click(); App.refresh();
     },
     'dz-color'(el) { D.color = el.dataset.c; App.refresh(); },
+    'dz-filter'(el) { setSettings({ gfxFilter: el.dataset.v }); applyFilterSettings(); App.refresh(); },
+    'dz-marker'() { setSettings({ dzMarker: getSettings().dzMarker === false }); App.refresh(); },
     'dz-opp'(el) { D.opponents = +el.dataset.v; App.refresh(); },
     'dz-go'() { D.playing = true; sfx.ok(); App.refresh(); },
     'dz-resume'() { D.game?.togglePause(); },

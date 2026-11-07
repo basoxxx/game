@@ -18,6 +18,12 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 3.5
+
+- **Nuova modalità "Scontro Totale": guidi tu.** Corse a contatto e demolition derby con fisica vera (Rapier): sospensioni, derapate, salti, auto che si ammaccano, pezzi che volano via, fumo e fuoco, oggetti travolgibili (barili, gomme, casse, fieno, transenne), nitro che si ricarica con gli scontri e i salti, IA che sperona, 4 eventi (cava con salti, figura a otto con incrocio, pineta, arena derby), 4 auto da sbloccare con i crediti, tastiera e gamepad
+- **Filtri visivi**: Naturale, Vivido, Cinematico, Retrò, Alto contrasto, più nitidezza, grana, vignettatura e modalità per daltonici (tasto F in gara); freccia sopra la tua auto
+- **Grafica**: gomme e vernici più realistiche, ombre più nitide, riflesso del sole, notte con lampioni e pozze di luce, auto molto più leggere da disegnare (−67% di draw call)
+
 ## Novità della versione 3.4
 
 - **Grafica**: sole e nebbia ricavati dal cielo HDRI, colline all'orizzonte, cordoli 3D e cordoli "a salsiccia", vie di fuga verniciate, gomma e segni di frenata sull'asfalto, cartelli 150/100/50, postazioni dei commissari, torri TV, passerella, nuovo semaforo di partenza, pioggia e notte più realistiche, pozzanghere riflettenti, ombre di contatto, camera car e onboard dinamiche, stage rally con terreno e alberi veri

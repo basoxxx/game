@@ -3,10 +3,10 @@
 // nitro earned by crashing, AI that races and rams, and a last-car-standing derby arena.
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { pbr, applyHDRI, makeComposer, hdriSun, hdriHorizon } from '../ui/gfx.js';
+import { pbr, applyHDRI, makeComposer, hdriSun, hdriHorizon, applyFilterSettings, FILTER_PRESETS } from '../ui/gfx.js';
 import { makeForest, makeTreeShadows, vegOfKind } from '../ui/vegetation.js';
 import { engineStart, engineSet, engineStop, sfx } from '../ui/audio.js';
-import { getSettings } from '../engine/state.js';
+import { getSettings, setSettings } from '../engine/state.js';
 import { buildTrack, buildTerrain } from './tracks.js';
 import { buildBanger, dent, BANGERS, AI_COLORS } from './cars.js';
 import { Particles, SkidMarks } from './fx.js';
@@ -253,6 +253,11 @@ export class DerbyGame {
       this.cars.push(this.makeCar({ spec, color, num: isP ? 1 : k + 1, name: isP ? (this.o.playerName || 'Tu') : AI_NAMES[(k - 1) % AI_NAMES.length], isPlayer: isP, pos: g, skill: 0.78 + Math.random() * 0.2, aggr: 0.3 + Math.random() * 0.6 }));
     }
     this.player = this.cars[0];
+    if (getSettings().dzMarker !== false) {
+      const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(-0.55, 0.7); sh.lineTo(-0.2, 0.7); sh.lineTo(-0.2, 1.3); sh.lineTo(0.2, 1.3); sh.lineTo(0.2, 0.7); sh.lineTo(0.55, 0.7); sh.closePath();
+      const arrow = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color: 0xffd400, transparent: true, opacity: 0.9, depthTest: false, side: THREE.DoubleSide }));
+      arrow.renderOrder = 10; this.marker = arrow; this.scene.add(arrow);
+    }
   }
 
   makeCar({ spec, color, num, name, isPlayer, pos, skill, aggr }) {
@@ -288,7 +293,7 @@ export class DerbyGame {
 
   // ---------------------------------------------------------------- input
   bindInput() {
-    this._kd = (e) => { this.keys[e.code] = true; if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault(); if (e.code === 'KeyC') this.camMode = (this.camMode + 1) % 3; if (e.code === 'KeyR' && this.state === 'race' && this.player.hp > 0) this.respawn(this.player); if ((e.code === 'Escape' || e.code === 'KeyP') && (this.state === 'race' || this.state === 'paused')) this.togglePause(); };
+    this._kd = (e) => { this.keys[e.code] = true; if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault(); if (e.code === 'KeyC') this.camMode = (this.camMode + 1) % 3; if (e.code === 'KeyF') { const ks = Object.keys(FILTER_PRESETS); const cur = getSettings().gfxFilter || 'naturale'; const nx = ks[(ks.indexOf(cur) + 1) % ks.length]; setSettings({ gfxFilter: nx }); applyFilterSettings(); this.message(`Filtro: ${FILTER_PRESETS[nx].label}`, 'info'); } if (e.code === 'KeyR' && this.state === 'race' && this.player.hp > 0) this.respawn(this.player); if ((e.code === 'Escape' || e.code === 'KeyP') && (this.state === 'race' || this.state === 'paused')) this.togglePause(); };
     this._ku = (e) => { this.keys[e.code] = false; };
     window.addEventListener('keydown', this._kd); window.addEventListener('keyup', this._ku);
     this.camMode = 0;
@@ -534,6 +539,7 @@ export class DerbyGame {
     for (const d of this.debris) { const t = d.body.translation(), r = d.body.rotation(); d.mesh.position.set(t.x, t.y, t.z); d.mesh.quaternion.set(r.x, r.y, r.z, r.w); }
     if (!frozen) { this.dust.update(dt); this.smoke.update(dt); this.fire.update(dt); this.sparks.update(dt); }
     this.updateCamera(dt);
+    if (this.marker) { const p = this.player.mesh.position; this.marker.position.set(p.x, p.y + 2.2 + Math.sin(this.time * 4) * 0.1, p.z); this.marker.quaternion.copy(this.camera.quaternion); this.marker.visible = this.camMode !== 2; }
     // shadow follows the player
     const pp = this.player.mesh.position; this.sun.position.copy(pp).addScaledVector(this.sunDir, 150); this.sun.target.position.copy(pp);
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
@@ -568,7 +574,7 @@ export class DerbyGame {
         <div class="dz-bar"><span>NITRO</span><div><i id="dz-nitro"></i></div></div>
         <div class="dz-bar dmg"><span>DANNI</span><div><i id="dz-hp"></i></div></div></div>
       <canvas class="dz-map" id="dz-map" width="220" height="220"></canvas>
-      <div class="dz-help">W/S o ↑/↓ gas e freno · A/D sterzo · Spazio freno a mano · Shift nitro · R riposiziona · C camera · Esc pausa · Gamepad supportato</div>
+      <div class="dz-help">W/S o ↑/↓ gas e freno · A/D sterzo · Spazio freno a mano · Shift nitro · R riposiziona · C camera · F filtro immagine · Esc pausa · Gamepad supportato</div>
       <div class="dz-pause" id="dz-pause"><h2>Pausa</h2><button class="btn primary lg" data-a="dz-resume">Riprendi</button><button class="btn lg" data-a="dz-restart">Ricomincia</button><button class="btn ghost lg" data-a="dz-quit">Esci</button></div>
       <div class="dz-results" id="dz-results"></div>`;
     this.hud = { root: h, pause: h.querySelector('#dz-pause') };
