@@ -1,5 +1,6 @@
 // Procedural track geometry + canvas renderer
 import { mulberry32 } from '../engine/rng.js';
+import { luminance } from './art.js';
 
 function catmull(pts, closed, samples = 14) {
   const out = [];
@@ -186,6 +187,21 @@ export class TrackView {
   drawCar(x, y, ang, col1, col2, opts = {}) {
     const c = this.ctx;
     const L = opts.len || Math.max(10, (this.tw || 16) * 0.85);
+    if (opts.dot) {
+      // broadcast-style marker: team-coloured disc with the race position inside
+      const r = Math.max(6.5, Math.min(9, L * 0.5));
+      c.beginPath(); c.arc(x, y, r + 1.5, 0, 7); c.fillStyle = 'rgba(0,0,0,0.75)'; c.fill();
+      c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = col1; c.fill();
+      c.lineWidth = 1.6; c.strokeStyle = col2 || '#fff'; c.stroke();
+      if (opts.num != null) {
+        c.font = `800 ${r > 7.5 ? 9 : 8}px Exo 2`; c.textAlign = 'center'; c.textBaseline = 'middle';
+        const lum = luminance(col1);
+        c.fillStyle = lum > 0.55 ? '#000' : '#fff';
+        c.fillText(String(opts.num), x, y + 0.5);
+        c.textBaseline = 'alphabetic';
+      }
+      return;
+    }
     c.save(); c.translate(x, y); c.rotate(ang);
     if (opts.glow) { c.shadowColor = opts.glow; c.shadowBlur = 14; }
     if (opts.style === 'rally' || opts.style === 'endurance') {
