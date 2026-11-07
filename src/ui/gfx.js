@@ -49,16 +49,22 @@ const NOISE_GLSL = /* glsl */`
     return mix(mix(dh21(i), dh21(i + vec2(1.0, 0.0)), f.x), mix(dh21(i + vec2(0.0, 1.0)), dh21(i + vec2(1.0, 1.0)), f.x), f.y); }
   float dfbm(vec2 p) { return dvn(p) * 0.5 + dvn(p * 2.03 + 17.1) * 0.3 + dvn(p * 4.07 + 3.7) * 0.2; }
 `;
-export function detailPatch(mat, { antiTile = true, macro = 0.18, macroScale = 0.02, tint = null, tintAmt = 0, wet = false, rough = null, key = '' } = {}) {
+// track: { halfW, uScale } turns on the racing-surface model. The mesh then carries an
+// attribute aTrk = (lateral offset m, racing-line offset m, cornerness 0..1) and uv.y * uScale
+// = distance along the track: rubbered racing line, marbles off-line in corners, dusty
+// unused edges, repair patches with seams, and a drying line in the rain.
+// mow: { uScale } adds mowing stripes (uv.y * uScale = metres along the track) and clumpy
+// grass variation for verges.
+export function detailPatch(mat, { antiTile = true, macro = 0.18, macroScale = 0.02, tint = null, tintAmt = 0, wet = false, rough = null, key = '', track = null, mow = null } = {}) {
   const tintV = new THREE.Color(tint ?? 0xffffff);
   mat.userData.wetPatch = wet;
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uWet = WET;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
-      .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;' + (track ? '\nattribute vec3 aTrk; varying vec3 vTrk;' : ''))
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;' + (track ? '\nvTrk = aTrk;' : ''));
     const f = (n) => n.toFixed(4);
-    let fs = sh.fragmentShader.replace('#include <common>', '#include <common>\n' + NOISE_GLSL);
+    let fs = sh.fragmentShader.replace('#include <common>', '#include <common>\n' + NOISE_GLSL + (track ? '\nvarying vec3 vTrk;' : ''));
     fs = fs.replace('#include <map_fragment>', /* glsl */`
       float pud = 0.0;
       #ifdef USE_MAP
@@ -70,17 +76,62 @@ export function detailPatch(mat, { antiTile = true, macro = 0.18, macroScale = 0
       float mN = dfbm(vWPos.xz * ${f(macroScale)});
       diffuseColor.rgb *= 1.0 + (mN - 0.5) * ${f(macro * 2)};
       ${tintAmt ? `diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(${f(tintV.r)}, ${f(tintV.g)}, ${f(tintV.b)}), smoothstep(0.45, 0.75, dfbm(vWPos.xz * ${f(macroScale * 0.6)} + 31.0)) * ${f(tintAmt)});` : ''}
-      ${wet ? `pud = smoothstep(0.56, 0.7, dfbm(vWPos.xz * 0.11 + 11.0)) * smoothstep(0.25, 0.8, uWet);
-      diffuseColor.rgb *= 1.0 - 0.38 * uWet - 0.2 * pud;` : ''}
+      float rub = 0.0, wetL = uWet;
+      ${track ? `#ifdef USE_MAP
+      {
+        float lat = vTrk.x, along = vMapUv.y * ${f(track.uScale)};
+        float dl = abs(lat - vTrk.y);
+        // rubbered racing line: two dark tyre bands that merge, streaky along the track
+        float streak = dvn(vec2(lat * 3.1, along * 0.04)) * 0.6 + dvn(vWPos.xz * 0.35) * 0.4;
+        rub = (1.0 - smoothstep(0.5, 2.3, dl)) * (0.7 + 0.3 * streak);
+        diffuseColor.rgb *= 1.0 - 0.34 * rub;
+        // marbles: rubber pick-up granules just off the line in corners
+        float mb = smoothstep(2.4, 3.4, dl) * (1.0 - smoothstep(4.6, 6.4, dl)) * vTrk.z;
+        float gran = step(0.72, dh21(floor(vWPos.xz * 26.0))) * (0.5 + 0.5 * dvn(vWPos.xz * 1.7));
+        diffuseColor.rgb *= 1.0 - mb * (0.12 + 0.55 * gran);
+        // unused edges: dustier, lighter, slightly warmer
+        float edge = smoothstep(${f(track.halfW - 2.6)}, ${f(track.halfW - 0.2)}, abs(lat)) * (0.6 + 0.4 * dvn(vWPos.xz * 0.6));
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.16, 1.12, 1.04), edge * 0.6);
+        // repair patches (fresh darker or old faded asphalt) with tar-sealed seams
+        vec2 pc = vec2(along / 17.0, (lat + ${f(track.halfW)}) / 4.4);
+        vec2 ci = floor(pc), cf = fract(pc);
+        float ph = dh21(ci + 7.3);
+        if (ph > 0.9) {
+          vec2 lo = vec2(dh21(ci + 1.1), dh21(ci + 2.7)) * 0.3, hi = 1.0 - vec2(dh21(ci + 3.9), dh21(ci + 5.2)) * 0.3;
+          float inP = step(lo.x, cf.x) * step(cf.x, hi.x) * step(lo.y, cf.y) * step(cf.y, hi.y);
+          vec2 dd = min(cf - lo, hi - cf) * vec2(17.0, 4.4);
+          float seam = inP * (1.0 - smoothstep(0.02, 0.08, min(dd.x, dd.y)));
+          diffuseColor.rgb *= mix(1.0, ph > 0.95 ? 0.8 : 1.12, inP) * (1.0 - 0.55 * seam);
+        }
+        // crack sealing lines (thin dark meandering tar)
+        float ck = abs(dvn(vec2(along * 0.09, lat * 0.35) + 40.0) - 0.5);
+        diffuseColor.rgb *= 1.0 - 0.2 * (1.0 - smoothstep(0.003, 0.009, ck)) * step(0.72, dvn(vec2(along * 0.02, 3.0)));
+        // the racing line dries first
+        wetL = uWet * (1.0 - 0.5 * rub * smoothstep(0.9, 0.35, uWet));
+      }
+      #endif` : ''}
+      ${mow ? `#ifdef USE_MAP
+      {
+        float along = vMapUv.y * ${f(mow.uScale)};
+        float band = step(0.5, fract(along / 9.0 + 0.04 * sin(along * 0.05)));
+        diffuseColor.rgb *= mix(0.9, 1.08, band);
+        float clump = dfbm(vWPos.xz * 1.3 + 7.0), fine = dvn(vWPos.xz * 6.0);
+        diffuseColor.rgb *= 0.82 + 0.26 * clump + 0.08 * (fine - 0.5);
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.12, 1.02, 0.7), smoothstep(0.62, 0.8, dfbm(vWPos.xz * 0.08 + 3.0)) * 0.5);
+      }
+      #endif` : ''}
+      ${wet ? `pud = smoothstep(0.56, 0.7, dfbm(vWPos.xz * 0.11 + 11.0)) * smoothstep(0.25, 0.8, wetL)${track ? ` * (0.45 + 0.9 * smoothstep(${f(track.halfW - 3.5)}, ${f(track.halfW)}, abs(vTrk.x)))` : ''};
+      diffuseColor.rgb *= 1.0 - 0.38 * wetL - 0.2 * pud;` : ''}
     `);
-    if (rough) fs = fs.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\nroughnessFactor = ${f(rough[0])} + ${f(rough[1] - rough[0])} * roughnessFactor;`);
+    // remap first, then wetness (so puddles can still reach mirror-like roughness)
+    const rr = (rough ? `\nroughnessFactor = ${f(rough[0])} + ${f(rough[1] - rough[0])} * roughnessFactor;` : '') + (wet ? '\nroughnessFactor *= 1.0 - 0.12 * rub; roughnessFactor = mix(roughnessFactor, 0.32, wetL * 0.7); roughnessFactor = mix(roughnessFactor, 0.03, pud);' : '');
+    if (rr) fs = fs.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + rr);
     if (wet) {
-      fs = fs.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.32, uWet * 0.7); roughnessFactor = mix(roughnessFactor, 0.03, pud);')
-        .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(mix(normal, normalize(vNormal) * faceDirection, max(pud, uWet * 0.5)));');
+      fs = fs.replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(mix(normal, normalize(vNormal) * faceDirection, max(pud, wetL * 0.5)));');
     }
     sh.fragmentShader = fs;
   };
-  mat.customProgramCacheKey = () => `detail|${antiTile}|${macro}|${macroScale}|${tintAmt}|${tintV.getHex()}|${wet}|${rough}|${key}`;
+  mat.customProgramCacheKey = () => `detail|${antiTile}|${macro}|${macroScale}|${tintAmt}|${tintV.getHex()}|${wet}|${rough}|${key}|${track ? track.halfW + ',' + track.uScale : ''}|${mow ? mow.uScale : ''}`;
   return mat;
 }
 
