@@ -236,7 +236,7 @@ function mountRace() {
   }
   R.ctab = {}; R.tvN = 0; R.tvQ = []; R.tvCur = null; R.ivh = {}; R.an = null;
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {}; R.gh = {};
-  R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { ...viewPads(false), glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' || st.category === 'junior' ? drsZones('formula', tr) : [] });
+  R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { ...viewPads(false, circuitPath(tr.cid).aspect), glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' || st.category === 'junior' ? drsZones('formula', tr) : [] });
   R.last = performance.now(); R.uiT = 0;
   R.focus = R.sim.cars.find((c) => c.isPlayer)?.key;
   R.view3d = getSettings().view3d !== false && webglAvailable() ? (R.cam || 'auto') : null;
@@ -270,8 +270,8 @@ function stopRace() { closeAnalysis(true); R.moment = null; R.replay = null; R.r
 
 // 2D map: keep a top band (camera buttons, TV graphics, interval tracker) and a subtitle line free;
 // as a 3D minimap the map fills its little box
-function viewPads(mini) { return mini ? { pad: 14, padTop: 0, padBottom: 0 } : { pad: 30, padTop: 104, padBottom: 44 }; }
-function applyViewPads() { if (!R.view) return; Object.assign(R.view.opts, viewPads(!!R.r3d)); R.view.resize(); }
+function viewPads(mini, aspect = 1.4) { return mini ? { pad: 14, padTop: 0, padBottom: 0 } : aspect < 0.8 ? { pad: 24, padTop: 64, padBottom: 40 } : { pad: 30, padTop: 104, padBottom: 44 }; }
+function applyViewPads() { if (!R.view) return; Object.assign(R.view.opts, viewPads(!!R.r3d, R.view.path?.aspect)); R.view.resize(); }
 function renderViewBtns() {
   const el = document.getElementById('view-btns'); if (!el) return;
   const can3d = webglAvailable();

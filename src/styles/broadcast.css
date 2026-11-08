@@ -167,7 +167,8 @@
   .race-view:not(.mode3d) .ivt { width: 228px; }
   .race-view:not(.mode3d) .ivt-car small { display: none; }
   /* 3D: keep the subtitles clear of the minimap in the bottom-left corner */
-  .race-view.mode3d .race-sub { left: 284px; right: 12px; width: auto; transform: none; align-items: flex-start; bottom: 14px; }
+  .race-view.mode3d .race-sub { left: 284px; right: 12px; width: auto; transform: none; align-items: flex-start; bottom: 76px; }
+  .race-view.mode3d .hud3d { left: auto; right: 12px; transform: none; padding: 6px 14px; }
   .race-view.mode3d .ivt { width: 240px; }
 }
 .an-svg .an-halo { fill: none; stroke: #0a0b0e; stroke-width: 5.5; stroke-opacity: .85; stroke-linejoin: round; stroke-linecap: round; }

@@ -140,8 +140,8 @@
   .grid-plan { grid-template-columns: 330px 1fr; }
   .grid-plan .tbl td:nth-child(4) { display: none; }
   .grid-plan .tbl td { padding-left: 6px; padding-right: 6px; }
-  .stint-row { grid-template-columns: 52px auto 110px 1fr; }
-  .stint-row > .tiny:nth-of-type(2) { display: none; }
+  .stint-row { grid-template-columns: 46px auto 84px 64px 1fr; gap: 6px; }
+  .stint-row .sr-box b { min-width: 52px; font-size: 15px; }
 }
 @media (max-width: 1050px) { .grid-plan { grid-template-columns: 1fr; } }
 

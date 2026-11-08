@@ -150,6 +150,8 @@ export function plannerPanel(st, w, tr, entries, q, C) {
   if (dry) {
     const series = [];
     html += `<div class="small muted mb8">${esc(tr.circuit)} · ${w.laps} giri · asfalto ${w.weather.trackTemp}°C · usura tracciato ×${tr.wear}. <span class="${known ? 'good' : 'warn'}">${known ? `Degrado misurato con ${known} long run.` : `Degrado solo stimato (errore fino al ±${Math.round(Math.abs(w.wearErr ?? 0.1) * 100 + 4)}%): fai un long run in prova.`}</span></div>`;
+    { const o = wxOutlook(st, w, tr); const wl = o.rain.map((r, i) => (r > 0.12 ? i + 1 : 0)).filter(Boolean);
+      if (wl.length) html += `<div class="wx-brief mb8"><div class="row gap6">${icon('rain', 'ico', 'style="width:22px;height:22px;flex:none"')}<div><b>Qualche goccia prevista (giri ${wl[0]}–${wl[wl.length - 1]})</b><div class="small muted">Troppo poca per cambiare gomme secondo l’ingegnere: si resta sulle slick. Se in gara la pioggia aumenta, sarai chiamato a decidere.</div></div></div></div>`; }
     for (const [ei, e] of entries.entries()) {
       const d = st.drivers[e.driverIds[0]];
       const ctx = planCtx(st, tr, w.laps, team, d, e.key);
