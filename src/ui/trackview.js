@@ -152,38 +152,69 @@ export class TrackView {
       c.fillStyle = '#000'; c.font = '800 9px Exo 2'; c.textAlign = 'center'; c.fillText('START', s.x, s.y - 14); c.fillStyle = '#fff'; c.fillText('FINISH', e.x, e.y - 14);
       return;
     }
-    // kerbs
-    trace(); c.strokeStyle = '#d8d8d8'; c.lineWidth = tw + 5; c.stroke();
-    trace(); c.setLineDash([7, 7]); c.strokeStyle = '#d0181c'; c.lineWidth = tw + 5; c.stroke(); c.setLineDash([]);
-    trace(); c.strokeStyle = '#2b2f37'; c.lineWidth = tw; c.stroke();
-    trace(); c.strokeStyle = 'rgba(255,255,255,0.05)'; c.lineWidth = tw * 0.3; c.stroke();
-    // pit lane
-    const pl = [];
-    for (let p = -0.04; p <= 0.04; p += 0.004) { const q = this.pointAt(p); pl.push([q.x + Math.cos(q.ang + Math.PI / 2) * (tw + 10), q.y + Math.sin(q.ang + Math.PI / 2) * (tw + 10)]); }
-    c.beginPath(); pl.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.strokeStyle = '#1e2128'; c.lineWidth = 8; c.stroke();
-    c.setLineDash([3, 4]); c.strokeStyle = 'rgba(255,176,32,0.5)'; c.lineWidth = 1; c.stroke(); c.setLineDash([]);
-    this.pitPos = (k) => { const q = this.pointAt(-0.03 + (k % 12) * 0.005); return { x: q.x + Math.cos(q.ang + Math.PI / 2) * (tw + 10), y: q.y + Math.sin(q.ang + Math.PI / 2) * (tw + 10), ang: q.ang }; };
-    // DRS zones (dashed green) and sector boundaries
-    const off = (p, o) => { const q = this.pointAt(p); return [q.x + Math.cos(q.ang + Math.PI / 2) * o, q.y + Math.sin(q.ang + Math.PI / 2) * o]; };
-    for (const [a, b] of this.opts.drs || []) {
-      c.beginPath();
-      for (let p = a; p <= b; p += 0.002) { const [x, y] = off(p, -(tw / 2 + 6)); p === a ? c.moveTo(x, y) : c.lineTo(x, y); }
-      c.setLineDash([6, 5]); c.strokeStyle = 'rgba(34,211,122,0.85)'; c.lineWidth = 3; c.stroke(); c.setLineDash([]);
-      const [lx, ly] = off(a, -(tw / 2 + 16)); c.fillStyle = '#22d37a'; c.font = '800 9px Exo 2'; c.textAlign = 'center'; c.fillText('DRS', lx, ly);
+    // run-off and kerbs
+    trace(); c.strokeStyle = 'rgba(70,76,88,0.28)'; c.lineWidth = tw + 22; c.stroke();
+    if (this.opts.sectors) { trace(); c.strokeStyle = 'rgba(235,238,245,0.55)'; c.lineWidth = tw + 3; c.stroke(); }
+    else {
+      trace(); c.strokeStyle = '#d8d8d8'; c.lineWidth = tw + 5; c.stroke();
+      trace(); c.setLineDash([7, 7]); c.strokeStyle = '#d0181c'; c.lineWidth = tw + 5; c.stroke(); c.setLineDash([]);
     }
+    // asphalt with a soft centre sheen
+    trace(); c.strokeStyle = '#272b33'; c.lineWidth = tw; c.stroke();
+    trace(); c.strokeStyle = 'rgba(255,255,255,0.045)'; c.lineWidth = tw * 0.45; c.stroke();
+    const off = (p, o) => { const q = this.pointAt(p); return [q.x + Math.cos(q.ang + Math.PI / 2) * o, q.y + Math.sin(q.ang + Math.PI / 2) * o]; };
+    const along = (a, b, o, step = 0.0015) => { c.beginPath(); for (let p = a; p <= b + 1e-9; p += step) { const [x, y] = off(p, o); p === a ? c.moveTo(x, y) : c.lineTo(x, y); } };
+    const pill = (x, y, text, bg, fg = '#000', fs = 9) => {
+      c.font = `800 ${fs}px Barlow Condensed, Exo 2, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+      const w = c.measureText(text).width + 8, h = fs + 5;
+      c.fillStyle = 'rgba(0,0,0,0.55)'; roundRect(c, x - w / 2 + 1, y - h / 2 + 1.5, w, h, 3); c.fill();
+      c.fillStyle = bg; roundRect(c, x - w / 2, y - h / 2, w, h, 3); c.fill();
+      c.fillStyle = fg; c.fillText(text, x, y + 0.5); c.textBaseline = 'alphabetic';
+    };
+    // pit lane: parallel lane along the main straight, blending in and out of the track
+    const PL = this.opts.pitLane ?? 0.045, po = tw + 9;
+    const pitOff = (p) => { const u = (p + PL) / (2 * PL); const e = Math.min(1, Math.min(u, 1 - u) / 0.22); return po * (e * e * (3 - 2 * e)); };
+    c.beginPath(); for (let p = -PL; p <= PL + 1e-9; p += 0.0015) { const [x, y] = off(p, pitOff(p)); p === -PL ? c.moveTo(x, y) : c.lineTo(x, y); }
+    c.strokeStyle = 'rgba(255,255,255,0.35)'; c.lineWidth = 9; c.stroke();
+    c.strokeStyle = '#1b1e24'; c.lineWidth = 7; c.stroke();
+    c.setLineDash([3, 4]); c.strokeStyle = 'rgba(255,176,32,0.7)'; c.lineWidth = 1; c.stroke(); c.setLineDash([]);
+    for (let k = 0; k < 10; k++) { const p = -0.026 + k * 0.0058; const [x1, y1] = off(p, po + 4); const [x2, y2] = off(p, po + 8); c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.strokeStyle = 'rgba(255,255,255,0.25)'; c.lineWidth = 1.5; c.stroke(); }
+    this.pitPos = (k) => { const p = -0.03 + (k % 12) * 0.005; const q = this.pointAt(p); const o = pitOff(p); return { x: q.x + Math.cos(q.ang + Math.PI / 2) * o, y: q.y + Math.sin(q.ang + Math.PI / 2) * o, ang: q.ang }; };
+    if (this.opts.sectors || this.opts.labels) { const [px, py] = off(-PL * 0.55, po + 15); pill(px, py, 'PIT', '#ffb020'); }
+    // sectors: coloured stripe along the outside edge of each third + label pill
+    const SC = ['#ff3b5c', '#3aa0ff', '#ffcc33'];
     if (this.opts.sectors) {
-      ['S1', 'S2', 'S3'].forEach((n, i) => {
-        const p = i / 3; const q = this.pointAt(p);
-        if (i) { c.save(); c.translate(q.x, q.y); c.rotate(q.ang + Math.PI / 2); c.fillStyle = ['#ff3b5c', '#3aa0ff', '#ffcc33'][i]; c.fillRect(-tw / 2 - 3, -1.5, tw + 6, 3); c.restore(); }
-        const [lx, ly] = off(p + 1 / 6, tw / 2 + 18); c.fillStyle = ['#ff3b5c', '#3aa0ff', '#ffcc33'][i]; c.font = '800 10px Exo 2'; c.textAlign = 'center'; c.globalAlpha = 0.85; c.fillText(n, lx, ly); c.globalAlpha = 1;
+      SC.forEach((col, i) => {
+        along(i / 3 + 0.004, (i + 1) / 3 - 0.004, -(tw / 2 + 5));
+        c.strokeStyle = col; c.globalAlpha = 0.8; c.lineWidth = 2.5; c.stroke(); c.globalAlpha = 1;
+        if (i) { const q = this.pointAt(i / 3); c.save(); c.translate(q.x, q.y); c.rotate(q.ang + Math.PI / 2); c.fillStyle = col; c.fillRect(-tw / 2 - 4, -1.5, tw + 8, 3); c.restore(); }
+        const [lx, ly] = off(i / 3 + 1 / 6, -(tw / 2 + 16)); pill(lx, ly, `S${i + 1}`, col, '#000');
       });
     }
-    // start line (chequered)
+    // DRS zones: translucent green band on the inside edge + label
+    for (const [a, b] of this.opts.drs || []) {
+      along(a, b, tw / 2 + 5); c.strokeStyle = 'rgba(34,211,122,0.28)'; c.lineWidth = 7; c.stroke();
+      along(a, b, tw / 2 + 5); c.setLineDash([6, 5]); c.strokeStyle = 'rgba(34,211,122,0.95)'; c.lineWidth = 2.5; c.stroke(); c.setLineDash([]);
+      const [lx, ly] = off(a + Math.min(0.02, (b - a) / 2), tw / 2 + 18); pill(lx, ly, 'DRS', '#22d37a', '#00170a');
+    }
+    // corner numbers (real circuits): small markers on the outside of each corner
+    const geo = this.path.geo;
+    if (geo?.corners?.length && (this.opts.sectors || this.opts.turns) && this.W > 520) {
+      const N = this.path.pts.length;
+      geo.corners.forEach((cn, k) => {
+        const idx = Math.min(N - 1, Math.round(cn.i / 2)); const p = this.path.len[idx] / this.path.total;
+        const [x, y] = off(p, cn.dir * (tw / 2 + 13));
+        c.beginPath(); c.arc(x, y, 7, 0, 7); c.fillStyle = 'rgba(10,12,16,0.85)'; c.fill(); c.lineWidth = 1; c.strokeStyle = 'rgba(255,255,255,0.28)'; c.stroke();
+        c.fillStyle = 'rgba(255,255,255,0.75)'; c.font = '700 8.5px Barlow Condensed, Exo 2, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(k + 1), x, y + 0.5); c.textBaseline = 'alphabetic';
+      });
+    }
+    // start / finish: chequered line + direction chevrons
     const s = this.pointAt(0);
     c.save(); c.translate(s.x, s.y); c.rotate(s.ang + Math.PI / 2);
     const sq = tw / 4;
     for (let i = -2; i < 2; i++) for (let j = 0; j < 2; j++) { c.fillStyle = (i + j) % 2 ? '#fff' : '#000'; c.fillRect(i * sq, j * sq - sq, sq, sq); }
     c.restore();
+    for (const p of [0.012, 0.02]) { const q = this.pointAt(p); c.save(); c.translate(q.x, q.y); c.rotate(q.ang); c.beginPath(); c.moveTo(-2.5, -tw * 0.22); c.lineTo(2.5, 0); c.lineTo(-2.5, tw * 0.22); c.strokeStyle = 'rgba(255,255,255,0.55)'; c.lineWidth = 1.6; c.stroke(); c.restore(); }
     this.tw = tw;
   }
   drawCar(x, y, ang, col1, col2, opts = {}) {
@@ -192,17 +223,23 @@ export class TrackView {
     if (opts.dot) {
       // broadcast-style marker: team-coloured disc with the race position inside
       const r = Math.max(6.5, Math.min(9, L * 0.5));
-      c.beginPath(); c.arc(x, y, r + 1.5, 0, 7); c.fillStyle = 'rgba(0,0,0,0.75)'; c.fill();
+      c.beginPath(); c.arc(x, y + 1, r + 2, 0, 7); c.fillStyle = 'rgba(0,0,0,0.55)'; c.fill();
+      c.beginPath(); c.arc(x, y, r + 1.4, 0, 7); c.fillStyle = opts.num === 1 ? '#f5c542' : 'rgba(10,12,16,0.95)'; c.fill();
       c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = col1; c.fill();
-      c.lineWidth = 1.6; c.strokeStyle = col2 || '#fff'; c.stroke();
+      c.beginPath(); c.arc(x, y, r, Math.PI * 0.15, Math.PI * 0.85); c.lineWidth = 2; c.strokeStyle = col2 || '#fff'; c.stroke();
       if (opts.num != null) {
-        c.font = `800 ${r > 7.5 ? 9 : 8}px Exo 2`; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.font = `800 ${r > 7.5 ? 10 : 9}px Barlow Condensed, Exo 2, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
         const lum = luminance(col1);
         c.fillStyle = lum > 0.55 ? '#000' : '#fff';
         c.fillText(String(opts.num), x, y + 0.5);
         c.textBaseline = 'alphabetic';
       }
       return;
+    }
+    if (opts.outline) {
+      // player car: a pulsing beacon ring under the car
+      const ph = (performance.now() % 1400) / 1400;
+      c.beginPath(); c.arc(x, y, L * (0.7 + ph * 0.9), 0, 7); c.strokeStyle = col1; c.globalAlpha = 0.6 * (1 - ph); c.lineWidth = 2; c.stroke(); c.globalAlpha = 1;
     }
     c.save(); c.translate(x, y); c.rotate(ang);
     if (opts.glow) { c.shadowColor = opts.glow; c.shadowBlur = 14; }
@@ -228,10 +265,24 @@ export class TrackView {
       c.fillStyle = '#fff'; c.fillText(String(opts.num), x, y - L * 0.9 + 3);
     }
     if (opts.label) {
-      c.font = '800 10.5px Exo 2'; c.textAlign = 'center';
-      const tw = c.measureText(opts.label).width + 8;
-      c.fillStyle = opts.labelBg || 'rgba(0,0,0,0.75)'; roundRect(c, x - tw / 2, y - L - 14, tw, 14, 4); c.fill();
-      c.fillStyle = '#fff'; c.fillText(opts.label, x, y - L - 3.5);
+      // broadcast tag: [position][team stripe] NAME, floating above the car
+      const m = /^(\d+)\s+(.*)$/.exec(String(opts.label));
+      const pos = m ? m[1] : null, name = (m ? m[2] : String(opts.label)).toUpperCase();
+      c.font = '700 11px Barlow Condensed, Exo 2, sans-serif'; c.textBaseline = 'middle';
+      const nw = c.measureText(name).width + 12, pw = pos ? 17 : 0, h = 16, w = pw + 3 + nw;
+      const lx = Math.round(x - w / 2); let ly = Math.round(y - L - h - 4);
+      // stack labels that would overlap one already drawn this frame
+      const placed = this._labels || (this._labels = []);
+      for (let k = 0; k < 4; k++) { const hit = placed.find((r) => lx < r[0] + r[2] && lx + w > r[0] && ly < r[1] + r[3] + 2 && ly + h + 2 > r[1]); if (!hit) break; ly = hit[1] - h - 3; }
+      placed.push([lx, ly, w, h]);
+      c.fillStyle = 'rgba(0,0,0,0.45)'; c.fillRect(lx + 1, ly + 2, w, h);
+      if (pos) { c.fillStyle = pos === '1' ? '#f5c542' : '#f4f5f7'; c.fillRect(lx, ly, pw, h); c.fillStyle = '#000'; c.textAlign = 'center'; c.font = '800 11px Barlow Condensed, Exo 2, sans-serif'; c.fillText(pos, lx + pw / 2, ly + h / 2 + 0.5); }
+      c.fillStyle = col1; c.fillRect(lx + pw, ly, 3, h);
+      c.fillStyle = opts.labelBg && opts.labelBg !== 'rgba(0,0,0,0.75)' ? 'rgba(12,14,18,0.94)' : 'rgba(12,14,18,0.86)'; c.fillRect(lx + pw + 3, ly, nw, h);
+      c.fillStyle = '#fff'; c.textAlign = 'left'; c.font = '700 11px Barlow Condensed, Exo 2, sans-serif'; c.fillText(name, lx + pw + 9, ly + h / 2 + 0.5);
+      // leader line to the car
+      c.beginPath(); c.moveTo(x, ly + h); c.lineTo(x, y - L * 0.55); c.strokeStyle = 'rgba(255,255,255,0.35)'; c.lineWidth = 1; c.stroke();
+      c.textBaseline = 'alphabetic';
     }
   }
   frame(drawFn, { rain = 0, night = 0, t = 0 } = {}) {
@@ -240,6 +291,7 @@ export class TrackView {
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.clearRect(0, 0, this.cv.width, this.cv.height);
     c.drawImage(this.bg, 0, 0);
+    this._labels = [];
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     drawFn?.(c, this);
     if (night > 0) { c.fillStyle = `rgba(0,5,25,${0.45 * night})`; c.fillRect(0, 0, this.W, this.H); }

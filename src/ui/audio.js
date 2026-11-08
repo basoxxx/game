@@ -77,7 +77,7 @@ function ac() {
       // make-up gain: voices are mixed with headroom, this brings the sum to a healthy level
       const makeup = ctx.createGain(); makeup.gain.value = 4; makeup.connect(lim);
       B.master = ctx.createGain(); B.master.connect(makeup);
-      B.analyser = ctx.createAnalyser(); B.analyser.fftSize = 2048; B.master.connect(B.analyser);
+      B.analyser = ctx.createAnalyser(); B.analyser.fftSize = 2048; lim.connect(B.analyser);
       // reverb (pre-delay → convolver → return)
       B.rev = ctx.createDelay(0.2); B.rev.delayTime.value = 0.022;
       const conv = ctx.createConvolver(); conv.buffer = makeIR(ctx);
@@ -367,12 +367,12 @@ const THEMES = {
   },
   // MANAGEMENT — "Paddock": warm lo-fi house, electric piano, swing
   manage: {
-    bpm: 90, swing: 0.16, level: 0.85, cut: 1300,
+    bpm: 90, swing: 0.16, level: 1.1, cut: 1300,
     chords: [
       { b: 38, n: [53, 57, 60, 64] }, { b: 43, n: [53, 59, 64, 69] }, { b: 36, n: [52, 55, 59, 62] }, { b: 45, n: [55, 61, 64, 70] },
     ],
     sections: [
-      { name: 'intro', bars: 4, L: { keys: 1, vinyl: 1 } },
+      { name: 'intro', bars: 2, L: { keys: 1, vinyl: 1, pad: 0.5 } },
       { name: 'verse', bars: 8, L: { keys: 1, bass: 1, drums: 'lofi', vinyl: 1 } },
       { name: 'chorus', bars: 8, L: { keys: 1, bass: 1, drums: 'lofi2', lead: 1, pad: 0.6, vinyl: 1 } },
       { name: 'verse', bars: 8, L: { keys: 1, bass: 1, drums: 'lofi2', vinyl: 1, counter: 1 } },
@@ -414,7 +414,7 @@ const THEMES = {
   },
   // VICTORY — "Podio": bright anthem in C major with brass and bells
   win: {
-    bpm: 116, swing: 0, level: 0.95, cut: 2400,
+    bpm: 116, swing: 0, level: 0.72, cut: 2400,
     chords: [
       { b: 36, n: [60, 64, 67, 72] }, { b: 35, n: [59, 62, 67, 71] }, { b: 33, n: [57, 60, 64, 69] }, { b: 41, n: [57, 60, 65, 69] },
       { b: 40, n: [55, 60, 64, 67] }, { b: 41, n: [57, 60, 65, 69] }, { b: 43, n: [55, 59, 62, 67] }, { b: 36, n: [55, 60, 64, 72] },
@@ -525,7 +525,7 @@ class Song {
     const out = this.out;
     // ---- harmony
     if (L.pad && s16 === 0) padChord(ch.n.map((n) => n + 12 * (ch.n[0] < 50 ? 1 : 0)), t, d16 * 16, out, L.pad * 0.036, T.cut);
-    if (L.keys) for (const [st, len, vel] of T.keysHits) if (s16 === st) for (const n of ch.n) epiano(mtof(n), t, d16 * len, out, 0.042 * vel * L.keys, (n - 60) / 30);
+    if (L.keys) for (const [st, len, vel] of T.keysHits) if (s16 === st) for (const n of ch.n) epiano(mtof(n), t, d16 * len, out, 0.07 * vel * L.keys, (n - 60) / 30);
     if (L.stabs && T.stabs[s16]) for (const n of ch.n.slice(0, 3)) stab(mtof(n + 12), t, d16 * 1.4, out, 0.018 * T.stabs[s16]);
     if (L.brass && T.brassHits[s16]) ch.n.slice(0, 3).forEach((n, i) => brass(mtof(n), t, d16 * (s16 === 0 ? 5 : 2), 0.016, (i - 1) * 0.35, out));
     if (L.guitar && T.guitarPat[s16]) guitar(ch.n, t, d16 * (L.guitar === 'open' && s16 % 8 === 0 ? 7 : 1.6), out, L.guitar === 'mute' ? 0.6 : 1, T.guitarPat[s16]);
@@ -720,8 +720,8 @@ const ambience = {
     rs.connect(rf); rf.connect(rf2); rf2.connect(rg); rg.connect(B.amb); rs.start();
     this.rain = rg;
   },
-  setCrowd(v) { this.ensure(); if (!this.crowd) return; this.crowdLvl = v; for (const L of this.crowd) L.g.gain.setTargetAtTime(v * 0.05 * L.base, ctx.currentTime, 0.8); },
-  setRain(v) { this.ensure(); if (!this.rain) return; this.rainLvl = v; this.rain.gain.setTargetAtTime(v * 0.05, ctx.currentTime, 0.8); },
+  setCrowd(v) { if (this.crowd && Math.abs(v - this.crowdLvl) < 0.01) return; this.ensure(); if (!this.crowd) return; this.crowdLvl = v; for (const L of this.crowd) L.g.gain.setTargetAtTime(v * 0.05 * L.base, ctx.currentTime, 0.8); },
+  setRain(v) { if (this.rain && Math.abs(v - this.rainLvl) < 0.01) return; this.ensure(); if (!this.rain) return; this.rainLvl = v; this.rain.gain.setTargetAtTime(v * 0.05, ctx.currentTime, 0.8); },
   // paddock bed: distant generators + random pit-lane events (wheel guns, revs, PA, tools)
   update() {
     if (!ctx || !unlocked) return;
@@ -787,12 +787,12 @@ export function crowdCheer(amount = 1) {
 // whine, overrun crackle / anti-lag bangs, gear shift cuts, tyre squeal, wind.
 // ---------------------------------------------------------------------------
 const ENG = {
-  formula:   { cyl: 6, idle: 4200, red: 12400, gears: 8, top: 345, gain: 0.126, wave: 'v6', sub: 0.12, rough: 0.07, cyc: 1, cut: [1100, 7000], drive: 1.6, turbo: 0.2, hybrid: 0.7, intake: 0.25, pops: 0.25, antilag: 0, scream: 5 },
-  junior:    { cyl: 6, idle: 3800, red: 9800, gears: 6, top: 290, gain: 0.126, wave: 'v6', sub: 0.16, rough: 0.09, cyc: 1, cut: [900, 5600], drive: 1.8, turbo: 0.1, hybrid: 0, intake: 0.3, pops: 0.3, antilag: 0, scream: 3 },
-  endurance: { cyl: 8, idle: 3000, red: 9600, gears: 7, top: 340, gain: 0.135, wave: 'v8', sub: 0.32, rough: 0.14, cyc: 1, cut: [800, 5200], drive: 2, turbo: 0.15, hybrid: 0.45, intake: 0.25, pops: 0.45, antilag: 0, scream: 1 },
-  rally:     { cyl: 4, idle: 2500, red: 7800, gears: 6, top: 200, gain: 0.144, wave: 'i4', sub: 0.26, rough: 0.2, cyc: 1, cut: [650, 4300], drive: 2.4, turbo: 1, hybrid: 0, intake: 0.35, pops: 1, antilag: 1, scream: -1 },
-  banger:    { cyl: 8, idle: 850, red: 6000, gears: 7, top: 200, gain: 0.162, wave: 'v8x', sub: 0.6, rough: 0.38, cyc: 0.5, cut: [380, 3000], drive: 2.8, turbo: 0, hybrid: 0, intake: 0.3, pops: 0.7, antilag: 0, scream: -3 },
-  hatch:     { cyl: 4, idle: 900, red: 7000, gears: 6, top: 180, gain: 0.144, wave: 'i4', sub: 0.22, rough: 0.22, cyc: 1, cut: [500, 3800], drive: 2.2, turbo: 0.3, hybrid: 0, intake: 0.4, pops: 0.45, antilag: 0, scream: -2 },
+  formula:   { cyl: 6, idle: 4200, red: 12400, gears: 8, top: 345, gain: 0.17, wave: 'v6', sub: 0.12, rough: 0.07, cyc: 1, cut: [1100, 7000], drive: 1.6, turbo: 0.2, hybrid: 0.7, intake: 0.25, pops: 0.25, antilag: 0, scream: 5 },
+  junior:    { cyl: 6, idle: 3800, red: 9800, gears: 6, top: 290, gain: 0.17, wave: 'v6', sub: 0.16, rough: 0.09, cyc: 1, cut: [900, 5600], drive: 1.8, turbo: 0.1, hybrid: 0, intake: 0.3, pops: 0.3, antilag: 0, scream: 3 },
+  endurance: { cyl: 8, idle: 3000, red: 9600, gears: 7, top: 340, gain: 0.18, wave: 'v8', sub: 0.32, rough: 0.14, cyc: 1, cut: [800, 5200], drive: 2, turbo: 0.15, hybrid: 0.45, intake: 0.25, pops: 0.45, antilag: 0, scream: 1 },
+  rally:     { cyl: 4, idle: 2500, red: 7800, gears: 6, top: 200, gain: 0.19, wave: 'i4', sub: 0.26, rough: 0.2, cyc: 1, cut: [650, 4300], drive: 2.4, turbo: 1, hybrid: 0, intake: 0.35, pops: 1, antilag: 1, scream: -1 },
+  banger:    { cyl: 8, idle: 850, red: 6000, gears: 7, top: 200, gain: 0.18, wave: 'v8x', sub: 0.6, rough: 0.38, cyc: 0.5, cut: [380, 3000], drive: 2.8, turbo: 0, hybrid: 0, intake: 0.3, pops: 0.7, antilag: 0, scream: -3 },
+  hatch:     { cyl: 4, idle: 900, red: 7000, gears: 6, top: 180, gain: 0.19, wave: 'i4', sub: 0.22, rough: 0.22, cyc: 1, cut: [500, 3800], drive: 2.2, turbo: 0.3, hybrid: 0, intake: 0.4, pops: 0.45, antilag: 0, scream: -2 },
 };
 // harmonic spectra of each engine "voice"
 const SPECTRA = {

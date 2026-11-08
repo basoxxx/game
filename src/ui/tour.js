@@ -115,6 +115,7 @@ export const TOURS = {
   ],
   race: () => [
     { sel: '.race-board, .lb', icon: 'chart', title: 'La classifica in diretta', text: 'Distacchi, gomme e soste di tutti. <b>Clicca un pilota</b> per seguirlo con la telecamera e la telemetria.' },
+    { sel: '.race-view', icon: 'map', title: 'Mappa e telecamere', place: 'right', pad: -40, text: 'Segui la gara in <b>3D</b> (TV, camera car, onboard, elicottero) o sulla <b>mappa</b> con settori, zone DRS e corsia box. I tuoi piloti hanno l’etichetta con il nome.' },
     { sel: '.race-side, .race-ctrl, .rc-panel', icon: 'steering', title: 'Il tuo muretto box', text: 'Per ogni tuo pilota: <b>ritmo</b> (spingi, normale, risparmia), modalità ibrida, <b>pit stop</b> con mescola. Spingere consuma gomme e carburante: scegli quando.' },
     { sel: '.speed-btns, .race-speed, [data-a="speed"]', icon: 'ff', title: 'Velocità della simulazione', text: '<span class="kbd">Spazio</span> mette in pausa, <span class="kbd">1</span>…<span class="kbd">6</span> cambiano velocità. Rallenta nei momenti caldi: partenza, safety car, pioggia.' },
     { title: 'Le decisioni chiave', icon: 'radio', text: 'Durante la gara arrivano <b>messaggi radio</b> e <b>momenti decisivi</b>: rispondi in fretta (tasti <span class="kbd">1</span>-<span class="kbd">3</span>). Quando piove, passa alle intermedie al momento giusto: è lì che si vincono le gare.' },

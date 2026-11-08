@@ -41,16 +41,23 @@ registerScreen({
             <div class="menu-sep"></div>
             ${item('data-a="load"', 'save', 'Carica Partita', 'Apri uno degli slot di salvataggio o importa un file.', '', `sm ${hasSave ? '' : 'disabled'}`)}
             ${item('data-a="nav" data-to="settings" data-back="menu"', 'settings', 'Impostazioni', 'Audio, grafica 3D, filtri, realismo e accessibilità.', '', 'sm')}
-            ${item('data-a="credits"', 'info', 'Come si gioca', 'Le basi del gestionale in un minuto.', '', 'sm')}
+            ${item('data-a="nav" data-to="howto" data-back="menu"', 'book', 'Come si gioca', 'Guida illustrata: la settimana tipo, il weekend, le decisioni in gara, i comandi.', '', 'sm')}
             ${item('data-a="lessons"', 'sim', 'Accademia Ingegneri', 'Lezioni interattive su gomme, strategia e assetto.', '', 'sm')}
             ${window.apex?.quit ? item('data-a="quit"', 'logout', 'Esci', 'Chiudi il gioco.', '', 'sm') : ''}
           </nav>
           <div class="menu-desc" id="menu-desc" aria-live="polite"></div>
         </div>
       </div>
+      ${last ? continueCard(last) : ''}
+      <div class="menu-ticker" aria-hidden="true"><div class="mt-k">${icon('news')} Paddock news</div><div class="mt-track"><div class="mt-run">${ticker(last)}</div></div></div>
       <div class="menu-foot">
-        <div class="version">v${__APP_VERSION__} · Gioco di fantasia: nomi e marchi sono parodie e non affiliati</div>
-        <div class="menu-hint"><span><span class="kbd">↑</span><span class="kbd">↓</span> Naviga</span><span><span class="kbd">Invio</span> Seleziona</span><span><span class="kbd">?</span> Comandi</span></div>
+        <div class="version"><span class="ver-badge">v${__APP_VERSION__}</span> Gioco di fantasia: nomi e marchi sono parodie e non affiliati</div>
+        <div class="menu-hint">
+          <span class="hint-kb"><span class="kbd">↑</span><span class="kbd">↓</span> Naviga</span><span class="hint-kb"><span class="kbd">Invio</span> Seleziona</span>
+          <span class="hint-pad"><span class="pad-btn">A</span> Seleziona</span><span class="hint-pad"><span class="pad-btn">B</span> Indietro</span>
+          <span><span class="kbd">?</span> Comandi</span>
+          <button class="btn icon-btn ghost mf-audio" data-a="mixer" data-tip="Audio" aria-label="Audio">${icon('volume')}</button>
+        </div>
       </div>
     </div>`;
   },
@@ -96,6 +103,7 @@ registerScreen({
     load() { openLoad(); },
     quit() { window.apex?.quit?.(); },
     lessons() { openLessons(); },
+    mixer() { App.audioMixer(); },
     credits() {
       App.modal(`<h2>Come si gioca</h2>
       <div class="col small" style="gap:12px;line-height:1.55">
@@ -110,6 +118,43 @@ registerScreen({
     },
   },
 });
+
+// "Continue" card: the most recent save, one click away
+function continueCard(s) {
+  const C = CATEGORIES[s.category];
+  const col = s.colors?.[0] || '#e5141b';
+  const known = (TEAMS[s.category] || []).find((t) => t.name === s.team);
+  const badge = s.colors ? teamBadge({ colors: s.colors, short: known?.short || String(s.team || '').slice(0, 3).toUpperCase() }, 52) : logoMark(44);
+  const when = s.savedAt ? new Date(s.savedAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) : '';
+  const pct = s.total ? Math.min(100, Math.round((Math.min(s.round, s.total) / s.total) * 100)) : 0;
+  return `<div class="menu-continue" data-a="continue-last" style="--cc:${col}" data-tip="Riprendi da dove avevi lasciato">
+    <div class="mc-k">${icon('play')} Continua carriera <span>${esc(when)}</span></div>
+    <div class="mc-row">${badge}<div class="mc-t"><b>${esc(s.team)}</b><span>${esc(s.player || '')} · ${esc(C?.name || '')}</span></div></div>
+    <div class="mc-meta"><span>Stagione <b>${s.season}</b></span><span>Round <b>${Math.min(s.round + 1, s.total)}/${s.total}</b></span></div>
+    <div class="mc-bar"><i style="width:${pct}%"></i></div>
+  </div>`;
+}
+// News ticker: parody paddock headlines, with a few lines about the player's own save
+const NEWS = [
+  'Mercato piloti: voci di uno scambio clamoroso tra due top team a fine stagione',
+  'Nuove regole aerodinamiche in arrivo: i reparti tecnici già al lavoro sulle simulazioni',
+  'Rally di Monte Carlo: attese neve e ghiaccio sul Col de Turini',
+  'Endurance: la 24 Ore registra il tutto esaurito nelle tribune',
+  'Scontro Totale: la nuova arena della Cava apre ai piloti più coraggiosi',
+  'Gomme: il fornitore unico porta una mescola più morbida per le piste cittadine',
+  'Budget cap: il consiglio federale valuta controlli più severi sui bilanci',
+  'Junior: un diciottenne stupisce nei test e attira gli osservatori della Formula',
+  'Meteo instabile previsto a Spa: i box preparano le intermedie',
+  'Il motorista storico annuncia un nuovo propulsore ibrido più leggero',
+  'Pit stop record: cambio gomme sotto i due secondi nell’ultima gara',
+  'Sponsor: un marchio di bibite energetiche cerca una squadra di vertice',
+];
+function ticker(last) {
+  const mine = last ? [`${last.team}: stagione ${last.season}, si riparte dal round ${Math.min(last.round + 1, last.total)}`, `Il team principal ${last.player || ''} sotto i riflettori del paddock`] : ['Nuova stagione alle porte: le squadre cercano un nuovo team principal'];
+  const pool = [...NEWS].sort(() => Math.random() - 0.5).slice(0, 7);
+  const items = [...mine, ...pool].map((n) => `<span class="mt-item">${esc(n)}</span>`).join('');
+  return items + items; // doubled for a seamless loop
+}
 
 export function openLoad(saveMode = false) {
   const render = () => {

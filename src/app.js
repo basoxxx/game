@@ -122,6 +122,7 @@ export const App = {
     setAudioScene(id);
     const mood = { intro: 'menu', menu: 'menu', newgame: 'menu', howto: S() ? 'manage' : 'menu', settings: S() ? 'manage' : 'menu', weekend: null, rally: null, results: 'win', seasonend: 'win', quickrace: 'menu', challenges: 'menu', derby: 'derby' }[id];
     if (mood !== null) music.setMood(mood || 'manage');
+    else if (music.mood === 'menu' || music.mood === 'win') music.setMood('manage'); // paddock before the lights go out
     if (prev && prev.id !== id) this.wipe();
     this.render();
   },
@@ -259,6 +260,14 @@ export const App = {
     box.appendChild(t);
     setTimeout(() => { t.style.transition = 'opacity .4s, transform .4s'; t.style.opacity = '0'; t.style.transform = 'translateX(30px)'; }, 3600);
     setTimeout(() => t.remove(), 4100);
+  },
+  // ---- Loading veil for slow operations: const done = App.busy('Carico la pista'); … done();
+  busy(label = 'Caricamento') {
+    const v = document.createElement('div');
+    v.className = 'busy-veil'; v.setAttribute('role', 'status');
+    v.innerHTML = `<span class="loader">${esc(label)}</span>`;
+    document.body.appendChild(v);
+    return () => v.remove();
   },
   // ---- Notification centre: every toast is kept here for the session
   notes: [],

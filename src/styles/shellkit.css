@@ -177,6 +177,38 @@ html.pad-nav .menu-item:focus { outline: none; box-shadow: none; }
 .mx-test { display: flex; gap: 8px; margin: 8px 0 4px; }
 .mx-test .ico { width: 14px; height: 14px; }
 
+/* ============================ MAIN MENU EXTRAS ============================ */
+.menu-continue { position: absolute; z-index: 3; right: 56px; top: 44px; width: 360px; padding: 14px 18px 16px; background: rgba(14,16,20,.86); border: 1px solid var(--line2); border-left: 4px solid var(--cc, var(--accent)); cursor: pointer; backdrop-filter: blur(6px); animation: slidein .6s var(--ease-out) .25s both; transition: transform .25s var(--ease-out), border-color var(--t-med), background var(--t-med); }
+.menu-continue:hover, .menu-continue:focus-visible { transform: translateX(-6px); background: rgba(20,23,28,.95); border-color: var(--line3); border-left-color: var(--cc, var(--accent)); }
+.mc-k { display: flex; align-items: center; gap: 8px; font-family: var(--display); font-weight: 700; font-size: 12.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--accent2); }
+.mc-k .ico { width: 13px; height: 13px; }
+.mc-k span { margin-left: auto; color: var(--dim); letter-spacing: .08em; font-weight: 600; }
+.mc-row { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+.mc-row .mark { width: 44px; height: 44px; }
+.mc-t { display: flex; flex-direction: column; min-width: 0; }
+.mc-t b { font-family: var(--display); font-weight: 800; font-style: italic; font-size: 24px; text-transform: uppercase; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-t span { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+.mc-meta { display: flex; gap: 18px; margin-top: 12px; font-size: 13px; color: var(--text2); }
+.mc-meta b { font-family: var(--display); font-size: 16px; color: var(--text); }
+.mc-bar { height: 3px; background: rgba(255,255,255,.1); margin-top: 10px; }
+.mc-bar i { display: block; height: 100%; background: var(--cc, var(--accent)); }
+.menu-ticker { position: absolute; z-index: 3; left: 0; right: 0; bottom: 54px; height: 34px; display: flex; align-items: stretch; background: rgba(8,9,11,.9); border-top: 1px solid var(--line); overflow: hidden; }
+.mt-k { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 22px 0 72px; background: var(--accent); font-family: var(--display); font-weight: 800; font-style: italic; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
+.mt-k .ico { width: 15px; height: 15px; }
+.mt-track { position: relative; flex: 1; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); }
+.mt-run { position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; white-space: nowrap; animation: tickerRun 95s linear infinite; }
+.mt-item { font-size: 14px; color: var(--text2); padding: 0 34px 0 0; }
+.mt-item::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 14px; background: var(--accent); transform: skewX(calc(-1 * var(--slant))); vertical-align: 1px; }
+@keyframes tickerRun { to { transform: translateX(-50%); } }
+.menu-screen .menu-feature { bottom: 112px; }
+.menu-screen .menu-left { padding-bottom: 110px; }
+.ver-badge { display: inline-block; padding: 2px 7px; margin-right: 8px; border: 1px solid var(--line3); font-family: var(--display); font-weight: 700; letter-spacing: .08em; color: var(--text); }
+.menu-hint .mf-audio { width: 34px; height: 34px; min-height: 34px; margin-left: -6px; }
+.menu-hint .hint-pad { display: none; }
+html.has-pad .menu-hint .hint-pad { display: inline-flex; }
+html.has-pad .menu-hint .hint-kb { display: none; }
+@media (max-height: 800px) { .menu-continue { top: 24px; width: 320px; padding: 10px 14px 12px; } .mc-t b { font-size: 20px; } }
+
 /* ============================ LOADING ============================ */
 .loader { display: inline-flex; align-items: center; gap: 12px; font-family: var(--display); font-weight: 600; font-size: 14px; letter-spacing: .2em; text-transform: uppercase; color: var(--text2); }
 .loader::before { content: ''; width: 34px; height: 6px; background: linear-gradient(90deg, var(--accent) 0 33%, transparent 33% 50%, var(--accent) 50% 83%, transparent 83%) 0 0 / 200% 100%; transform: skewX(calc(-1 * var(--slant))); animation: loadBar .8s linear infinite; }
