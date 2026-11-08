@@ -585,6 +585,7 @@ export function dynDecisionView(st) {
   const pt = playerTeam(st);
   const t = pd.team ? st.teams[pd.team] : null;
   const p = pd.team ? principal(st, pd.team) : null;
+  if (pd.team && (!t || !p || t.isPlayer)) return null;
   const P = p ? TP_PERSONAS[p.persona] : null;
   const who = p ? `${p.name} · ${P.name} (${t.name})` : '';
   switch (pd.kind) {
@@ -630,6 +631,7 @@ export function dynDecisionView(st) {
 
 export function resolveDynDecision(st, i) {
   const pd = st.pendingDyn; if (!pd) return '';
+  if (!dynDecisionView(st)) { st.pendingDyn = null; return ''; }
   const D = st.dyn; const pt = playerTeam(st); const sc = scale(st);
   const t = pd.team ? st.teams[pd.team] : null;
   const p = pd.team ? principal(st, pd.team) : null;
@@ -898,6 +900,7 @@ export function dynNewSeason(st) {
   if (prevT) st.board.target = Math.max(st.board.target, prevT - 2); // expectations never jump more than two places
   academySeason(st);
   ensureSeats(st);
+  st.pendingDyn = null;
   D.promises = [];
   D.bet = null;
   D.red = 0;
