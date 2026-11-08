@@ -12,6 +12,8 @@ import { hasPerk } from '../engine/progress.js';
 import { negotiate, canPrecontract, nextSeasonRoster, persona } from '../engine/market.js';
 import { licencePoints, BAN_POINTS } from '../engine/stewards.js';
 import { compEnabled, compSummaryText } from '../engine/components.js';
+import { ensureDynasty, academyDrivers, academySlots, prospectFee, scoutedPot, signProspect, promoteJunior, releaseJunior, academyUpkeep, traitInfo, teamTrait, facilityCap, STATUS, goalText } from '../engine/dynasty.js';
+import '../styles/career.css';
 
 // --------------- DRIVERS ---------------
 registerScreen({
@@ -49,7 +51,8 @@ registerScreen({
       </div>`;
     }).join('')}
     ${Array.from({ length: Math.max(0, seats - ds.length) }, () => `<div class="panel empty" style="border-style:dashed"><div>${icon('plus', 'ico', 'style="width:36px;height:36px"')}</div><div class="mt8">Sedile libero</div><button class="btn primary mt16" data-a="nav" data-to="market">Trova un pilota</button></div>`).join('')}
-    </div>`;
+    </div>
+    ${academyPanel(st, t)}`;
   },
   actions: {
     train(el) {
@@ -57,7 +60,7 @@ registerScreen({
       const cost = simCost(st);
       if (t.money < cost) return;
       addFinance(st, `Simulatore: ${d.name}`, -cost);
-      const gain = Math.random() < 0.35 + t.facilities.simulator * 0.12 ? (Math.random() < 0.2 ? 2 : 1) : 0;
+      const gain = Math.random() < 0.35 + t.facilities.simulator * 0.12 + (teamTrait(st, t, 'engineer', 'mentor') ? 0.15 : 0) ? (Math.random() < 0.2 ? 2 : 1) : 0;
       d.attrs[k] = Math.min(99, d.attrs[k] + gain); d._trained = st.round + '-' + st.season;
       d.morale = Math.min(100, d.morale + 2);
       App.toast(gain ? `${d.name}: ${ATTR_NAMES[k]} +${gain}` : 'Sessione poco produttiva', gain ? 'Il lavoro al simulatore ha dato frutti.' : 'Nessun miglioramento questa volta.', gain ? 'good' : '');
@@ -66,8 +69,18 @@ registerScreen({
     renew(el) { openContract(el.dataset.id, null, true); },
     release(el) {
       const st = S(); const d = st.drivers[el.dataset.id];
-      App.confirm(`Liberare ${esc(d.name)}?`, `Pagherai una penale di ${fmtM(d.salary * d.contract * 0.5)} (50% del contratto residuo).`, () => { releaseDriver(st, d, true); App.refresh(); }, 'Libera', true);
+      App.confirm(`Liberare ${esc(d.name)}?`, d.standIn ? `È un ingaggio d’emergenza: nessuna penale.` : `Pagherai una penale di ${fmtM(d.salary * d.contract * 0.5)} (50% del contratto residuo).`, () => { releaseDriver(st, d, true); App.refresh(); }, 'Libera', true);
     },
+    'acad-sign'(el) {
+      const st = S(); const r = signProspect(st, el.dataset.id);
+      if (!r.ok) { App.toast('Impossibile', r.msg, 'bad'); sfx.bad(); return; }
+      sfx.win(); App.toast('Nuovo talento in accademia!', 'Crescerà ogni inverno: promuovilo quando è pronto.', 'good'); App.refresh();
+    },
+    'acad-release'(el) {
+      const st = S(); const d = st.drivers[el.dataset.id];
+      App.confirm(`Lasciare andare ${esc(d.name)}?`, 'Il ragazzo lascerà l’accademia e diventerà un pilota svincolato.', () => { releaseJunior(st, d.id); App.refresh(); }, 'Libera', true);
+    },
+    'acad-promote'(el) { promoteModal(el.dataset.id); },
   },
 });
 
@@ -133,7 +146,7 @@ registerScreen({
   render() {
     const st = S();
     const t = playerTeam(st);
-    let list = Object.values(st.drivers).filter((d) => !d.retired && d.teamId !== t.id);
+    let list = Object.values(st.drivers).filter((d) => !d.retired && d.teamId !== t.id && !d.academy);
     if (mFilter === 'free') list = list.filter((d) => !d.teamId);
     if (mFilter === 'young') list = list.filter((d) => d.age <= 23);
     if (mFilter === 'team') list = list.filter((d) => d.teamId);
@@ -161,22 +174,26 @@ registerScreen({
   render() {
     const st = S();
     const t = playerTeam(st);
+    ensureDynasty(st);
+    const cap = facilityCap(st);
     const pool = (role) => Object.values(st.staff).filter((s) => s.role === role && s.id !== t.staff[role]).sort((a, b) => b.rating - a.rating).slice(0, 6);
+    const trait = (s) => { const ti = s && traitInfo(s.role, s.trait); return ti ? `<span class="trait" data-tip="${esc(ti.desc)}">${icon('star')} ${esc(ti.name)}</span>` : ''; };
     return `<div class="screen-title"><div><div class="sub">${esc(t.name)} · ${esc(t.hq)}</div><h1>Staff & Strutture</h1></div></div>
     <div class="panel anim-in"><div class="panel-head"><h3>Strutture</h3>${t.facilityBuild ? `<span class="chip warn">Cantiere: ${FACILITIES[t.facilityBuild.key].name} (${t.facilityBuild.racesLeft} eventi)</span>` : '<span class="chip">Un cantiere alla volta</span>'}</div>
-      <div class="grid3" style="grid-template-columns:repeat(5,1fr)">${Object.entries(FACILITIES).map(([k, f]) => {
-        const lvl = t.facilities[k]; const cost = facilityCost(st, k, lvl + 1); const building = t.facilityBuild?.key === k;
-        return `<div class="card"><div class="row between">${icon(f.icon === 'star' ? 'star' : f.icon === 'wrench' ? 'wrench' : f.icon === 'sim' ? 'sim' : f.icon === 'wind' ? 'wind' : 'factory', 'ico', 'style="width:26px;height:26px;color:var(--team)"')}<span class="chip">Lv ${lvl}/5</span></div><div style="font-weight:800;margin-top:10px">${f.name}</div><div class="tiny muted mt8" style="min-height:32px">${f.desc}</div>
-          <div class="row gap4 mt8">${[1, 2, 3, 4, 5].map((i) => `<div style="flex:1;height:6px;border-radius:3px;background:${i <= lvl ? 'var(--team)' : building && i === lvl + 1 ? 'var(--warn)' : 'rgba(255,255,255,0.1)'}"></div>`).join('')}</div>
-          ${lvl < 5 ? `<button class="btn sm mt16" style="width:100%" data-a="upgrade" data-k="${k}" ${t.facilityBuild || t.money < cost ? 'disabled' : ''}>${building ? 'In costruzione…' : `Potenzia ${fmtM(cost)}`}</button>` : '<div class="chip good mt16">Massimo</div>'}</div>`;
+      <div class="grid3" style="grid-template-columns:repeat(3,1fr)">${Object.entries(FACILITIES).map(([k, f]) => {
+        const lvl = t.facilities[k] ?? 1; const cost = facilityCost(st, k, lvl + 1); const building = t.facilityBuild?.key === k;
+        const capped = lvl < 5 && lvl + 1 > cap;
+        return `<div class="card"><div class="row between">${icon(f.icon === 'star' ? 'star' : f.icon === 'wrench' ? 'wrench' : f.icon === 'sim' ? 'sim' : f.icon === 'wind' ? 'wind' : f.icon === 'money' ? 'money' : 'factory', 'ico', 'style="width:26px;height:26px;color:var(--team)"')}<span class="chip">Lv ${lvl}/5</span></div><div style="font-weight:800;margin-top:10px">${f.name}</div><div class="tiny muted mt8" style="min-height:32px">${f.desc}${k === 'academy' ? ` · ${academySlots(t)} posti` : k === 'hospitality' ? ` · +${fmtM((lvl - 1) * 0.12 * cat(st).budgetScale)}/evento` : ''}</div>
+          <div class="row gap4 mt8">${[1, 2, 3, 4, 5].map((i) => `<div style="flex:1;height:6px;border-radius:3px;background:${i <= lvl ? 'var(--team)' : building && i === lvl + 1 ? 'var(--warn)' : i > cap ? 'repeating-linear-gradient(-45deg, rgba(255,255,255,.12) 0 3px, transparent 3px 6px)' : 'rgba(255,255,255,0.1)'}"></div>`).join('')}</div>
+          ${lvl >= 5 ? '<div class="chip good mt16">Massimo</div>' : capped ? `<div class="chip mt16" data-tip="Il livello ${lvl + 1} si sblocca con lo status della squadra">${icon('lock')} Serve status «${STATUS[lvl + 1 >= 5 ? 3 : 1].name}»</div>` : `<button class="btn sm mt16" style="width:100%" data-a="upgrade" data-k="${k}" ${t.facilityBuild || t.money < cost ? 'disabled' : ''}>${building ? 'In costruzione…' : `Potenzia ${fmtM(cost)}`}</button>`}</div>`;
       }).join('')}</div>
     </div>
     <div class="grid3 mt16 anim-in">${Object.entries(STAFF_ROLES).map(([role, R]) => {
       const cur = st.staff[t.staff[role]];
       return `<div class="panel"><div class="panel-head"><h3>${R.name}</h3></div><div class="small muted mb16">${R.desc}</div>
-        <div class="card row" style="border-color:color-mix(in srgb, var(--team) 50%, transparent)">${ratingBox(cur?.rating || 0, false)}<div class="grow"><b>${esc(cur?.name || 'Vacante')}</b><div class="tiny muted">${cur ? `${cur.age} anni · ${fmtM(cur.salary)}/anno` : ''}</div></div></div>
+        <div class="card row" style="border-color:color-mix(in srgb, var(--team) 50%, transparent)">${ratingBox(cur?.rating || 0, false)}<div class="grow"><b>${esc(cur?.name || 'Vacante')}</b><div class="tiny muted">${cur ? `${cur.age} anni · ${fmtM(cur.salary)}/anno` : ''}</div>${cur ? `<div class="mt8">${trait(cur)}</div>` : ''}</div></div>${cur && traitInfo(cur.role, cur.trait) ? `<div class="tiny muted mt8">${esc(traitInfo(cur.role, cur.trait).desc)}</div>` : ''}
         <div class="tiny upper muted mt16 mb8">Disponibili</div>
-        <div class="col gap6">${pool(role).map((s) => { const other = s.teamId ? st.teams[s.teamId] : null; return `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line)">${ratingBox(s.rating)}<div class="grow"><div>${esc(s.name)}</div><div class="tiny muted">${other ? esc(other.short) + ' · liberatoria ' + fmtM(s.salary * 1.2) : 'Libero'} · ${fmtM(s.salary)}/a</div></div><button class="btn sm" data-a="hire" data-id="${s.id}">Ingaggia</button></div>`; }).join('')}</div>
+        <div class="col gap6">${pool(role).map((s) => { const other = s.teamId ? st.teams[s.teamId] : null; return `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line)">${ratingBox(s.rating)}<div class="grow"><div class="row gap6" style="flex-wrap:wrap">${esc(s.name)} ${trait(s)}</div><div class="tiny muted">${other ? esc(other.short) + ' · liberatoria ' + fmtM(s.salary * 1.2) : 'Libero'} · ${fmtM(s.salary)}/a</div></div><button class="btn sm" data-a="hire" data-id="${s.id}">Ingaggia</button></div>`; }).join('')}</div>
       </div>`;
     }).join('')}</div>`;
   },
@@ -212,7 +229,7 @@ registerScreen({
     <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px" class="mt16">
       <div class="col gap16">
         <div class="panel"><div class="panel-head"><h3>Sponsor attivi (${t.sponsors.length}/3)</h3></div>
-          ${t.sponsors.length ? `<div class="grid3">${t.sponsors.map((s) => `<div class="card"><div class="tiny upper muted">${s.tier === 3 ? 'Title sponsor' : s.tier === 2 ? 'Partner' : 'Fornitore'}</div><div style="font-family:var(--display);font-weight:800;font-size:18px">${esc(s.name)}</div><div class="small mt8">${fmtM(s.perRace)}/evento</div><div class="tiny muted">Bonus ${objNames[s.objective]}: ${fmtM(s.bonus)}</div><div class="tiny muted">${s.seasonsLeft} ${s.seasonsLeft === 1 ? 'stagione' : 'stagioni'} rimanenti</div></div>`).join('')}</div>` : '<div class="muted small">Nessuno sponsor attivo. Firmane uno dalle offerte!</div>'}
+          ${t.sponsors.length ? `<div class="grid3">${t.sponsors.map((s) => `<div class="card"><div class="tiny upper muted">${s.tier === 3 ? 'Title sponsor' : s.tier === 2 ? 'Partner' : 'Fornitore'}</div><div style="font-family:var(--display);font-weight:800;font-size:18px">${esc(s.name)}</div><div class="small mt8">${fmtM(s.perRace)}/evento</div><div class="tiny muted">Bonus ${objNames[s.objective]}: ${fmtM(s.bonus)}</div><div class="tiny muted">${s.seasonsLeft} ${s.seasonsLeft === 1 ? 'stagione' : 'stagioni'} rimanenti</div>${sponsorExtra(st, s)}<button class="btn sm ghost mt8" data-a="drop-sp" data-id="${s.id}">${icon('x')} Rescindi</button></div>`).join('')}</div>` : '<div class="muted small">Nessuno sponsor attivo. Firmane uno dalle offerte!</div>'}
         </div>
         <div class="panel"><div class="panel-head"><h3>Offerte di sponsorizzazione</h3></div>
           ${st.sponsorOffers.length ? `<div class="col gap6">${st.sponsorOffers.map((o) => `<div class="card row" style="gap:14px"><div class="grow"><div class="row"><b style="font-family:var(--display);font-size:17px">${esc(o.name)}</b><span class="stars small">${'★'.repeat(o.tier)}</span></div><div class="small muted">${o.objText}: +${fmtM(o.bonus)} · ${o.seasons} ${o.seasons === 1 ? 'stagione' : 'stagioni'}</div></div><div class="right"><div><b>${fmtM(o.perRace)}</b><span class="tiny muted">/evento</span></div><div class="tiny good">Firma: +${fmtM(o.signing)}</div></div><button class="btn sm primary" data-a="sign" data-id="${o.id}" ${t.sponsors.length >= 3 ? 'disabled' : ''}>Firma</button></div>`).join('')}</div>` : '<div class="muted small">Nessuna offerta al momento. Arriveranno con i risultati!</div>'}
@@ -224,7 +241,10 @@ registerScreen({
           <div class="col gap6 small">
             <div class="row between"><span class="muted">Diritti commerciali</span><b class="good">+${fmtM(t.baseBudget * 0.46 / n * (0.7 + t.rep / 300))}</b></div>
             <div class="row between"><span class="muted">Sponsor (base)</span><b class="good">+${fmtM(sponsorIncome)}</b></div>
+            ${t.facilities.hospitality > 1 ? `<div class="row between"><span class="muted">Hospitality & marketing</span><b class="good">+${fmtM((t.facilities.hospitality - 1) * 0.12 * cat(st).budgetScale)}</b></div>` : ''}
+            ${st.dyn?.goals?.list?.length ? `<div class="row between"><span class="muted">Obiettivi sponsor (se centrati)</span><b class="good">fino a +${fmtM(st.dyn.goals.list.reduce((a, g) => a + g.reward, 0))}</b></div>` : ''}
             <div class="row between"><span class="muted">Stipendi</span><b class="bad">-${fmtM(salaries / n)}</b></div>
+            ${academyDrivers(st).length ? `<div class="row between"><span class="muted">Accademia giovani</span><b class="bad">-${fmtM(academyUpkeep(st) / n)}</b></div>` : ''}
             <div class="row between"><span class="muted">Operativi</span><b class="bad">-${fmtM((t.baseBudget * 0.1 + Object.values(t.facilities).reduce((a, b) => a + b, 0) * 0.4 * cat(st).budgetScale) / n)}</b></div>
           </div>
         </div>
@@ -235,6 +255,12 @@ registerScreen({
     </div>`;
   },
   actions: {
+    'drop-sp'(el) {
+      const st = S(); const t = playerTeam(st);
+      const sp = t.sponsors.find((x) => x.id === el.dataset.id); if (!sp) return;
+      const pen = +(sp.perRace * 2).toFixed(2);
+      App.confirm(`Rescindere con ${esc(sp.name)}?`, `Penale di uscita: ${fmtM(pen)}. Lo spazio sulla livrea si libererà subito.`, () => { t.sponsors = t.sponsors.filter((x) => x !== sp); addFinance(st, `Rescissione sponsor ${sp.name}`, -pen); App.refresh(); }, 'Rescindi', true);
+    },
     sign(el) {
       const st = S(); const t = playerTeam(st);
       const o = st.sponsorOffers.find((x) => x.id === el.dataset.id);
@@ -264,3 +290,44 @@ function driverStatusChips(st, d, t) {
 }
 
 function simCost(st) { return +(0.6 * ({ formula: 1, rally: 0.35, endurance: 0.55 }[st.category] || 1)).toFixed(2); }
+
+// --------------- SPONSOR SATISFACTION ---------------
+function sponsorExtra(st, s) {
+  const sat = s.sat ?? 60;
+  const g = st.dyn?.goals?.list?.find((x) => x.sp === s.id);
+  return `<div class="row between tiny mt8"><span class="muted">Soddisfazione</span><b style="color:${sat >= 65 ? 'var(--good)' : sat >= 35 ? 'var(--warn)' : 'var(--bad)'}">${sat}%</b></div><div class="sat-bar"><i style="width:${sat}%;background:${sat >= 65 ? 'var(--good)' : sat >= 35 ? 'var(--warn)' : 'var(--bad)'}"></i></div>${g ? `<div class="tiny mt8" style="color:var(--text2)">${icon('target', 'ico', 'style="width:12px;vertical-align:-2px"')} ${esc(goalText(st, g))} · <b class="good">+${fmtM(g.reward)}</b></div>` : ''}${s.seasonsLeft === 1 ? `<div class="tiny mt8 ${sat >= 65 ? 'good' : 'warn'}">${sat >= 65 ? 'Pronto a rinnovare con aumento' : 'Rinnova solo se lo rendi felice (65%+)'}</div>` : ''}`;
+}
+
+// --------------- YOUTH ACADEMY ---------------
+function academyPanel(st, t) {
+  ensureDynasty(st);
+  const juniors = academyDrivers(st);
+  const slots = academySlots(t);
+  const pros = st.dyn.prospects?.list || [];
+  const potBar = (d) => { const p = scoutedPot(st, d); const o = ovr(st, d); return `<div class="row between tiny mt8"><span class="muted">OVR ${o} · Potenziale ${p.lo === p.hi ? p.lo : `${p.lo}–${p.hi}`}</span><span class="stars">${stars(Math.min(5, Math.max(1, (((p.lo + p.hi) / 2) - 60) / 8)))}</span></div><div class="pot-range"><i style="left:${p.lo - 40}%;width:${Math.max(2, p.hi - p.lo)}%"></i><b style="left:${o - 40}%"></b></div>`; };
+  const feeder = (d) => (d.feeder || []).length ? `<div class="feeder">${d.feeder.slice(-5).map((f) => `<span class="${f.pos === 1 ? 'p1' : f.pos <= 3 ? 'pod' : ''}" data-tip="Serie minori ${f.season}">${f.season % 100}: ${f.pos}°</span>`).join('')}</div>` : '<div class="tiny muted mt8">Debutto nelle serie minori a fine stagione.</div>';
+  return `<div class="panel mt16 anim-in"><div class="panel-head"><h3>${icon('star')} Accademia giovani</h3><div class="row gap6"><span class="chip">Posti ${juniors.length}/${slots}</span><span class="chip">Accademia Lv${t.facilities.academy}</span>${teamTrait(st, t, 'engineer', 'coach') ? '<span class="trait">Talent coach</span>' : ''}</div></div>
+    <div class="small muted mb16">I junior corrono nelle serie minori e crescono ogni inverno (più in fretta con un’Accademia di livello alto). Quando sono pronti, promuovili in prima squadra: costano poco e sono fedelissimi.</div>
+    ${juniors.length ? `<div class="acad-grid mb16">${juniors.map((d) => `<div class="acad-card"><div class="row" style="gap:12px">${helmetSVG(d.helmet, 54)}<div class="grow" style="min-width:0"><div class="row gap6">${flagSVG(d.nat)}<span class="nm">${esc(d.name)}</span></div><div class="tiny muted">${d.age} anni · in accademia dal ${d.joinedAge ? st.season - (d.age - d.joinedAge) : st.season}</div></div>${ratingBox(ovr(st, d), false)}</div>${potBar(d)}${feeder(d)}
+      <div class="row gap6 mt16"><button class="btn sm team" data-a="acad-promote" data-id="${d.id}">${icon('right')} Promuovi</button><button class="btn sm ghost" data-a="acad-release" data-id="${d.id}">${icon('x')} Libera</button></div></div>`).join('')}</div>` : ''}
+    <div class="tiny upper muted mb8">Prospetti osservati dagli scout · stagione ${st.season}</div>
+    ${pros.length ? `<div class="acad-grid">${pros.map((d) => `<div class="acad-card" style="opacity:${juniors.length >= slots ? 0.55 : 1}"><div class="row" style="gap:12px">${helmetSVG(d.helmet, 44)}<div class="grow" style="min-width:0"><div class="row gap6">${flagSVG(d.nat)}<span class="nm" style="font-size:17px">${esc(d.name)}</span></div><div class="tiny muted">${d.age} anni · scuola kart</div></div></div>${potBar(d)}
+      <div class="row between mt16"><span class="small">Borsa di studio <b>${fmtM(prospectFee(st, d))}</b></span><button class="btn sm ${juniors.length < slots ? 'primary' : ''}" data-a="acad-sign" data-id="${d.id}" ${juniors.length >= slots || t.money < prospectFee(st, d) ? 'disabled' : ''}>Ingaggia</button></div></div>`).join('')}</div>` : '<div class="small muted">Gli scout torneranno con nuovi nomi la prossima stagione.</div>'}
+  </div>`;
+}
+
+function promoteModal(id) {
+  const st = S(); const t = playerTeam(st); const d = st.drivers[id];
+  const mine = teamDrivers(st, t);
+  const free = seatsPerTeam(st) - mine.length;
+  let repl = null;
+  const render = () => `<div class="row" style="gap:16px">${helmetSVG(d.helmet, 72)}<div><div class="tiny upper" style="color:var(--team)">Promozione dall’accademia</div><h2 style="margin:4px 0 0">${esc(d.name)}</h2><div class="small muted">${d.age} anni · OVR ${ovr(st, d)} · contratto triennale a ${fmtM(+(salaryFor(d, st.category) * 0.65).toFixed(2))}/anno</div></div></div>
+    <p class="muted mt16">Un pilota cresciuto in casa parte motivatissimo e, se vincerà il titolo, entrerà nella leggenda della tua dinastia.</p>
+    ${free > 0 ? '<div class="card good">C’è un sedile libero: debutterà al prossimo evento.</div>' : `<label class="lbl">Chi lascia il posto?</label><div class="row gap6 mt8 wrap">${mine.map((m) => `<button class="btn sm ${repl === m.id ? 'active' : ''}" data-a="repl" data-id="${m.id}">${esc(m.name)} · OVR ${ovr(st, m)}</button>`).join('')}</div><div class="tiny muted mt8">Il titolare liberato riceve una penale pari al 50% del contratto residuo.</div>`}
+    <div class="row mt24" style="justify-content:flex-end"><button class="btn ghost" data-a="close-modal">Annulla</button><button class="btn primary" data-a="go" ${free <= 0 && !repl ? 'disabled' : ''}>Promuovi in prima squadra</button></div>`;
+  const rr = () => { const m = document.querySelector('.modal'); if (m) m.innerHTML = render(); };
+  App.modal(render(), {
+    repl(el) { repl = el.dataset.id; rr(); },
+    go() { const r = promoteJunior(st, d.id, repl); if (!r.ok) { App.toast('Impossibile', r.msg, 'bad'); return; } App.closeModal(); sfx.win(); App.toast(`${d.name} in prima squadra!`, 'Il vivaio dà i suoi frutti.', 'good'); App.refresh(); },
+  });
+}

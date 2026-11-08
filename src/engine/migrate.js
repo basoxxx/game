@@ -2,6 +2,7 @@
 import { getTrack, buildCalendar } from './world.js';
 import { ensureProgress } from './progress.js';
 import { ensureLegacy } from './legacy.js';
+import { ensureDynasty } from './dynasty.js';
 import { TRACKS } from '../data/tracks.js';
 
 export function migrateSave(st) {
@@ -19,6 +20,7 @@ export function migrateSave(st) {
   }
   ensureProgress(st);
   if (st.career) ensureLegacy(st);
+  if (!st.quick && st.teams?.[st.playerTeam]) { try { ensureDynasty(st); } catch (e) { console.warn('dynasty migrate', e); } }
   st.version = 2;
   return st;
 }

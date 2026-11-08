@@ -14,6 +14,8 @@ import { applyVolumes, sfx } from '../ui/audio.js';
 import { applyFilterSettings, FILTER_PRESETS, COLORBLIND_MODES } from '../ui/gfx.js';
 import { PERKS, xpForLevel, ensureProgress, buyPerk } from '../engine/progress.js';
 import { legacyInfo } from '../engine/legacy.js';
+import { STATUS, MANDATES, ensureDynasty, statusInfo, relColor } from '../engine/dynasty.js';
+import { statusEmblem, statusLadder, portraitSVG } from './career-ui.js';
 
 // ---------------- INBOX ----------------
 let selMail = null;
@@ -106,7 +108,10 @@ registerScreen({
     ensureProgress(st);
     const c = st.career;
     const ach = Object.values(st.achievements);
-    const ALL = [['first_podium', 'Champagne!'], ['first_win', 'Prima vittoria!'], ['one_two', 'Doppietta'], ['pole', 'Pole Position'], ['signing', 'Colpo di mercato'], ['driver_title', 'Campione del Mondo'], ['team_title', 'Dinastia'], ['switch', 'Giramondo'], ['level5', 'Manager affermato'], ['level10', 'Stratega leggendario'], ['rd5', 'Fabbrica a pieno regime'], ['sponsor3', 'Vetrina piena'], ['rain_win', 'Re della pioggia'], ['from_back', 'Rimonta epica'], ['quick', 'Pilota della domenica']];
+    const ALL = [['first_podium', 'Champagne!'], ['first_win', 'Prima vittoria!'], ['one_two', 'Doppietta'], ['pole', 'Pole Position'], ['signing', 'Colpo di mercato'], ['driver_title', 'Campione del Mondo'], ['team_title', 'Dinastia'], ['switch', 'Giramondo'], ['level5', 'Manager affermato'], ['level10', 'Stratega leggendario'], ['rd5', 'Fabbrica a pieno regime'], ['sponsor3', 'Vetrina piena'], ['rain_win', 'Re della pioggia'], ['from_back', 'Rimonta epica'], ['quick', 'Pilota della domenica'],
+      ['status2', 'Fuori dall’anonimato'], ['status3', 'Si fa sul serio'], ['status4', 'Nell’Olimpo'], ['status5', 'Dinastia'], ['plan_done', 'Visionario'], ['promises3', 'Uomo di parola'],
+      ['sponsor_sweep', 'Cliente perfetto'], ['bet_win', 'Chi la fa l’aspetti'], ['alliance', 'Diplomatico del paddock'], ['peace', 'Calumet della pace'], ['tycoon', 'Il magnate'], ['saved', 'Salvataggio in extremis'],
+      ['phoenix', 'Fenice'], ['academy_sign', 'Talent scout'], ['academy_grad', 'Fatto in casa'], ['feeder_champ', 'Vivaio d’oro']];
     const need = xpForLevel(c.level);
     return `<div class="screen-title"><div><div class="sub">${esc(st.playerName)}</div><h1>Carriera</h1></div><div class="kpi" style="text-align:right"><b style="${c.points ? 'color:var(--good)' : ''}">${c.points}</b><span>Punti abilità</span></div></div>
     <div class="grid4 anim-in">
@@ -115,6 +120,7 @@ registerScreen({
       <div class="panel"><div class="kpi"><b>${c.trophies.length}</b><span>Titoli vinti · ${c.seasonsManaged} stagioni</span></div></div>
       <div class="panel"><div class="kpi"><b>${ach.length}/${ALL.length}</b><span>Obiettivi sbloccati</span></div></div>
     </div>
+    ${dynastyPanel(st)}
     ${legacyPanel(st)}
     <div class="panel mt16"><div class="panel-head"><h3>Albero delle abilità</h3><span class="small muted">Guadagni XP con punti, podi, vittorie e obiettivi. Ogni livello = 1 punto abilità.</span></div>
       <div class="grid3">${Object.entries(PERKS).map(([k, b]) => `<div class="card" style="border-top:3px solid ${b.color}"><div class="row">${icon(b.icon, 'ico', `style="width:22px;height:22px;color:${b.color}"`)}<h3>${b.name}</h3></div>
@@ -125,7 +131,7 @@ registerScreen({
       <div class="panel"><div class="panel-head"><h3>Bacheca trofei</h3></div>${c.trophies.length ? `<div class="grid3">${c.trophies.map((t) => `<div class="card" style="text-align:center">${icon('trophy', 'ico', 'style="width:40px;height:40px;color:var(--gold)"')}<div style="font-weight:800;margin-top:6px">Titolo ${t.type}</div><div class="small muted">${CATEGORIES[t.category].name} ${t.season}</div><div class="tiny">${esc(t.name)}</div></div>`).join('')}</div>` : `<div class="empty">${icon('trophy')}<b>Bacheca vuota</b><span>La bacheca ti aspetta. Vinci il tuo primo titolo!</span></div>`}</div>
     </div>
     <div class="panel mt16"><div class="panel-head"><h3>Obiettivi sbloccabili</h3></div><div class="grid4" style="grid-template-columns:repeat(5,1fr)">${ALL.map(([id, n]) => { const a = st.achievements[id]; return `<div class="card row" style="${a ? '' : 'opacity:.4'}">${icon(a ? 'star' : 'shield', 'ico', `style="width:24px;height:24px;color:${a ? 'var(--gold)' : 'var(--dim)'}"`)}<div><b class="small">${n}</b><div class="tiny muted">${a ? `Sbloccato nel ${a.season}` : 'Bloccato'}</div></div></div>`; }).join('')}</div></div>
-    <div class="panel mt16"><div class="panel-head"><h3>Storico</h3></div>${c.history.length ? `<table class="tbl"><thead><tr><th>Stagione</th><th>Categoria</th><th>Squadra</th><th class="right">Obiettivo</th><th class="right">Risultato</th></tr></thead><tbody>${c.history.map((h) => `<tr><td>${h.season}</td><td>${CATEGORIES[h.category].name}</td><td>${esc(h.team)}</td><td class="right">${h.target}°</td><td class="right"><b class="${h.pos <= h.target ? 'good' : 'bad'}">${h.pos}°</b></td></tr>`).join('')}</tbody></table>` : '<div class="muted small">Nessuna stagione completata.</div>'}</div>`;
+    <div class="panel mt16"><div class="panel-head"><h3>Storico</h3></div>${c.history.length ? `<table class="tbl"><thead><tr><th>Stagione</th><th>Categoria</th><th>Squadra</th><th>Status</th><th class="right">Obiettivo</th><th class="right">Risultato</th></tr></thead><tbody>${c.history.map((h) => `<tr><td>${h.season}</td><td>${CATEGORIES[h.category].name}</td><td>${esc(h.team)}</td><td>${h.status != null ? `<span class="small" style="color:${STATUS[h.status].color};font-weight:700">${esc(STATUS[h.status].name)}</span>` : '<span class="dim">-</span>'}</td><td class="right">${h.target}°</td><td class="right"><b class="${h.pos <= h.target ? 'good' : 'bad'}">${h.pos}°</b></td></tr>`).join('')}</tbody></table>` : '<div class="muted small">Nessuna stagione completata.</div>'}</div>`;
   },
   actions: {
     perk(el) { const r = buyPerk(S(), el.dataset.id); if (!r.ok) { App.toast('Impossibile', r.msg, 'bad'); return; } sfx.levelup(); App.toast('Abilità sbloccata!', '', 'good'); App.refresh(); },
@@ -213,3 +219,23 @@ registerScreen({
     },
   },
 });
+
+// ---------------- DYNASTY SUMMARY ----------------
+function dynastyPanel(st) {
+  if (st.quick) return '';
+  const D = ensureDynasty(st); if (!D) return '';
+  const si = statusInfo(st);
+  const M = MANDATES[D.mandate] || MANDATES.growth;
+  const ps = Object.entries(D.principals).map(([id, p]) => ({ id, p, t: st.teams[id] })).filter((x) => x.t && !x.t.isPlayer).sort((a, b) => b.p.rel - a.p.rel);
+  const ally = ps[0], foe = ps[ps.length - 1];
+  const who = (x, lab) => x ? `<div class="row" style="gap:10px">${portraitSVG(x.p, x.t, 44)}<div><div class="tiny upper muted">${lab}</div><b>${esc(x.p.name)}</b><div class="tiny" style="color:${relColor(x.p.rel)}">${esc(x.t.name)} · ${x.p.rel > 0 ? '+' : ''}${x.p.rel}</div></div></div>` : '';
+  return `<div class="panel mt16" style="--stc:${si.color}"><div class="panel-head"><h3>${icon('star')} La tua dinastia</h3><button class="btn sm ghost" data-a="nav" data-to="paddock" data-tab="board">Paddock e consiglio ${icon('right')}</button></div>
+    <div class="grid4" style="align-items:center">
+      <div class="row" style="gap:14px">${statusEmblem(si.idx, 70)}<div><div class="tiny upper muted">Status</div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:28px;line-height:1;text-transform:uppercase;color:${si.color}">${esc(si.name)}</div><div class="tiny muted">Prestigio ${si.rep}${si.next ? ` · prossimo: ${esc(si.next.name)}` : ''}</div></div></div>
+      <div><div class="tiny upper muted">Mandato</div><b style="font-family:var(--display);font-size:20px;text-transform:uppercase">${esc(M.name)}</b><div class="tiny muted">${D.plan.steps.filter((x) => x.done).length}/${D.plan.steps.length} tappe del piano · promesse ${D.stats.promisesKept}/${D.stats.promisesKept + D.stats.promisesBroken}</div></div>
+      ${who(ally, 'Rapporto migliore')}
+      ${who(foe, 'Rapporto peggiore')}
+    </div>
+    <div class="mt16">${statusLadder(st)}</div>
+  </div>`;
+}
