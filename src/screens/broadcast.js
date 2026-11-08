@@ -146,7 +146,7 @@ export function liveStandingsHTML(st, sim) {
   const rows = live.map((r, i) => ({ ...r, pos: i + 1 })).filter((r, i) => i < 10 || mine.has(r.id));
   return `<div class="live-champ"><div class="lc-h"><span>Mondiale piloti se finisse ora</span><span class="muted">${sim.isSprint ? 'Sprint' : 'Gara'} · giro ${Math.min(sim.laps, Math.floor(sim.progress * sim.laps) + 1)}</span></div>${rows.map((r) => {
     const d = st.drivers[r.id]; const t = st.teams[d?.teamId]; const mv = started ? r.was - r.pos : 0;
-    return `<div class="lc-row ${mine.has(r.id) ? 'me' : ''}"><span class="lc-pos">${r.pos}</span>${t ? teamStripe(t) : '<span></span>'}<span class="lc-nm">${esc(d?.name || r.id)}</span><span class="lc-mv ${mv > 0 ? 'good' : mv < 0 ? 'bad' : 'dim'}">${mv > 0 ? '▲' + mv : mv < 0 ? '▼' + -mv : '–'}</span><span class="lc-add">${r.add ? '+' + r.add : ''}</span><b class="lc-pts">${r.pts}</b><span class="lc-gap">${r.pos === 1 ? '' : '-' + (lead - r.pts)}</span></div>`;
+    return `<div class="lc-row ${mine.has(r.id) ? 'me' : ''}"><span class="lc-pos">${r.pos}</span>${t ? teamStripe(t) : '<span></span>'}<span class="lc-nm">${esc(d?.name || r.id)}</span><span class="lc-mv ${mv > 0 ? 'good' : mv < 0 ? 'bad' : 'dim'}">${mv > 0 ? '▲' + mv : mv < 0 ? '▼' + -mv : '–'}</span><span class="lc-add">${r.add ? '+' + r.add : ''}</span><b class="lc-pts">${r.pts}</b><span class="lc-gap">${r.pos === 1 || lead === r.pts ? '' : '-' + (lead - r.pts)}</span></div>`;
   }).join('')}</div>`;
 }
 
