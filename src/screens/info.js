@@ -18,23 +18,53 @@ import { STATUS, MANDATES, ensureDynasty, statusInfo, relColor } from '../engine
 import { statusEmblem, statusLadder, portraitSVG } from './career-ui.js';
 
 // ---------------- INBOX ----------------
-let selMail = null;
+let selMail = null, mailFilter = 'all';
+// Mail folders: derived from sender/icon so old saves sort themselves too
+const MAIL_FOLDERS = [['all', 'Tutta'], ['race', 'Gare'], ['team', 'Squadra'], ['biz', 'Affari'], ['board', 'Consiglio']];
+function mailFolder(m) {
+  const f = (m.from || '').toLowerCase();
+  if (m.icon === 'board' || f.includes('consiglio') || f.includes('tribunale')) return 'board';
+  if (m.icon === 'money' || f.includes('commerciale') || f.includes('finanza') || f.includes('sponsor')) return 'biz';
+  if (m.icon === 'flag' || f.includes('stampa') || f.includes('commissari') || f.includes('federazione')) return 'race';
+  return 'team';
+}
+const FOLDER_COL = { race: '#3aa0ff', team: '#22d37a', biz: '#ffb400', board: '#c08bff' };
+function senderAvatar(m, size = 40) {
+  const words = String(m.from || '?').replace(/[^\p{L}\s]/gu, '').split(/\s+/).filter(Boolean);
+  const ini = (words.length > 1 ? words[0][0] + words[words.length - 1][0] : (words[0] || '?').slice(0, 2)).toUpperCase();
+  const col = FOLDER_COL[mailFolder(m)];
+  return `<div class="mail-av" style="--mc:${col};width:${size}px;height:${size}px;font-size:${Math.round(size * 0.36)}px">${esc(ini)}${m.type === 'good' ? '<i class="ok"></i>' : m.type === 'bad' ? '<i class="ko"></i>' : ''}</div>`;
+}
+function mailCard(st, m) {
+  const c = m.card;
+  if (!c || c.kind !== 'race') return '';
+  const posCol = (r) => (r.dnf ? 'var(--bad)' : r.pos === 1 ? 'var(--gold, #ffcf3a)' : r.pos <= 3 ? '#e2e6ee' : r.pts ? 'var(--good)' : 'var(--text2)');
+  return `<div class="mail-race mt24">
+    <div class="mr-head">${c.nat ? flagSVG(c.nat, 30, 20) : ''}<b>${esc(c.track)}</b><span class="chip ${c.cpos <= c.tgt ? 'good' : 'warn'}">Costruttori ${c.cpos}° · obiettivo ${c.tgt}°</span></div>
+    <div class="mr-rows">${c.rows.map((r) => `<div class="mr-row"><div class="mr-pos" style="color:${posCol(r)}">${r.dnf ? 'RIT' : 'P' + r.pos}</div><div class="grow"><b>${esc(r.n)}</b>${r.dnf && r.why ? `<div class="tiny muted">${esc(r.why)}</div>` : ''}</div><div class="mr-pts">${r.pts ? '+' + r.pts : '0'}<span>pt</span></div></div>`).join('')}</div>
+  </div>`;
+}
 registerScreen({
   id: 'inbox',
   render(params) {
     const st = S();
-    if (params?.mail) { selMail = params.mail; params.mail = null; }
-    if (!selMail || !st.inbox.find((m) => m.id === selMail)) selMail = st.inbox[0]?.id;
-    const m = st.inbox.find((x) => x.id === selMail);
+    if (params?.mail) { selMail = params.mail; params.mail = null; mailFilter = 'all'; }
+    const list = st.inbox.filter((x) => mailFilter === 'all' || mailFolder(x) === mailFilter);
+    if (!selMail || !list.find((m) => m.id === selMail)) selMail = list[0]?.id;
+    const m = list.find((x) => x.id === selMail);
     if (m && !m.read) m.read = true;
-    return `<div class="screen-title"><div><div class="sub">${st.inbox.filter((x) => !x.read).length} non letti</div><h1>Posta</h1></div><button class="btn sm ghost" data-a="read-all">${icon('check')} Segna tutti come letti</button></div>
-    <div style="display:grid;grid-template-columns:400px 1fr;gap:16px;height:calc(100vh - 190px)" class="anim-in">
-      <div class="panel tight" style="overflow-y:auto">${st.inbox.map((x) => `<div class="mail ${x.read ? '' : 'unread'} ${x.type} ${x.id === selMail ? 'sel' : ''}" data-a="open-mail" data-id="${x.id}" ><div class="ic">${icon(x.icon || 'mail')}</div><div class="grow" style="min-width:0"><div class="subj small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.subject)}</div><div class="tiny muted">${esc(x.from)} · S${x.season} R${x.round + 1}</div></div></div>`).join('') || `<div class="empty">${icon('mail')}<b>Posta vuota</b><span>Nessun messaggio</span></div>`}</div>
-      <div class="panel" style="overflow-y:auto">${m ? `<div class="row" style="gap:14px"><div class="mail ${m.type}" style="padding:0"><div class="ic" style="width:52px;height:52px">${icon(m.icon || 'mail')}</div></div><div><h2 style="font-size:30px;font-style:italic;font-weight:800">${esc(m.subject)}</h2><div class="small mt8" style="color:var(--text2)">Da <b>${esc(m.from)}</b> · Stagione ${m.season}, round ${m.round + 1}</div></div></div><div class="mt24" style="white-space:pre-line;line-height:1.75;font-size:16px;color:var(--text2);max-width:760px">${esc(m.body)}</div>` : '<div class="empty">Seleziona un messaggio</div>'}</div>
+    const unread = (f) => st.inbox.filter((x) => !x.read && (f === 'all' || mailFolder(x) === f)).length;
+    const body = m ? (m.card ? m.body.split('\n\n').filter((p) => !p.startsWith('•')).join('\n\n') : m.body) : '';
+    return `<div class="screen-title"><div><div class="sub">${unread('all')} non letti · ${st.inbox.length} messaggi</div><h1>Posta</h1></div><div class="row gap6"><div class="tabs">${MAIL_FOLDERS.map(([k, n]) => `<div class="tab ${mailFilter === k ? 'active' : ''}" data-a="mail-filter" data-f="${k}">${n}${unread(k) ? ` <span class="badge">${unread(k)}</span>` : ''}</div>`).join('')}</div><button class="btn sm ghost" data-a="read-all">${icon('check')} Segna tutti come letti</button></div></div>
+    <div class="mail-layout anim-in">
+      <div class="panel tight mail-list">${list.map((x) => `<div class="mail ${x.read ? '' : 'unread'} ${x.type} ${x.id === selMail ? 'sel' : ''}" data-a="open-mail" data-id="${x.id}">${senderAvatar(x, 38)}<div class="grow" style="min-width:0"><div class="subj small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.subject)}</div><div class="tiny muted">${esc(x.from)} · ${x.season !== st.season ? x.season + ' · ' : ''}R${x.round + 1}</div></div></div>`).join('') || `<div class="empty">${icon('mail')}<b>${mailFilter === 'all' ? 'Posta vuota' : 'Nessun messaggio in questa cartella'}</b><span>${mailFilter === 'all' ? 'I messaggi arriveranno dopo il primo evento.' : 'Quando arriverà qualcosa, lo troverai qui.'}</span></div>`}</div>
+      <div class="panel mail-read">${m ? `<div class="row" style="gap:16px;align-items:flex-start">${senderAvatar(m, 56)}<div class="grow"><div class="tiny upper" style="letter-spacing:.14em;color:${FOLDER_COL[mailFolder(m)]}">${esc(MAIL_FOLDERS.find(([k]) => k === mailFolder(m))[1])}</div><h2 class="mail-subj">${esc(m.subject)}</h2><div class="small mt8" style="color:var(--text2)">Da <b>${esc(m.from)}</b> · Stagione ${m.season}, round ${m.round + 1}</div></div></div>
+        ${mailCard(st, m)}<div class="mail-body mt24">${esc(body)}</div>` : `<div class="empty">${icon('mail')}<b>Nessun messaggio selezionato</b><span>Scegli un messaggio dall’elenco.</span></div>`}</div>
     </div>`;
   },
   actions: {
     'open-mail'(el) { selMail = el.dataset.id; App.refresh(); },
+    'mail-filter'(el) { mailFilter = el.dataset.f; selMail = null; App.refresh(); },
     'read-all'() { S().inbox.forEach((m) => (m.read = true)); App.refresh(); },
   },
 });

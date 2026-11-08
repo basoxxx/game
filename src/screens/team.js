@@ -5,14 +5,15 @@ import { helmetSVG, flagSVG, teamBadge } from '../ui/art.js';
 import { esc, bar, stars } from '../ui/dom.js';
 import { S } from '../engine/state.js';
 import { driverOverall, salaryFor, STAFF_ROLES, FACILITIES } from '../engine/world.js';
-import { cat, playerTeam, teamDrivers, standings, fmtM, freeAgents, driverInterest, buyoutCost, signDriver, releaseDriver, hireStaff, facilityCost, startFacility, seatsPerTeam, addFinance } from '../engine/season.js';
+import { cat, playerTeam, teamDrivers, standings, fmtM, freeAgents, driverInterest, buyoutCost, signDriver, releaseDriver, hireStaff, facilityCost, startFacility, seatsPerTeam, addFinance, costCap, capSpent } from '../engine/season.js';
 import { driverChip, ovr, ratingBox, moraleChip, attrBars, ATTR_NAMES, teamStripe } from './common.js';
 import { sfx } from '../ui/audio.js';
 import { hasPerk } from '../engine/progress.js';
 import { negotiate, canPrecontract, nextSeasonRoster, persona } from '../engine/market.js';
 import { licencePoints, BAN_POINTS } from '../engine/stewards.js';
 import { compEnabled, compSummaryText } from '../engine/components.js';
-import { ensureDynasty, academyDrivers, academySlots, prospectFee, scoutedPot, signProspect, promoteJunior, releaseJunior, academyUpkeep, traitInfo, teamTrait, facilityCap, STATUS, goalText } from '../engine/dynasty.js';
+import { ensureDynasty, academyDrivers, academySlots, prospectFee, scoutedPot, signProspect, promoteJunior, releaseJunior, academyUpkeep, traitInfo, teamTrait, facilityCap, STATUS, goalText, INVEST, investState, investCost, stakeCost, investUpkeep, investSpent, startInvestment, sellStake, bonusRates, toggleJuniorRenewal, principal, relColor } from '../engine/dynasty.js';
+import { lineChart } from './career-ui.js';
 import '../styles/career.css';
 
 // --------------- DRIVERS ---------------
@@ -207,10 +208,76 @@ registerScreen({
 });
 
 // --------------- FINANCE & SPONSORS ---------------
+// Ledger labels → readable buckets for the "where the money goes" breakdown
+function finBucket(label) {
+  const L = label.toLowerCase();
+  if (L.startsWith('investiment') || L.startsWith('museo') || L.startsWith('dividendi') || L.startsWith('cessione quote')) return 'Investimenti';
+  if (L.startsWith('r&d') || L.startsWith('produzione') || L.startsWith('pacchetto')) return 'Sviluppo vettura';
+  if (L.startsWith('cantiere')) return 'Strutture';
+  if (L.includes('stipend') || L.includes('bonus firma') || L.includes('clausola') || L.includes('rescission') || L.includes('ingaggio') || L.includes('premi risultato') || L.includes('liberatoria')) return 'Piloti & staff';
+  if (L.includes('sponsor') || L.startsWith('obiettivo') || L.startsWith('bonus') || L.includes('hospitality')) return 'Sponsor & commerciale';
+  if (L.includes('diritti') || L.includes('montepremi') || L.includes('premio')) return 'Diritti & premi';
+  if (L.includes('operativ') || L.includes('logistic')) return 'Operativi';
+  if (L.includes('accademia')) return 'Accademia';
+  if (L.includes('multa') || L.includes('penal')) return 'Multe';
+  return 'Altro';
+}
+function moneyBreakdown(st) {
+  const agg = {};
+  for (const f of st.finance.filter((x) => x.season === st.season)) { const k = finBucket(f.label); agg[k] = (agg[k] || 0) + f.amount; }
+  const rows = Object.entries(agg).filter(([, v]) => Math.abs(v) >= 0.01).sort((a, b) => b[1] - a[1]);
+  if (!rows.length) return `<div class="empty">${icon('money')}<b>Ancora nessun movimento</b><span>Il bilancio prende forma dopo il primo evento.</span></div>`;
+  const mx = Math.max(...rows.map(([, v]) => Math.abs(v)));
+  return `<div class="fin-bars">${rows.map(([k, v]) => `<div class="fb-row"><span class="fb-k">${esc(k)}</span><div class="fb-track"><i class="${v >= 0 ? 'pos' : 'neg'}" style="width:${Math.max(2, (Math.abs(v) / mx) * 100)}%"></i></div><b class="${v >= 0 ? 'good' : 'bad'}">${v >= 0 ? '+' : ''}${fmtM(v)}</b></div>`).join('')}</div>`;
+}
+function cashChart(st) {
+  const L = (st.dyn?.log || []).filter((x) => x.s >= st.season - 1);
+  if (L.length < 2) return `<div class="empty" style="min-height:150px">${icon('chart')}<b>Grafico in arrivo</b><span>L’andamento della liquidità appare dopo due eventi.</span></div>`;
+  const labels = L.map((x) => (x.s !== st.season ? `${String(x.s).slice(2)}·R${x.r + 1}` : `R${x.r + 1}`));
+  return lineChart([{ name: 'Liquidità', color: 'var(--team)', values: L.map((x) => x.money), me: true }], labels, { w: 620, h: 200, area: true, fmt: (v) => fmtM(v).replace('€', '') });
+}
+function investPanel(st, t) {
+  const I = investState(t);
+  const sc = cat(st).budgetScale;
+  const money = t.money;
+  const isF = st.category === 'formula';
+  const lvlDots = (l, max) => `<div class="inv-dots">${Array.from({ length: max }, (_, i) => `<i class="${i < l ? 'on' : I.build && i === l ? 'wip' : ''}"></i>`).join('')}</div>`;
+  const card = (k, inner, state = '') => `<div class="inv-card ${state}"><div class="inv-top"><div class="inv-ic">${icon(INVEST[k].icon)}</div><div class="grow"><div class="inv-name">${esc(INVEST[k].name)}</div><div class="tiny muted">${esc(INVEST[k].desc)}</div></div></div>${inner}</div>`;
+  const builds = ['tunnel', 'hq', 'museum'].map((k) => {
+    const D = INVEST[k]; const l = I[k]; const wip = I.build?.key === k; const max = l >= D.max;
+    const c = max ? 0 : investCost(st, k);
+    const needWT = k === 'tunnel' && !max && (t.facilities.windtunnel || 1) < 3 + l;
+    const eff = D.eff(Math.max(1, max ? l : l + 1));
+    return card(k, `${lvlDots(l, D.max)}<div class="inv-eff ${l ? 'on' : ''}">${icon(l ? 'check' : 'plus')} ${esc(eff)}</div>
+      ${wip ? `<div class="inv-wip"><span>Cantiere in corso</span><b>${I.build.racesLeft} eventi</b></div>${bar((1 - I.build.racesLeft / I.build.total) * 100, 'gold')}`
+      : max ? `<div class="chip good mt8">Operativo${D.upkeep ? ` · gestione ${fmtM(D.upkeep * l * sc)}/anno` : ''}</div>`
+      : needWT ? `<div class="chip mt8">${icon('lock')} Serve Galleria del Vento Lv${3 + l}</div>`
+      : `<button class="btn sm ${money >= c * 1.5 ? 'primary' : ''} mt8" data-a="inv" data-k="${k}" ${I.build || money < c ? 'disabled' : ''}>${I.build ? 'Un cantiere alla volta' : `Investi ${fmtM(c)}`}</button>`}`, wip ? 'wip' : l ? 'owned' : '');
+  });
+  const mktLvl = I.mkt?.season === st.season ? I.mkt.lvl : 0;
+  const mkt = card('marketing', `<div class="inv-eff ${mktLvl ? 'on' : ''}">${icon(mktLvl ? 'check' : 'plus')} ${esc(INVEST.marketing.eff(Math.max(1, mktLvl)))}</div><div class="inv-seg">${INVEST.marketing.levels.map((n, i) => { const lv = i + 1; const c = +(investCost(st, 'marketing', lv) - (mktLvl ? investCost(st, 'marketing', mktLvl) : 0)).toFixed(2); return `<button class="btn sm ${mktLvl >= lv ? 'active' : ''}" data-a="inv" data-k="marketing" data-v="${lv}" ${mktLvl >= lv || money < c ? 'disabled' : ''} data-tip="${esc(n)}">${mktLvl >= lv ? icon('check') : fmtM(c)}<span>${esc(['Social', 'Nazionale', 'Globale'][i])}</span></button>`; }).join('')}</div>`, mktLvl ? 'owned' : '');
+  const R1 = bonusRates(st, 1), R2 = bonusRates(st, 2);
+  const bonus = card('bonus', `<div class="inv-eff ${I.bonus ? 'on' : ''}">${icon(I.bonus ? 'check' : 'plus')} ${esc(INVEST.bonus.eff(Math.max(1, I.bonus)))}</div><div class="inv-seg">${INVEST.bonus.levels.map((n, i) => `<button class="btn sm ${I.bonus === i ? 'active' : ''}" data-a="inv" data-k="bonus" data-v="${i}" ${I.bonus === i ? 'disabled' : ''}>${esc(n)}<span>${i === 0 ? '—' : `vittoria ${fmtM(i === 1 ? R1.win : R2.win)}`}</span></button>`).join('')}</div>`, I.bonus ? 'owned' : '');
+  const jc = investCost(st, 'junior');
+  const junior = card('junior', `<div class="inv-eff ${I.juniorActive ? 'on' : ''}">${icon(I.juniorActive ? 'check' : 'plus')} ${esc(INVEST.junior.eff())}</div>${I.juniorActive ? `<div class="row between mt8"><span class="chip good">Attivo ${st.season}${I.juniorOff ? ' · non si rinnova' : ` · rinnovo ${fmtM(jc)}`}</span><button class="btn sm ghost" data-a="inv-jr">${I.juniorOff ? 'Riattiva rinnovo' : 'Disdici'}</button></div>` : `<button class="btn sm mt8" data-a="inv" data-k="junior" ${money < jc ? 'disabled' : ''}>Attiva ${fmtM(jc)}/anno</button>`}`, I.juniorActive ? 'owned' : '');
+  const others = Object.values(st.teams).filter((x) => !x.isPlayer).sort((a, b) => (I.stakes[b.id] || 0) - (I.stakes[a.id] || 0) || a.rep - b.rep);
+  const owned = Object.keys(I.stakes);
+  const stakeRows = others.filter((x) => owned.includes(x.id) || owned.length < 2).slice(0, 4).map((x) => {
+    const p = principal(st, x.id); const pct = I.stakes[x.id] || 0; const c = stakeCost(st, x.id);
+    return `<div class="stake-row">${teamBadge(x, 26)}<div class="grow" style="min-width:0"><div class="small" style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</div><div class="tiny" style="color:${p ? relColor(p.rel) : 'var(--text3)'}">${p ? esc(p.name) : ''}</div></div><div class="stake-pct">${pct}%</div><button class="btn sm" data-a="inv" data-k="stake" data-v="${x.id}" ${pct >= 30 || money < c ? 'disabled' : ''}>+10% · ${fmtM(c)}</button>${pct ? `<button class="btn sm ghost" data-a="inv-sell" data-v="${x.id}" data-tip="Cedi le quote (-20% sul valore)">${icon('x')}</button>` : ''}</div>`;
+  }).join('');
+  const stake = card('stake', `<div class="inv-eff ${owned.length ? 'on' : ''}">${icon(owned.length ? 'check' : 'plus')} ${esc(INVEST.stake.eff())}</div><div class="stake-grid mt8">${stakeRows}</div>`, `${owned.length ? 'owned' : ''} wide`);
+  const up = investUpkeep(st, t);
+  const spent = investSpent(st);
+  return `<div class="panel mt16 anim-in inv-panel"><div class="panel-head"><h3>${icon('factory')} Investimenti${isF ? ' fuori budget cap' : ''}</h3><div class="row gap6"><span class="chip">Spesi ${st.season}: ${fmtM(spent)}</span>${up ? `<span class="chip">Gestione ${fmtM(up)}/anno</span>` : ''}${isF ? '<span class="chip info" data-tip="Il regolamento esclude dal budget cap le spese in conto capitale, il marketing e gli stipendi dei piloti.">Non conta nel cap</span>' : ''}</div></div>
+    <div class="small muted mb16">${isF ? 'Il budget cap limita quanto puoi spendere in sviluppo, non quanto puoi investire nella squadra. ' : ''}Infrastrutture, marketing, premi e partecipazioni trasformano la liquidità in vantaggi duraturi.</div>
+    <div class="inv-grid">${builds.join('')}${mkt}${bonus}${junior}${stake}</div></div>`;
+}
 registerScreen({
   id: 'finance',
   render() {
     const st = S();
+    ensureDynasty(st);
     const t = playerTeam(st);
     const n = st.calendar.length;
     const sponsorIncome = t.sponsors.reduce((s, x) => s + x.perRace, 0);
@@ -219,21 +286,30 @@ registerScreen({
     const inc = st.finance.filter((f) => f.season === st.season && f.amount > 0).reduce((a, b) => a + b.amount, 0);
     const exp = st.finance.filter((f) => f.season === st.season && f.amount < 0).reduce((a, b) => a + b.amount, 0);
     const objNames = { points: 'Punti', podium: 'Podio', win: 'Vittoria', finish: 'Doppio arrivo', beat: 'Batti il rivale' };
-    return `<div class="screen-title"><div><div class="sub">Stagione ${st.season}</div><h1>Sponsor & Finanze</h1></div></div>
-    <div class="grid4 anim-in">
-      <div class="panel"><div class="kpi"><b class="${t.money < 0 ? 'bad' : ''}">${fmtM(t.money)}</b><span>Liquidità</span></div></div>
-      <div class="panel"><div class="kpi"><b class="good">+${fmtM(inc)}</b><span>Entrate stagione</span></div></div>
-      <div class="panel"><div class="kpi"><b class="bad">${fmtM(exp)}</b><span>Uscite stagione</span></div></div>
-      <div class="panel"><div class="kpi"><b>${fmtM(sponsorIncome)}</b><span>Sponsor per evento</span></div></div>
+    const isF = st.category === 'formula';
+    const cap = costCap(st), spentCap = capSpent(st);
+    const perEvent = t.baseBudget * 0.46 / n * (0.7 + t.rep / 300) + sponsorIncome + (t.facilities.hospitality - 1) * 0.12 * cat(st).budgetScale - salaries / n - academyUpkeep(st) / n - (t.baseBudget * 0.1 + Object.values(t.facilities).reduce((a, b) => a + b, 0) * 0.4 * cat(st).budgetScale) / n - investUpkeep(st, t) / n;
+    const surplus = t.money > t.baseBudget * 0.35;
+    return `<div class="screen-title"><div><div class="sub">Stagione ${st.season} · ${esc(t.name)}</div><h1>Sponsor & Finanze</h1></div>${surplus ? `<div class="chip warn" style="font-size:13px;padding:8px 12px">${icon('money')} Liquidità in eccesso: valuta gli investimenti</div>` : ''}</div>
+    <div class="fin-kpis anim-in">
+      <div class="panel fin-kpi hero"><span>Liquidità</span><b class="${t.money < 0 ? 'bad' : ''}">${fmtM(t.money)}</b><em class="${perEvent >= 0 ? 'good' : 'bad'}">${perEvent >= 0 ? '+' : ''}${fmtM(perEvent)} per evento (stima)</em></div>
+      <div class="panel fin-kpi"><span>Entrate stagione</span><b class="good">+${fmtM(inc)}</b><em>${fmtM(sponsorIncome)} sponsor per evento</em></div>
+      <div class="panel fin-kpi"><span>Uscite stagione</span><b class="bad">${fmtM(exp)}</b><em>Saldo ${inc + exp >= 0 ? '+' : ''}${fmtM(inc + exp)}</em></div>
+      ${isF ? `<div class="panel fin-kpi"><span>Budget cap</span><b class="${spentCap > cap ? 'bad' : ''}">${fmtM(spentCap)}<small> / ${fmtM(cap)}</small></b>${bar(Math.min(100, (spentCap / cap) * 100), spentCap > cap * 0.9 ? 'red' : spentCap > cap * 0.7 ? 'gold' : 'green')}</div>` : `<div class="panel fin-kpi"><span>Investimenti ${st.season}</span><b>${fmtM(investSpent(st))}</b><em>Fuori dalla gestione corrente</em></div>`}
     </div>
-    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px" class="mt16">
+    <div class="fin-charts mt16 anim-in">
+      <div class="panel"><div class="panel-head"><h3>Andamento liquidità</h3><span class="small muted">Ultime due stagioni</span></div>${cashChart(st)}</div>
+      <div class="panel"><div class="panel-head"><h3>Dove vanno i soldi</h3><span class="small muted">Stagione ${st.season}</span></div>${moneyBreakdown(st)}</div>
+    </div>
+    ${investPanel(st, t)}
+    <div class="fin-cols mt16">
       <div class="col gap16">
         <div class="panel"><div class="panel-head"><h3>Sponsor attivi (${t.sponsors.length}/3)</h3></div>
-          ${t.sponsors.length ? `<div class="grid3">${t.sponsors.map((s) => `<div class="card"><div class="tiny upper muted">${s.tier === 3 ? 'Title sponsor' : s.tier === 2 ? 'Partner' : 'Fornitore'}</div><div style="font-family:var(--display);font-weight:800;font-size:18px">${esc(s.name)}</div><div class="small mt8">${fmtM(s.perRace)}/evento</div><div class="tiny muted">Bonus ${objNames[s.objective]}: ${fmtM(s.bonus)}</div><div class="tiny muted">${s.seasonsLeft} ${s.seasonsLeft === 1 ? 'stagione' : 'stagioni'} rimanenti</div>${sponsorExtra(st, s)}<button class="btn sm ghost mt8" data-a="drop-sp" data-id="${s.id}">${icon('x')} Rescindi</button></div>`).join('')}</div>` : '<div class="muted small">Nessuno sponsor attivo. Firmane uno dalle offerte!</div>'}
+          ${t.sponsors.length ? `<div class="grid3">${t.sponsors.map((s) => `<div class="card"><div class="tiny upper muted">${s.tier === 3 ? 'Title sponsor' : s.tier === 2 ? 'Partner' : 'Fornitore'}</div><div style="font-family:var(--display);font-weight:800;font-size:18px">${esc(s.name)}</div><div class="small mt8">${fmtM(s.perRace)}/evento</div><div class="tiny muted">Bonus ${objNames[s.objective]}: ${fmtM(s.bonus)}</div><div class="tiny muted">${s.seasonsLeft} ${s.seasonsLeft === 1 ? 'stagione' : 'stagioni'} rimanenti</div>${sponsorExtra(st, s)}<button class="btn sm ghost mt8" data-a="drop-sp" data-id="${s.id}">${icon('x')} Rescindi</button></div>`).join('')}</div>` : `<div class="empty">${icon('money')}<b>Livrea ancora bianca</b><span>Nessuno sponsor attivo: firma una delle offerte qui sotto.</span></div>`}
         </div>
         <div class="panel"><div class="panel-head"><h3>Offerte di sponsorizzazione</h3></div>
-          ${st.sponsorOffers.length ? `<div class="col gap6">${st.sponsorOffers.map((o) => `<div class="card row" style="gap:14px"><div class="grow"><div class="row"><b style="font-family:var(--display);font-size:17px">${esc(o.name)}</b><span class="stars small">${'★'.repeat(o.tier)}</span></div><div class="small muted">${o.objText}: +${fmtM(o.bonus)} · ${o.seasons} ${o.seasons === 1 ? 'stagione' : 'stagioni'}</div></div><div class="right"><div><b>${fmtM(o.perRace)}</b><span class="tiny muted">/evento</span></div><div class="tiny good">Firma: +${fmtM(o.signing)}</div></div><button class="btn sm primary" data-a="sign" data-id="${o.id}" ${t.sponsors.length >= 3 ? 'disabled' : ''}>Firma</button></div>`).join('')}</div>` : '<div class="muted small">Nessuna offerta al momento. Arriveranno con i risultati!</div>'}
-          ${t.sponsors.length >= 3 ? '<div class="small warn mt8">Tutti gli spazi sono occupati. Rescindi un contratto per firmarne un altro.</div>' : ''}
+          ${st.sponsorOffers.length ? `<div class="col gap6">${st.sponsorOffers.map((o) => `<div class="card row" style="gap:14px"><div class="grow"><div class="row"><b style="font-family:var(--display);font-size:17px">${esc(o.name)}</b><span class="stars small">${'★'.repeat(o.tier)}</span></div><div class="small muted">${o.objText}: +${fmtM(o.bonus)} · ${o.seasons} ${o.seasons === 1 ? 'stagione' : 'stagioni'}</div></div><div class="right"><div><b>${fmtM(o.perRace)}</b><span class="tiny muted">/evento</span></div><div class="tiny good">Firma: +${fmtM(o.signing)}</div></div><button class="btn sm primary" data-a="sign" data-id="${o.id}" ${t.sponsors.length >= 3 ? 'disabled' : ''}>Firma</button></div>`).join('')}</div>` : `<div class="empty">${icon('mail')}<b>Telefono muto</b><span>Nessuna offerta al momento: arriveranno con i risultati o con una campagna marketing.</span></div>`}
+          ${t.sponsors.length >= 3 && st.sponsorOffers.length ? '<div class="small warn mt8">Tutti gli spazi sono occupati. Rescindi un contratto per firmarne un altro.</div>' : ''}
         </div>
       </div>
       <div class="col gap16">
@@ -245,16 +321,27 @@ registerScreen({
             ${st.dyn?.goals?.list?.length ? `<div class="row between"><span class="muted">Obiettivi sponsor (se centrati)</span><b class="good">fino a +${fmtM(st.dyn.goals.list.reduce((a, g) => a + g.reward, 0))}</b></div>` : ''}
             <div class="row between"><span class="muted">Stipendi</span><b class="bad">-${fmtM(salaries / n)}</b></div>
             ${academyDrivers(st).length ? `<div class="row between"><span class="muted">Accademia giovani</span><b class="bad">-${fmtM(academyUpkeep(st) / n)}</b></div>` : ''}
+            ${investUpkeep(st, t) ? `<div class="row between"><span class="muted">Gestione investimenti</span><b class="bad">-${fmtM(investUpkeep(st, t) / n)}</b></div>` : ''}
             <div class="row between"><span class="muted">Operativi</span><b class="bad">-${fmtM((t.baseBudget * 0.1 + Object.values(t.facilities).reduce((a, b) => a + b, 0) * 0.4 * cat(st).budgetScale) / n)}</b></div>
+            <div class="row between fin-total"><span>Saldo previsto</span><b class="${perEvent >= 0 ? 'good' : 'bad'}">${perEvent >= 0 ? '+' : ''}${fmtM(perEvent)}</b></div>
           </div>
         </div>
-        <div class="panel" style="max-height:520px;overflow-y:auto"><div class="panel-head"><h3>Movimenti</h3></div>
-          <table class="tbl small"><tbody>${recent.map((f) => `<tr><td class="muted tiny">R${f.round + 1}</td><td>${esc(f.label)}</td><td class="right mono ${f.amount >= 0 ? 'good' : 'bad'}">${f.amount >= 0 ? '+' : ''}${fmtM(f.amount)}</td></tr>`).join('') || '<tr><td class="muted">Nessun movimento</td></tr>'}</tbody></table>
+        <div class="panel" style="max-height:440px;overflow-y:auto"><div class="panel-head"><h3>Movimenti</h3></div>
+          ${recent.length ? `<table class="tbl small"><tbody>${recent.map((f) => `<tr><td class="muted tiny">R${f.round + 1}</td><td>${esc(f.label)}</td><td class="right mono ${f.amount >= 0 ? 'good' : 'bad'}">${f.amount >= 0 ? '+' : ''}${fmtM(f.amount)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">${icon('money')}<b>Nessun movimento</b><span>Le voci compariranno durante la stagione.</span></div>`}
         </div>
       </div>
     </div>`;
   },
   actions: {
+    inv(el) {
+      const st = S(); const k = el.dataset.k; const v = el.dataset.v;
+      const go = () => { const r = startInvestment(st, k, v); if (!r.ok) { App.toast('Impossibile', r.msg, 'bad'); return; } sfx.ok(); App.toast(INVEST[k].short, r.msg, 'good'); App.refresh(); };
+      if (INVEST[k].kind === 'build') App.confirm(`${esc(INVEST[k].name)}?`, `Costo ${fmtM(investCost(st, k))}, fuori dal budget cap. ${esc(INVEST[k].eff(investState(playerTeam(st))[k] + 1))}.`, go, 'Investi');
+      else if (k === 'stake') App.confirm(`Comprare il 10% di ${esc(st.teams[v].name)}?`, `Costo ${fmtM(stakeCost(st, v))}. Dividendi ogni fine stagione in base al loro piazzamento; dal 20% i tuoi junior corrono con loro.`, go, 'Compra');
+      else go();
+    },
+    'inv-sell'(el) { const st = S(); App.confirm(`Cedere le quote di ${esc(st.teams[el.dataset.v].name)}?`, 'Le quote vengono rivendute con uno sconto del 20%.', () => { const r = sellStake(st, el.dataset.v); App.toast('Quote cedute', r.msg, 'info'); App.refresh(); }, 'Cedi', true); },
+    'inv-jr'() { const off = toggleJuniorRenewal(S()); App.toast('Programma junior', off ? 'Non verrà rinnovato a fine stagione.' : 'Si rinnoverà automaticamente.', 'info'); App.refresh(); },
     'drop-sp'(el) {
       const st = S(); const t = playerTeam(st);
       const sp = t.sponsors.find((x) => x.id === el.dataset.id); if (!sp) return;
