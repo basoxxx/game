@@ -22,7 +22,7 @@ import { trackGeometry, drsZones, partSensitivity, trackStats } from '../engine/
 import { planOptions, stintBar, degChartSVG, drawTelemetry, breakdownHTML, openLessons, wearError } from './engineer.js';
 import { SETUP_PARAMS, idealFor, setupQuality } from './setup.js';
 import { isLiveSession, sessionRender, sessionMount, sessionStop, sessionActions, sessionKey, simulateQualifying } from './sessions.js';
-import { plannerPanel, plannerActions, raceStrategyHTML, adviceHTML, ensurePlan, isDryPlan } from './planner.js';
+import { plannerPanel, plannerActions, raceStrategyHTML, adviceHTML, ensurePlan, isDryPlan, racePlan } from './planner.js';
 import { optimise, normalizePlan } from '../engine/strategy.js';
 import { tvUpdate, trackerUpdate, stintChartSVG, liveStandingsHTML, analysisHTML, defaultSel } from './broadcast.js';
 
@@ -105,6 +105,7 @@ registerScreen({
     'rs-comp'(el) { const c = rc(el); if (!c?.plan?.[c.planIdx + 1]) return; c.plan[c.planIdx + 1].c = el.dataset.c; R.pitSel[c.key] = el.dataset.c; if (c.pitReq) c.pitReq.compound = el.dataset.c; updateControls(true); },
     'rs-auto'(el) { const c = rc(el); if (c) c.planAuto = c.planAuto === false; updateControls(true); },
     'rs-stops'(el) { const c = rc(el); if (!c) return; const n = +el.dataset.n; const best = R.sim.replan(c, n < 0 ? null : n); if (!best) { App.toast('Piano non possibile', 'Non ci sono abbastanza giri per queste soste.', 'bad'); return; } R.sim.applyRemaining(c, best.stints); if (best.stints[0].laps <= 1 && best.stints[1]) c.pitReq = { compound: best.stints[1].c, fuel: true, crew: c.crew, repair: c.repair !== false }; R.pitSel[c.key] = defaultPitTyre(c); sfx.radio?.(); updateControls(true); },
+    'rs-wx'(el) { const c = rc(el); if (!c) return; c.wxAuto = !c.wxAuto; updateControls(true); },
     'rs-crew'(el) { const c = rc(el); if (!c) return; c.crew = el.dataset.v; if (c.pitReq) c.pitReq.crew = c.crew; updateControls(true); },
     'rs-repair'(el) { const c = rc(el); if (!c) return; c.repair = c.repair === false; if (c.pitReq) c.pitReq.repair = c.repair; updateControls(true); },
     'rs-lift'(el) { const c = rc(el); if (!c) return; R.sim.setFuelSave(c.key, !c.fuelSave); updateControls(true); },
@@ -225,7 +226,9 @@ function mountRace() {
   if (isSprint) R.sim.log('⚡ SPRINT: gara breve, punti ai primi 8 (8-7-6-5-4-3-2-1).', 'start', null, true);
   for (const c of R.sim.cars) if (c.isPlayer) {
     R.sim.setStartTyre(c, w.startTyre[c.key] || c.tyre); c.compoundsUsed = new Set([c.tyre]);
-    c.plan = !isSprint && w.plans?.[c.key] && isDryPlan(st, w) ? normalizePlan(w.plans[c.key].map((x) => ({ ...x })), R.sim.laps) : null; c.planIdx = 0;
+    const rp = isSprint ? { plan: null, wxAuto: !isDryPlan(st, w) } : racePlan(st, w, c.key, R.sim.laps);
+    c.plan = rp.plan; c.planIdx = 0; c.wxAuto = !!rp.wxAuto; c.wxPlan = rp.wxPlan || null;
+    if (c.plan && COMPOUNDS[c.tyre].wet) c.plan = null;
     if (c.plan && c.plan[0].c !== c.tyre) c.plan[0].c = c.tyre;
     if (!R.sim.endurance && w.fuel?.[c.key] != null && !isSprint) R.sim.setFuelLoad(c, w.fuel[c.key]);
     if (R.sim.endurance && w.endPlan?.[c.key]) R.sim.setEndPlan(c, w.endPlan[c.key]);

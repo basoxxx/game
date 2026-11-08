@@ -10,7 +10,7 @@ import { standings, pointsFor } from '../engine/season.js';
 const short3 = (n) => { const p = String(n).split(' '); return (p[p.length - 1] || n).replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase(); };
 const lastName = (n) => { const p = String(n).split(' '); return p.slice(1).join(' ') || n; };
 const R3D = () => !!window.__race?.r3d;
-const PRIO = { sc: 3, vsc: 3, issue: 3, night: 3, lead: 2, restart: 2, weather: 2, retire: 2, fastest: 1, pit: 1, pass: 1 };
+const PRIO = { sc: 3, vsc: 3, issue: 3, night: 3, wxcall: 2, lead: 2, restart: 2, weather: 2, retire: 2, fastest: 1, pit: 1, pass: 1 };
 
 // ---------------- LOWER THIRDS ----------------
 export function tvUpdate(sim, R) {
@@ -50,7 +50,8 @@ function tvHTML(sim, g) {
     case 'pit': return wrap('pit', 'Pit stop', `<span class="tvg-pos">P${g.pos}</span>${who(a)}<span class="tvg-tyres">${tyreBadge(g.from)}${g.to ? `<span class="tvg-arrow">›</span>${tyreBadge(g.to)}` : ''}</span><span class="tvg-big ${g.stat < (sim.endurance ? 27 : 2.6) ? 'good' : g.stat < (sim.endurance ? 32 : 3.6) ? 'warn' : 'bad'}">${g.stat.toFixed(2)}<small>s</small></span>`, a?.col);
     case 'retire': return wrap('retire', g.title || 'Ritiro', `${who(a)}<span class="tvg-txt">${esc(String(g.text || '').split(' · ').slice(1).join(' · '))}</span>`, 'var(--bad)');
     case 'lead': return wrap('lead', 'Nuovo leader', `<span class="tvg-pos p1">P1</span>${who(a)}`, a?.col);
-    case 'issue': return wrap('issue', 'Problema tecnico', `${who(a)}<span class="tvg-txt">${esc(g.title)}</span>`, 'var(--warn)');
+    case 'issue': return wrap('issue', 'Problema tecnico', `${g.pos ? `<span class="tvg-pos">P${g.pos}</span>` : ''}${who(a)}<span class="tvg-txt">${esc(g.title)}</span>${g.choice ? `<em class="tvg-flag call">${esc(g.choice)}</em>` : ''}`, 'var(--warn)');
+    case 'wxcall': return wrap('wxcall', g.first ? (g.toWet ? 'Primo sul bagnato' : 'Primo sulle slick') : 'Scelta meteo', `<span class="tvg-pos">P${g.pos}</span>${who(a)}<span class="tvg-tyres">${tyreBadge(g.from)}<span class="tvg-arrow">›</span>${tyreBadge(g.to)}</span>${g.first ? '<em class="tvg-flag err">Scommessa</em>' : ''}`, g.toWet ? 'var(--info)' : 'var(--gold)');
     case 'sc': case 'vsc': return wrap('sc', g.title, `<span class="tvg-txt">${esc(g.text)}</span>`, '#ffd23a');
     case 'restart': return wrap('restart', g.title, `<span class="tvg-txt">${esc(g.text)}</span>`, 'var(--good)');
     case 'night': return wrap('weather', g.title, `${icon(g.title === 'Alba' ? 'sun' : 'moon', 'ico', 'style="width:18px;height:18px"')}<span class="tvg-txt">${esc(g.text)}</span>`, g.title === 'Alba' ? 'var(--gold)' : '#7c8cff');
@@ -268,17 +269,18 @@ function summary(sim, cls) {
 // race story: the key moments of the race as a lap-by-lap timeline
 function storyHTML(sim) {
   const mine = new Set(sim.cars.filter((c) => c.isPlayer).map((c) => c.key));
-  const items = sim.tv.filter((g) => ['lead', 'retire', 'sc', 'vsc', 'restart', 'issue', 'weather', 'night'].includes(g.kind) || (g.kind === 'pass' && (mine.has(g.key) || mine.has(g.other) || g.pos <= 2)) || (g.kind === 'pit' && mine.has(g.key)));
+  const items = sim.tv.filter((g) => ['lead', 'retire', 'sc', 'vsc', 'restart', 'issue', 'weather', 'night', 'wxcall'].includes(g.kind) || (g.kind === 'pass' && (mine.has(g.key) || mine.has(g.other) || g.pos <= 2)) || (g.kind === 'pit' && mine.has(g.key)));
   if (!items.length) return '<div class="muted" style="padding:30px">Gara tranquilla: nessun momento chiave da segnalare.</div>';
   const name = (k) => { const c = sim.cars.find((x) => x.key === k); return c ? esc(sim.driver(c).name) : ''; };
-  const ico = { lead: 'trophy', retire: 'alert', sc: 'flag', vsc: 'flag', restart: 'flag', issue: 'wrench', weather: 'rain', night: 'moon', pass: 'swap', pit: 'pit' };
+  const ico = { lead: 'trophy', retire: 'alert', sc: 'flag', vsc: 'flag', restart: 'flag', issue: 'wrench', weather: 'rain', wxcall: 'rain', night: 'moon', pass: 'swap', pit: 'pit' };
   const txt = (g) => {
     switch (g.kind) {
       case 'lead': return `<b>${name(g.key)}</b> passa al comando`;
       case 'retire': return `<b>${esc(g.title)}</b>: ${esc(g.text)}`;
       case 'pass': return `<b>${name(g.key)}</b> ${g.err ? 'approfitta dell’errore di' : 'supera'} ${name(g.other)} per la P${g.pos}`;
       case 'pit': return `Pit stop di <b>${name(g.key)}</b>: ${g.stat.toFixed(2)}s${g.to ? ` · ${COMPOUNDS[g.from]?.short || ''} › ${COMPOUNDS[g.to]?.short || ''}` : ''}`;
-      case 'issue': return `<b>${esc(g.title)}</b> per ${esc(g.text)}`;
+      case 'issue': return `<b>${esc(g.title)}</b> per ${esc(g.text)}${g.choice ? ` · scelta: ${esc(g.choice.toLowerCase())}` : ''}`;
+      case 'wxcall': return `<b>${name(g.key)}</b> passa alle ${esc(COMPOUNDS[g.to]?.name || '')}${g.first ? ' <b>per primo</b>' : ''} (P${g.pos})`;
       default: return `<b>${esc(g.title)}</b> · ${esc(g.text || '')}`;
     }
   };
