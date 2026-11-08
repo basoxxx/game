@@ -860,8 +860,30 @@ export function dynEndSeason(st, sum) {
   if (hist && hist.season === st.season) hist.status = after;
   if (after > (D.statusMax ?? 0)) { D.statusMax = after; D.statusUp = after; if (after >= 3) D.tycoon = true; }
   D.summary = { season: st.season, goals: `${D.stats.goalsHit}/${D.stats.goalsTot}` };
-  sum.dyn = { before, after, mandate, plan: planSteps, goalsHit: D.stats.goalsHit - (D.seasonStats0?.goalsHit || 0), goalsTot: D.stats.goalsTot - (D.seasonStats0?.goalsTot || 0), betsWon: D.stats.betsWon - (D.seasonStats0?.betsWon || 0), betsLost: D.stats.betsLost - (D.seasonStats0?.betsLost || 0), kept: D.stats.promisesKept - (D.seasonStats0?.promisesKept || 0), broken: D.stats.promisesBroken - (D.seasonStats0?.promisesBroken || 0), rep: +pt.rep.toFixed(1) };
+  sum.dyn = { quotes: seasonQuotes(st, sum), before, after, mandate, plan: planSteps, goalsHit: D.stats.goalsHit - (D.seasonStats0?.goalsHit || 0), goalsTot: D.stats.goalsTot - (D.seasonStats0?.goalsTot || 0), betsWon: D.stats.betsWon - (D.seasonStats0?.betsWon || 0), betsLost: D.stats.betsLost - (D.seasonStats0?.betsLost || 0), kept: D.stats.promisesKept - (D.seasonStats0?.promisesKept || 0), broken: D.stats.promisesBroken - (D.seasonStats0?.promisesBroken || 0), rep: +pt.rep.toFixed(1) };
 
+}
+
+// End-of-season verdicts from the rival principals closest to you in the final standings
+const SEASON_Q = {
+  squalo: { ahead: ['«Un altro anno davanti a {me}. Mi sto quasi annoiando.»', '«Il prossimo anno li doppiamo. Scrivetelo.»'], behind: ['«{me} ci ha battuto. Me lo ricorderò per tutto l’inverno. E anche loro.»', '«Goditi l’inverno, {tp}. Sarà l’ultimo tranquillo.»'] },
+  volpe: { ahead: ['«Una stagione regolare, in ogni senso. Non tutti possono dirlo.»', '«Abbiamo vinto il duello con {me}. In pista e nelle stanze giuste.»'], behind: ['«{me} è stata più brava quest’anno. Il regolamento del prossimo, però, lo stiamo leggendo con molta attenzione.»', '«Complimenti a {tp}. Ci rivediamo al tavolo della Federazione.»'] },
+  gentiluomo: { ahead: ['«{me} ci ha fatto sudare fino all’ultimo. Stagione splendida per tutti.»', '«Rispetto enorme per {tp}: il prossimo anno sarà ancora più dura.»'], behind: ['«{tp} ha costruito qualcosa di speciale. Chapeau.»', '«Hanno meritato di stare davanti. Impareremo da loro.»'] },
+  showman: { ahead: ['«Stagione da Oscar! {me}? Ottimi comprimari.»', '«Abbiamo vinto noi lo show. E il prossimo anno serve un palco più grande.»'], behind: ['«Va bene, {me} ha vinto la stagione. Ma noi abbiamo vinto i social.»', '«{tp}, ti offro una cena. Il conto lo paghi tu, sei più ricco di gloria.»'] },
+  professore: { ahead: ['«Le correlazioni galleria-pista sono state migliori delle loro. Il resto è conseguenza.»', '«Il nostro fondo funziona. Quello di {me}, meno.»'], behind: ['«Il pacchetto di {me} era superiore del 0,3%. Lo stiamo già smontando, metaforicamente.»', '«Dati alla mano, {me} ha meritato. Ora li supereremo con dati migliori.»'] },
+};
+export function seasonQuotes(st, sum) {
+  if (!st.dyn) return [];
+  const pt = playerTeam(st);
+  const order = sum.st.teams.map((x) => x.id);
+  const i = order.indexOf(pt.id);
+  const ids = [order[i - 1], order[i + 1], order[0] !== pt.id ? order[0] : null].filter((x, k, a) => x && a.indexOf(x) === k).slice(0, 2);
+  return ids.map((id) => {
+    const p = principal(st, id); if (!p) return null;
+    const ahead = order.indexOf(id) < i;
+    const text = pick(SEASON_Q[p.persona][ahead ? 'ahead' : 'behind']).replaceAll('{me}', pt.name).replaceAll('{tp}', st.playerName);
+    return { team: id, text, ahead };
+  }).filter(Boolean);
 }
 
 export function dynNewSeason(st) {
@@ -872,6 +894,8 @@ export function dynNewSeason(st) {
   if (M.ease > 0 && st.season - (st.career.firstSeason ?? st.season) < M.easeSeasons) st.board.target = clamp(st.board.target + M.ease, 1, Object.keys(st.teams).length);
   if (M.ease < 0) st.board.target = clamp(st.board.target + M.ease, 1, Object.keys(st.teams).length);
   if (D.pressure && st.season <= (D.pressureUntil ?? st.season)) st.board.target = clamp(st.board.target - 1, 1, Object.keys(st.teams).length);
+  const prevT = st.career.history[st.career.history.length - 1]?.target;
+  if (prevT) st.board.target = Math.max(st.board.target, prevT - 2); // expectations never jump more than two places
   academySeason(st);
   ensureSeats(st);
   D.promises = [];

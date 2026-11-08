@@ -10,8 +10,8 @@ import { STAFF_NAMES } from '../data/teams.js';
 import { celebrate } from './results.js';
 import { sfx } from '../ui/audio.js';
 import { getTrack } from '../engine/world.js';
-import { STATUS, MANDATES } from '../engine/dynasty.js';
-import { lineChart, chartLegend, statusEmblem, teamCol } from './career-ui.js';
+import { STATUS, MANDATES, principal, TP_PERSONAS } from '../engine/dynasty.js';
+import { lineChart, chartLegend, statusEmblem, teamCol, portraitSVG } from './career-ui.js';
 
 let summary = null, offers = null;
 
@@ -44,7 +44,7 @@ registerScreen({
         ${bar(st.board.confidence, st.board.confidence < 30 ? 'red' : st.board.confidence > 65 ? 'green' : 'gold')}
       </div>
       <div class="panel mt16"><div class="panel-head"><h3>Offerte di lavoro</h3><span class="small muted">Reputazione manager: ${Math.round(st.career.reputation)}</span></div>
-        <div class="grid4">${offers.map((o, i) => `<div class="card click" data-a="take" data-i="${i}" style="border-top:3px solid ${CATEGORIES[o.category].color}"><div class="tiny upper" style="color:${CATEGORIES[o.category].color}">${CATEGORIES[o.category].name}${o.category !== st.category ? ' · Nuova categoria!' : ''}</div><div class="row mt8">${teamBadge({ short: o.teamId.slice(0, 3).toUpperCase(), colors: o.colors }, 34)}<b>${esc(o.name)}</b></div><div class="small muted mt8">Prestigio ${o.rep}</div></div>`).join('') || '<div class="muted">Nessuna offerta.</div>'}</div>
+        <div class="grid4">${offers.map((o, i) => `<div class="card click" data-a="take" data-i="${i}" style="border-top:3px solid ${CATEGORIES[o.category].color}"><div class="tiny upper" style="color:${CATEGORIES[o.category].color}">${CATEGORIES[o.category].name}${o.category !== st.category ? ' · Nuova categoria!' : ''}</div><div class="row mt8">${teamBadge({ short: o.teamId.slice(0, 3).toUpperCase(), colors: o.colors }, 34)}<b>${esc(o.name)}</b></div><div class="small muted mt8">Prestigio ${Math.round(o.rep)}</div></div>`).join('') || '<div class="muted">Nessuna offerta.</div>'}</div>
         ${sm.fired ? '' : `<div class="row mt16" style="justify-content:flex-end"><button class="btn primary xl" data-a="stay">Resta con ${esc(pt.name)} ${icon('right')}</button></div>`}
       </div>
     </div>`;
@@ -105,6 +105,7 @@ function reviewPanel(st, sm) {
       <div class="card"><div class="tiny upper muted">Sfide tra team principal</div><div class="kpi"><b><i class="good" style="font-style:normal">${d.betsWon}</i> <i class="dim" style="font-style:normal">/</i> <i class="bad" style="font-style:normal">${d.betsLost}</i></b></div><div class="tiny muted">vinte / perse</div></div>
     </div>
     ${reportCards(st, sm)}
+    ${d.quotes?.length ? `<div class="mt16"><div class="tiny upper muted mb8">Il paddock commenta la tua stagione</div><div class="grid2">${d.quotes.map((q) => { const t = st.teams[q.team]; const p = principal(st, q.team); return t && p ? `<div class="row" style="gap:12px;align-items:flex-start">${portraitSVG(p, t, 56)}<div class="tp-quote" style="--tc:${teamCol(t)};margin:0;flex:1">${esc(q.text)}<div class="tiny muted mt8" style="font-style:normal">${esc(p.name)} · ${esc(t.name)} · ${esc(TP_PERSONAS[p.persona].name)}</div></div></div>` : ''; }).join('')}</div></div>` : ''}
     ${d.plan.length ? `<div class="mt16"><div class="tiny upper muted mb8">Piano del consiglio · ${esc((MANDATES[d.mandate] || MANDATES.growth).name)}</div><div class="plan-tl">${d.plan.map((x) => `<div class="plan-step ${x.done ? 'ok' : 'ko'}"><div class="y">${x.season}</div><div class="t">${esc(x.text)}</div><span class="s chip tiny ${x.done ? 'good' : 'bad'}">${x.done ? 'Raggiunto' : 'Mancato'}</span></div>`).join('')}</div></div>` : ''}` : ''}
   </div>`;
 }
