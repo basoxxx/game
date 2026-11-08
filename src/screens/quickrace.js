@@ -12,7 +12,10 @@ import { setState } from '../engine/state.js';
 import { circuitPath, genStage, STAGE_STYLE } from '../ui/trackview.js';
 import { trackStats } from '../engine/trackphys.js';
 
-const Q = { cat: 'formula', track: 'ita', team: 'ferrani', len: 'normal', weather: 'auto', skip: false };
+const Q = { cat: 'formula', track: 'ita', team: 'ferrani', len: 'normal', weather: 'auto', skip: false, grid: 'quali', diff: 'normal' };
+const GRID_N = { quali: 'Da qualifica', reverse: 'Griglia invertita', back: 'Rimonta dal fondo', random: 'Sorteggio' };
+const DIFF_N = { easy: 'Rivali morbidi', normal: 'Normale', hard: 'Leggenda' };
+const WX_N = { auto: 'Meteo realistico', dry: 'Asciutto', mixed: 'Variabile', rain: 'Pioggia' };
 
 registerScreen({
   id: 'quickrace', full: true,
@@ -49,11 +52,13 @@ registerScreen({
           <div class="panel"><div class="panel-head"><h3>Opzioni evento</h3></div>
             <div class="qr-opts">
               <span class="lbl">Durata</span><div class="row wrap gap4">${opt('len', 'short', 'Sprint')}${opt('len', 'normal', 'Standard')}${opt('len', 'long', 'Lunga')}${opt('len', 'full', 'Reale')}</div>
-              <span class="lbl">Meteo</span><div class="row wrap gap4">${opt('weather', 'auto', 'Realistico')}${opt('weather', 'dry', 'Asciutto')}${opt('weather', 'rain', 'Pioggia')}</div>
-              <span class="lbl">Weekend</span><div class="row wrap gap4">${opt('skip', false, 'Completo (prove + qualifica)')}${opt('skip', true, 'Solo gara')}</div>
+              <span class="lbl">Meteo</span><div class="row wrap gap4">${opt('weather', 'auto', 'Realistico')}${opt('weather', 'dry', 'Asciutto')}${opt('weather', 'mixed', 'Variabile')}${opt('weather', 'rain', 'Pioggia')}</div>
+              <span class="lbl">Weekend</span><div class="row wrap gap4">${opt('skip', false, Q.cat === 'rally' ? 'Completo (shakedown)' : 'Completo (prove + qualifica)')}${opt('skip', true, Q.cat === 'rally' ? 'Solo prove speciali' : 'Solo gara')}</div>
+              ${Q.cat !== 'rally' ? `<span class="lbl">Griglia</span><div class="row wrap gap4">${Object.entries(GRID_N).map(([k, n]) => opt('grid', k, n)).join('')}</div>` : ''}
+              <span class="lbl">Avversari</span><div class="row wrap gap4">${Object.entries(DIFF_N).map(([k, n]) => opt('diff', k, n)).join('')}</div>
             </div>
           </div>
-          <div class="qr-go"><div class="qg-sum"><b>${esc(team.name)}</b><span>${esc(tr.name)} · ${{ short: 'Sprint', normal: 'Standard', long: 'Lunga', full: 'Reale' }[Q.len]} · ${{ auto: 'Meteo realistico', dry: 'Asciutto', rain: 'Pioggia' }[Q.weather]} · ${Q.skip ? 'Solo gara' : 'Weekend completo'}</span></div><button class="btn primary xl" style="min-width:300px" data-a="go">${icon('flag')} Vai in pista</button>
+          <div class="qr-go"><div class="qg-sum"><b>${esc(team.name)}</b><span>${esc(tr.name)} · ${{ short: 'Sprint', normal: 'Standard', long: 'Lunga', full: 'Reale' }[Q.len]} · ${WX_N[Q.weather]} · ${Q.skip ? 'Solo gara' : 'Weekend completo'}${Q.cat !== 'rally' && Q.grid !== 'quali' ? ' · ' + GRID_N[Q.grid] : ''}${Q.diff !== 'normal' ? ' · ' + DIFF_N[Q.diff] : ''}</span></div><button class="btn primary xl" style="min-width:300px" data-a="go">${icon('flag')} Vai in pista</button>
           </div>
         </div>
       </div></div>`;
@@ -64,9 +69,10 @@ registerScreen({
     team(el) { Q.team = el.dataset.id; App.refresh(); },
     opt(el) { const v = el.dataset.v; Q[el.dataset.k] = v === 'true' ? true : v === 'false' ? false : v; App.refresh(); },
     go() {
-      const st = createWorld({ playerName: 'Ospite', category: Q.cat, teamId: Q.team, difficulty: 'normal', seasonLength: 'short', raceLength: Q.len });
+      const st = createWorld({ playerName: 'Ospite', category: Q.cat, teamId: Q.team, difficulty: Q.diff, seasonLength: 'short', raceLength: Q.len });
       st.quick = true; st.slot = null; st.tutorialSeen = true;
-      st.forceRain = Q.weather === 'auto' ? undefined : Q.weather === 'rain';
+      st.forceRain = Q.weather === 'auto' ? undefined : Q.weather === 'mixed' ? 'mixed' : Q.weather === 'rain';
+      st.quickGrid = Q.cat === 'rally' ? 'quali' : Q.grid;
       const all = buildCalendar(Q.cat, 'full');
       const ev = all.find((e) => e.trackId === Q.track) || all[0];
       ev.round = 1; st.calendar = [ev];
