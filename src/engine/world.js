@@ -3,6 +3,7 @@ import { TEAMS, ENGINE_SUPPLIERS, STAFF_NAMES } from '../data/teams.js';
 import { NAME_POOLS, NATS } from '../data/names.js';
 import { TRACKS, SEASON_LENGTH, SPONSORS, STAGE_NAMES } from '../data/tracks.js';
 import { rand, randInt, pick, clamp, shuffle, uid, gauss, mulberry32 } from './rng.js';
+import { staffTraitFor, strengthRanking } from './dynasty.js';
 
 const HELMET_COLORS = ['#ff2d2d', '#ffd400', '#00d2be', '#1e90ff', '#ff8000', '#ffffff', '#111111', '#9b30ff', '#00c853', '#ff4fa3', '#c0c0c0', '#0a2a66', '#ffb400', '#00e5ff'];
 export function randomHelmet() {
@@ -48,7 +49,7 @@ export function generateVeteranFreeAgent(cat) {
 
 export function makeStaff(role, rating, teamId = null) {
   const r = Math.round(clamp(rating, 30, 99));
-  return { id: uid('s'), name: `${pick(STAFF_NAMES.first)} ${pick(STAFF_NAMES.last)}`, role, rating: r, age: randInt(32, 62), teamId, salary: +(0.3 + (r / 100) ** 3 * 3.5).toFixed(2) };
+  return { id: uid('s'), name: `${pick(STAFF_NAMES.first)} ${pick(STAFF_NAMES.last)}`, role, rating: r, age: randInt(32, 62), teamId, salary: +(0.3 + (r / 100) ** 3 * 3.5).toFixed(2), trait: staffTraitFor(role) };
 }
 
 export const STAFF_ROLES = {
@@ -62,7 +63,8 @@ export const FACILITIES = {
   windtunnel: { name: 'Galleria del Vento', desc: 'Guadagni R&D più alti', icon: 'wind' },
   simulator: { name: 'Simulatore', desc: 'Assetti migliori e crescita piloti', icon: 'sim' },
   pitcrew: { name: 'Centro Pit Crew', desc: 'Pit stop e assistenze più rapide', icon: 'wrench' },
-  academy: { name: 'Accademia Giovani', desc: 'Scouting e crescita talenti', icon: 'star' },
+  academy: { name: 'Accademia Giovani', desc: 'Più posti per i junior e crescita più rapida', icon: 'star' },
+  hospitality: { name: 'Hospitality & Marketing', desc: 'Entrate extra a ogni evento e sponsor più felici', icon: 'money' },
 };
 
 export function salaryFor(d, cat) {
@@ -233,8 +235,9 @@ export function createWorld({ playerName, category, teamId, difficulty, seasonLe
   state.career.reputation = Math.round(clamp(pt.rep * 0.6, 30, 70));
 
   // Board expectation based on car ranking
-  const ranking = Object.values(state.teams).sort((a, b) => avgPart(b) - avgPart(a)).map((t) => t.id);
-  state.board.target = Math.min(ranking.length, ranking.indexOf(teamId) + 1 + (difficulty === 'easy' ? 1 : 0));
+  let ranking = Object.values(state.teams).sort((a, b) => avgPart(b) - avgPart(a)).map((t) => t.id);
+  try { ranking = strengthRanking(state); } catch {}
+  state.board.target = clamp(ranking.indexOf(teamId) + 1 + (difficulty === 'easy' ? 1 : difficulty === 'hard' ? -1 : 0), 1, ranking.length);
   state.board.confidence = 70;
   state.career.level = 1; state.career.xp = 0; state.career.points = 1; state.career.perks = [];
   return state;
