@@ -342,25 +342,57 @@ export class Race3D {
   }
 
   // ribbon over a sample range [i0, i1] (wraps), offsets a..b, edges faded in over 4 samples
-  segRibbon(i0, i1, a, b, y, material, vScale = 0.1) {
+  // edge = true: no taper; instead an aEdge attribute (metres from the outer edge, metres from
+  // the nearest end) lets edgeDissolve() break the outline up into a ragged natural border
+  segRibbon(i0, i1, a, b, y, material, vScale = 0.1, edge = false) {
     const { N, x, y: Y, hdg } = this.geo;
-    const pos = [], uv = [], idx = [];
+    const pos = [], uv = [], idx = [], ed = [];
     const n = i1 - i0;
     for (let q = 0; q <= n; q++) {
       const i = (((i0 + q) % N) + N) % N;
       const nx = -Math.sin(hdg[i]), nz = Math.cos(hdg[i]);
-      const t = Math.min(1, Math.min(q, n - q) / 4);
+      const t = edge ? 1 : Math.min(1, Math.min(q, n - q) / 4);
       const inner = Math.abs(a) < Math.abs(b) ? a : b;
       const outer = inner === a ? b : a;
       const o2 = inner + (outer - inner) * t;
       const A = inner === a ? a : o2, B = inner === a ? o2 : b;
       pos.push(x[i] + nx * A, y, Y[i] + nz * A, x[i] + nx * B, y, Y[i] + nz * B);
       uv.push(0, q * this.geo.ds * vScale, Math.abs(B - A) * vScale, q * this.geo.ds * vScale);
+      if (edge) { const wd = Math.abs(B - A), dl = Math.min(q, n - q) * this.geo.ds; ed.push(inner === a ? wd : 0, dl, inner === a ? 0 : wd, dl); }
       if (q < n) { const k = q * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+    if (edge) g.setAttribute('aEdge', new THREE.Float32BufferAttribute(ed, 2));
     const m = new THREE.Mesh(g, material); m.receiveShadow = true; return m;
+  }
+
+  // ragged, noisy outline for surfaces carrying aEdge (gravel traps, grass verges): fragments
+  // closer to the border than a world-space noise threshold are discarded (no blending / sorting)
+  edgeDissolve(mat, { lat = 1.8, lon = 3.0, scale = 0.7 } = {}) {
+    const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey?.bind(mat);
+    mat.onBeforeCompile = (sh, r) => {
+      prev?.call(mat, sh, r);
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 aEdge; varying vec2 vEdge; varying vec2 vEW;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvEdge = aEdge; vEW = (modelMatrix * vec4(transformed, 1.0)).xz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+        varying vec2 vEdge; varying vec2 vEW;
+        float eh(vec2 p) { p = fract(p * vec2(127.1, 311.7)); p += dot(p, p + 19.19); return fract(p.x * p.y); }
+        float en(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(eh(i), eh(i + vec2(1, 0)), f.x), mix(eh(i + vec2(0, 1)), eh(i + vec2(1, 1)), f.x), f.y); }`)
+        .replace('#include <alphatest_fragment>', `#include <alphatest_fragment>
+          { float e = min(vEdge.x / ${lat.toFixed(2)}, vEdge.y / ${lon.toFixed(2)});
+            float nz = 0.55 * en(vEW * ${scale.toFixed(3)}) + 0.3 * en(vEW * ${(scale * 3.7).toFixed(3)}) + 0.15 * eh(floor(vEW * 9.0));
+            if (e < nz * 0.98) discard; }`);
+    };
+    mat.customProgramCacheKey = () => (prevKey ? prevKey() : '') + '|edge' + lat + ',' + lon + ',' + scale;
+    return mat;
+  }
+  // aEdge for a plain ribbon: distance from the outer border (vertex 0 = offset a, 1 = b)
+  ribbonEdge(mesh, outerIsA, width) {
+    const g = mesh.geometry, n = g.attributes.position.count, e = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) { const isA = i % 2 === 0; e[i * 2] = isA === outerIsA ? 0 : width; e[i * 2 + 1] = 999; }
+    g.setAttribute('aEdge', new THREE.BufferAttribute(e, 2));
+    return mesh;
   }
 
   buildTrack(street) {
@@ -389,9 +421,11 @@ export class Race3D {
       const grass = this.low ? new THREE.MeshStandardMaterial({ color: 0x4f8a3c, roughness: 1 }) : D(pbr('aerial_grass_rock', { color: this.desert ? 0xcfc08f : 0x9cc27a, roughness: 1 }), { macro: 0.2, macroScale: 0.03, tint: 0xd8c27a, tintAmt: 0.35, mow: this.desert ? null : { uScale: 14 }, key: 'verge' });
       this.scene.add(this.ribbon(W / 2, W / 2 + 2.2, 0.012, shoulder, 1 / 6, 1, 2.2 / 6));
       this.scene.add(this.ribbon(-W / 2 - 2.2, -W / 2, 0.012, shoulder, 1 / 6, 1, 2.2 / 6));
-      this.scene.add(this.ribbon(W / 2 + 2.2, W / 2 + runoff + 6, 0.0, grass, 1 / 14, 2, (runoff + 4) / 14, false, true));
-      this.scene.add(this.ribbon(-W / 2 - runoff - 6, -W / 2 - 2.2, 0.0, grass, 1 / 14, 2, (runoff + 4) / 14, false, true));
-      const gravel = this.low ? new THREE.MeshStandardMaterial({ color: 0xc9b48a, roughness: 1 }) : D(pbr('gravel_floor', { color: 0xe6d2a8, roughness: 1 }), { macro: 0.14, macroScale: 0.08 });
+      // the mown verge frays into the rougher field grass
+      this.edgeDissolve(grass, { lat: 6, lon: 1e-3, scale: 0.35 });
+      this.scene.add(this.ribbonEdge(this.ribbon(W / 2 + 2.2, W / 2 + runoff + 6, 0.0, grass, 1 / 14, 2, (runoff + 4) / 14, false, true), false, runoff + 3.8));
+      this.scene.add(this.ribbonEdge(this.ribbon(-W / 2 - runoff - 6, -W / 2 - 2.2, 0.0, grass, 1 / 14, 2, (runoff + 4) / 14, false, true), true, runoff + 3.8));
+      const gravel = this.edgeDissolve(this.low ? new THREE.MeshStandardMaterial({ color: 0xc9b48a, roughness: 1 }) : D(pbr('gravel_floor', { color: 0xe6d2a8, roughness: 1 }), { macro: 0.14, macroScale: 0.08 }));
       for (const cn of this.geo.corners) {
         if (cn.r > 220) continue;
         const span = Math.min(40, Math.max(14, Math.round(cn.r / 6)));
@@ -399,7 +433,7 @@ export class Race3D {
         if (side > 0 && (this.inPitZone(cn.i - span, 6) || this.inPitZone(cn.i + span, 6))) continue;
         const g0 = W / 2 + 5.5;
         const a = side > 0 ? g0 : -(W / 2 + runoff - 1), b = side > 0 ? W / 2 + runoff - 1 : -g0;
-        this.scene.add(this.segRibbon(cn.i - Math.round(span * 0.6), cn.i + span, a, b, 0.02, gravel, 1 / 3.5));
+        this.scene.add(this.segRibbon(cn.i - Math.round(span * 0.6), cn.i + span, a, b, 0.02, gravel, 1 / 3.5, true));
       }
       // painted asphalt run-off (track-limit zone) outside every corner, between kerb and gravel
       const paint = this.low ? new THREE.MeshStandardMaterial({ color: 0x2c7a52, roughness: 0.8 }) : D(new THREE.MeshStandardMaterial({ color: 0x25603f, roughness: 0.62 }), { antiTile: false, macro: 0.12, macroScale: 0.08, wet: true, key: 'paint' });
