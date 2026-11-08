@@ -125,3 +125,9 @@
 .dzx-pos.up { animation: dzxposup .6s ease-out; } .dzx-pos.down { animation: dzxposdn .6s ease-out; }
 @keyframes dzxposup { 0% { transform: skewX(-12deg) scale(1.35); filter: brightness(1.8) drop-shadow(0 0 14px #3ddc84); } 100% { transform: skewX(-12deg) scale(1); } }
 @keyframes dzxposdn { 0% { transform: skewX(-12deg) translateY(4px); filter: saturate(.3) brightness(.8); } 100% { transform: skewX(-12deg); } }
+.dzx-spec s { text-decoration: none; opacity: .85; }
+/* spectator banner sits low and centred so it never covers the standings */
+.dzx-spec { top: auto; bottom: 54px; left: 0; right: 0; margin: 0 auto; width: fit-content; transform: none; max-width: calc(100% - 32px); }
+.dzx-spec span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+@media (max-width: 720px) { .dzx-spec { bottom: 74px; gap: 8px; padding-left: 12px; } .dzx-spec b { font-size: 16px; } .dzx-spec span { font-size: 12px; } }
+.dzx-spec .btn { flex: none; }

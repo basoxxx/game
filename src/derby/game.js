@@ -420,8 +420,15 @@ export class DerbyGame {
     const P = (this._mp ||= {}), now = performance.now();
     const btn = (i) => !!gp.buttons[i]?.pressed;
     const edge = (k, on) => { const was = P[k]; P[k] = on; return on && !was; };
+    // one direction at a time, with hysteresis on the stick (on past 0.6, off under 0.3) so a d-pad
+    // press or a wobbly stick never registers twice; a fresh press moves exactly one button
     const ay = gp.axes[1] || 0, ax = gp.axes[0] || 0;
-    const dirs = { up: btn(12) || ay < -0.55, down: btn(13) || ay > 0.55, left: btn(14) || ax < -0.55, right: btn(15) || ax > 0.55 };
+    const stick = (v, neg, k) => { const was = P['ax' + k]; const on = was ? (neg ? v < -0.3 : v > 0.3) : (neg ? v < -0.6 : v > 0.6); P['ax' + k] = on; return on; };
+    const raw = { up: btn(12) || stick(ay, true, 'u'), down: btn(13) || stick(ay, false, 'd'), left: btn(14) || stick(ax, true, 'l'), right: btn(15) || stick(ax, false, 'r') };
+    const held = ['up', 'down', 'left', 'right'].filter((k) => raw[k]);
+    if (P.dir && !raw[P.dir]) P.dir = null;
+    if (!P.dir && held.length) P.dir = held[0];
+    const dirs = { up: P.dir === 'up', down: P.dir === 'down', left: P.dir === 'left', right: P.dir === 'right' };
     const a = edge('a', btn(0)), b = edge('b', btn(1)), st = edge('st', btn(9));
     if (this.state === 'replay') { if (a || b || st) this.stopReplay(); return; }
     if (this.spectate && this.state === 'race') { if (a || st) this.endSpectate(); return; }
@@ -431,8 +438,14 @@ export class DerbyGame {
     if (!list.length) return;
     let cur = list.indexOf(document.activeElement);
     for (const d of ['up', 'down', 'left', 'right']) {
-      const on = dirs[d]; const fresh = edge(d, on); if (fresh) P[d + 'T'] = now + 380;
-      if (fresh || (on && now > P[d + 'T'] && now - (P.last || 0) > 140)) {
+      const on = dirs[d]; const was = P[d]; let fresh = edge(d, on);
+      if (was && !on) P[d + 'R'] = now;
+      // contact bounce (re-press within 70 ms of the release) or a second edge right after a move: same press
+      if (fresh) { P[d + 'T'] = now + 420; P[d + 'N'] = 0; if (now - (P[d + 'R'] || 0) < 70 || now - (P.last || 0) < 120) fresh = false; }
+      if (on) P[d + 'N'] = (P[d + 'N'] || 0) + 1;
+      // auto-repeat only on a real hold: long enough in time AND over several frames (a slow frame
+      // while paused must not turn one press into two)
+      if (fresh || (on && now > P[d + 'T'] && P[d + 'N'] >= 8 && now - (P.last || 0) > 160)) {
         P.last = now; const step = d === 'up' || d === 'left' ? -1 : 1;
         cur = cur < 0 ? 0 : (cur + step + list.length) % list.length; list[cur].focus({ preventScroll: false });
         document.documentElement.classList.add('pad-nav'); try { sfx.hover?.(); } catch {}
@@ -762,7 +775,10 @@ export class DerbyGame {
     try { buildScorch(this, p.x, p.z); } catch {}
     this.snd?.explode(car);
     if (car.lepre && this.state === 'race') { this.huntWreck = (this.huntDmg || 0) >= 30; car.out = true; car.outT = this.time; this.message('LEPRE DEMOLITA!', 'big'); this.finishOrder = this.standings(); this.finish(); return; }
-    if (this.track.arena) { car.out = true; car.outT = this.time; }
+    if (this.track.arena) {
+      car.out = true; car.outT = this.time;
+      if (this.spectate === car) { this._specSwapT = this.time + 1.4; if (killer && !killer.out) { const k = killer; setTimeout(() => { if (this.spectate === car && !k.out) { this.spectate = k; this.camPos = null; } }, 1400); } }
+    }
     else if (this.mode !== 'stunt') car.wreckT = 4.5; // respawn after a pause, with patched-up car
   }
 
@@ -907,10 +923,16 @@ export class DerbyGame {
     if (last.isPlayer) {
       // out of the race: watch the leader until the end (or skip straight to the results)
       this.callout('ELIMINATO!', 'red');
-      this.spectate = act.filter((c) => c !== last).reduce((a, b) => ((a.prog || 0) >= (b.prog || 0) ? a : b));
-      this.camPos = null; this.hud.spec?.classList.add('on'); this.hud.root.classList.add('spectating');
+      this.startSpectate(act.filter((c) => c !== last).reduce((a, b) => ((a.prog || 0) >= (b.prog || 0) ? a : b)), 'ELIMINATO');
     }
   }
+  startSpectate(car, title) {
+    if (!car) { this.finishOrder = this.standings(); this.finish(); return; }
+    this.spectate = car; this.camPos = null;
+    if (this.hud) { if (this.hud.specT) this.hud.specT.textContent = title || 'ELIMINATO'; this.hud.spec?.classList.add('on'); this.hud.root.classList.add('spectating'); }
+  }
+  // arena spectator target: the strongest survivor (kills first, then health)
+  arenaFocus() { const act = this.cars.filter((c) => !c.out); return act.reduce((a, b) => (((b.kills || 0) * 30 + b.hp) > ((a.kills || 0) * 30 + a.hp) ? b : a), act[0]); }
   endSpectate() { if (!this.spectate || this.state !== 'race') return; this.finishOrder = this.standings(); this.finish(); }
   stuntTick(dt) {
     const S = this.stunt, c = this.player, p = c.body.translation(), tr = this.track;
@@ -1011,7 +1033,9 @@ export class DerbyGame {
     let ts = this.timeScale; if (this.hitStop > 0) { this.hitStop -= dtReal; ts = Math.min(ts, 0.12); }
     const dt = dtReal * ts;
     this.crowdHype = Math.max(0, (this.crowdHype || 0) - dtReal * 0.18);
-    if (this.spectate) {
+    if (this.spectate && this.track.arena) {
+      if (this.spectate.out && this.time >= (this._specSwapT || 0)) { const nx = this.arenaFocus(); if (nx) { this.spectate = nx; this.camPos = null; } }
+    } else if (this.spectate) {
       const act = this.cars.filter((c) => !c.out); const lead = act.reduce((a, b) => ((a.prog || 0) >= (b.prog || 0) ? a : b), act[0]);
       if (lead && lead !== this.spectate) this.spectate = lead;
     }
@@ -1060,7 +1084,12 @@ export class DerbyGame {
     // numerical safety net: a body that exploded (NaN / absurd speed) is put back on the track
     for (const car of this.cars) { if (car.removed) continue; const v = car.body.linvel(), t = car.body.translation(); if (!Number.isFinite(v.x + v.y + v.z + t.x + t.y + t.z) || v.x * v.x + v.y * v.y + v.z * v.z > 150 * 150) { (this.simStats.nan ||= []).push([car.name, car.wheelLost.join(''), Math.round(car.hp), +this.time.toFixed(1), car.ghostT > 0, Math.round(v.y)]); car.body.setLinvel({ x: 0, y: 0, z: 0 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true); if (!Number.isFinite(t.x + t.y + t.z)) car.body.setTranslation({ x: this.track.pts[car.idx]?.x ?? this.terrain.cx, y: 50, z: this.track.pts[car.idx]?.z ?? this.terrain.cz }, true); car.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true); this.respawn(car); } }
     // derby end condition (time limit: 4 minutes, then the healthiest car wins)
-    if (this.track.arena && this.state === 'race') { const alive = this.cars.filter((c) => !c.out); if (this.player.out || alive.length <= 1 || this.time > 240) { this.finishOrder = this.standings(); this.finish(); } }
+    if (this.track.arena && this.state === 'race') {
+      const alive = this.cars.filter((c) => !c.out);
+      if (alive.length <= 1 || this.time > 240) { this.finishOrder = this.standings(); this.finish(); }
+      // wrecked: after a beat on the burning shell, follow the survivors (Invio / A skips to the results)
+      else if (this.player.out && !this.spectate) { this._specAt ??= this.time + 1.8; if (this.time >= this._specAt) this.startSpectate(this.arenaFocus(), 'DISTRUTTO'); }
+    }
     if (!this.track.arena && this.state === 'race' && this.player.finished) this.finish();
     if (this.mode === 'stunt' && this.state === 'race') this.stuntTick(dt);
     if (this.mode === 'time') this.recordGhost(dt);

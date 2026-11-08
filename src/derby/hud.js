@@ -18,7 +18,7 @@ export function buildHud(game) {
     <div class="dzx-big" id="dzx-big"></div>
     <div class="dzx-callout" id="dzx-callout"></div>
     <div class="dzx-feed" id="dzx-feed"></div>
-    <div class="dzx-spec" id="dzx-spec"><b>ELIMINATO</b><span>Segui il leader: <i id="dzx-spec-n"></i> · <em id="dzx-spec-l"></em></span><button class="btn sm" id="dzx-spec-x">Vai ai risultati · Invio / A</button></div>
+    <div class="dzx-spec" id="dzx-spec"><b id="dzx-spec-t">ELIMINATO</b><span><s id="dzx-spec-w">Segui il leader:</s> <i id="dzx-spec-n"></i> · <em id="dzx-spec-l"></em></span><button class="btn sm" id="dzx-spec-x">Vai ai risultati · Invio / A</button></div>
     <svg class="dzx-carmap" id="dzx-carmap" viewBox="0 0 56 96"><path class="z-front" d="M12 6 Q28 -2 44 6 L46 24 H10 Z"/><path class="z-left" d="M10 26 H18 V70 H10 Z"/><path class="z-right" d="M38 26 H46 V70 H38 Z"/><rect class="z-cab" x="20" y="30" width="16" height="34" rx="3"/><path class="z-rear" d="M10 72 H46 L44 90 Q28 96 12 90 Z"/><rect class="w0" x="3" y="14" width="6" height="14" rx="2"/><rect class="w1" x="47" y="14" width="6" height="14" rx="2"/><rect class="w2" x="3" y="66" width="6" height="14" rx="2"/><rect class="w3" x="47" y="66" width="6" height="14" rx="2"/></svg>
     <div class="dzx-board" id="dzx-board"></div>
     <div class="dzx-msgs" id="dzx-msgs"></div>
@@ -37,7 +37,7 @@ export function buildHud(game) {
     <div class="dzx-over dzx-results" id="dzx-results"></div>
     <div class="dzx-replay" id="dzx-replay"><b>REPLAY</b><span>Il botto più bello della gara</span><button class="btn sm" id="dzx-replay-x">Salta · Invio / A</button></div>`;
   const $ = (id) => h.querySelector('#' + id);
-  game.hud = { mode: $('dzx-mode'), big: $('dzx-big'), root: h, pause: $('dzx-pause'), pos: $('dzx-pos'), lap: $('dzx-lap'), time: $('dzx-time'), laps: $('dzx-laps'), board: $('dzx-board'), msgs: $('dzx-msgs'), count: $('dzx-count'), warn: $('dzx-warn'), rpm: $('dzx-rpm'), spd: $('dzx-spd'), gear: $('dzx-gear'), nitro: $('dzx-nitro'), hp: $('dzx-hp'), score: $('dzx-score'), slow: $('dzx-slow'), results: $('dzx-results'), replay: $('dzx-replay'), callout: $('dzx-callout'), feed: $('dzx-feed'), spec: $('dzx-spec'), specN: $('dzx-spec-n'), specL: $('dzx-spec-l'), carmap: $('dzx-carmap') }
+  game.hud = { mode: $('dzx-mode'), big: $('dzx-big'), root: h, pause: $('dzx-pause'), pos: $('dzx-pos'), lap: $('dzx-lap'), time: $('dzx-time'), laps: $('dzx-laps'), board: $('dzx-board'), msgs: $('dzx-msgs'), count: $('dzx-count'), warn: $('dzx-warn'), rpm: $('dzx-rpm'), spd: $('dzx-spd'), gear: $('dzx-gear'), nitro: $('dzx-nitro'), hp: $('dzx-hp'), score: $('dzx-score'), slow: $('dzx-slow'), results: $('dzx-results'), replay: $('dzx-replay'), callout: $('dzx-callout'), feed: $('dzx-feed'), spec: $('dzx-spec'), specN: $('dzx-spec-n'), specL: $('dzx-spec-l'), specT: $('dzx-spec-t'), specW: $('dzx-spec-w'), carmap: $('dzx-carmap') }
   $('dzx-spec-x').addEventListener('click', () => game.endSpectate());;
   $('dzx-replay-x').addEventListener('click', () => game.stopReplay());
   $('dzx-photo-btn').addEventListener('click', () => game.photoMode(true));
@@ -102,7 +102,12 @@ export function updateHud(game, dt) {
   H.carmap.querySelector('.z-cab').style.fill = col((100 - P.hp) * 0.55);
   P.wheelLost.forEach((l, i) => H.carmap.querySelector('.w' + i).classList.toggle('lost', l));
   H.nitro.parentNode.parentNode.classList.toggle('ready', P.nitro >= 25);
-  if (game.spectate) { H.specN.textContent = game.spectate.name; H.specL.textContent = `${game.cars.filter((c) => !c.out).length} ancora in gara`; }
+  if (game.spectate) {
+    const n = game.cars.filter((c) => !c.out).length, ar = game.track.arena, sp = game.spectate;
+    const w = ar ? 'In camera:' : 'Segui il leader:'; if (H.specW && H.specW.textContent !== w) H.specW.textContent = w;
+    H.specN.textContent = ar ? `${sp.name} · ${Math.max(0, Math.round(sp.hp))}%${sp.kills ? ` · ${sp.kills} KO` : ''}` : sp.name;
+    H.specL.textContent = ar ? `${n} ancora nell’arena` : `${n} ancora in gara`;
+  }
   if (H.pos.textContent !== String(myPos)) { const up = +H.pos.textContent > myPos && game.state === 'race'; H.pos.textContent = myPos; const box = H.pos.parentNode; box.classList.remove('up', 'down'); void box.offsetWidth; box.classList.add(up ? 'up' : 'down'); }
   H.lap.textContent = game.track.arena ? `IN GARA ${game.cars.filter((c) => !c.out).length}/${game.cars.length}` : game.mode === 'stunt' ? `TENTATIVO ${game.stunt.att}/${game.stunt.max}` : game.mode === 'elim' ? `GIRO ${P.lap + 1} · IN GARA ${game.cars.filter((c) => !c.out).length}` : `GIRO ${Math.min(game.laps, P.lap + 1)}/${game.laps}`;
   const t = game.state === 'countdown' ? 0 : game.time; H.time.textContent = fmt(t);

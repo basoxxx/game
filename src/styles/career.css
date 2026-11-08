@@ -270,3 +270,10 @@
   .fin-charts, .fin-cols { grid-template-columns: 1fr; }
   .mail-layout { grid-template-columns: 300px minmax(0, 1fr); }
 }
+
+/* season-end: investment returns */
+.inv-res-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.inv-res { display: flex; gap: 12px; align-items: flex-start; padding: 14px; background: var(--s2); border: 1px solid var(--line); min-width: 0; --team: var(--gold); }
+.inv-res .inv-ic .ico { width: 20px; height: 20px; }
+.inv-res-v { display: block; font-family: var(--display); font-size: 22px; font-weight: 900; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inv-res .tiny.muted { overflow-wrap: anywhere; }
