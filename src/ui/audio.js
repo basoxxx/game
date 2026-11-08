@@ -791,7 +791,7 @@ const ENG = {
   junior:    { cyl: 6, idle: 3800, red: 9800, gears: 6, top: 290, gain: 0.17, wave: 'v6', sub: 0.16, rough: 0.09, cyc: 1, cut: [900, 5600], drive: 1.8, turbo: 0.1, hybrid: 0, intake: 0.3, pops: 0.3, antilag: 0, scream: 3 },
   endurance: { cyl: 8, idle: 3000, red: 9600, gears: 7, top: 340, gain: 0.18, wave: 'v8', sub: 0.32, rough: 0.14, cyc: 1, cut: [800, 5200], drive: 2, turbo: 0.15, hybrid: 0.45, intake: 0.25, pops: 0.45, antilag: 0, scream: 1 },
   rally:     { cyl: 4, idle: 2500, red: 7800, gears: 6, top: 200, gain: 0.19, wave: 'i4', sub: 0.26, rough: 0.2, cyc: 1, cut: [650, 4300], drive: 2.4, turbo: 1, hybrid: 0, intake: 0.35, pops: 1, antilag: 1, scream: -1 },
-  banger:    { cyl: 8, idle: 850, red: 6000, gears: 7, top: 200, gain: 0.18, wave: 'v8x', sub: 0.6, rough: 0.38, cyc: 0.5, cut: [380, 3000], drive: 2.8, turbo: 0, hybrid: 0, intake: 0.3, pops: 0.7, antilag: 0, scream: -3 },
+  banger:    { cyl: 8, idle: 850, red: 6000, gears: 7, top: 200, gain: 0.14, wave: 'v8x', sub: 0.6, rough: 0.38, cyc: 0.5, cut: [380, 3000], drive: 2.8, turbo: 0, hybrid: 0, intake: 0.3, pops: 0.7, antilag: 0, scream: -3 },
   hatch:     { cyl: 4, idle: 900, red: 7000, gears: 6, top: 180, gain: 0.19, wave: 'i4', sub: 0.22, rough: 0.22, cyc: 1, cut: [500, 3800], drive: 2.2, turbo: 0.3, hybrid: 0, intake: 0.4, pops: 0.45, antilag: 0, scream: -2 },
 };
 // harmonic spectra of each engine "voice"
