@@ -160,7 +160,7 @@ function qualiView(st, tr) {
   const entriesAll = buildEntries(st);
   const C = cat(st);
   return `<div class="grid-plan anim-in">
-    <div class="panel"><div class="panel-head"><h3>Griglia di partenza</h3></div><table class="tbl"><tbody>${q.grid.map((k, i) => {
+    <div class="panel"><div class="panel-head"><h3>Griglia di partenza</h3>${w.gridMod ? `<span class="chip warn">${{ reverse: 'Griglia invertita', back: 'Rimonta dal fondo', random: 'Griglia sorteggiata' }[st.quickGrid] || ''}</span>` : ''}</div><table class="tbl"><tbody>${q.grid.map((k, i) => {
       const e = entriesAll.find((x) => x.key === k); const tm = st.teams[e.teamId]; const d = st.drivers[e.driverIds[0]];
       const gp = (q.gridPens || []).find((p) => p.key === k);
       const best = q.times[(q.qualiOrder || q.grid)[0]];
