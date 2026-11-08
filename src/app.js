@@ -145,11 +145,12 @@ export const App = {
       document.documentElement.style.setProperty('--team', teamColor(t.car.livery));
       document.documentElement.style.setProperty('--team2', t.car.livery.secondary);
     }
-    const scrollY = this.root.querySelector('.main')?.scrollTop || 0;
+    const scroller = () => this.root.querySelector('.main') || this.root.querySelector('.full-screen');
+    const scrollY = scroller()?.scrollTop || 0;
     const same = this._lastRendered === this.cur;
     if (s.full) this.root.innerHTML = `<div class="bg-layer"></div>${s.render(this.params)}`;
     else this.root.innerHTML = `<div class="bg-layer"></div>${this.shell(s.render(this.params))}`;
-    if (same) { const m = this.root.querySelector('.main'); if (m) m.scrollTop = scrollY; }
+    if (same) { const m = scroller(); if (m) m.scrollTop = scrollY; }
     else {
       // entrance animation only when the screen actually changes (never on refresh)
       const m = this.root.querySelector('.main');
@@ -161,11 +162,6 @@ export const App = {
     makeFocusable(this.root);
     s.mount?.(this.root, this.params);
     if (!same) { try { maybeTour(this.cur); } catch (e) { console.warn(e); } }
-    // settings page: link the per-bus mixer from its Audio panel
-    if (this.cur === 'settings') {
-      const h = [...this.root.querySelectorAll('.panel-head h3')].find((x) => x.textContent.trim() === 'Audio');
-      if (h && !h.parentElement.querySelector('[data-a="mixer"]')) h.insertAdjacentHTML('afterend', `<button class="btn sm ghost" data-a="mixer">${icon('sliders')} Mixer completo</button>`);
-    }
     if (st?._toast) { this.toast(st._toast.title, st._toast.text, 'good'); sfx.win(); st._toast = null; }
     if (st?._levelUp) { this.toast(`Livello manager ${st._levelUp}!`, 'Hai ottenuto un punto abilità: spendilo in Carriera.', 'good'); sfx.levelup(); st._levelUp = null; }
   },
@@ -202,7 +198,7 @@ export const App = {
           <button class="btn icon-btn ghost" data-a="nav" data-to="howto" data-back="${this.cur}" data-tip="Come si gioca: guida e tour (F1)" aria-label="Guida">${icon('help')}</button>
           <button class="btn icon-btn ghost" data-a="shortcuts" data-tip="Comandi: tastiera e controller (?)" aria-label="Comandi">${icon('gamepad')}</button>
           <button class="btn icon-btn ghost" data-a="quick-save" data-tip="Salvataggio rapido (Ctrl+S)" aria-label="Salva">${icon('save')}</button>
-          <button class="btn icon-btn ghost" data-a="nav" data-to="settings" data-tip="Impostazioni" aria-label="Impostazioni">${icon('settings')}</button>
+          <button class="btn icon-btn ghost" data-a="nav" data-to="settings" data-back="${this.cur}" data-tip="Impostazioni" aria-label="Impostazioni">${icon('settings')}</button>
         </div>
         <button class="btn primary lg continue-btn" data-a="continue" data-tip="Scorciatoia: Invio">${seasonOver ? 'Fine Stagione' : st.weekend ? 'Torna al Weekend' : 'Weekend di Gara'} ${icon('right')}</button>
       </div>

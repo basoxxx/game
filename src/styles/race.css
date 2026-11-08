@@ -106,6 +106,8 @@
 /* TV subtitles */
 .race-sub { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%); z-index: 5; width: min(760px, 92%); display: flex; flex-direction: column-reverse; gap: 6px; pointer-events: none; align-items: center; }
 .race-view:not(.mode3d) .race-sub { bottom: 14px; width: min(640px, 86%); }
+.race-view:not(.mode3d) .race-sub .sub { font-size: 14px; padding: 6px 12px 6px 0; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+@media (max-height: 960px) { .race-view:not(.mode3d) .race-sub .sub:nth-child(n+2) { display: none; } .race-view:not(.mode3d) .race-sub { bottom: 10px; } }
 .race-sub .sub { display: flex; align-items: baseline; background: rgba(6,7,9,.9); padding: 8px 14px 8px 0; font-size: 15px; line-height: 1.35; color: #fff; box-shadow: 0 8px 26px rgba(0,0,0,.45); animation: rise .35s ease both; transition: opacity .4s, transform .4s; max-width: 100%; border-left: 4px solid var(--sc, var(--accent)); }
 .race-sub .sub.radio { font-style: italic; color: #ffe0e0; }
 .race-sub .sub.out { opacity: 0; transform: translateY(8px); }
