@@ -18,6 +18,11 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 3.9.1
+- Pioggia più realistica vista dalla TV, cielo notturno di Le Mans senza bagliore, Monaco e circuiti cittadini con case, palme, piazze e auto parcheggiate, nessuno scatto al calar della notte.
+- Riepilogo di fine stagione con il ritorno degli investimenti; investimenti in Formula Apex ribilanciati.
+- Scontro Totale: dopo essere stato distrutto nell'arena segui i superstiti fino alla fine; navigazione col pad più precisa nel menu di pausa.
+
 ## Novità della versione 3.9
 - **Grafica 3D**: fari con fasci luminosi e luci dei freni nelle notti Endurance, illuminazione delle piste notturne e della pit lane, riflessi delle auto sull'asfalto bagnato, nuova scia d'acqua, ruote sfocate in velocità, sporco che si accumula durante la gara, ripresa in elicottero alla partenza, profondità di campo, retro delle tribune e arredo urbano nei circuiti cittadini.
 - **Strategia sotto la pioggia**: il pianificatore usa le previsioni (intermedie, da bagnato, giri di crossover) e il cambio gomme automatico segue la pioggia reale; anche gli avversari hanno guasti e scelte meteo, mostrati nelle grafiche TV; tempi sul giro più realistici nei sorpassi.
