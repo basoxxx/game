@@ -53,7 +53,7 @@ export class DerbyGame {
     this.mode = kind === 'derby' ? 'derby' : kind === 'stunt' ? 'stunt' : (['race', 'elim', 'time', 'caccia'].includes(this.o.mode) ? this.o.mode : 'race');
     if (this.mode === 'time' || this.mode === 'stunt') this.o.opponents = 0;
     if (this.mode === 'elim') this.o.opponents = Math.max(2, this.o.opponents);
-    if (this.mode === 'caccia') this.o.opponents = Math.max(1, this.o.opponents);
+    if (this.mode === 'caccia') this.o.opponents = Math.max(1, Math.min(5, this.o.opponents));
     this.track = buildTrack(this.venue);
     this.water = buildWater(this.venue, this.track);
     this.terrain = buildTerrain(this.venue, this.track, this.water);
@@ -230,13 +230,13 @@ export class DerbyGame {
       const isP = k === 0;
       const lepre = this.mode === 'caccia' && k === 1;
       let spec = isP ? player : BANGERS[(k * 3 + 1) % BANGERS.length];
-      if (lepre) spec = { ...BANGERS.find((b) => b.id === 'muscle'), armor: 1.9, power: 1.2 };
+      if (lepre) spec = { ...BANGERS.find((b) => b.id === 'muscle'), armor: 1.3, power: 1.2 };
       const color = isP ? (this.o.color || look.color || spec.color) : lepre ? '#ffcf3a' : AI_COLORS[(k - 1) % AI_COLORS.length];
       const aiLook = { livery: lepre ? 'saetta' : k % 3 === 0 ? 'classica' : LIVERIES[(k * 5) % LIVERIES.length].id, accent: lepre ? '#111' : ['#f2efe6', '#111', '#ffd400'][k % 3], clean: lepre };
       const g = grid[order[k]];
       const num = isP ? (look.num || 1) : k + 1 + (look.num && k + 1 >= look.num ? 1 : 0);
       const car = this.makeCar({ spec, color, num, name: isP ? (this.o.playerName || 'Tu') : lepre ? 'La Lepre' : AI_NAMES[(k - 1) % AI_NAMES.length], isPlayer: isP, pos: g, skill: lepre ? 1 : 0.8 + ((k * 0.37) % 1) * 0.2, look: isP ? look : aiLook });
-      if (!isP) { initAI(car, lepre ? 1 : k); car.paceMul = this.diff.aiPace * (this.o.aiBoost || 1) * (lepre ? 0.975 : 1); car.ai.P = { ...car.ai.P, ram: car.ai.P.ram * this.diff.aiAggr * (lepre ? 0 : 1), aggr: car.ai.P.aggr * this.diff.aiAggr }; }
+      if (!isP) { initAI(car, lepre ? 1 : k); car.paceMul = this.diff.aiPace * (this.o.aiBoost || 1) * (lepre ? 0.86 : 1); car.ai.P = { ...car.ai.P, ram: car.ai.P.ram * this.diff.aiAggr * (lepre ? 0 : 1), aggr: car.ai.P.aggr * this.diff.aiAggr }; }
       if (lepre) { car.lepre = true; this.lepre = car; }
       this.cars.push(car);
     }
@@ -245,6 +245,12 @@ export class DerbyGame {
       const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(-0.55, 0.7); sh.lineTo(-0.2, 0.7); sh.lineTo(-0.2, 1.3); sh.lineTo(0.2, 1.3); sh.lineTo(0.2, 0.7); sh.lineTo(0.55, 0.7); sh.closePath();
       const arrow = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color: 0xffd400, transparent: true, opacity: 0.9, depthTest: false, side: THREE.DoubleSide }));
       arrow.renderOrder = 10; this.marker = arrow; this.scene.add(arrow);
+    }
+    if (this.lepre) {
+      // floating golden diamond over the Lepre, visible from afar
+      const g = new THREE.OctahedronGeometry(0.55, 0); g.scale(1, 1.5, 1);
+      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffcf3a, transparent: true, opacity: 0.92, depthTest: false }));
+      m.renderOrder = 10; this.lepreMark = m; this.scene.add(m);
     }
     this.rec = []; this.replay = null; this.bestCrash = null;
   }
@@ -615,6 +621,7 @@ export class DerbyGame {
     const Lz = car.mesh.userData.dims.L;
     dmg *= local.x > Lz * 0.45 ? 0.9 : local.x < -Lz * 0.45 ? 0.75 : 1.2;
     if (car.isPlayer) dmg *= this.diff.dmgTaken;
+    if (car.lepre && by?.isPlayer) dmg *= 1.5;
     if (car.lepre && by?.isPlayer) { this.huntDmg = (this.huntDmg || 0) + dmg; if (dmg > 4) this.message(`Lepre colpita! ${Math.min(100, Math.round(this.huntDmg))}%`, 'bonus'); }
     const before = car.hp; car.hp = Math.max(0, car.hp - dmg);
     this.snd?.impact(car, dmg, by);
@@ -755,10 +762,10 @@ export class DerbyGame {
       // reference lap from the racing-line speed profile at a strong AI pace, scaled by the player's car
       let ref = 0; for (let i = 0; i < this.track.N; i++) ref += this.track.ds / Math.max(4, this.line.spd[i] * 0.958 * this.player.spec.top ** 0.5);
       const total = ref * this.laps + 2.5; // standing start
-      this.targets = [total * 1.12, total * 1.05, total * 1.0].map((t) => Math.round(t * 10) / 10);
+      this.targets = [total * 1.12, total * 1.04, total * 0.985].map((t) => Math.round(t * 10) / 10);
     }
-    if (this.mode === 'stunt') { this.targets = this.o.targets || [35, 50, 65]; this.stunt = { att: 1, max: 3, phase: 'hold', t: 0, best: 0, dists: [], hold: 1.6 }; }
-    if (this.mode === 'caccia') { this.huntDmg = 0; this.laps = this.o.laps || this.venue.laps; }
+    if (this.mode === 'stunt') { this.targets = this.o.targets || [60, 80, 95]; this.stunt = { att: 1, max: 3, phase: 'hold', t: 0, best: 0, dists: [], hold: 1.6 }; }
+    if (this.mode === 'caccia') { this.huntDmg = 0; this.laps = this.o.laps || Math.max(4, this.venue.laps); }
   }
   eliminateLast() {
     const act = this.cars.filter((c) => !c.out); if (act.length <= 1) return;
@@ -979,6 +986,7 @@ export class DerbyGame {
     if (!frozen) { this.dust.update(dt); this.smoke.update(dt); this.fire.update(dt); this.sparks.update(dt); this.chips.update(dt); this.splash.update(dt); }
     this.updateCamera(dtReal);
     if (this.marker) { const p = this.player.mesh.position; this.marker.position.set(p.x, p.y + 2.4 + Math.sin(this.time * 4) * 0.1, p.z); this.marker.quaternion.copy(this.camera.quaternion); this.marker.visible = this.camMode < 2 && !this.lookBack && this.state !== 'finished'; }
+    if (this.lepreMark) { const p = this.lepre.mesh.position; this.lepreMark.position.set(p.x, p.y + 3.2 + Math.sin(this.time * 3) * 0.2, p.z); this.lepreMark.rotation.y = this.time * 2; this.lepreMark.visible = !this.lepre.out && this.camMode < 3; }
     // shadow camera follows the player
     const pp = this.player.mesh.position; this.sun.position.copy(pp).addScaledVector(this.sunDir, 150); this.sun.target.position.copy(pp);
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);

@@ -481,7 +481,7 @@ function buildStunt(game, R) {
   for (const z of [-halfW, halfW]) { const sh = new THREE.Shape(); sh.moveTo(prof[0][0], -1.6); prof.forEach(([x, y]) => sh.lineTo(x, y)); sh.lineTo(lip, -1.6); sh.closePath(); const g = new THREE.ShapeGeometry(sh); const m = new THREE.Mesh(g, M.corr('#7d8a8f')); m.material.side = THREE.DoubleSide; m.position.z = z; m.castShadow = true; game.S.add(m); }
   const face = new THREE.Mesh(new THREE.BoxGeometry(0.3, game.kickerH + 1.6, halfW * 2), M.corr('#6a6f72')); face.position.set(lip + 0.15, (game.kickerH - 1.6) / 2, 0); game.S.add(face);
   // distance lines across the landing slope, medal lines and signboards
-  const tg2 = game.o.targets || [35, 50, 65], medalC = ['#c9803f', '#d9dee6', '#ffcf3a'];
+  const tg2 = game.o.targets || [60, 80, 95], medalC = ['#c9803f', '#d9dee6', '#ffcf3a'];
   const lineM = new THREE.MeshBasicMaterial({ color: 0xf4f1e8, transparent: true, opacity: 0.85, polygonOffset: true, polygonOffsetFactor: -4, depthWrite: false });
   const strip = (x, w, mat) => { const g = new THREE.PlaneGeometry(w, 28, 1, 8); g.rotateX(-Math.PI / 2); const P = g.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, T.heightAt(x + P.getX(i), P.getZ(i)) + 0.06); const m = new THREE.Mesh(g, mat); m.position.x = x; game.scene.add(m); };
   const nums = canvasTex(1024, 256, (g, W, H) => { g.fillStyle = '#111'; g.fillRect(0, 0, W, H); g.font = 'italic 900 58px "Exo 2", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; for (let i = 0; i < 16; i++) { const cx = (i % 8) * 128 + 64, cy = Math.floor(i / 8) * 128 + 64; g.fillStyle = '#ffd400'; g.fillText(String((i + 1) * 10), cx, cy); } });

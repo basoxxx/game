@@ -43,14 +43,14 @@ export const CUPS = [
     { id: 'f1', name: 'Battesimo di polvere', mode: 'race', venue: 'cava', opponents: 5, prize: 6000 },
     { id: 'f2', name: 'Giro secco', mode: 'time', venue: 'otto', laps: 2, prize: 4000 },
     { id: 'f3', name: 'Prima mischia', mode: 'derby', venue: 'arena', opponents: 5, prize: 6000 },
-    { id: 'f4', name: 'Il primo volo', mode: 'stunt', venue: 'rampa', prize: 4000, targets: [35, 50, 65] },
+    { id: 'f4', name: 'Il primo volo', mode: 'stunt', venue: 'rampa', prize: 4000, targets: [55, 75, 90] },
     { id: 'f5', name: 'La Lepre del pantano', mode: 'caccia', venue: 'fattoria', opponents: 3, prize: 6500 },
   ] },
   { id: 'lamiera', name: 'Coppa Lamiera', sub: 'Si alza il livello: eliminazioni e notti al porto', stars: 8, color: '#c9ced6', events: [
     { id: 'l1', name: 'Fuori l’ultimo', mode: 'elim', venue: 'otto', opponents: 5, prize: 9000 },
     { id: 'l2', name: 'Pineta selvaggia', mode: 'race', venue: 'pineta', opponents: 7, prize: 10000 },
     { id: 'l3', name: 'Tra i container', mode: 'race', venue: 'porto', opponents: 7, prize: 11000 },
-    { id: 'l4', name: 'Volo d’angelo', mode: 'stunt', venue: 'rampa', prize: 7000, targets: [50, 65, 80] },
+    { id: 'l4', name: 'Volo d’angelo', mode: 'stunt', venue: 'rampa', prize: 7000, targets: [70, 88, 100] },
     { id: 'l5', name: 'Fossa dei leoni', mode: 'derby', venue: 'fossa', opponents: 7, prize: 11000 },
   ] },
   { id: 'inferno', name: 'Coppa Inferno', sub: 'Sotto i riflettori, senza pietà', stars: 20, color: '#ff6a1a', events: [
@@ -63,7 +63,7 @@ export const CUPS = [
   { id: 'finale', name: 'Gran Premio Rottame', sub: 'La finale: diventa il re delle lamiere', stars: 34, color: '#ffcf3a', events: [
     { id: 'g1', name: 'Il re della cava', mode: 'race', venue: 'cava', opponents: 7, prize: 20000, aiBoost: 1.02 },
     { id: 'g2', name: 'Ultimo in piedi', mode: 'elim', venue: 'fattoria', opponents: 6, prize: 20000 },
-    { id: 'g3', name: 'Salto nel vuoto', mode: 'stunt', venue: 'rampa', prize: 15000, targets: [65, 80, 92] },
+    { id: 'g3', name: 'Salto nel vuoto', mode: 'stunt', venue: 'rampa', prize: 15000, targets: [85, 100, 112] },
     { id: 'g4', name: 'Caccia al porto', mode: 'caccia', venue: 'porto', opponents: 4, prize: 20000, aiBoost: 1.02 },
     { id: 'g5', name: 'La resa dei conti', mode: 'derby', venue: 'fossa', opponents: 7, prize: 25000, aiBoost: 1.03 },
   ] },
@@ -83,7 +83,7 @@ export function carBuyable(id, p = prog()) { return starsOf(p) >= (CAR_STARS[id]
 export function medalFor(mode, r) {
   if (mode === 'time') { const t = r.time, T = r.targets || []; if (!t) return 0; return t <= T[2] ? 3 : t <= T[1] ? 2 : t <= T[0] ? 1 : 0; }
   if (mode === 'stunt') { const d = r.distance || 0, T = r.targets || []; return d >= T[2] ? 3 : d >= T[1] ? 2 : d >= T[0] ? 1 : 0; }
-  if (mode === 'caccia') { const d = r.huntDmg || 0; return r.huntWreck || d >= 100 ? 3 : d >= 55 ? 2 : d >= 25 ? 1 : 0; }
+  if (mode === 'caccia') { const d = r.huntDmg || 0; return r.huntWreck || d >= 100 ? 3 : d >= 50 ? 2 : d >= 20 ? 1 : 0; }
   return r.pos === 1 ? 3 : r.pos === 2 ? 2 : r.pos === 3 ? 1 : 0;
 }
 // payout for an event result (career events pay their own purse; free play pays by medal/position)
