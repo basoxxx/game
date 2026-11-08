@@ -2,7 +2,7 @@
 // Tyre ageing follows the race simulation exactly: a sim lap ages the tyre by
 // scale * trackWear * wearMult "real laps", and the life is m.life / (trackWear * wearMult).
 import { COMPOUNDS } from '../data/categories.js';
-import { tyreModel, degPenalty } from './tyres.js';
+import { tyreModel, degPenalty, weatherFactor } from './tyres.js';
 
 const DRY = ['soft', 'medium', 'hard'];
 export const FUEL_SAVE = { cost: 0.4, cons: 0.88 }; // lift & coast: s/lap (90s scale) and consumption factor
@@ -121,3 +121,43 @@ export function normalizePlan(plan, total) {
 export const pitLaps = (plan) => { const out = []; let l = 0; for (let i = 0; i < plan.length - 1; i++) { l += plan[i].laps; out.push(l); } return out; };
 export const planKey = (plan) => (plan || []).map((s) => s.c).join('-');
 export const compName = (c) => COMPOUNDS[c]?.name || c;
+
+// ---------------- WEATHER (CROSSOVER) STRATEGY ----------------
+// Relative lap-time cost (s) of a tyre family in a given rain level. 'dry' = slicks (medium pace).
+// Slicks on a wet track also carry an aquaplaning / crash risk, priced in.
+export function wxLapCost(fam, r, base) {
+  const comp = fam === 'dry' ? 'medium' : fam;
+  return base * (weatherFactor(comp, r) - 1) + (fam === 'dry' && r > 0.25 ? base * (r - 0.25) * 0.15 : 0);
+}
+// Best tyre family lap by lap for a forecast (array of rain levels), with a pit loss for every change
+// (Viterbi). Dry phases are then split with the dry optimiser. Returns { stints, phases, crossovers, wet }.
+export function crossoverPlan(ctx, rain, { base, hasInter = true, mustTwo = false, start = null }) {
+  const L = rain.length;
+  const fams = hasInter ? ['dry', 'inter', 'wet'] : ['dry', 'wet'];
+  let cost = fams.map((f) => (start && f !== start ? 1e6 : 0) + wxLapCost(f, rain[0] || 0, base));
+  const back = [];
+  for (let i = 1; i < L; i++) {
+    const nc = [], bk = [];
+    fams.forEach((f, k) => {
+      let best = Infinity, bj = 0;
+      fams.forEach((g, j) => { const v = cost[j] + (j === k ? 0 : ctx.pitLoss); if (v < best) { best = v; bj = j; } });
+      nc.push(best + wxLapCost(f, rain[i] || 0, base)); bk.push(bj);
+    });
+    cost = nc; back.push(bk);
+  }
+  let k = cost.indexOf(Math.min(...cost));
+  const seq = new Array(L); seq[L - 1] = k;
+  for (let i = L - 1; i > 0; i--) { k = back[i - 1][k]; seq[i - 1] = k; }
+  const phases = [];
+  seq.forEach((k2, i) => { const f = fams[k2]; const last = phases[phases.length - 1]; if (last && last.f === f) last.laps++; else phases.push({ f, from: i + 1, laps: 1 }); });
+  const wet = phases.some((p) => p.f !== 'dry');
+  const stints = [];
+  for (const p of phases) {
+    if (p.f !== 'dry') { stints.push({ c: p.f, laps: p.laps, wx: true }); continue; }
+    const o = optimise(ctx, { L: p.laps, maxStops: 2, mustTwo: mustTwo && !wet })[0];
+    if (o) stints.push(...o.stints.map((s) => ({ ...s })));
+    else stints.push({ c: p.laps * ctx.scale * ctx.track.wear * ctx.wm < 14 ? 'soft' : 'medium', laps: p.laps });
+  }
+  const crossovers = phases.slice(1).map((p, i) => ({ lap: p.from, from: phases[i].f, to: p.f }));
+  return { stints, phases, crossovers, wet };
+}

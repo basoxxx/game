@@ -140,7 +140,13 @@
   .grid-plan { grid-template-columns: 330px 1fr; }
   .grid-plan .tbl td:nth-child(4) { display: none; }
   .grid-plan .tbl td { padding-left: 6px; padding-right: 6px; }
-  .stint-row { grid-template-columns: 52px auto 110px 1fr; }
-  .stint-row > .tiny:nth-of-type(2) { display: none; }
+  .stint-row { grid-template-columns: 46px auto 84px 64px 1fr; gap: 6px; }
+  .stint-row .sr-box b { min-width: 52px; font-size: 15px; }
 }
 @media (max-width: 1050px) { .grid-plan { grid-template-columns: 1fr; } }
+
+/* weather (crossover) planner */
+.wx-brief { padding: 10px 12px; background: color-mix(in srgb, var(--info) 10%, var(--bg2)); border-left: 3px solid var(--info); }
+.wx-brief .ico { color: var(--info); }
+.wx-stint { display: grid; grid-template-columns: 58px 22px minmax(90px, auto) 70px 1fr; align-items: center; gap: 8px; padding: 4px 6px; background: var(--bg2); }
+.wx-stint .chip { justify-self: start; }

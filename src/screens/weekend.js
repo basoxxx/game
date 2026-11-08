@@ -7,7 +7,7 @@ import { S, saveGame, getSettings } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { applyRaceRivalry } from '../engine/rivalry.js';
 import { cat, playerTeam, teamDrivers, applyRoundResults, standings, seatsPerTeam, aiFillSeats, addMail } from '../engine/season.js';
-import { buildEntries, runQualifying, makeWeatherPlan, raceLaps, CircuitSim, aiSetupQuality, weatherForecast, SETUP_BIAS } from '../engine/race.js';
+import { buildEntries, runQualifying, makeWeatherPlan, raceLaps, CircuitSim, aiSetupQuality, weatherForecast, SETUP_BIAS, TACTICAL } from '../engine/race.js';
 import { compEnabled, compStatus, fitComponent } from '../engine/components.js';
 import { licencePoints, BAN_POINTS } from '../engine/stewards.js';
 import { COMPOUNDS } from '../data/categories.js';
@@ -22,7 +22,7 @@ import { trackGeometry, drsZones, partSensitivity, trackStats } from '../engine/
 import { planOptions, stintBar, degChartSVG, drawTelemetry, breakdownHTML, openLessons, wearError } from './engineer.js';
 import { SETUP_PARAMS, idealFor, setupQuality } from './setup.js';
 import { isLiveSession, sessionRender, sessionMount, sessionStop, sessionActions, sessionKey, simulateQualifying } from './sessions.js';
-import { plannerPanel, plannerActions, raceStrategyHTML, adviceHTML, ensurePlan, isDryPlan } from './planner.js';
+import { plannerPanel, plannerActions, raceStrategyHTML, adviceHTML, ensurePlan, isDryPlan, racePlan } from './planner.js';
 import { optimise, normalizePlan } from '../engine/strategy.js';
 import { tvUpdate, trackerUpdate, stintChartSVG, liveStandingsHTML, analysisHTML, defaultSel } from './broadcast.js';
 
@@ -105,6 +105,7 @@ registerScreen({
     'rs-comp'(el) { const c = rc(el); if (!c?.plan?.[c.planIdx + 1]) return; c.plan[c.planIdx + 1].c = el.dataset.c; R.pitSel[c.key] = el.dataset.c; if (c.pitReq) c.pitReq.compound = el.dataset.c; updateControls(true); },
     'rs-auto'(el) { const c = rc(el); if (c) c.planAuto = c.planAuto === false; updateControls(true); },
     'rs-stops'(el) { const c = rc(el); if (!c) return; const n = +el.dataset.n; const best = R.sim.replan(c, n < 0 ? null : n); if (!best) { App.toast('Piano non possibile', 'Non ci sono abbastanza giri per queste soste.', 'bad'); return; } R.sim.applyRemaining(c, best.stints); if (best.stints[0].laps <= 1 && best.stints[1]) c.pitReq = { compound: best.stints[1].c, fuel: true, crew: c.crew, repair: c.repair !== false }; R.pitSel[c.key] = defaultPitTyre(c); sfx.radio?.(); updateControls(true); },
+    'rs-wx'(el) { const c = rc(el); if (!c) return; c.wxAuto = !c.wxAuto; updateControls(true); },
     'rs-crew'(el) { const c = rc(el); if (!c) return; c.crew = el.dataset.v; if (c.pitReq) c.pitReq.crew = c.crew; updateControls(true); },
     'rs-repair'(el) { const c = rc(el); if (!c) return; c.repair = c.repair === false; if (c.pitReq) c.pitReq.repair = c.repair; updateControls(true); },
     'rs-lift'(el) { const c = rc(el); if (!c) return; R.sim.setFuelSave(c.key, !c.fuelSave); updateControls(true); },
@@ -225,7 +226,9 @@ function mountRace() {
   if (isSprint) R.sim.log('⚡ SPRINT: gara breve, punti ai primi 8 (8-7-6-5-4-3-2-1).', 'start', null, true);
   for (const c of R.sim.cars) if (c.isPlayer) {
     R.sim.setStartTyre(c, w.startTyre[c.key] || c.tyre); c.compoundsUsed = new Set([c.tyre]);
-    c.plan = !isSprint && w.plans?.[c.key] && isDryPlan(st, w) ? normalizePlan(w.plans[c.key].map((x) => ({ ...x })), R.sim.laps) : null; c.planIdx = 0;
+    const rp = isSprint ? { plan: null, wxAuto: !isDryPlan(st, w) } : racePlan(st, w, c.key, R.sim.laps);
+    c.plan = rp.plan; c.planIdx = 0; c.wxAuto = !!rp.wxAuto; c.wxPlan = rp.wxPlan || null;
+    if (c.plan && COMPOUNDS[c.tyre].wet) c.plan = null;
     if (c.plan && c.plan[0].c !== c.tyre) c.plan[0].c = c.tyre;
     if (!R.sim.endurance && w.fuel?.[c.key] != null && !isSprint) R.sim.setFuelLoad(c, w.fuel[c.key]);
     if (R.sim.endurance && w.endPlan?.[c.key]) R.sim.setEndPlan(c, w.endPlan[c.key]);
@@ -233,7 +236,7 @@ function mountRace() {
   }
   R.ctab = {}; R.tvN = 0; R.tvQ = []; R.tvCur = null; R.ivh = {}; R.an = null;
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {}; R.gh = {};
-  R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, padTop: 40, glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' || st.category === 'junior' ? drsZones('formula', tr) : [] });
+  R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { ...viewPads(false, circuitPath(tr.cid).aspect), glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' || st.category === 'junior' ? drsZones('formula', tr) : [] });
   R.last = performance.now(); R.uiT = 0;
   R.focus = R.sim.cars.find((c) => c.isPlayer)?.key;
   R.view3d = getSettings().view3d !== false && webglAvailable() ? (R.cam || 'auto') : null;
@@ -248,6 +251,8 @@ function mountRace() {
     if (!R.paused && !R.sim.finished && !R.replay && !R.moment) {
       let rem = dt * R.speed;
       while (rem > 0 && !R.sim.moments.length) { const d = Math.min(0.5, rem); R.sim.step(d); rem -= d; }
+      // fast-forwarding (16x and up): battles and undercuts are left to the drivers, only big calls stop the race
+      while (R.sim.moments.length && R.speed >= 16 && TACTICAL.has(R.sim.moments[0].type)) { const m = R.sim.moments.shift(); R.sim.log(`📻 ${m.title}: decide il pilota (gara accelerata).`, 'radio', m.key && m.key !== 'all' ? m.key : null, false); }
       if (R.sim.moments.length) showMoment(R.sim.moments[0]);
     }
     if (R.replay) playReplay(dt); else if (R.r3d) update3D(dt); else draw();
@@ -263,6 +268,10 @@ function mountRace() {
 }
 function stopRace() { closeAnalysis(true); R.moment = null; R.replay = null; R.rbuf = []; cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = null; R.r3d?.destroy(); R.r3d = null; engineStop(); }
 
+// 2D map: keep a top band (camera buttons, TV graphics, interval tracker) and a subtitle line free;
+// as a 3D minimap the map fills its little box
+function viewPads(mini, aspect = 1.4) { return mini ? { pad: 14, padTop: 0, padBottom: 0 } : aspect < 0.8 ? { pad: 24, padTop: 64, padBottom: 40 } : { pad: 30, padTop: 104, padBottom: 44 }; }
+function applyViewPads() { if (!R.view) return; Object.assign(R.view.opts, viewPads(!!R.r3d, R.view.path?.aspect)); R.view.resize(); }
 function renderViewBtns() {
   const el = document.getElementById('view-btns'); if (!el) return;
   const can3d = webglAvailable();
@@ -282,13 +291,13 @@ function enable3D(cam) {
   R.r3d.director = cam === 'auto'; R.r3d.camMode = cam === 'auto' ? 'tv' : cam; R.r3d.dirT = 0; R.r3d.focusKey = R.focus; R.r3d._cut = true;
   rv.classList.add('mode3d');
   document.getElementById('hud3d')?.classList.remove('hidden');
-  R.view?.resize();
+  applyViewPads();
 }
 function disable3D() {
   R.r3d?.destroy(); R.r3d = null; R.view3d = null;
   const rv = document.getElementById('race-view'); rv?.classList.remove('mode3d'); rv?.querySelector('.r3d')?.remove();
   document.getElementById('hud3d')?.classList.add('hidden');
-  setTimeout(() => R.view?.resize(), 30);
+  setTimeout(() => applyViewPads(), 30);
 }
 function update3D(dt) {
   const sim = R.sim, r = R.r3d; if (!r) return;

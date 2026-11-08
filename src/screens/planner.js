@@ -2,11 +2,12 @@
 // and the in-race strategy panel helpers.
 import { icon } from '../ui/icons.js';
 import { esc, fmtTime } from '../ui/dom.js';
-import { COMPOUNDS } from '../data/categories.js';
+import { COMPOUNDS, CATEGORIES } from '../data/categories.js';
 import { playerTeam } from '../engine/season.js';
-import { realLaps, teamBaseLap, driverFactor, SETUP_BIAS, setupBias } from '../engine/race.js';
+import { realLaps, teamBaseLap, driverFactor, SETUP_BIAS, setupBias, weatherForecast } from '../engine/race.js';
+import { getTrack } from '../engine/world.js';
 import { estimateWearMult, tyreModel } from '../engine/tyres.js';
-import { optimise, predictLaps, normalizePlan, pitLaps, fuelSaveLaps, planKey } from '../engine/strategy.js';
+import { optimise, predictLaps, normalizePlan, pitLaps, fuelSaveLaps, planKey, crossoverPlan, wxLapCost } from '../engine/strategy.js';
 import { fuelModel } from '../engine/session.js';
 import { tyreBadge } from './common.js';
 import { stintBar, degChartSVG, wearError } from './engineer.js';
@@ -19,15 +20,45 @@ export function planCtx(st, tr, laps, team, d, key) {
   const bias = SETUP_BIAS[setupBias(st, key, tr)]?.wear ?? 1;
   return { cat: st.category, track: tr, scale: realLaps(st, tr) / laps, wm: estimateWearMult(team, d, w.weather.trackTemp) * (1 + wearError(st)) * bias, pitLoss: (tr.pit || 21) + 2.4, comps: DRY };
 }
-const mustTwo = (st, w) => !w.weather.isRain && (st.category === 'formula' || st.category === 'junior');
-export function isDryPlan(st, w) { return w.weather.plan[0] <= 0.2 && (st.category === 'formula' || st.category === 'junior'); }
+const mustTwo = (st, w) => circuit(st) && !wxOutlook(st, w).wet; // the forecast decides the plan (the real weather is unknown)
+const circuit = (st) => st.category === 'formula' || st.category === 'junior';
+// Rain the team expects lap by lap: the forecast, except the start, which everyone can see from the grid.
+export function wxRain(st, w, tr) {
+  const fc = weatherForecast(st, w, tr).laps.slice(0, w.laps);
+  if (fc.length) fc[0] = w.weather.plan[0] || 0;
+  return fc;
+}
+// Weather phases for the race (cached): crossover laps between slicks, intermediates and full wets
+export function wxOutlook(st, w, tr = getTrack(st.category, w.trackId)) {
+  const rain = wxRain(st, w, tr);
+  const k = rain.map((r) => r.toFixed(2)).join(',');
+  if (w._wxo?.k === k) return w._wxo;
+  const hasInter = (CATEGORIES[st.category]?.compounds || DRY).includes('inter');
+  const ctx = { cat: st.category, track: tr, scale: realLaps(st, tr) / w.laps, wm: 1, pitLoss: (tr.pit || 21) + 2.4, comps: DRY };
+  const cp = crossoverPlan(ctx, rain, { base: tr.lap, hasInter });
+  w._wxo = { k, rain, hasInter, phases: cp.phases, crossovers: cp.crossovers, wet: cp.wet };
+  return w._wxo;
+}
+export function isDryPlan(st, w) { return circuit(st) && !wxOutlook(st, w).wet; }
+const FAM = { dry: 'Slick', inter: 'Intermedie', wet: 'Full wet' };
 
 function baseLap(st, tr, team, d, w, key) { return teamBaseLap(st, team, tr) * (1 - (w.cars[key]?.q ?? 0.6) * 0.005) * driverFactor(d, 0, st); }
 
+function wxPlanFor(st, w, tr, e) {
+  const team = playerTeam(st); const d = st.drivers[e.driverIds[0]];
+  const o = wxOutlook(st, w, tr);
+  const ctx = planCtx(st, tr, w.laps, team, d, e.key);
+  return crossoverPlan(ctx, o.rain, { base: baseLap(st, tr, team, d, w, e.key), hasInter: o.hasInter, mustTwo: true });
+}
 export function ensurePlan(st, w, tr, e) {
   const team = playerTeam(st); const d = st.drivers[e.driverIds[0]];
-  w.plans ||= {}; w.fuel ||= {}; w.endPlan ||= {};
-  if (isDryPlan(st, w) && !w.plans[e.key]) {
+  w.plans ||= {}; w.fuel ||= {}; w.endPlan ||= {}; w.wxPolicy ||= {};
+  if (circuit(st) && !isDryPlan(st, w) && (!w.plans[e.key] || !w.plans[e.key].some((s) => s.wx))) {
+    const cp = wxPlanFor(st, w, tr, e);
+    w.plans[e.key] = cp.stints; w.startTyre[e.key] = cp.stints[0].c;
+    w.fuel[e.key] ??= 0.98;
+  }
+  if (isDryPlan(st, w) && (!w.plans[e.key] || w.plans[e.key].some((s) => s.wx))) {
     const ctx = planCtx(st, tr, w.laps, team, d, e.key);
     const best = optimise(ctx, { L: w.laps, maxStops: 3, mustTwo: mustTwo(st, w) })[0];
     if (best) { w.plans[e.key] = best.stints; w.startTyre[e.key] = best.stints[0].c; }
@@ -57,6 +88,59 @@ function wearAtEnd(ctx, s, age0 = 0) {
   return (age0 + s.laps * ctx.scale * ctx.track.wear * ctx.wm) / life;
 }
 
+// Lap-time cost of slicks / intermediates / full wets over the forecast: where the lines cross, the tyre changes
+function crossoverSVG(o, base, laps) {
+  const W = 520, H = 170, P = 34, B = 30;
+  const fams = o.hasInter ? ['dry', 'inter', 'wet'] : ['dry', 'wet'];
+  const col = { dry: COMPOUNDS.medium.color, inter: COMPOUNDS.inter?.color || '#2ecc71', wet: COMPOUNDS.wet.color };
+  const vals = o.rain.map((r) => Object.fromEntries(fams.map((f) => [f, wxLapCost(f, r, base)])));
+  const hi = Math.min(16, Math.max(4, ...vals.map((v) => Math.min(...Object.values(v)) + 4)));
+  const X = (l) => P + ((l - 0.5) / laps) * (W - P - 10), Y = (t) => 10 + (Math.min(t, hi) / hi) * (H - B - 10);
+  let g = '';
+  for (const t of [0, hi / 2, hi]) g += `<line x1="${P}" x2="${W - 10}" y1="${Y(t)}" y2="${Y(t)}" stroke="rgba(255,255,255,0.07)"/><text x="${P - 4}" y="${Y(t) + 3}" fill="#8b95a7" font-size="9.5" text-anchor="end">+${t.toFixed(0)}s</text>`;
+  // forecast rain bars
+  o.rain.forEach((r, i) => { if (r > 0.03) g += `<rect x="${(X(i + 1) - (W - P - 10) / laps / 2 + 0.5).toFixed(1)}" y="${(H - B - r * 24).toFixed(1)}" width="${Math.max(1, (W - P - 10) / laps - 1).toFixed(1)}" height="${(r * 24).toFixed(1)}" fill="#3aa0ff" opacity=".28"/>`; });
+  // best tyre band
+  o.phases.forEach((p) => { g += `<rect x="${X(p.from) - (W - P - 10) / laps / 2}" y="${H - B + 3}" width="${(W - P - 10) / laps * p.laps}" height="6" fill="${col[p.f]}"/>`; });
+  for (const f of fams) g += `<polyline points="${vals.map((v, i) => `${X(i + 1).toFixed(1)},${Y(v[f]).toFixed(1)}`).join(' ')}" fill="none" stroke="${col[f]}" stroke-width="2.2" ${f === 'wet' ? 'stroke-dasharray="6 3"' : f === 'inter' ? 'stroke-dasharray="2 2"' : ''}/><text x="${W - 8}" y="${Y(vals[vals.length - 1][f]) - 3}" fill="${col[f]}" font-size="10" font-weight="700" text-anchor="end">${FAM[f]}</text>`;
+  for (const x of o.crossovers) g += `<line x1="${X(x.lap) - (W - P - 10) / laps / 2}" x2="${X(x.lap) - (W - P - 10) / laps / 2}" y1="10" y2="${H - B + 9}" stroke="#fff" stroke-dasharray="3 3" opacity=".75"/><text x="${X(x.lap) - (W - P - 10) / laps / 2 + 3}" y="20" fill="#fff" font-size="9.5" font-weight="700">G${x.lap} → ${FAM[x.to]}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" class="plan-svg"><rect x="${P}" y="10" width="${W - P - 10}" height="${H - B - 10}" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.08)"/>${g}<text x="${(W + P) / 2}" y="${H - 6}" fill="#8b95a7" font-size="10" text-anchor="middle">Tempo perso per tipo di gomma con la pioggia prevista (barre blu) · giro 1 → ${laps}</text></svg>`;
+}
+function wxPhaseText(o) {
+  if (!o.crossovers.length) return `${FAM[o.phases[0].f]} per tutta la gara.`;
+  return `Via con le ${FAM[o.phases[0].f].toLowerCase()}, ${o.crossovers.map((x) => `al giro <b>${x.lap}</b> ${FAM[x.to].toLowerCase()}`).join(', poi ')}.`;
+}
+function wxPanel(st, w, tr, entries, q, C) {
+  const team = playerTeam(st);
+  const o = wxOutlook(st, w, tr);
+  const fc = weatherForecast(st, w, tr);
+  let html = `<div class="wx-brief mb8"><div class="row gap6">${icon('rain', 'ico', 'style="width:22px;height:22px;flex:none"')}<div><b>Gara bagnata o mista</b><div class="small muted">${wxPhaseText(o)} Previsione affidabile al ${fc.perfect ? 100 : fc.acc}%: in gara il meteo vero può anticipare, ritardare o saltare il cambio.</div></div></div></div>`;
+  for (const [ei, e] of entries.entries()) {
+    const d = st.drivers[e.driverIds[0]];
+    const plan = w.plans[e.key];
+    const pol = w.wxPolicy[e.key] || 'auto';
+    const sel = w.startTyre[e.key] || plan[0].c;
+    const load = w.fuel[e.key];
+    const col = ei ? '#ffffff' : team.car.livery.primary;
+    const rec = plan[0].c;
+    let lap = 1;
+    const rows = plan.map((s, i) => { const from = lap; lap += s.laps; const wx = COMPOUNDS[s.c].wet; const prev = plan[i - 1]; const cross = prev && !!COMPOUNDS[prev.c].wet !== wx; return `<div class="wx-stint"><span class="tiny upper muted">Stint ${i + 1}</span>${tyreBadge(s.c)}<b class="small">${COMPOUNDS[s.c].name}</b><span class="small mono muted">G ${from}–${from + s.laps - 1}</span>${i ? `<span class="chip tiny ${cross ? 'info' : ''}">${cross ? 'crossover meteo' : 'sosta pianificata'}</span>` : '<span class="chip tiny">partenza</span>'}</div>`; }).join('');
+    html += `<div class="card mt8 plan-card" style="border-left:3px solid ${col}">
+      <div class="row"><span class="pos">P${q.grid.indexOf(e.key) + 1}</span><b class="grow drv-name" style="font-size:19px">${esc(d.name)}</b></div>
+      <div class="mt8">${stintBar(plan, w.laps)}</div>
+      <div class="col gap4 mt8">${rows}</div>
+      <div class="ss-lbl">Gomme al via</div><div class="row gap4 wrap">${C.compounds.map((cp) => `<button class="btn sm ${sel === cp ? 'active' : ''}" data-a="start-tyre" data-key="${e.key}" data-c="${cp}">${tyreBadge(cp)} ${COMPOUNDS[cp].name}${cp === rec ? ' ★' : ''}</button>`).join('')}</div>
+      ${sel !== rec ? `<div class="tiny warn mt8">L’ingegnere consiglia di partire con le ${COMPOUNDS[rec].name}.</div>` : ''}
+      <div class="ss-lbl">Cambi gomme per il meteo</div><div class="seg">${[['auto', 'Automatici (ingegnere)'], ['manual', 'Decido io in gara']].map(([k, n]) => `<div class="${pol === k ? 'on' : ''}" data-a="pl-wxpol" data-key="${e.key}" data-v="${k}">${n}</div>`).join('')}</div>
+      <div class="tiny muted mt8">${pol === 'auto' ? 'L’ingegnere chiama il box quando la pioggia vera supera il punto di crossover (alle prime gocce o appena la traiettoria si asciuga): nessuna pausa, nessun giro perso.' : 'Ogni cambio di meteo mette la gara in pausa e scegli tu: puoi anticipare tutti o scommettere sulle slick.'}</div>
+      <div class="fuel-row mt8"><span class="tiny upper muted">Benzina al via</span><div class="row gap4"><button class="btn sm" data-a="pl-fuel" data-key="${e.key}" data-d="-0.01">−</button><b class="mono">${Math.round(load * 100)} kg</b><button class="btn sm" data-a="pl-fuel" data-key="${e.key}" data-d="0.01">+</button></div><span class="tiny muted">Sul bagnato si consuma circa il 10% in meno: si può partire più leggeri.</span></div>
+    </div>`;
+  }
+  html += `<div class="mt16">${crossoverSVG(o, tr.lap, w.laps)}</div>`;
+  html += `<div class="small muted mt8">Le linee mostrano quanto si perde al giro con ogni gomma: dove si incrociano conviene cambiare. Il cambio costa una sosta (~${Math.round((tr.pit || 21) + 2.4)}s), per questo un breve piovasco a volte si affronta con le slick.</div>`;
+  return html;
+}
+
 export function plannerPanel(st, w, tr, entries, q, C) {
   const team = playerTeam(st);
   entries.forEach((e) => ensurePlan(st, w, tr, e));
@@ -66,6 +150,8 @@ export function plannerPanel(st, w, tr, entries, q, C) {
   if (dry) {
     const series = [];
     html += `<div class="small muted mb8">${esc(tr.circuit)} · ${w.laps} giri · asfalto ${w.weather.trackTemp}°C · usura tracciato ×${tr.wear}. <span class="${known ? 'good' : 'warn'}">${known ? `Degrado misurato con ${known} long run.` : `Degrado solo stimato (errore fino al ±${Math.round(Math.abs(w.wearErr ?? 0.1) * 100 + 4)}%): fai un long run in prova.`}</span></div>`;
+    { const o = wxOutlook(st, w, tr); const wl = o.rain.map((r, i) => (r > 0.12 ? i + 1 : 0)).filter(Boolean);
+      if (wl.length) html += `<div class="wx-brief mb8"><div class="row gap6">${icon('rain', 'ico', 'style="width:22px;height:22px;flex:none"')}<div><b>Qualche goccia prevista (giri ${wl[0]}–${wl[wl.length - 1]})</b><div class="small muted">Troppo poca per cambiare gomme secondo l’ingegnere: si resta sulle slick. Se in gara la pioggia aumenta, sarai chiamato a decidere.</div></div></div></div>`; }
     for (const [ei, e] of entries.entries()) {
       const d = st.drivers[e.driverIds[0]];
       const ctx = planCtx(st, tr, w.laps, team, d, e.key);
@@ -101,6 +187,7 @@ export function plannerPanel(st, w, tr, entries, q, C) {
     html += `<div class="small muted mt8">In gara l’ingegnere chiama il box al giro pianificato (puoi disattivarlo). Dal pannello <b>Strategia</b> puoi cambiare mescola, spostare la sosta o passare a più/meno soste in qualsiasi momento.</div>`;
   } else if (C.refuel) {
     // endurance: fuel per stop, tyre double stints, driver rotation
+    { const o = wxOutlook(st, w, tr); if (o.wet) html += `<div class="wx-brief mb8"><div class="row gap6">${icon('rain', 'ico', 'style="width:22px;height:22px;flex:none"')}<div><b>Pioggia prevista</b><div class="small muted">${wxPhaseText(o)} Le soste per il meteo si decidono in gara: scegli con cura le gomme al via.</div></div></div></div>`; }
     html += `<div class="small muted mb8">Endurance: un pieno dura circa ${Math.round(2700 / 60)} minuti. Meno benzina per sosta = soste più brevi e auto più leggera, ma più soste. Le gomme possono fare doppio stint.</div>`;
     for (const e of entries) {
       const d = st.drivers[e.driverIds[0]];
@@ -119,6 +206,8 @@ export function plannerPanel(st, w, tr, entries, q, C) {
         <div class="row between mt8 small"><span class="muted">Stint da ~${stintL.toFixed(1)} giri</span><b>${stops} soste previste · ~${stopT.toFixed(0)}s l’una</b></div>
         ${p.swapEvery >= 3 ? '<div class="tiny warn mt8">Dopo 3 stint di fila il pilota si stanca e rallenta.</div>' : ''}</div>`;
     }
+  } else if (circuit(st)) {
+    html += wxPanel(st, w, tr, entries, q, C);
   } else {
     html += entries.map((e) => { const d = st.drivers[e.driverIds[0]]; const pos = q.grid.indexOf(e.key) + 1; const sel = w.startTyre[e.key] || (w.weather.plan[0] > 0.55 ? 'wet' : w.weather.plan[0] > 0.2 ? (C.compounds.includes('inter') ? 'inter' : 'wet') : 'medium'); w.startTyre[e.key] = sel; const load = w.fuel[e.key]; return `<div class="card mb8"><div class="row"><span class="pos">P${pos}</span><b class="grow drv-name" style="font-size:19px">${esc(d.name)}</b></div><div class="row gap6 mt8 wrap">${C.compounds.map((cp) => `<button class="btn sm ${sel === cp ? 'active' : ''}" data-a="start-tyre" data-key="${e.key}" data-c="${cp}">${tyreBadge(cp)} ${COMPOUNDS[cp].name}</button>`).join('')}</div><div class="fuel-row mt8"><span class="tiny upper muted">Benzina al via</span><div class="row gap4"><button class="btn sm" data-a="pl-fuel" data-key="${e.key}" data-d="-0.01">−</button><b class="mono">${Math.round(load * 100)} kg</b><button class="btn sm" data-a="pl-fuel" data-key="${e.key}" data-d="0.01">+</button></div><span class="tiny muted">Sul bagnato si consuma meno: un pieno ridotto è meno rischioso.</span></div></div>`; }).join('');
     html += `<div class="small muted">Pioggia prevista: scegli le gomme in base all’intensità (intermedie per pioggia leggera, full wet per diluvio). In gara l’ingegnere ti proporrà quando tornare alle slick.</div>`;
@@ -149,8 +238,20 @@ export function plannerActions(App, S, getTrack, buildEntries) {
       p[i].laps += dd; p[i + 1].laps -= dd; setPlan(w, el.dataset.key, p);
     },
     'pl-fuel'(el) { const w = S().weekend; w.fuel[el.dataset.key] = +clamp((w.fuel[el.dataset.key] ?? 1.01) + +el.dataset.d, 0.9, 1.06).toFixed(2); App.refresh(); },
+    'pl-wxpol'(el) { const w = S().weekend; (w.wxPolicy ||= {})[el.dataset.key] = el.dataset.v; App.refresh(); },
     'pl-end'(el) { const w = S().weekend; const p = w.endPlan[el.dataset.key]; const f = el.dataset.f; p[f] = f === 'comp' ? el.dataset.v : +el.dataset.v; App.refresh(); },
   };
+}
+
+// What a player car takes into the race from the planner: a dry plan, or (wet / mixed race)
+// the dry stints before the first weather change plus the crossover policy.
+export function racePlan(st, w, key, laps) {
+  const p = w.plans?.[key]; if (!p?.length) return { plan: null, wxAuto: false };
+  const wx = p.some((s) => COMPOUNDS[s.c].wet);
+  const auto = (w.wxPolicy?.[key] || 'auto') === 'auto';
+  if (!wx) return { plan: normalizePlan(p.map((x) => ({ c: x.c, laps: x.laps })), laps), wxAuto: auto && !isDryPlan(st, w) };
+  const lead = []; for (const s of p) { if (COMPOUNDS[s.c].wet) break; lead.push({ c: s.c, laps: s.laps }); }
+  return { plan: lead.length ? normalizePlan(lead, laps) : null, wxAuto: auto, wxPlan: p.map((x) => ({ c: x.c, laps: x.laps })) };
 }
 
 // ---------------- IN-RACE STRATEGY PANEL ----------------
@@ -181,7 +282,8 @@ export function raceStrategyHTML(sim, c, R) {
     html += `<div class="row gap4 mt8"><span class="tiny muted" style="width:70px">Soste rim.</span><div class="seg grow">${[0, 1, 2, 3].map((n) => `<div class="${rem === n ? 'on' : ''}" data-a="rs-stops" data-key="${c.key}" data-n="${n}">${n}</div>`).join('')}</div></div>`;
   } else if (!COMPOUNDS[c.tyre].wet) {
     html += `<div class="small muted mt8">Nessun piano attivo.</div><button class="btn sm mt8" style="width:100%" data-a="rs-stops" data-key="${c.key}" data-n="-1">${icon('target')} Calcola il piano migliore da qui</button>`;
-  } else html += `<div class="small muted mt8">Gomme da bagnato: l’ingegnere ti dirà quando tornare alle slick.</div>`;
+  } else html += `<div class="small muted mt8">Gomme da bagnato: ${c.wxAuto ? 'l’ingegnere chiamerà il box per le slick appena la pista si asciuga.' : 'quando la pista si asciuga deciderai tu quando tornare alle slick.'}</div>`;
+  if (!sim.endurance) html += `<div class="row between mt8 small"><span class="muted" data-tip="Con il crossover automatico l’ingegnere cambia gomme (slick, intermedie, bagnato) seguendo la pioggia reale">Crossover meteo automatico</span><button class="btn sm ${c.wxAuto ? 'active' : ''}" data-a="rs-wx" data-key="${c.key}">${c.wxAuto ? 'ON' : 'OFF'}</button></div>`;
   // crew & fuel
   html += `<div class="ss-lbl">Istruzioni meccanici</div><div class="seg">${[['normal', 'Sosta normale'], ['fast', 'Cambio rapido']].map(([k, n]) => `<div class="${(c.crew || 'normal') === k ? 'on ' + (k === 'fast' ? 'push' : '') : ''}" data-a="rs-crew" data-key="${c.key}" data-v="${k}" data-tip="${k === 'fast' ? 'Circa 0,3s più veloce, ma più rischio di dado lento e rilascio non sicuro' : 'Sosta sicura'}">${n}</div>`).join('')}</div>`;
   if (c.damage > 0.05) html += `<div class="row between mt8 small"><span class="bad">Danni +${c.damage.toFixed(1)}s/giro</span><button class="btn sm ${c.repair !== false ? 'active' : ''}" data-a="rs-repair" data-key="${c.key}" data-tip="Cambio ala/riparazione alla prossima sosta (+${(c.damage * 12).toFixed(0)}s)">${c.repair !== false ? 'Ripara ala: SÌ' : 'Ripara ala: NO'}</button></div>`;
