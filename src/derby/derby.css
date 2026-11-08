@@ -96,3 +96,32 @@
 .dzx.photo .dzx-photo { display: flex; }
 .dzx.photo.photo-clean .dzx-photo { opacity: 0; }
 .dzx-unlock.ach { border-left-color: #3ddc84; background: linear-gradient(90deg, rgba(61,220,132,.22), rgba(61,220,132,.04)); }
+/* ---- callouts, wreck feed, damage diagram, spectator banner ---- */
+.dzx-callout { position: absolute; top: 41%; left: 50%; transform: translate(-50%, -50%) scale(.6); font-size: 92px; font-weight: 900; font-style: italic; letter-spacing: .01em; color: #fff; -webkit-text-stroke: 2px rgba(0,0,0,.45); text-shadow: 0 6px 0 rgba(0,0,0,.35), 0 0 40px rgba(255,140,30,.55); opacity: 0; white-space: nowrap; pointer-events: none; }
+.dzx-callout.on { animation: dzxslam 1.7s cubic-bezier(.2,1.5,.35,1) both; }
+.dzx-callout.red { color: #ff3b2b; text-shadow: 0 6px 0 rgba(0,0,0,.35), 0 0 46px rgba(255,40,20,.6); }
+.dzx-callout.gold { color: #ffd400; text-shadow: 0 6px 0 rgba(0,0,0,.35), 0 0 46px rgba(255,212,0,.6); }
+.dzx-callout.air { color: #6be4ff; text-shadow: 0 6px 0 rgba(0,0,0,.35), 0 0 46px rgba(80,200,255,.55); }
+@keyframes dzxslam { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.4) rotate(-4deg); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(.94) rotate(-4deg); } 20% { transform: translate(-50%, -50%) scale(1.04) rotate(-4deg); } 26%, 78% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-4deg); } 100% { opacity: 0; transform: translate(-50%, -62%) scale(1.06) rotate(-4deg); } }
+.dzx-feed { position: absolute; top: 232px; right: 16px; width: 236px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; font-family: var(--body, sans-serif); }
+.dzx-feed div { display: flex; align-items: center; gap: 6px; background: rgba(8,10,14,.7); border-right: 3px solid #ff3b3b; padding: 4px 9px; border-radius: 5px; font-size: 12.5px; animation: dzxfeed .3s ease-out both; transition: opacity .5s; white-space: nowrap; }
+.dzx-feed div.out { opacity: 0; }
+.dzx-feed i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; } .dzx-feed b { color: #ffd400; } .dzx-feed u { text-decoration: none; color: #ff3b3b; font-weight: 900; } .dzx-feed em { font-style: normal; opacity: .75; }
+@keyframes dzxfeed { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+.dzx-carmap { position: absolute; right: 362px; bottom: 24px; width: 52px; height: 90px; filter: drop-shadow(0 3px 8px rgba(0,0,0,.6)); }
+.dzx-carmap path, .dzx-carmap .z-cab { fill: #3ddc84; stroke: rgba(0,0,0,.55); stroke-width: 1.2; transition: fill .3s; }
+.dzx-carmap rect[class^="w"] { fill: #1a1a1a; stroke: rgba(255,255,255,.35); stroke-width: 1; }
+.dzx-carmap rect.lost { fill: #ff3b3b; animation: dzxblink .6s infinite; }
+.dzx-bar.nitro div { position: relative; }
+.dzx-bar.nitro s { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 2px), rgba(10,12,16,.85) calc(25% - 2px) 25%); pointer-events: none; }
+.dzx-bar.nitro.ready span { color: #6be4ff; }
+.dzx-bar.nitro.on div { box-shadow: 0 0 16px rgba(255,140,30,.7); }
+.dzx-spec { position: absolute; left: 50%; top: 66px; transform: translateX(-50%); display: none; align-items: center; gap: 14px; background: linear-gradient(90deg, rgba(225,6,0,.9), rgba(140,10,10,.85)); padding: 8px 10px 8px 18px; border-radius: 10px; pointer-events: auto; text-shadow: none; box-shadow: 0 8px 26px rgba(0,0,0,.45); }
+.dzx-spec.on { display: flex; animation: dzxpop .4s both; }
+.dzx-spec b { font-size: 22px; font-style: italic; letter-spacing: .08em; } .dzx-spec span { font-family: var(--body, sans-serif); font-size: 14px; } .dzx-spec i { font-style: normal; font-weight: 800; color: #ffd400; } .dzx-spec em { font-style: normal; opacity: .8; }
+.dzx.spectating .dzx-dash, .dzx.spectating .dzx-carmap, .dzx.spectating .dzx-score, .dzx.spectating .dzx-pos, .dzx.spectating .dzx-warn { display: none; }
+.dzx-over .btn:focus-visible, html.pad-nav .dzx-over .btn:focus { outline: 3px solid #ffd400; outline-offset: 2px; }
+@media (max-width: 900px) { .dzx-carmap { display: none; } .dzx-feed { display: none; } .dzx-callout { font-size: 64px; } }
+.dzx-pos.up { animation: dzxposup .6s ease-out; } .dzx-pos.down { animation: dzxposdn .6s ease-out; }
+@keyframes dzxposup { 0% { transform: skewX(-12deg) scale(1.35); filter: brightness(1.8) drop-shadow(0 0 14px #3ddc84); } 100% { transform: skewX(-12deg) scale(1); } }
+@keyframes dzxposdn { 0% { transform: skewX(-12deg) translateY(4px); filter: saturate(.3) brightness(.8); } 100% { transform: skewX(-12deg); } }

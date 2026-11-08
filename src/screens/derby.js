@@ -36,6 +36,21 @@ function carStats(spec, base = null) {
   return `<div class="dz-stats"><span>Potenza</span>${bar(...r('power', 1.6))}<span>Velocità</span>${bar(...r('top', 1.3))}<span>Resistenza</span>${bar(...r('armor', 2.3))}<span>Tenuta</span>${bar(...r('grip', 1.4))}</div>`;
 }
 
+// controller / keyboard navigation of the menu: the shared pad helper focuses elements and clicks
+// them with A, LB/RB switch [role=tab]; the clickable cards here are plain <div data-a>, so they
+// get a tab stop, the tab strip gets ARIA tab roles, and Enter/Space activate a focused card
+function padReady() {
+  const root = document.querySelector('.dz-menu'); if (!root) return;
+  for (const el of root.querySelectorAll('[data-a]:not(button):not(a):not(input)')) el.tabIndex = 0;
+  const tabs = root.querySelector('.dz-tabs'); if (tabs) { tabs.setAttribute('role', 'tablist'); for (const t of tabs.querySelectorAll('.dz-tab')) { t.setAttribute('role', 'tab'); t.setAttribute('aria-selected', t.classList.contains('on') ? 'true' : 'false'); } }
+  if (!root._dzKeys) {
+    root._dzKeys = true;
+    root.addEventListener('keydown', (e) => { const el = e.target; if ((e.key === 'Enter' || e.key === ' ') && el?.matches?.('[data-a]:not(button)')) { e.preventDefault(); el.click(); } });
+    root.addEventListener('click', (e) => { const el = e.target.closest?.('[data-a]'); if (el && document.documentElement.classList.contains('pad-nav')) D.focus = ['a', 'id', 'k', 'v'].filter((k) => el.dataset[k] != null).map((k) => `[data-${k}="${CSS.escape(el.dataset[k])}"]`).join(''); }, { capture: true });
+  }
+  // keep the controller focus on the same card across re-renders (App.refresh rebuilds the DOM)
+  if (D.focus) { const el = root.querySelector(D.focus); if (el) el.focus({ preventScroll: true }); D.focus = null; }
+}
 function achToast() { for (const c of checkChallenges({})) { App.toast?.(`Sfida completata: ${c.name}`, `+${money(c.prize)}`); try { sfx.levelup?.(); } catch {} } }
 // ---------------------------------------------------------------- garage turntable preview
 const PV = { r: null, raf: 0, key: '' };
@@ -179,6 +194,7 @@ registerScreen({
   async mount() {
     if (!D.playing) {
       try { music.setMood('race'); } catch {}
+      padReady();
       const pv = document.getElementById('dz-pv'); if (pv) mountPreview(pv, prog()).catch((e) => console.warn(e));
       return;
     }

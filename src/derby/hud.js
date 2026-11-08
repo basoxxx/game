@@ -16,6 +16,10 @@ export function buildHud(game) {
     <div class="dzx-score"><span>PUNTI SCONTRO</span><b id="dzx-score">0</b></div>
     <div class="dzx-mode" id="dzx-mode"></div>
     <div class="dzx-big" id="dzx-big"></div>
+    <div class="dzx-callout" id="dzx-callout"></div>
+    <div class="dzx-feed" id="dzx-feed"></div>
+    <div class="dzx-spec" id="dzx-spec"><b>ELIMINATO</b><span>Segui il leader: <i id="dzx-spec-n"></i> · <em id="dzx-spec-l"></em></span><button class="btn sm" id="dzx-spec-x">Vai ai risultati · Invio / A</button></div>
+    <svg class="dzx-carmap" id="dzx-carmap" viewBox="0 0 56 96"><path class="z-front" d="M12 6 Q28 -2 44 6 L46 24 H10 Z"/><path class="z-left" d="M10 26 H18 V70 H10 Z"/><path class="z-right" d="M38 26 H46 V70 H38 Z"/><rect class="z-cab" x="20" y="30" width="16" height="34" rx="3"/><path class="z-rear" d="M10 72 H46 L44 90 Q28 96 12 90 Z"/><rect class="w0" x="3" y="14" width="6" height="14" rx="2"/><rect class="w1" x="47" y="14" width="6" height="14" rx="2"/><rect class="w2" x="3" y="66" width="6" height="14" rx="2"/><rect class="w3" x="47" y="66" width="6" height="14" rx="2"/></svg>
     <div class="dzx-board" id="dzx-board"></div>
     <div class="dzx-msgs" id="dzx-msgs"></div>
     <div class="dzx-count" id="dzx-count"><div class="dzx-lights"><i></i><i></i><i></i></div><b></b></div>
@@ -23,7 +27,7 @@ export function buildHud(game) {
     <div class="dzx-dash">
       <div class="dzx-rpm"><i id="dzx-rpm"></i></div>
       <div class="dzx-sp"><b id="dzx-spd">0</b><small>km/h</small><span class="dzx-gear" id="dzx-gear">N</span></div>
-      <div class="dzx-bar nitro"><span>NITRO</span><div><i id="dzx-nitro"></i></div></div>
+      <div class="dzx-bar nitro"><span>NITRO</span><div><i id="dzx-nitro"></i><s></s></div></div>
       <div class="dzx-bar dmg"><span>TELAIO</span><div><i id="dzx-hp"></i></div></div></div>
     <canvas class="dzx-map" id="dzx-map" width="220" height="220"></canvas>
     <div class="dzx-help">W/S gas e freno · A/D sterzo · Spazio freno a mano · Shift nitro · Q guarda dietro · C camera · R riposiziona · T ricomincia · F filtro · O foto · Esc pausa · Gamepad: grilletti, stick, A nitro, B freno a mano, X camera, Y riposiziona, LB guarda dietro</div>
@@ -31,9 +35,10 @@ export function buildHud(game) {
     <div class="dzx-photo" id="dzx-photo"><b>${'MODALITÀ FOTO'}</b><span>Trascina: ruota · Tasto destro/Shift: sposta · Rotella o W/S: zoom · Q/E: altezza · Z/X: obiettivo · R/T: inclina · F: filtro <i id="dzx-photo-f"></i> · H: nascondi · <u>Invio: scatta</u> · O/Esc: esci</span><em id="dzx-photo-m"></em></div>
     <div class="dzx-over dzx-pause" id="dzx-pause"><h2>Pausa</h2><div class="dzx-btns"><button class="btn primary lg" data-a="dz-resume">Riprendi</button><button class="btn lg" data-a="dz-restart">Ricomincia</button><button class="btn lg" id="dzx-photo-btn">Modalità foto</button><button class="btn ghost lg" data-a="dz-quit">Esci</button></div></div>
     <div class="dzx-over dzx-results" id="dzx-results"></div>
-    <div class="dzx-replay" id="dzx-replay"><b>REPLAY</b><span>Il botto più bello della gara</span><button class="btn sm" id="dzx-replay-x">Chiudi (Esc)</button></div>`;
+    <div class="dzx-replay" id="dzx-replay"><b>REPLAY</b><span>Il botto più bello della gara</span><button class="btn sm" id="dzx-replay-x">Salta · Invio / A</button></div>`;
   const $ = (id) => h.querySelector('#' + id);
-  game.hud = { mode: $('dzx-mode'), big: $('dzx-big'), root: h, pause: $('dzx-pause'), pos: $('dzx-pos'), lap: $('dzx-lap'), time: $('dzx-time'), laps: $('dzx-laps'), board: $('dzx-board'), msgs: $('dzx-msgs'), count: $('dzx-count'), warn: $('dzx-warn'), rpm: $('dzx-rpm'), spd: $('dzx-spd'), gear: $('dzx-gear'), nitro: $('dzx-nitro'), hp: $('dzx-hp'), score: $('dzx-score'), slow: $('dzx-slow'), results: $('dzx-results'), replay: $('dzx-replay') };
+  game.hud = { mode: $('dzx-mode'), big: $('dzx-big'), root: h, pause: $('dzx-pause'), pos: $('dzx-pos'), lap: $('dzx-lap'), time: $('dzx-time'), laps: $('dzx-laps'), board: $('dzx-board'), msgs: $('dzx-msgs'), count: $('dzx-count'), warn: $('dzx-warn'), rpm: $('dzx-rpm'), spd: $('dzx-spd'), gear: $('dzx-gear'), nitro: $('dzx-nitro'), hp: $('dzx-hp'), score: $('dzx-score'), slow: $('dzx-slow'), results: $('dzx-results'), replay: $('dzx-replay'), callout: $('dzx-callout'), feed: $('dzx-feed'), spec: $('dzx-spec'), specN: $('dzx-spec-n'), specL: $('dzx-spec-l'), carmap: $('dzx-carmap') }
+  $('dzx-spec-x').addEventListener('click', () => game.endSpectate());;
   $('dzx-replay-x').addEventListener('click', () => game.stopReplay());
   $('dzx-photo-btn').addEventListener('click', () => game.photoMode(true));
   game.hud.photoF = $('dzx-photo-f'); game.hud.photoMsg = $('dzx-photo-m');
@@ -91,7 +96,14 @@ export function updateHud(game, dt) {
   if (H.warn.textContent !== warn) { H.warn.textContent = warn; H.warn.classList.toggle('on', !!warn); }
   if (game._hudT < 0.12) return; game._hudT = 0;
   const st = game.standings(); const myPos = st.indexOf(P) + 1;
-  H.pos.textContent = myPos;
+  // damage diagram: each panel goes green -> amber -> red with the hits it took; lost wheels blink
+  const zd = P.zoneDmg || {}, col = (d) => { const k = Math.min(1, d / 55); return k < 0.5 ? `hsl(${130 - k * 160},75%,48%)` : `hsl(${50 - (k - 0.5) * 100},85%,${50 - (k - 0.5) * 16}%)`; };
+  for (const z of ['front', 'rear', 'left', 'right']) { const el = H.carmap.querySelector('.z-' + z); const c = col(zd[z] || 0); if (el._c !== c) { el._c = c; el.style.fill = c; } }
+  H.carmap.querySelector('.z-cab').style.fill = col((100 - P.hp) * 0.55);
+  P.wheelLost.forEach((l, i) => H.carmap.querySelector('.w' + i).classList.toggle('lost', l));
+  H.nitro.parentNode.parentNode.classList.toggle('ready', P.nitro >= 25);
+  if (game.spectate) { H.specN.textContent = game.spectate.name; H.specL.textContent = `${game.cars.filter((c) => !c.out).length} ancora in gara`; }
+  if (H.pos.textContent !== String(myPos)) { const up = +H.pos.textContent > myPos && game.state === 'race'; H.pos.textContent = myPos; const box = H.pos.parentNode; box.classList.remove('up', 'down'); void box.offsetWidth; box.classList.add(up ? 'up' : 'down'); }
   H.lap.textContent = game.track.arena ? `IN GARA ${game.cars.filter((c) => !c.out).length}/${game.cars.length}` : game.mode === 'stunt' ? `TENTATIVO ${game.stunt.att}/${game.stunt.max}` : game.mode === 'elim' ? `GIRO ${P.lap + 1} · IN GARA ${game.cars.filter((c) => !c.out).length}` : `GIRO ${Math.min(game.laps, P.lap + 1)}/${game.laps}`;
   const t = game.state === 'countdown' ? 0 : game.time; H.time.textContent = fmt(t);
   if (!game.track.arena) H.laps.innerHTML = `${P.lastLap ? `Ultimo ${fmt(P.lastLap)}` : ''}${P.bestLap ? ` · <b>Migliore ${fmt(P.bestLap)}</b>` : ''}`;
@@ -105,7 +117,7 @@ function modePanel(game, H) {
   const tgt = (t, i, cur) => `<span class="m${3 - i} ${cur != null && cur > t ? 'gone' : ''}"><i></i>${fmt(t)}</span>`;
   if (m === 'time' && game.targets) { const cur = game.state === 'countdown' ? 0 : game.time; html = `<div class="dzx-mh">Contro il tempo${game.ghost ? ` · fantasma <b>${fmt(game.ghost.time)}</b>` : ''}</div><div class="dzx-tg">${[2, 1, 0].map((k, i) => tgt(game.targets[k], i, cur)).join('')}</div>`; }
   else if (m === 'stunt') { const S = game.stunt, T = game.targets; html = `<div class="dzx-mh">Salto in lungo · migliore <b>${S.best ? S.best.toFixed(1).replace('.', ',') + ' m' : '—'}</b></div><div class="dzx-tg">${[2, 1, 0].map((k, i) => `<span class="m${3 - i} ${S.best >= T[k] ? 'got' : ''}"><i></i>${T[k]} m</span>`).join('')}</div><div class="dzx-att">${Array.from({ length: S.max }, (_, i) => `<u class="${i < S.dists.length ? 'done' : i === S.att - 1 ? 'cur' : ''}">${i < S.dists.length ? (S.dists[i] ? S.dists[i].toFixed(1).replace('.', ',') : 'X') : i + 1}</u>`).join('')}</div>`; }
-  else if (m === 'caccia' && game.lepre) { const L = game.lepre, d = Math.min(100, Math.round(game.huntDmg || 0)); const a = L.body.translation(), b = game.player.body.translation(); const dist = Math.round(Math.hypot(a.x - b.x, a.z - b.z)); html = `<div class="dzx-mh">La Lepre · ${dist} m · danni inflitti <b>${d}%</b></div><div class="dzx-hunt"><i style="width:${d}%"></i><s style="left:20%"></s><s style="left:50%"></s></div>`; }
+  else if (m === 'caccia' && game.lepre) { const L = game.lepre, d = Math.min(100, Math.round(game.huntDmg || 0)); const a = L.body.translation(), b = game.player.body.translation(); const dist = Math.round(Math.hypot(a.x - b.x, a.z - b.z)); html = `<div class="dzx-mh">La Lepre · ${dist} m · danni inflitti <b>${d}%</b></div><div class="dzx-hunt"><i style="width:${d}%"></i><s style="left:15%"></s><s style="left:40%"></s></div>`; }
   else if (m === 'elim') { html = `<div class="dzx-mh">Eliminazione · l’ultimo a fine giro esce</div>`; }
   if (H.mode._h !== html) { H.mode._h = html; H.mode.innerHTML = html; H.mode.classList.toggle('on', !!html); }
 }
@@ -132,7 +144,7 @@ export function showResults(game, R = null) {
   const m = R.medal;
   if (mode === 'stunt') { title = R.distance ? `${R.distance.toFixed(1).replace('.', ',')} m` : 'Nessun salto valido'; detail = `<div class="dzx-att big">${R.dists.map((d, i) => `<u class="done ${d && d === R.distance ? 'best' : ''}"><small>Salto ${i + 1}</small>${d ? d.toFixed(1).replace('.', ',') + ' m' : 'nullo'}</u>`).join('')}</div><div class="dzx-tg res">${[0, 1, 2].map((k) => `<span class="m${k + 1} ${R.distance >= R.targets[k] ? 'got' : ''}"><i></i>${MEDALS[k + 1]} ${R.targets[k]} m</span>`).join('')}</div>`; }
   else if (mode === 'time') { title = R.time ? fmt(R.time) : 'Non classificato'; detail = `<div class="dzx-tg res">${[0, 1, 2].map((k) => `<span class="m${k + 1} ${R.time && R.time <= R.targets[k] ? 'got' : ''}"><i></i>${MEDALS[k + 1]} ${fmt(R.targets[k])}</span>`).join('')}</div><div class="small muted mt8" style="text-align:center">${P.bestLap ? `Giro migliore ${fmt(P.bestLap)}` : ''}${R.newGhost ? ` · <b style="color:#3ddc84">Nuovo record della pista: il tuo fantasma ti aspetta!</b>` : R.ghostPrev ? ` · Record: ${fmt(R.ghostPrev)}` : ''}</div>`; }
-  else if (mode === 'caccia') { title = R.huntWreck ? 'LEPRE DEMOLITA!' : `Danni alla Lepre: ${R.huntDmg}%`; detail = `<div class="dzx-hunt res"><i style="width:${R.huntDmg}%;background:linear-gradient(90deg,#ff6a00,#ffcf3a)"></i><s style="left:20%"></s><s style="left:50%"></s></div><div class="small muted mt8">Bronzo 20% · Argento 50% · Oro: demoliscila</div>`; }
+  else if (mode === 'caccia') { title = R.huntWreck ? 'LEPRE DEMOLITA!' : `Danni alla Lepre: ${R.huntDmg}%`; detail = `<div class="dzx-hunt res"><i style="width:${R.huntDmg}%;background:linear-gradient(90deg,#ff6a00,#ffcf3a)"></i><s style="left:15%"></s><s style="left:40%"></s></div><div class="small muted mt8">Bronzo 15% · Argento 40% · Oro: demoliscila</div>`; }
   else title = myPos === 1 ? '🏆 VITTORIA!' : `${myPos}° posto`;
   const showTable = !['stunt', 'time'].includes(mode);
   const table = showTable ? `<table class="tbl"><thead><tr><th>Pos</th><th>Pilota</th><th>${arena ? 'Stato' : mode === 'elim' ? 'Esito' : 'Tempo'}</th>${arena || mode === 'elim' ? '' : '<th>Giro migliore</th>'}<th>Demolizioni</th><th>Punti scontro</th></tr></thead><tbody>${res.map((c, i) => `<tr class="${c.isPlayer ? 'me' : ''} ${c.lepre ? 'lepre' : ''}"><td>${i + 1}</td><td><i class="dzx-dot" style="background:${c.color}"></i>${esc(c.name)}</td><td>${arena ? (c.out ? 'Distrutto' : 'In piedi') : mode === 'elim' ? (c.out ? `Eliminato al giro ${c.elimLap || '?'}` : 'Sopravvissuto') : c.finished ? fmt(c.time) : 'In pista'}</td>${arena || mode === 'elim' ? '' : `<td>${c.bestLap ? fmt(c.bestLap) : '—'}</td>`}<td>${c.kills || 0}</td><td>${Math.round(c.score || 0)}</td></tr>`).join('')}</tbody></table>` : '';
