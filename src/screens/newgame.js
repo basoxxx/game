@@ -125,17 +125,17 @@ function step3() {
   return `<div class="grid2 anim-in" style="max-width:1240px;gap:24px">
     <div class="panel"><div class="panel-head"><h3>Il tuo profilo</h3></div>
       <label class="lbl">Nome del Team Principal</label><input type="text" id="pname" value="${esc(W.name)}" maxlength="24" style="width:100%;margin-top:8px;font-size:24px;font-family:var(--display);font-weight:700;text-transform:uppercase;letter-spacing:.03em">
-      <div class="panel-head mt24"><h3>Difficoltà</h3></div>
+      <div class="panel-head" style="margin-top:28px"><h3>Difficoltà</h3></div>
       <div class="grid3">${Object.entries(DIFFICULTY).map(([k, d]) => opt('diff', k, d.name, d.desc)).join('')}</div>
-      <div class="panel-head mt24"><h3>Il tuo mandato</h3><span class="small muted">Cosa prometti al consiglio</span></div>
+      <div class="panel-head" style="margin-top:28px"><h3>Il tuo mandato</h3><span class="small muted">Cosa prometti al consiglio</span></div>
       <div class="grid3">${Object.entries(MANDATES).map(([k, m]) => opt('mandate', k, m.name, m.desc)).join('')}</div>
-      <div class="panel-head mt24"><h3>Slot di salvataggio</h3></div>
+      <div class="panel-head" style="margin-top:28px"><h3>Slot di salvataggio</h3></div>
       <div class="row gap6">${saves.map((s) => `<button class="btn ${W.slot == s.slot ? 'active' : ''}" data-a="opt" data-k="slot" data-v="${s.slot}" data-tip="${s.empty ? 'Slot vuoto' : 'Contiene una partita'}">Slot ${s.slot}${s.empty ? '' : ' ·'}</button>`).join('')}</div>
       ${!saves.find((s) => s.slot == W.slot)?.empty ? '<div class="small warn mt8">Attenzione: lo slot contiene già una partita e verrà sovrascritto.</div>' : ''}
     </div>
     <div class="panel"><div class="panel-head"><h3>Durata stagione</h3></div>
       <div class="grid3">${opt('len', 'short', 'Corta', 'Meno eventi')}${opt('len', 'normal', 'Standard', 'Consigliata')}${opt('len', 'full', 'Completa', 'Tutto il calendario')}</div>
-      <div class="panel-head mt24"><h3>Durata ${W.cat === 'rally' ? 'rally' : 'gare'}</h3></div>
+      <div class="panel-head" style="margin-top:28px"><h3>Durata ${W.cat === 'rally' ? 'rally' : 'gare'}</h3></div>
       <div class="grid4" style="grid-template-columns:repeat(4,1fr)">${opt('race', 'short', 'Sprint', W.cat === 'formula' ? '25% dei giri' : 'Gare brevi')}${opt('race', 'normal', 'Standard', W.cat === 'formula' ? '40% dei giri' : 'Consigliata')}${opt('race', 'long', 'Lunga', W.cat === 'formula' ? '66% dei giri' : 'Più stint')}${opt('race', 'full', 'Reale', W.cat === 'formula' ? '100% dei giri' : 'Massima durata')}</div>
       <div class="row mt24" style="justify-content:flex-end"><button class="btn primary xl pulse" data-a="start">${icon('flag')} Inizia la Carriera</button></div>
     </div>
