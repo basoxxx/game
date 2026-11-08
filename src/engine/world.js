@@ -28,11 +28,11 @@ export function makeDriver([name, nat, age, pace, cons, race, wet, tyre, exp, po
   };
 }
 
-export function generateRookie(cat, quality = 1) {
+export function generateRookie(cat, quality = 1, bonus = 0) {
   const nat = pick(NATS);
   const pool = NAME_POOLS[nat];
   const age = randInt(17, 22);
-  const base = clamp(gauss(70, 4) * (0.97 + quality * 0.03), 58, 84);
+  const base = clamp(gauss(70, 4) * (0.97 + quality * 0.03) + bonus, 58, 84);
   const v = () => Math.round(clamp(base + gauss(0, 4), 50, 90));
   const pot = Math.round(clamp(base + rand(6, 24), 70, 99));
   return makeDriver([`${pick(pool.f)} ${pick(pool.l)}`, nat, age, v(), v() - 3, v(), v(), v() - 2, randInt(5, 30), pot]);
@@ -44,7 +44,7 @@ export function generateVeteranFreeAgent(cat) {
   // Formula Apex 2 is a junior series: its free agents are young journeymen, not seasoned pros
   const jr = cat === 'junior';
   const age = jr ? randInt(21, 25) : randInt(25, 36);
-  const base = jr ? clamp(gauss(69, 3), 62, 76) : clamp(gauss(76, 4), 66, 86);
+  const base = jr ? clamp(gauss(66.5, 3), 60, 72) : clamp(gauss(76, 4), 66, 86);
   const v = () => Math.round(clamp(base + gauss(0, 3.5), 55, 92));
   return makeDriver([`${pick(pool.f)} ${pick(pool.l)}`, nat, age, v(), v(), v(), v(), v(), randInt(40, 85), Math.round(base + rand(0, 3))]);
 }
@@ -71,7 +71,8 @@ export const FACILITIES = {
 
 export function salaryFor(d, cat) {
   const o = driverOverall(d, cat);
-  const scale = CATEGORIES[cat].budgetScale;
+  // Formula Apex 2: talent is scarce and agents know it — good juniors cost a real slice of the budget
+  const scale = cat === 'junior' ? 0.3 : CATEGORIES[cat].budgetScale;
   return +(Math.max(0.3, (Math.max(0, o - 60) / 38) ** 3.2 * 42) * scale + 0.25).toFixed(2);
 }
 
@@ -191,7 +192,7 @@ export function createWorld({ playerName, category, teamId, difficulty, seasonLe
     const t = teamFromData(td, cat, difficulty, td.id === teamId);
     state.teams[t.id] = t;
     if (td.gen && !(td.d && td.d.length)) {
-      for (let k = 0; k < 2; k++) { const d = generateRookie(cat, 1.03); d.teamId = t.id; d.contract = randInt(1, 2); d.salary = salaryFor(d, cat); d.number = nextNumber(); state.drivers[d.id] = d; t.drivers.push(d.id); }
+      for (let k = 0; k < 2; k++) { const d = generateRookie(cat, 1.03, cat === 'junior' ? (td.rep - 54) * 0.32 : 0); d.teamId = t.id; d.contract = randInt(1, 2); d.salary = salaryFor(d, cat); d.number = nextNumber(); state.drivers[d.id] = d; t.drivers.push(d.id); }
     }
     for (const dd of td.d || []) {
       const d = makeDriver(dd);

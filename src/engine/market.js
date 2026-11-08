@@ -65,7 +65,7 @@ export function offerScore(state, d, team, salary, years, opts = {}) {
   let score = (ratio <= 1 ? ratio : 1 + (ratio - 1) * (0.4 + P.money * 0.5)) * (0.4 + P.money * 0.3);
   score += cs * (0.15 + ambition * 0.25 + P.car * 0.3);
   if (P === PERSONAS.ambizioso && cs < 0.5 && ov >= 82) score -= (0.5 - cs) * 0.4;
-  score += (team.rep / 100) * 0.22;
+  score += (team.rep / 100) * 0.22 + (team.invest?.bonus || 0) * 0.035 + (team.invest?.hq ? 0.02 : 0);
   if (d.teamId === team.id) score += 0.1 + P.loyal + clamp((d.morale - 60) / 300, -0.15, 0.1);
   if (d.age < 23) score += 0.06;
   score -= Math.abs(years - dem.prefYears) * 0.035;

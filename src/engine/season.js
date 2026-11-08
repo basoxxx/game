@@ -10,7 +10,7 @@ import { bindMarket, evaluateOffer, marketTick, developDriver, seasonMarket, aiS
 import { postRaceComponents } from './components.js';
 import { processStewards } from './stewards.js';
 import { updateLegacy, recordCareerRace, legacyInfo } from './legacy.js';
-import { dynPostRound, dynEndSeason, dynNewSeason, teamTrait, facilityCap, STATUS, statusIdx, repSpan, strengthRanking, principalReact } from './dynasty.js';
+import { invLevel, dynPostRound, dynEndSeason, dynNewSeason, teamTrait, facilityCap, STATUS, statusIdx, repSpan, strengthRanking, principalReact } from './dynasty.js';
 
 export const fmtM = (v) => `${v < 0 ? '-' : ''}€${Math.abs(v).toFixed(Math.abs(v) >= 100 ? 0 : 1)}M`;
 
@@ -18,8 +18,8 @@ export function cat(state) { return CATEGORIES[state.category]; }
 export function playerTeam(state) { return state.teams[state.playerTeam]; }
 export function teamDrivers(state, team) { return team.drivers.map((id) => state.drivers[id]).filter(Boolean); }
 
-export function addMail(state, { from, subject, body, type = 'info', icon }) {
-  state.inbox.unshift({ id: uid('m'), from, subject, body, type, icon, read: false, season: state.season, round: state.round });
+export function addMail(state, { from, subject, body, type = 'info', icon, card }) {
+  state.inbox.unshift({ id: uid('m'), from, subject, body, type, icon, read: false, season: state.season, round: state.round, ...(card ? { card } : {}) });
   if (state.inbox.length > 80) state.inbox.length = 80;
 }
 export function addNews(state, text) {
@@ -64,7 +64,7 @@ export const RD_APPROACH = {
   std: { name: 'Standard', gain: 1, fail: 1, desc: 'L’equilibrio collaudato dalla fabbrica.' },
   bold: { name: 'Aggressivo', gain: 1.3, fail: 1.8, desc: 'Guadagno +30%, ma rischio quasi doppio e pezzi più fragili.' },
 };
-export function rdSlots(team, state) { return 1 + Math.floor(team.facilities.factory / 2) + (team.isPlayer && hasPerk(state, 'rd_slot') ? 1 : 0); }
+export function rdSlots(team, state) { return 1 + Math.floor(team.facilities.factory / 2) + (team.isPlayer && hasPerk(state, 'rd_slot') ? 1 : 0) + (team.isPlayer ? invLevel(team, 'hq') : 0); }
 export function rdCost(state, tier) { return +(RD_TIERS[tier].cost * cat(state).budgetScale * (hasPerk(state, 'rd_cost') ? 0.88 : 1)).toFixed(2); }
 function diminish(val) { return clamp((102 - val) / 24, 0.18, 1.35); }
 
@@ -107,9 +107,18 @@ export function atrFactor(state, team) {
 }
 export function costCap(state) { return +(92 * cat(state).budgetScale).toFixed(1); }
 export function capSpent(state) {
-  return -state.finance.filter((f) => f.season === state.season && f.amount < 0 && (f.label.startsWith('R&D') || f.label.startsWith('Cantiere') || f.label.startsWith('Produzione'))).reduce((a, b) => a + b.amount, 0);
+  return -state.finance.filter((f) => f.season === state.season && f.amount < 0 && (f.label.startsWith('R&D') || f.label.startsWith('Produzione'))).reduce((a, b) => a + b.amount, 0);
 }
 export function partName(state, id) { return cat(state).parts.find((p) => p.id === id)?.name || id; }
+
+// Formula Apex 2 is a near-spec series: the organisers homologate parts, so the further a car
+// sits above the field average the less a new upgrade is allowed to add (scrutineering "parity" rule)
+export function specCeiling(state, partId, cur) {
+  if (state.category !== 'junior') return 1;
+  const vals = Object.values(state.teams).map((t) => t.car.parts[partId]).filter(Number.isFinite);
+  const avg = vals.reduce((a, b) => a + b, 0) / Math.max(1, vals.length);
+  return clamp(1 - (cur - avg - 1) / 5, 0.15, 1);
+}
 
 function completeProject(state, team, proj) {
   const T = RD_TIERS[proj.tier];
@@ -118,12 +127,13 @@ function completeProject(state, team, proj) {
   const wtF = 1 + (team.facilities.windtunnel - 1) * 0.06;
   const A = RD_APPROACH[proj.approach] || RD_APPROACH.std;
   const trait = (id) => team.isPlayer && teamTrait(state, team, 'td', id);
-  const failP = (T.fail * (1.3 - (td?.rating || 60) / 160) * A.fail + (proj.rushed ? 0.06 : 0)) * (trait('prudent') ? 0.5 : 1);
+  const ngt = team.isPlayer ? invLevel(team, 'tunnel') : 0; // next-generation wind tunnel (investment outside the cap)
+  const failP = (T.fail * (1.3 - (td?.rating || 60) / 160) * A.fail + (proj.rushed ? 0.06 : 0)) * (trait('prudent') ? 0.5 : 1) * (1 - ngt * 0.12);
   const cur = team.car.parts[proj.part];
   let gain;
   proj.failed = false;
   if (chance(failP)) { gain = rand(-0.5, 1); proj.failed = true; }
-  else gain = rand(T.gain[0], T.gain[1]) * tdF * wtF * diminish(cur) * atrFactor(state, team) * A.gain;
+  else gain = rand(T.gain[0], T.gain[1]) * tdF * wtF * diminish(cur) * atrFactor(state, team) * A.gain * (1 + ngt * 0.06);
   if (!proj.failed && trait('aero') && ['aero', 'chassis', 'suspension'].includes(proj.part)) gain *= 1.15;
   if (!proj.failed && trait('motor') && ['engine', 'gearbox', 'efficiency'].includes(proj.part)) gain *= 1.15;
   if (!proj.failed && trait('visionary') && proj.next) gain *= 1.2;
@@ -132,7 +142,7 @@ function completeProject(state, team, proj) {
     if (hasPerk(state, 'rd_gain')) gain *= 1.1;
     if (hasPerk(state, 'reverse')) { const vals = Object.values(state.teams).map((t) => t.car.parts[proj.part]).sort((a, b) => a - b); if (cur < vals[Math.floor(vals.length / 2)]) gain *= 1.2; }
   }
-  if (state.category === 'junior' && gain > 0) gain *= 0.6; // near-spec cars: development matters less than drivers
+  if (state.category === 'junior' && gain > 0) gain *= 0.6 * specCeiling(state, proj.part, cur); // near-spec cars: development matters less than drivers
   gain = +gain.toFixed(1);
   if (proj.next) { team.nextYear ||= {}; team.nextYear[proj.part] = +((team.nextYear[proj.part] || 0) + gain * 1.35).toFixed(1); return gain; }
   team.car.parts[proj.part] = clamp(+(cur + gain).toFixed(1), 30, 99.5);
@@ -411,10 +421,25 @@ function postRoundMail(state, results, track, myTeamPos) {
   const pt = playerTeam(state);
   const mine = results.classification.filter((r) => r.teamId === pt.id);
   const lines = mine.map((r) => `• ${r.driverIds.map((id) => state.drivers[id].name).join(' / ')}: ${r.status === 'dnf' ? 'Ritirato' + (r.reason ? ` (${r.reason})` : '') : `P${r.pos}`}${r.pts ? ` – ${r.pts} punti` : ''}`);
+  const fin = mine.filter((r) => r.status !== 'dnf');
+  const best = fin.length ? Math.min(...fin.map((r) => r.pos)) : null;
+  const pts = mine.reduce((a, r) => a + (r.pts || 0), 0);
+  const dnfs = mine.length - fin.length;
+  const tgt = state.board.target;
+  const mood = best === 1 ? 'win' : best && best <= 3 ? 'podium' : pts > 0 ? 'points' : dnfs >= 2 ? 'disaster' : 'zero';
+  const OPEN = {
+    win: ['Champagne! Il telefono dell’ufficio stampa non smette di squillare.', 'Vittoria. Ripetiamolo insieme: vit-to-ri-a.', 'Le prime pagine di domani sono già scritte, e parlano di noi.'],
+    podium: ['Un podio che fa bene a tutti, sponsor compresi.', 'Sul podio con il cappellino giusto: il marketing ringrazia.', 'Trofeo in bacheca e foto di gruppo in fabbrica lunedì mattina.'],
+    points: ['Punti in cascina: non fanno titoli, ma fanno classifica.', 'Weekend solido. Nessun miracolo, nessun dramma.', 'Il bottino è onesto: la classifica si muove nella direzione giusta.'],
+    zero: ['Weekend da archiviare in fretta. I giornalisti, purtroppo, non archiviano.', 'Zero punti. Prepariamo il comunicato con le parole «reagire» e «compatti».', 'Domenica storta: in sala stampa ci aspettano con il taccuino affilato.'],
+    disaster: ['Due ritiri. Suggerisco di non leggere i social per qualche giorno.', 'Giornata nera: in fabbrica stanno già smontando tutto per capire.', 'Doppio zero e doppio ritiro: il comunicato lo scrivo con i guanti.'],
+  };
+  const CLOSE = myTeamPos <= tgt ? `Siamo ${myTeamPos}° nel costruttori, in linea con l’obiettivo del consiglio (${tgt}°).` : `Siamo ${myTeamPos}° nel costruttori: al consiglio servirebbe il ${tgt}°, mancano ${myTeamPos - tgt} posizion${myTeamPos - tgt === 1 ? 'e' : 'i'}.`;
   addMail(state, {
-    from: 'Ufficio Stampa', icon: 'flag', type: mine.some((r) => r.pos <= 3 && r.status !== 'dnf') ? 'good' : 'info',
-    subject: `Rapporto gara: ${track.name}`,
-    body: `${lines.join('\n')}\n\nSiamo ${myTeamPos}° nel campionato costruttori. Obiettivo del consiglio: ${state.board.target}°.`,
+    from: 'Ufficio Stampa', icon: 'flag', type: best && best <= 3 ? 'good' : mood === 'disaster' ? 'bad' : 'info',
+    subject: `${mood === 'win' ? 'Vittoria' : mood === 'podium' ? 'Podio' : mood === 'disaster' ? 'Weekend nero' : 'Rapporto gara'}: ${track.name}`,
+    body: `${pick(OPEN[mood])}\n\n${lines.join('\n')}\n\n${CLOSE}`,
+    card: { kind: 'race', track: track.name, nat: track.nat, rows: mine.map((r) => ({ n: r.driverIds.map((id) => state.drivers[id]?.name || '?').join(' / '), pos: r.pos, pts: r.pts || 0, dnf: r.status === 'dnf', why: r.reason || '' })), cpos: myTeamPos, tgt },
   });
   // random driver/staff events
   if (chance(0.22)) {

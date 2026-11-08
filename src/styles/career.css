@@ -185,3 +185,88 @@
 .pr-art .pr-flag svg { width: 54px !important; height: 36px !important; display: block; }
 .press-teaser .pr-flag svg, .paper .story .pr-flag svg { width: 30px !important; height: 20px !important; }
 .press-teaser .pr-flag, .paper .story .pr-flag { left: 8px; top: 8px; }
+
+/* ---------- finance: KPIs, charts, breakdown ---------- */
+.fin-kpis { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 16px; }
+.fin-kpi { display: flex; flex-direction: column; gap: 4px; justify-content: center; min-width: 0; }
+.fin-kpi > span { font-family: var(--display); font-weight: 600; font-size: 12.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.fin-kpi > b { font-family: var(--display); font-weight: 900; font-size: 34px; line-height: 1.05; white-space: nowrap; }
+.fin-kpi > b small { font-size: 16px; color: var(--muted); font-weight: 700; }
+.fin-kpi > em { font-style: normal; font-size: 12.5px; color: var(--text2); }
+.fin-kpi.hero { background: linear-gradient(120deg, color-mix(in srgb, var(--team) 18%, var(--s1)), var(--s1) 70%); }
+.fin-kpi.hero > b { font-size: 42px; }
+.fin-kpi .bar { margin-top: 6px; }
+.fin-charts { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; }
+.fin-cols { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; }
+.fin-bars { display: flex; flex-direction: column; gap: 9px; }
+.fb-row { display: grid; grid-template-columns: 140px minmax(0, 1fr) 88px; gap: 12px; align-items: center; font-size: 13.5px; }
+.fb-k { color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fb-track { height: 10px; background: rgba(255,255,255,.05); position: relative; }
+.fb-track i { position: absolute; left: 0; top: 0; bottom: 0; }
+.fb-track i.pos { background: linear-gradient(90deg, color-mix(in srgb, var(--good) 55%, transparent), var(--good)); }
+.fb-track i.neg { background: linear-gradient(90deg, color-mix(in srgb, var(--bad) 55%, transparent), var(--bad)); }
+.fb-row b { text-align: right; font-family: var(--mono, inherit); font-size: 13px; }
+.fin-total { border-top: 1px solid var(--line2); padding-top: 8px; margin-top: 4px; font-weight: 700; }
+
+/* ---------- investments ---------- */
+.inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+.inv-card { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 16px; background: var(--s2); border: 1px solid var(--line); min-width: 0; }
+.inv-card.owned { border-color: color-mix(in srgb, var(--good) 35%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--good) 7%, var(--s2)), var(--s2) 60%); }
+.inv-card.wip { border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.inv-top { display: flex; gap: 12px; align-items: flex-start; }
+.inv-ic { flex: none; width: 40px; height: 40px; display: grid; place-items: center; background: color-mix(in srgb, var(--team) 18%, var(--s3)); color: var(--team); clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%); }
+.inv-ic .ico { width: 22px; height: 22px; }
+.inv-name { font-family: var(--display); font-weight: 800; font-size: 17px; text-transform: uppercase; line-height: 1.1; letter-spacing: .02em; margin-bottom: 3px; }
+.inv-eff { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--text2); line-height: 1.35; }
+.inv-eff .ico { width: 15px; height: 15px; flex: none; margin-top: 1px; color: var(--muted); }
+.inv-eff.on .ico { color: var(--good); }
+.inv-dots { display: flex; gap: 5px; }
+.inv-dots i { flex: 1; height: 5px; background: rgba(255,255,255,.08); }
+.inv-dots i.on { background: var(--good); }
+.inv-dots i.wip { background: repeating-linear-gradient(-45deg, var(--warn) 0 4px, transparent 4px 8px); }
+.inv-wip { display: flex; justify-content: space-between; font-size: 13px; color: var(--warn); }
+.inv-card > .btn { align-self: flex-start; }
+.inv-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+.inv-seg .btn { flex-direction: column; gap: 2px; padding: 7px 6px; min-height: 48px; font-size: 13px; }
+.inv-seg .btn span { font-family: var(--body, inherit); font-size: 10.5px; letter-spacing: .02em; text-transform: none; font-weight: 500; color: var(--muted); }
+.inv-seg .btn.active, .inv-seg .btn.active:disabled { border-color: var(--good); color: var(--good); background: color-mix(in srgb, var(--good) 12%, var(--s3)); opacity: 1; }
+.inv-card.wide { grid-column: span 2; }
+.stake-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 18px; }
+@media (max-width: 1100px) { .inv-card.wide { grid-column: auto; } .stake-grid { grid-template-columns: 1fr; } }
+.inv-seg .btn .ico { width: 16px; height: 16px; }
+.stake-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.stake-row:last-child { border-bottom: 0; }
+.stake-row .btn { padding: 6px 10px; min-height: 30px; font-size: 12.5px; }
+.stake-pct { font-family: var(--display); font-weight: 900; font-size: 20px; min-width: 42px; text-align: right; }
+
+/* ---------- inbox ---------- */
+.mail-layout { display: grid; grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); gap: 16px; height: calc(100vh - 190px); min-height: 420px; }
+.mail-list, .mail-read { overflow-y: auto; }
+.mail-av { position: relative; flex: none; display: grid; place-items: center; font-family: var(--display); font-weight: 800; letter-spacing: .04em; color: #fff; background: linear-gradient(140deg, color-mix(in srgb, var(--mc) 70%, #000), color-mix(in srgb, var(--mc) 30%, #000)); clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%); }
+.mail-av i { position: absolute; right: 3px; top: 3px; width: 7px; height: 7px; border-radius: 50%; }
+.mail-av i.ok { background: var(--good); }
+.mail-av i.ko { background: var(--bad); }
+.mail-subj { font-size: 30px; font-style: italic; font-weight: 800; line-height: 1.1; margin-top: 4px; }
+.mail-body { white-space: pre-line; line-height: 1.75; font-size: 16px; color: var(--text2); max-width: 760px; }
+.mail-race { max-width: 760px; background: var(--s2); border: 1px solid var(--line); }
+.mr-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.mr-head b { font-family: var(--display); font-weight: 800; font-size: 18px; text-transform: uppercase; flex: 1; }
+.mr-row { display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.mr-row:last-child { border-bottom: 0; }
+.mr-pos { font-family: var(--display); font-weight: 900; font-style: italic; font-size: 30px; min-width: 64px; }
+.mr-pts { font-family: var(--display); font-weight: 900; font-size: 24px; }
+.mr-pts span { font-size: 12px; color: var(--muted); margin-left: 3px; }
+.tabs .tab .badge { position: static; display: inline-block; margin-left: 4px; transform: none; }
+
+@media (max-width: 1400px) {
+  .fin-kpi > b { font-size: 28px; }
+  .fin-kpi.hero > b { font-size: 34px; }
+  .fin-kpi > em { font-size: 12px; }
+}
+@media (max-width: 1000px) {
+  .fin-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 1100px) {
+  .fin-charts, .fin-cols { grid-template-columns: 1fr; }
+  .mail-layout { grid-template-columns: 300px minmax(0, 1fr); }
+}

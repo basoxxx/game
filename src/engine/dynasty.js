@@ -52,6 +52,7 @@ export function ensureDynasty(st, opts = {}) {
   for (const d of Object.values(st.drivers)) if (!Number.isFinite(d.salary)) d.salary = salaryFor(d, st.category);
   if (!Number.isFinite(playerTeam(st).money)) playerTeam(st).money = +(playerTeam(st).baseBudget * 0.3).toFixed(1);
   for (const f of st.finance || []) if (!Number.isFinite(f.amount)) f.amount = 0;
+  investState(playerTeam(st));
   if (!D.plan) D.plan = makePlan(st, D.mandate);
   if (opts.goals !== false) {
     if (!D.goals || D.goals.season !== st.season || D.goals.round !== st.round) makeRaceGoals(st);
@@ -221,9 +222,11 @@ export function pressIssues(st) {
   for (const p of st.dyn?.press || []) { const k = `${p.s}:${p.r}`; if (!by.has(k)) by.set(k, []); by.get(k).push(p); }
   return [...by.entries()].map(([k, items]) => { const [s, r] = k.split(':').map(Number); return { key: k, s, r, items }; });
 }
+// Italian article for an event name: "il GP di Monaco", "la 24 Ore", "il Rally di Svezia"
+const evArt = (tr) => (/^\d+ Ore/.test(tr) ? 'la ' : /^(Rallye|Safari)/.test(tr) ? 'il ' : /^(GP|Rally|Gran)/.test(tr) ? 'il ' : '');
 const LEAD = [
-  (w, tr, tm, pl) => `${w} ${pl ? 'conquistano' : 'conquista'} ${tr}`, (w, tr, tm, pl) => `${tm}, che giornata: ${w} ${pl ? 'vincono' : 'vince'} a ${tr}`, (w, tr) => `${tr} parla ${w}`,
-  (w, tr) => `Firma d’autore di ${w} a ${tr}`, (w, tr, tm, pl) => `${w} non ${pl ? 'sbagliano' : 'sbaglia'}: festa ${tm}`,
+  (w, tr, tm, pl) => `${w} ${pl ? 'conquistano' : 'conquista'} ${evArt(tr)}${tr}`, (w, tr, tm, pl) => `${tm}, che giornata: ${w} ${pl ? 'dominano' : 'domina'} ${evArt(tr)}${tr}`, (w, tr) => `${tr}: parla solo ${w}`,
+  (w, tr) => `Firma d’autore di ${w}: ${evArt(tr)}${tr} è suo`, (w, tr, tm, pl) => `${w} non ${pl ? 'sbagliano' : 'sbaglia'}: festa ${tm}`,
 ];
 
 // =====================================================================================
@@ -352,7 +355,7 @@ export function teamTrait(st, team, role, id) { const s = st.staff?.[team.staff?
 // =====================================================================================
 // ACADEMY
 // =====================================================================================
-export function academySlots(team) { return 1 + Math.floor((team.facilities.academy || 1) / 2); }
+export function academySlots(team) { return 1 + Math.floor((team.facilities.academy || 1) / 2) + (team.invest?.juniorActive ? 1 : 0); }
 export function academyDrivers(st) { return Object.values(st.drivers).filter((d) => d.academy === st.playerTeam && !d.retired); }
 export function prospectFee(st, d) { return +((0.25 + (d.pot - 75) * 0.03) * scale(st) * 3).toFixed(2); }
 export function academyUpkeep(st) { return +(academyDrivers(st).length * 0.08 * scale(st) * 3).toFixed(2); }
@@ -425,7 +428,7 @@ export function promoteJunior(st, id, replaceId) {
 function academySeason(st) {
   const pt = playerTeam(st);
   const lvl = pt.facilities.academy || 1;
-  const coach = teamTrait(st, pt, 'engineer', 'coach') ? 1.4 : 1;
+  const coach = (teamTrait(st, pt, 'engineer', 'coach') ? 1.4 : 1) * (pt.invest?.juniorActive ? 1.35 : 1) * (satelliteSeat(pt) ? 1.2 : 1);
   for (const d of academyDrivers(st)) {
     // extra growth on top of developDriver (already applied in newSeason)
     const ov = driverOverall(d, st.category);
@@ -440,7 +443,7 @@ function academySeason(st) {
 function feederResults(st) {
   for (const d of academyDrivers(st)) {
     const ov = driverOverall(d, st.category);
-    const pos = clamp(Math.round(gauss(14 - (ov - 62) * 0.55 - (d.morale - 70) * 0.03, 2.6)), 1, 20);
+    const pos = clamp(Math.round(gauss(14 - (ov - 62) * 0.55 - (d.morale - 70) * 0.03 - (satelliteSeat(playerTeam(st)) ? 1.5 : 0) - (playerTeam(st).invest?.juniorActive ? 1 : 0), 2.6)), 1, 20);
     (d.feeder ||= []).push({ season: st.season, pos });
     if (pos === 1) {
       d.pot = clamp(d.pot + randInt(1, 3), 0, 99);
@@ -740,6 +743,7 @@ export function dynPostRound(st, res, track) {
   } else if (D.bet && (D.bet.season !== st.season || D.bet.round < rIdx)) D.bet = null;
   // ---- staff traits ----
   if (teamTrait(st, pt, 'engineer', 'psych')) teamDrivers(st, pt).forEach((d) => (d.morale = clamp(d.morale + 1, 10, 100)));
+  investRound(st, res);
   if (teamTrait(st, pt, 'mechanic', 'reliab') && pt.car.parts.reliability != null) pt.car.parts.reliability = clamp(+(pt.car.parts.reliability + 0.1).toFixed(2), 30, 99.5);
   if (D.skim && D.skim.until >= st.season) { const comm = +(pt.baseBudget * 0.46 / st.calendar.length * (D.skim.pct || 0.1)).toFixed(2); addFinance(st, `Quota del fondo ${D.skim.who}`, -comm); }
   const hosp = +((pt.facilities.hospitality - 1) * 0.12 * sc).toFixed(2);
@@ -785,7 +789,7 @@ function roundPress(st, res, track, report) {
   const win = res.classification[0];
   const wd = st.drivers[win.driverIds[0]]; const wt = st.teams[win.teamId];
   const wName = win.driverIds.map((id) => lastName(st.drivers[id]?.name)).join(' / ');
-  press(st, { kind: 'lead', tone: wt.isPlayer ? 'good' : 'info', h: pick(LEAD)(wName, track.name, wt.name, win.driverIds.length > 1), t: `${wd?.name} (${wt.name}) vince ${track.name}${res.wet ? ' sotto la pioggia' : ''}. ${res.classification[1] ? `Secondo ${st.drivers[res.classification[1].driverIds[0]]?.name}` : ''}${res.classification[2] ? `, terzo ${st.drivers[res.classification[2].driverIds[0]]?.name}.` : '.'}`, img: { k: 'track', id: track.id }, tag: track.name });
+  press(st, { kind: 'lead', tone: wt.isPlayer ? 'good' : 'info', h: pick(LEAD)(wName, track.name, wt.name, win.driverIds.length > 1), t: `${wd?.name} (${wt.name}) vince ${evArt(track.name)}${track.name}${res.wet ? ' sotto la pioggia' : ''}. ${res.classification[1] ? `Secondo ${st.drivers[res.classification[1].driverIds[0]]?.name}` : ''}${res.classification[2] ? `, terzo ${st.drivers[res.classification[2].driverIds[0]]?.name}.` : '.'}`, img: { k: 'track', id: track.id }, tag: track.name });
   const mine = res.classification.filter((r) => r.teamId === pt.id);
   const ok = (r) => r.status !== 'dnf';
   const best = mine.filter(ok).sort((a, b) => a.pos - b.pos)[0];
@@ -844,6 +848,7 @@ export function dynEndSeason(st, sum) {
       t.rep = clamp(+(t.rep + clamp((byRep - pos) * 0.45, -3, 3) + (base - t.rep) * 0.1).toFixed(1), 20, 100);
     }
   }
+  const invRep = investSeasonEnd(st, sum);
   // sponsors: renewals based on satisfaction
   for (const sp of pt.sponsors) {
     if (sp.seasonsLeft !== 1) continue;
@@ -863,7 +868,7 @@ export function dynEndSeason(st, sum) {
   if (hist && hist.season === st.season) hist.status = after;
   if (after > (D.statusMax ?? 0)) { D.statusMax = after; D.statusUp = after; if (after >= 3) D.tycoon = true; }
   D.summary = { season: st.season, goals: `${D.stats.goalsHit}/${D.stats.goalsTot}` };
-  sum.dyn = { quotes: seasonQuotes(st, sum), before, after, mandate, plan: planSteps, goalsHit: D.stats.goalsHit - (D.seasonStats0?.goalsHit || 0), goalsTot: D.stats.goalsTot - (D.seasonStats0?.goalsTot || 0), betsWon: D.stats.betsWon - (D.seasonStats0?.betsWon || 0), betsLost: D.stats.betsLost - (D.seasonStats0?.betsLost || 0), kept: D.stats.promisesKept - (D.seasonStats0?.promisesKept || 0), broken: D.stats.promisesBroken - (D.seasonStats0?.promisesBroken || 0), rep: +pt.rep.toFixed(1) };
+  sum.dyn = { quotes: seasonQuotes(st, sum), before, after, mandate, plan: planSteps, goalsHit: D.stats.goalsHit - (D.seasonStats0?.goalsHit || 0), goalsTot: D.stats.goalsTot - (D.seasonStats0?.goalsTot || 0), betsWon: D.stats.betsWon - (D.seasonStats0?.betsWon || 0), betsLost: D.stats.betsLost - (D.seasonStats0?.betsLost || 0), kept: D.stats.promisesKept - (D.seasonStats0?.promisesKept || 0), broken: D.stats.promisesBroken - (D.seasonStats0?.promisesBroken || 0), rep: +pt.rep.toFixed(1), invRep };
 
 }
 
@@ -899,6 +904,7 @@ export function dynNewSeason(st) {
   if (D.pressure && st.season <= (D.pressureUntil ?? st.season)) st.board.target = clamp(st.board.target - 1, 1, Object.keys(st.teams).length);
   const prevT = st.career.history[st.career.history.length - 1]?.target;
   if (prevT) st.board.target = Math.max(st.board.target, prevT - 2); // expectations never jump more than two places
+  investNewSeason(st);
   academySeason(st);
   ensureSeats(st);
   st.pendingDyn = null;
@@ -945,3 +951,203 @@ export function seasonCharts(st, season = st.season) {
   const L = (st.dyn?.log || []).filter((x) => x.s === season);
   return L;
 }
+
+// =====================================================================================
+// INVESTMENTS OUTSIDE THE COST CAP
+// Capital projects, commercial spending and stakes: where a rich team's surplus goes when the
+// cost cap (Formula Apex) or diminishing R&D returns stop it from buying lap time directly.
+// State lives on the player team (team.invest) so helpers that only receive a team can read it.
+// =====================================================================================
+export const INVEST = {
+  tunnel: { name: 'Galleria del vento di nuova generazione', short: 'Galleria NG', icon: 'wind', kind: 'build', max: 2, cost: [26, 42], build: [3, 4], upkeep: 0.7,
+    desc: 'Capex separato dal budget cap: modelli in scala e flussi più fedeli alla pista.', eff: (l) => `Guadagni R&D +${l * 6}% · fallimenti -${l * 12}%` },
+  hq: { name: 'Nuovo quartier generale', short: 'Nuovo HQ', icon: 'factory', kind: 'build', max: 1, cost: [40], build: [5], upkeep: 1.4,
+    desc: 'Un campus moderno: reparti più grandi, ingegneri che fanno la fila per entrare.', eff: () => 'Uno slot R&D in più · +1 morale piloti a ogni evento' },
+  museum: { name: 'Museo della scuderia', short: 'Museo', icon: 'trophy', kind: 'build', max: 1, cost: [16], build: [3], upkeep: 0.3,
+    desc: 'Le vetture storiche in mostra: tifosi, scuole e partner in visita.', eff: () => 'Biglietteria a ogni evento · +1,2 prestigio a stagione · sponsor più fedeli' },
+  junior: { name: 'Programma junior', short: 'Junior', icon: 'star', kind: 'annual', cost: [5],
+    desc: 'Sedili pagati nelle serie minori, coach e test privati per l’accademia.', eff: () => '+1 posto in accademia · crescita junior +35% · un talento extra ogni anno' },
+  marketing: { name: 'Campagna marketing & hospitality', short: 'Marketing', icon: 'mic', kind: 'season', max: 3, cost: [4, 9, 16], levels: ['Social & digital', 'Campagna nazionale', 'Campagna globale'],
+    desc: 'Paddock club, eventi per i partner, spot TV: vale per la stagione in corso.', eff: (l) => `Sponsor +${[0, 10, 18, 28][l]} soddisfazione · prestigio +${[0, 0.6, 1.3, 2.4][l]} · nuove offerte` },
+  bonus: { name: 'Premi risultato ai piloti', short: 'Premi piloti', icon: 'driver', kind: 'policy', max: 2, levels: ['Nessuno', 'Standard', 'Generosi'],
+    desc: 'Premi in denaro per punti, podi e vittorie: piloti motivati e agenti più disponibili.', eff: (l) => (l ? `Morale +${l * 2} a podio · trattative più facili` : 'Nessun effetto') },
+  stake: { name: 'Partecipazioni in altri team', short: 'Quote', icon: 'users', kind: 'stake', max: 30,
+    desc: 'Compra quote di una squadra rivale: dividendi, un alleato al tavolo e un sedile per i tuoi junior.', eff: () => 'Dividendi a fine stagione · rapporti +12 · dal 20% sedile satellite per l’accademia' },
+};
+const INV_BUILD_KEYS = ['tunnel', 'hq', 'museum'];
+export function investState(team) {
+  const I = (team.invest ??= {});
+  I.tunnel ??= 0; I.hq ??= 0; I.museum ??= 0; I.junior ??= 0; I.bonus ??= 0;
+  I.stakes ??= {}; I.mkt ??= null; I.build ??= null; I.spent ??= 0;
+  return I;
+}
+export function invLevel(team, key) { return team?.invest?.[key] || 0; }
+export function investCost(st, key, lvl) {
+  const I = INVEST[key]; const sc = scale(st);
+  lvl ??= invLevel(playerTeam(st), key) + 1;
+  if (key === 'junior') return +(I.cost[0] * sc).toFixed(2);
+  return +((I.cost[lvl - 1] ?? I.cost[I.cost.length - 1]) * sc).toFixed(2);
+}
+export function stakeCost(st, teamId) { const t = st.teams[teamId]; return +(t.baseBudget * 0.22 * (0.7 + t.rep / 250)).toFixed(2); }
+export function investUpkeep(st, team = playerTeam(st)) {
+  const I = investState(team); const sc = scale(st);
+  return +(INV_BUILD_KEYS.reduce((a, k) => a + (I[k] ? INVEST[k].upkeep * I[k] : 0), 0) * sc).toFixed(2);
+}
+export function bonusRates(st, lvl) { const sc = scale(st); return { pts: [0, 0.12, 0.25][lvl] * sc, pod: [0, 0.5, 1.1][lvl] * sc, win: [0, 0.8, 1.8][lvl] * sc }; }
+// Total spent on investments this season (for the finance screen)
+export function investSpent(st) { return -st.finance.filter((f) => f.season === st.season && f.amount < 0 && f.label.startsWith('Investimento')).reduce((a, b) => a + b.amount, 0); }
+
+export function startInvestment(st, key, arg) {
+  const pt = playerTeam(st); const I = investState(pt); const D = INVEST[key];
+  if (!D) return { ok: false, msg: 'Investimento sconosciuto.' };
+  const pay = (label, c) => { addFinance(st, `Investimento: ${label}`, -c); I.spent = +(I.spent + c).toFixed(2); };
+  if (D.kind === 'build') {
+    if (I.build) return { ok: false, msg: `C’è già un cantiere in corso (${INVEST[I.build.key].short}).` };
+    if (I[key] >= D.max) return { ok: false, msg: 'Già al livello massimo.' };
+    if (key === 'tunnel' && (pt.facilities.windtunnel || 1) < 3 + I.tunnel) return { ok: false, msg: `Serve prima la Galleria del Vento al livello ${3 + I.tunnel}.` };
+    const c = investCost(st, key);
+    if (pt.money < c) return { ok: false, msg: 'Fondi insufficienti.' };
+    pay(`${D.short}${D.max > 1 ? ' Lv' + (I[key] + 1) : ''}`, c);
+    const races = Math.min(D.build[I[key]] ?? D.build[0], Math.max(1, st.calendar.length - 1));
+    I.build = { key, racesLeft: races, total: races };
+    return { ok: true, msg: `Lavori avviati: pronto tra ${races} eventi.` };
+  }
+  if (key === 'junior') {
+    if (I.junior >= st.season) return { ok: false, msg: 'Il programma è già finanziato per questa stagione.' };
+    const c = investCost(st, key);
+    if (pt.money < c) return { ok: false, msg: 'Fondi insufficienti.' };
+    pay('Programma junior', c);
+    const first = !I.junior; I.junior = st.season; I.juniorActive = true; I.juniorOff = false;
+    addProspect(st, 4);
+    return { ok: true, msg: first ? 'Programma attivo: gli scout hanno già un nome nuovo.' : 'Programma rinnovato: un nuovo talento in lista.' };
+  }
+  if (key === 'marketing') {
+    const lvl = clamp(+arg || 1, 1, 3);
+    const cur = I.mkt?.season === st.season ? I.mkt.lvl : 0;
+    if (lvl <= cur) return { ok: false, msg: 'Hai già una campagna di questo livello in corso.' };
+    const c = +(investCost(st, key, lvl) - (cur ? investCost(st, key, cur) : 0)).toFixed(2);
+    if (pt.money < c) return { ok: false, msg: 'Fondi insufficienti.' };
+    pay(D.levels[lvl - 1], c);
+    const gain = [0, 10, 18, 28][lvl] - [0, 10, 18, 28][cur];
+    for (const sp of pt.sponsors) sp.sat = clamp(Math.round((sp.sat ?? 60) + gain), 0, 100);
+    I.mkt = { season: st.season, lvl };
+    if (lvl >= 2 && st.sponsorOffers.length < 6) {
+      const o = campaignOffer(st, lvl);
+      if (o) addMail(st, { from: 'Area Commerciale', icon: 'money', type: 'good', subject: 'La campagna funziona', body: `Dopo la campagna, ${o.name} ha chiesto un incontro: trovi la proposta nella sezione Sponsor.` });
+    }
+    press(st, { kind: 'brief', tone: 'good', h: `${pt.name} lancia la ${D.levels[lvl - 1].toLowerCase()}`, t: 'Spot, eventi e paddock club rinnovato: il marchio vuole farsi notare.', img: { k: 'team', id: pt.id }, tag: 'Business' });
+    return { ok: true, msg: 'Campagna avviata.' };
+  }
+  if (key === 'bonus') {
+    const nv = clamp(+arg || 0, 0, 2);
+    if (nv > I.bonus) for (const d of teamDrivers(st, pt)) d.morale = clamp(d.morale + (nv - I.bonus) * 3, 10, 100);
+    if (nv < I.bonus) for (const d of teamDrivers(st, pt)) d.morale = clamp(d.morale - (I.bonus - nv) * 5, 10, 100);
+    I.bonus = nv;
+    return { ok: true, msg: nv ? `Premi ${D.levels[nv].toLowerCase()} attivi da questo evento.` : 'Premi sospesi: i piloti non l’hanno presa bene.' };
+  }
+  if (key === 'stake') {
+    const t = st.teams[arg];
+    if (!t || t.isPlayer) return { ok: false, msg: 'Squadra non valida.' };
+    const cur = I.stakes[arg] || 0;
+    if (cur >= 30) return { ok: false, msg: 'Il tetto regolamentare è il 30%.' };
+    if (!cur && Object.keys(I.stakes).length >= 2) return { ok: false, msg: 'La Federazione permette quote in due squadre al massimo.' };
+    const p = principal(st, arg);
+    if (p && p.rel <= -45) return { ok: false, msg: `${p.name} non ti venderebbe nemmeno una vite.` };
+    const c = stakeCost(st, arg);
+    if (pt.money < c) return { ok: false, msg: 'Fondi insufficienti.' };
+    pay(`10% di ${t.name}`, c);
+    I.stakes[arg] = cur + 10;
+    rel(st, arg, 12);
+    press(st, { kind: 'brief', tone: 'info', h: `${pt.name} sale al ${cur + 10}% di ${t.name}`, t: `Operazione da ${fmtM(c)}.${p ? ` ${p.name} parla di «partnership strategica».` : ''}`, img: { k: 'team', id: t.id }, tag: 'Business' });
+    if (cur + 10 >= 20) unlock(st, 'satellite', 'Squadra satellite', 'Arriva al 20% di un’altra squadra.');
+    return { ok: true, msg: `Ora possiedi il ${cur + 10}% di ${t.name}.` };
+  }
+  return { ok: false, msg: 'Non disponibile.' };
+}
+// Sell a stake back (20% haircut)
+export function sellStake(st, teamId) {
+  const pt = playerTeam(st); const I = investState(pt);
+  const cur = I.stakes[teamId] || 0; if (!cur) return { ok: false, msg: 'Nessuna quota.' };
+  const v = +(stakeCost(st, teamId) * 0.8 * (cur / 10)).toFixed(2);
+  addFinance(st, `Cessione quote ${st.teams[teamId].name}`, v);
+  delete I.stakes[teamId];
+  rel(st, teamId, -6);
+  return { ok: true, msg: `Quote cedute per ${fmtM(v)}.` };
+}
+function campaignOffer(st, lvl) {
+  const pt = playerTeam(st);
+  const pool = ['Lumora Mobile', 'Vantix Cloud', 'Orbis Airways', 'Kestrel Watches', 'Nimbus Energy', 'Arcadia Bank'];
+  const name = pick(pool.filter((n) => !pt.sponsors.some((s) => s.name === n) && !st.sponsorOffers.some((s) => s.name === n)));
+  if (!name) return null;
+  const perRace = +((lvl >= 3 ? 1.9 : 1.3) * (0.35 + pt.rep / 120) * scale(st) * rand(0.9, 1.15)).toFixed(2);
+  const o = { id: uid('sp'), name, tier: lvl >= 3 ? 3 : 2, perRace, objective: 'points', objText: 'Bonus per ogni gara a punti', bonus: +(perRace * 0.35).toFixed(2), seasons: randInt(2, 3), signing: +(perRace * rand(1.2, 2.4)).toFixed(2) };
+  st.sponsorOffers.push(o);
+  return o;
+}
+// Per-event effects (called from dynPostRound)
+function investRound(st, res) {
+  const pt = playerTeam(st); const I = investState(pt); const sc = scale(st); const n = st.calendar.length;
+  if (I.build && --I.build.racesLeft <= 0) {
+    const k = I.build.key; I[k] = (I[k] || 0) + 1; I.build = null;
+    addMail(st, { from: 'Direzione Tecnica', icon: 'factory', type: 'good', subject: `${INVEST[k].name}: inaugurazione`, body: `I lavori sono finiti. ${INVEST[k].eff(I[k])}.` });
+    press(st, { kind: 'team', tone: 'good', h: k === 'museum' ? `${pt.name} apre il suo museo: code all’ingresso` : k === 'hq' ? `Taglio del nastro al nuovo quartier generale ${pt.name}` : `${pt.name} accende la nuova galleria del vento`, t: k === 'museum' ? 'Monoposto storiche, caschi e trofei: la storia della squadra diventa un’attrazione.' : 'Un investimento fuori dal budget cap che i rivali guardano con invidia.', img: { k: 'team', id: pt.id }, tag: 'Investimenti' });
+    if (k === 'museum') unlock(st, 'museum', 'Memoria storica', 'Inaugura il museo della scuderia.');
+    if (k === 'hq') unlock(st, 'new_hq', 'Casa nuova', 'Inaugura il nuovo quartier generale.');
+  }
+  const up = investUpkeep(st, pt);
+  if (up > 0) addFinance(st, 'Investimenti: gestione infrastrutture', -+(up / n).toFixed(3));
+  if (I.museum) {
+    const titles = (st.career?.trophies || []).length;
+    addFinance(st, 'Museo: biglietteria e visite', +((2 + Math.min(6, titles) * 0.35) * sc * (0.6 + pt.rep / 250) / n).toFixed(3));
+    for (const sp of pt.sponsors) sp.sat = clamp(Math.round((sp.sat ?? 60) + 1), 0, 100);
+  }
+  if (I.hq) teamDrivers(st, pt).forEach((d) => (d.morale = clamp(d.morale + 1, 10, 100)));
+  if (I.bonus && res?.classification) {
+    const R = bonusRates(st, I.bonus);
+    let tot = 0;
+    for (const r of res.classification.filter((x) => x.teamId === pt.id && x.status !== 'dnf')) {
+      const amt = r.pos === 1 ? R.win : r.pos <= 3 ? R.pod : r.pos <= 10 ? R.pts : 0;
+      if (!amt) continue;
+      tot += amt;
+      for (const id of r.driverIds || [r.driverId]) { const d = st.drivers[id]; if (d) d.morale = clamp(d.morale + (r.pos <= 3 ? I.bonus * 2 : I.bonus), 10, 100); }
+    }
+    if (tot > 0) addFinance(st, 'Premi risultato ai piloti', -+tot.toFixed(2));
+  }
+}
+// Season-end effects (dividends, prestige) — called from dynEndSeason after reputation is settled
+function investSeasonEnd(st, sum) {
+  const pt = playerTeam(st); const I = investState(pt);
+  const n = sum.st.teams.length;
+  const notes = [];
+  for (const [id, pct] of Object.entries(I.stakes)) {
+    const t = st.teams[id]; if (!t) { delete I.stakes[id]; continue; }
+    const pos = sum.st.teams.findIndex((x) => x.id === id) + 1;
+    const div = +(t.baseBudget * 0.4 * (pct / 100) * (1.35 - pos / n)).toFixed(2);
+    if (div > 0) { addFinance(st, `Dividendi ${t.name} (${pct}%)`, div); notes.push(`${t.short} ${fmtM(div)}`); }
+  }
+  let rep = 0;
+  if (I.museum) rep += 1.2;
+  if (I.mkt?.season === st.season) rep += [0, 0.6, 1.3, 2.4][I.mkt.lvl];
+  if (rep) pt.rep = clamp(+(pt.rep + rep).toFixed(1), 20, 100);
+  if (notes.length) addMail(st, { from: 'Ufficio Finanza', icon: 'money', type: 'good', subject: 'Dividendi dalle partecipazioni', body: `Le quote nelle altre squadre hanno reso: ${notes.join(', ')}.` });
+  return rep;
+}
+// Academy hooks
+export function juniorProgramme(st, team = playerTeam(st)) { return (team.invest?.junior || 0) >= st.season; }
+export function satelliteSeat(team) { return Object.values(team?.invest?.stakes || {}).some((p) => p >= 20); }
+// Winter: the junior programme renews itself (if funds allow) unless it was cancelled
+function investNewSeason(st) {
+  const pt = playerTeam(st); const I = investState(pt);
+  I.spent = 0;
+  if (!I.juniorActive) return;
+  const fee = investCost(st, 'junior');
+  if (I.juniorOff || pt.money < fee) {
+    I.juniorActive = false;
+    addMail(st, { from: 'Accademia', icon: 'star', type: 'info', subject: 'Programma junior sospeso', body: I.juniorOff ? 'Come deciso, il programma junior non è stato rinnovato: l’accademia torna alla capienza normale.' : `Liquidità insufficiente per rinnovare il programma junior (${fmtM(fee)}). Puoi riattivarlo dalla sezione Finanze.` });
+    return;
+  }
+  addFinance(st, 'Investimento: Programma junior (rinnovo)', -fee);
+  I.junior = st.season;
+  addProspect(st, 4);
+}
+export function toggleJuniorRenewal(st) { const I = investState(playerTeam(st)); I.juniorOff = !I.juniorOff; return I.juniorOff; }

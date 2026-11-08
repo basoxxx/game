@@ -54,6 +54,7 @@ registerScreen({
     if (st.round === 0 && t.car.concept === 'balanced' && !st._conceptSeen) todo.push(['info', 'Scegli il concetto della nuova vettura', 'car']);
     const unread = st.inbox.filter((m) => !m.read).length;
     if (st.career.points) todo.push(['good', `${st.career.points} punti abilità da spendere`, 'career']);
+    if (t.money > t.baseBudget * 0.45 && !t.invest?.build) todo.push(['good', `${fmtM(t.money)} in cassa: investi nella squadra${st.category === 'formula' ? ' (fuori cap)' : ''}`, 'finance']);
     if (unread) todo.push(['info', unread === 1 ? '1 messaggio non letto' : `${unread} messaggi non letti`, 'inbox']);
     if (st.ultimatum?.season === st.season) { const my = s.teams.find((x) => x.id === t.id)?.pts || 0; todo.unshift(['bad', `Ultimatum del consiglio: ${Math.max(0, my - st.ultimatum.start)}/${st.ultimatum.need} punti entro il round ${st.ultimatum.until}`, 'standings']); }
     if (st.dyn) {
