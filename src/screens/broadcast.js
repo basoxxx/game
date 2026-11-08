@@ -9,7 +9,8 @@ import { standings, pointsFor } from '../engine/season.js';
 
 const short3 = (n) => { const p = String(n).split(' '); return (p[p.length - 1] || n).replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase(); };
 const lastName = (n) => { const p = String(n).split(' '); return p.slice(1).join(' ') || n; };
-const PRIO = { sc: 3, vsc: 3, issue: 3, lead: 2, restart: 2, weather: 2, retire: 2, fastest: 1, pit: 1, pass: 1 };
+const R3D = () => !!window.__race?.r3d;
+const PRIO = { sc: 3, vsc: 3, issue: 3, night: 3, lead: 2, restart: 2, weather: 2, retire: 2, fastest: 1, pit: 1, pass: 1 };
 
 // ---------------- LOWER THIRDS ----------------
 export function tvUpdate(sim, R) {
@@ -44,7 +45,7 @@ function tvHTML(sim, g) {
   const who = (x) => x ? `<span class="tvg-car" style="--tc:${x.col}"><i></i><b>${esc(lastName(x.d.name))}</b><small>${esc(x.c.team.short || x.c.team.name)}</small></span>` : '';
   const wrap = (cls, tag, body, col) => `<div class="tvg ${cls}${g.mine ? ' mine' : ''}" style="--gc:${col || 'var(--accent)'}"><span class="tvg-tag">${tag}</span>${body}</div>`;
   switch (g.kind) {
-    case 'pass': { const b = carBits(sim, g.other); return wrap('pass', 'Sorpasso', `<span class="tvg-pos">P${g.pos}</span>${who(a)}<span class="tvg-on">su</span>${who(b)}${g.drs ? '<em class="tvg-flag drs">DRS</em>' : g.ers ? '<em class="tvg-flag ers">Override</em>' : ''}`, a?.col); }
+    case 'pass': { const b = carBits(sim, g.other); return wrap('pass', 'Sorpasso', `<span class="tvg-pos">P${g.pos}</span>${who(a)}<span class="tvg-on">su</span>${who(b)}${g.drs ? '<em class="tvg-flag drs">DRS</em>' : g.ers ? '<em class="tvg-flag ers">Override</em>' : ''}${R3D() && g.mine ? '<em class="tvg-flag rp">R · Replay</em>' : ''}`, a?.col); }
     case 'fastest': return wrap('fastest', 'Giro più veloce', `${who(a)}<span class="tvg-big purple">${fmtTime(g.time)}</span>`, 'var(--purple)');
     case 'pit': return wrap('pit', 'Pit stop', `<span class="tvg-pos">P${g.pos}</span>${who(a)}<span class="tvg-tyres">${tyreBadge(g.from)}${g.to ? `<span class="tvg-arrow">›</span>${tyreBadge(g.to)}` : ''}</span><span class="tvg-big ${g.stat < 2.6 ? 'good' : g.stat < 3.6 ? 'warn' : 'bad'}">${g.stat.toFixed(2)}<small>s</small></span>`, a?.col);
     case 'retire': return wrap('retire', g.title || 'Ritiro', `${who(a)}<span class="tvg-txt">${esc(String(g.text || '').split(' · ').slice(1).join(' · '))}</span>`, 'var(--bad)');
@@ -52,6 +53,7 @@ function tvHTML(sim, g) {
     case 'issue': return wrap('issue', 'Problema tecnico', `${who(a)}<span class="tvg-txt">${esc(g.title)}</span>`, 'var(--warn)');
     case 'sc': case 'vsc': return wrap('sc', g.title, `<span class="tvg-txt">${esc(g.text)}</span>`, '#ffd23a');
     case 'restart': return wrap('restart', g.title, `<span class="tvg-txt">${esc(g.text)}</span>`, 'var(--good)');
+    case 'night': return wrap('weather', g.title, `${icon(g.title === 'Alba' ? 'sun' : 'moon', 'ico', 'style="width:18px;height:18px"')}<span class="tvg-txt">${esc(g.text)}</span>`, g.title === 'Alba' ? 'var(--gold)' : '#7c8cff');
     case 'weather': return wrap('weather', g.title, `${icon('rain', 'ico', 'style="width:18px;height:18px"')}<span class="tvg-txt">${esc(g.text)}</span>`, 'var(--info)');
   }
   return '';
@@ -62,7 +64,7 @@ export function trackerUpdate(sim, R) {
   const el = document.getElementById('tvtrack'); if (!el || !sim) return;
   const c = sim.cars.find((x) => x.key === R.focus);
   const off = () => { if (el.innerHTML) el.innerHTML = ''; };
-  if (!c || c.status !== 'running' || sim.sc || sim.vsc || c.inPit > 0) return off();
+  if (!c || c.status !== 'running' || sim.sc || sim.vsc || c.inPit > 0 || c.dist < 0.5) return off();
   const cls = sim.classification(); const i = cls.indexOf(c); const a = cls[i - 1];
   if (!a || a.status !== 'running' || a.inPit > 0) return off();
   const gap = (a.dist - c.dist) * sim.track.lap;
@@ -139,10 +141,11 @@ export function liveStandingsHTML(st, sim) {
   for (const r of st.weekend?.sprintRes || []) for (const id of r.driverIds) add[id] = (add[id] || 0) + (r.pts || 0);
   const live = Object.keys(pre).map((id) => ({ id, pts: pre[id].pts + (add[id] || 0), add: add[id] || 0, was: pre[id].pos })).sort((a, b) => b.pts - a.pts || a.was - b.was);
   const lead = live[0]?.pts || 0;
+  const started = base.drivers.some((d) => d.pts > 0);
   const mine = new Set(sim.cars.filter((c) => c.isPlayer).flatMap((c) => c.driverIds));
   const rows = live.map((r, i) => ({ ...r, pos: i + 1 })).filter((r, i) => i < 10 || mine.has(r.id));
   return `<div class="live-champ"><div class="lc-h"><span>Mondiale piloti se finisse ora</span><span class="muted">${sim.isSprint ? 'Sprint' : 'Gara'} · giro ${Math.min(sim.laps, Math.floor(sim.progress * sim.laps) + 1)}</span></div>${rows.map((r) => {
-    const d = st.drivers[r.id]; const t = st.teams[d?.teamId]; const mv = r.was - r.pos;
+    const d = st.drivers[r.id]; const t = st.teams[d?.teamId]; const mv = started ? r.was - r.pos : 0;
     return `<div class="lc-row ${mine.has(r.id) ? 'me' : ''}"><span class="lc-pos">${r.pos}</span>${t ? teamStripe(t) : '<span></span>'}<span class="lc-nm">${esc(d?.name || r.id)}</span><span class="lc-mv ${mv > 0 ? 'good' : mv < 0 ? 'bad' : 'dim'}">${mv > 0 ? '▲' + mv : mv < 0 ? '▼' + -mv : '–'}</span><span class="lc-add">${r.add ? '+' + r.add : ''}</span><b class="lc-pts">${r.pts}</b><span class="lc-gap">${r.pos === 1 ? '' : '-' + (lead - r.pts)}</span></div>`;
   }).join('')}</div>`;
 }

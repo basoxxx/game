@@ -21,6 +21,7 @@
 .tvg-on { color: var(--muted); font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; }
 .tvg-flag { font-style: normal; font-weight: 800; font-size: 12px; letter-spacing: .1em; padding: 2px 7px; text-transform: uppercase; }
 .tvg-flag.drs { background: var(--good); color: #000; }
+.tvg-flag.rp { background: rgba(255,255,255,.12); color: #fff; }
 .tvg-flag.ers { background: linear-gradient(90deg, #7c4dff, #00e5ff); color: #000; }
 .tvg-big { font-size: 28px; font-weight: 800; font-style: italic; font-variant-numeric: tabular-nums; }
 .tvg-big small { font-size: 16px; margin-left: 1px; }

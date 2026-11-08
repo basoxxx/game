@@ -440,7 +440,7 @@ export class CircuitSim {
     out.weather = base * (weatherFactor(c.tyre, rain) - 1) + (rain > 0.05 && !m.wet ? 0 : 0);
     out.mode = { push: -0.32, normal: 0, save: 0.45 }[c.mode] * ls;
     out.air = (c.drs ? -0.38 : 0) * ls + (c.dirty ? 0.28 * (1 - this.track.ovt * 0.5) : 0) * ls;
-    out.night = this.night && this.endurance ? (0.35 - d.attrs.exp / 400) * ls : 0;
+    out.night = this.night && this.endurance ? (0.35 - d.attrs.exp / 400 + (c.nightCare ? 0.25 : 0)) * ls : 0;
     out.ers = { deploy: -0.4, balanced: 0, harvest: 0.15 }[c.ersMode || 'balanced'] * ls * (this.cat === 'rally' ? 0 : 1);
     out.damage = (c.damage + (c.issue?.pace || 0)) * ls;
     out.fatigue = this.endurance && c.stintCount >= 3 ? 0.3 * (c.stintCount - 2) * ls : 0;
@@ -538,10 +538,11 @@ export class CircuitSim {
     const left = this.laps - c.dist;
     const tyres = wear > 0.8 || n % (p.tyreEvery || 1) === 0;
     const comp = tyres ? (COMPOUNDS[c.tyre].wet ? c.tyre : (p.comp || this.dryChoice(c, left))) : null;
+    const forced = c.forceSwap; c.forceSwap = false;
     // never take more fuel than the distance still needs
     const need = (left + 0.4) / (c.tankMax || 1);
     const frac = clamp(Math.min(p.fuelFrac ?? 1, need), 0.25, 1);
-    return { compound: comp, fuel: true, fuelFrac: frac, swap: c.driverIds.length > 1 && n % (p.swapEvery || 1) === 0, crew: c.crew };
+    return { compound: comp, fuel: true, fuelFrac: frac, swap: c.driverIds.length > 1 && (forced || (n % (p.swapEvery || 1) === 0 && !c.stayIn)), crew: c.crew };
   }
   setEndPlan(c, p) { c.endPlan = { ...p }; c.fuel = c.fuelMax = c.tankMax * clamp(p.fuelFrac ?? 1, 0.3, 1); c.lapTarget = this.computeLap(c); }
 
@@ -753,6 +754,11 @@ export class CircuitSim {
         case 'issue': this.applyIssue(c, opt.issue, opt.opt); break;
         case 'restart': c.restart = opt.v; break;
         case 'rainready': c.rainReady = true; break;
+        case 'nightcare': c.nightCare = true; break;
+        case 'nightswap': c.nightSwap = true; c.forceSwap = true; break;
+        case 'nightpush': c.mode = 'push'; c.nightCare = false; break;
+        case 'swapnext': c.forceSwap = true; c.stayIn = false; break;
+        case 'stayin': c.stayIn = true; { const dd = this.driver(c); dd.morale = clamp(dd.morale + 2, 10, 100); } break;
       }
       c.lapTarget = this.computeLap(c);
       this.log(`📻 Muretto a ${d.name.split(' ')[0]}: «${opt.radio || opt.label}»`, 'radio', c.key, true);
@@ -866,7 +872,12 @@ export class CircuitSim {
     if (c.isPlayer && !c.auto && req.compound) this.planAfterStop(c, req.compound);
     if (req.compound) { c.tyre = req.compound; this.fitTyre(c, req.compound); c.temp = (this.endurance ? 72 : 70) + (c.isPlayer && hasPerk(this.state, 'outlap') ? 18 : 0); c.compoundsUsed.add(req.compound); c.stintLap = 0; }
     if (this.endurance) { c.fuel = req.fuelFrac != null ? Math.max(c.fuel, c.tankMax * req.fuelFrac) : c.tankMax; c.fuelMax = c.fuel; c.stintCount++; }
-    if (req.swap && c.driverIds.length > 1) { c.driverIdx = (c.driverIdx + 1) % c.driverIds.length; c.stintCount = 0; }
+    if (req.swap && c.driverIds.length > 1) {
+      if (c.nightSwap) { let bi = -1, be = -1; c.driverIds.forEach((id, i) => { const e = this.state.drivers[id]?.attrs.exp || 0; if (i !== c.driverIdx && e > be) { be = e; bi = i; } }); c.driverIdx = bi >= 0 ? bi : (c.driverIdx + 1) % c.driverIds.length; c.nightSwap = false; }
+      else c.driverIdx = (c.driverIdx + 1) % c.driverIds.length;
+      c.stintCount = 0; c.stayIn = false; c._fatigueAsked = false;
+    }
+    if (this.endurance && c.nightSwap && c.driverIds.length > 1 && !req.swap) c.forceSwap = true;
     const d = this.driver(c);
     const tyreTxt = req.compound ? `gomme ${COMPOUNDS[req.compound].name}` : 'solo carburante';
     if (c.pos <= 5 || c.isPlayer) this.comment(commentaryGeneric('pit', d, ` dalla P${c.pos}`), c.key);
@@ -1071,6 +1082,43 @@ export class CircuitSim {
         { label: 'Aspetta e valuta in pista', desc: 'Deciderai quando arriva', act: 'none', radio: 'Restiamo fuori, ti diciamo noi.' },
       ] });
   }
+  // endurance: nightfall and dawn
+  nightCheck() {
+    const n = this.night;
+    if (this._night == null) { this._night = n; return; }
+    if (n === this._night) return;
+    this._night = n;
+    if (n) {
+      this.log('🌙 Cala la notte: fari accesi, visibilità ridotta e traffico più insidioso.', 'weather', null, true);
+      this.pushTV({ kind: 'night', title: 'Cala la notte', text: 'Fari accesi: la fase più insidiosa della gara' });
+      this.comment('Cala la notte sul circuito: da adesso conta l’esperienza, ogni doppiaggio è una scommessa.', null, true);
+      const mine = this.mine().filter((c) => !c.auto);
+      if (!mine.length || !this.momentsOn) { for (const c of this.mine()) c.nightCare = true; return; }
+      const who = mine.map((c) => { const best = c.driverIds.map((id) => this.state.drivers[id]).filter(Boolean).sort((a, b) => b.attrs.exp - a.attrs.exp)[0]; return `${this.driver(c).name} al volante (esperienza ${this.driver(c).attrs.exp}); il più esperto dell’equipaggio è ${best.name} (${best.attrs.exp})`; }).join(' · ');
+      this.pushMoment({ type: 'night', key: 'all', keys: mine.map((c) => c.key), cd: 9999, title: 'Cala la notte', text: `${who}. Di notte si perde tempo e gli errori costano doppio, soprattutto nei doppiaggi.`,
+        options: [
+          { label: 'Ritmo prudente nelle ore buie', desc: '+0,25s/giro, rischio di incidente molto più basso', act: 'nightcare', radio: 'Notte: niente rischi, porta a casa la macchina.' },
+          { label: 'Il più esperto al volante', desc: 'Cambio pilota alla prossima sosta', act: 'nightswap', radio: 'Alla prossima sosta sale il pilota più esperto.' },
+          { label: 'Attacca: la notte è il momento giusto', desc: 'Più veloce, ma il rischio di errore cresce', act: 'nightpush', radio: 'La notte è nostra: spingi!' },
+        ] });
+    } else {
+      this.log('🌅 Alba: la pista torna visibile, si torna a spingere.', 'weather', null, true);
+      this.pushTV({ kind: 'night', title: 'Alba', text: 'Torna la luce: ultime ore di gara' });
+      for (const c of this.cars) if (c.nightCare) { c.nightCare = false; c.lapTarget = this.computeLap(c); }
+    }
+  }
+  // endurance: a driver on a long run asks to stay in or get out
+  fatigueMoment(c) {
+    if (!this.endurance || c._fatigueAsked || c.stintCount < 2 || c.driverIds.length < 2 || c.auto || !this.momentsOn || this.laps - c.dist < 3) return;
+    c._fatigueAsked = true;
+    const d = this.driver(c); const nx = this.state.drivers[c.driverIds[(c.driverIdx + 1) % c.driverIds.length]];
+    this.pushMoment({ type: 'fatigue', key: c.key, cd: 60, title: `${d.name} chiede il cambio?`, text: `È al ${c.stintCount + 1}° stint di fila: i tempi calano (+${(0.3 * Math.max(1, c.stintCount - 1)).toFixed(1)}s al giro e oltre) e la stanchezza aumenta il rischio di errore. ${nx ? nx.name + ' è pronto a salire.' : ''}`,
+      options: [
+        { label: `Cambio pilota alla prossima sosta`, desc: 'Pilota fresco, ritmo e concentrazione tornano al top', act: 'swapnext', radio: `Alla prossima sosta scendi, sale ${nx ? nx.name.split(' ').pop() : 'il compagno'}.` },
+        { label: 'Triplo stint: resta in macchina', desc: 'Niente cambio (sosta più rapida), ma la fatica cresce', act: 'stayin', radio: 'Stai andando forte, resta in macchina ancora uno stint.' },
+      ] });
+  }
+
   // team-mates fighting on track
   matesMoment() {
     const mine = this.mine(); if (mine.length < 2 || (this.teamOrders[mine[0].teamId] || 'free') !== 'free') return;
@@ -1125,7 +1173,7 @@ export class CircuitSim {
     let crashP = 0.0011 * { push: 1.9, normal: 1, save: 0.6 }[c.mode] * (1.35 - d.attrs.cons / 100) * Math.max(0.4, this.scale * 0.6);
     if (!comp.wet && rain > 0.25) crashP *= 1 + rain * 14;
     if (rain > 0) crashP *= 1 + rain * 1.5;
-    if (this.night && this.endurance) crashP *= 1.4;
+    if (this.night && this.endurance) crashP *= c.nightCare ? 0.8 : c.mode === 'push' ? 1.7 : 1.4;
     if (wear > 1.05) crashP *= 4;
     if (Math.abs(c.temp - m.win) > 25) crashP *= 1.8;
     if (this.sc || this.vsc) crashP *= 0.1;
@@ -1164,7 +1212,7 @@ export class CircuitSim {
     if (c.auto) { const req = this.aiThink(c); if (req) c.pitReq = req; }
     if (c.isPlayer && !c.auto && this.endurance && c.fuel < 1.05 && !c.pitReq) { c.pitReq = this.endPitReq(c); this.log(`⛽ Ingegnere: ${d.name} chiamato ai box per carburante${c.pitReq.compound ? ' e gomme ' + COMPOUNDS[c.pitReq.compound].name : ''} (come da piano).`, 'pit', c.key, true); }
     if (c.isPlayer && !c.auto && wear > 1.1 && !c.pitReq && this.laps - c.dist > 2) this.log(`📻 Ingegnere a ${d.name.split(' ')[0]}: «Le gomme sono finite, dobbiamo fermarci!»`, 'radio', c.key, true);
-    if (c.isPlayer && !c.auto) { this.maybeRadio(c); this.checkMoments(); }
+    if (c.isPlayer && !c.auto) { this.maybeRadio(c); this.checkMoments(); this.fatigueMoment(c); }
     this.fuelManage(c);
     if (c.isPlayer && !c.auto && !c.pitReq && this.laps - c.dist > 1) this.planPit(c);
     if (c.pitReq && c.lap < this.laps) this.enterPit(c);
@@ -1190,7 +1238,7 @@ export class CircuitSim {
         ] });
     }
     if (rain < 0.1 && this._lastRain >= 0.1) this.log('☀ La pioggia smette, pista in asciugatura.', 'weather', null, true);
-    { const lapNow = Math.floor(this.progress * this.laps); if (lapNow !== this._wxLap) { this._wxLap = lapNow; if (this.weather.isRain) this.frontMoment(); } }
+    { const lapNow = Math.floor(this.progress * this.laps); if (lapNow !== this._wxLap) { this._wxLap = lapNow; if (this.weather.isRain) this.frontMoment(); if (this.endurance && this.track.night) this.nightCheck(); } }
     this._lastRain = rain;
     if (this.investigations.length) this.resolveInvestigations();
     if (this.radioQ.length) for (const r of this.radioQ.filter((x) => this.time > x.until)) this.answerRadio(r.id, r.type === 'ers' || r.type === 'pit');
