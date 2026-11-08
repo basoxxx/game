@@ -228,7 +228,7 @@ export function applyRoundResults(state, results) {
   // ----- finances for player -----
   const n = state.calendar.length;
   const repF = 0.7 + pt.rep / 300;
-  const commercial = +(pt.baseBudget * 0.46 / n * repF).toFixed(2);
+  const commercial = +(pt.baseBudget * 0.46 / n * repF * (!state.quick && statusIdx(state) >= 4 ? 1.08 : 1)).toFixed(2);
   addFinance(state, `Diritti commerciali – ${track.name}`, commercial);
   const myRes = results.classification.filter((r) => r.teamId === pt.id);
   const bestPos = Math.min(...myRes.map((r) => (r.status === 'dnf' ? 99 : r.pos)));
@@ -407,8 +407,8 @@ function postRoundMail(state, results, track, myTeamPos) {
     if (d && d.morale < 45) addMail(state, { from: d.name, icon: 'driver', type: 'bad', subject: 'Non sono contento', body: `Capo, la situazione non mi soddisfa. Mi serve una macchina migliore o inizierò a guardarmi intorno. (Morale: ${d.morale})` });
     else if (d && d.morale > 80) addMail(state, { from: d.name, icon: 'driver', type: 'good', subject: 'Grande lavoro del team', body: `Il feeling con la macchina è fantastico. Continuiamo così! (Morale: ${d.morale})` });
   }
-  if (chance(0.12) && state.sponsorOffers.length < 6) {
-    state.sponsorOffers.push(...makeSponsorOffers(pt.rep, state.category, 1));
+  if (chance(0.1 + statusIdx(state) * 0.025) && state.sponsorOffers.length < 6) {
+    state.sponsorOffers.push(...makeSponsorOffers(pt.rep, state.category, 1, statusIdx(state)));
     addMail(state, { from: 'Area Commerciale', icon: 'money', type: 'info', subject: 'Nuova proposta di sponsorizzazione', body: 'Un nuovo marchio è interessato a comparire sulla nostra livrea. Controlla la sezione Sponsor.' });
   }
 }
@@ -631,7 +631,7 @@ export function newSeason(state) {
   if (reg) addMail(state, { from: 'Federazione Internazionale', icon: 'rules', type: 'info', subject: `Nuovo regolamento: ${reg.name}`, body: `La Federazione ha introdotto modifiche sostanziali al regolamento su: ${reg.name}. Tutti i team perdono parte del vantaggio accumulato: è il momento di recuperare!` });
   const pt = playerTeam(state);
   for (const s of pt.sponsors) if (s.seasonsLeft === 1) addMail(state, { from: 'Area Commerciale', icon: 'money', type: 'info', subject: `Ultima stagione con ${s.name}`, body: `Il contratto con ${s.name} scade a fine anno.` });
-  state.sponsorOffers = makeSponsorOffers(pt.rep, catId, 5);
+  state.sponsorOffers = makeSponsorOffers(pt.rep, catId, 5, statusIdx(state));
   // staff aging pool
   for (const role of Object.keys(STAFF_ROLES)) { const s = makeStaff(role, rand(55, 93)); state.staff[s.id] = s; }
   state.calendar = buildCalendar(catId, state.seasonLength);

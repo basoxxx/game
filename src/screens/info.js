@@ -14,6 +14,7 @@ import { applyVolumes, sfx } from '../ui/audio.js';
 import { applyFilterSettings, FILTER_PRESETS, COLORBLIND_MODES } from '../ui/gfx.js';
 import { PERKS, xpForLevel, ensureProgress, buyPerk } from '../engine/progress.js';
 import { legacyInfo } from '../engine/legacy.js';
+import { STATUS } from '../engine/dynasty.js';
 
 // ---------------- INBOX ----------------
 let selMail = null;
@@ -106,7 +107,10 @@ registerScreen({
     ensureProgress(st);
     const c = st.career;
     const ach = Object.values(st.achievements);
-    const ALL = [['first_podium', 'Champagne!'], ['first_win', 'Prima vittoria!'], ['one_two', 'Doppietta'], ['pole', 'Pole Position'], ['signing', 'Colpo di mercato'], ['driver_title', 'Campione del Mondo'], ['team_title', 'Dinastia'], ['switch', 'Giramondo'], ['level5', 'Manager affermato'], ['level10', 'Stratega leggendario'], ['rd5', 'Fabbrica a pieno regime'], ['sponsor3', 'Vetrina piena'], ['rain_win', 'Re della pioggia'], ['from_back', 'Rimonta epica'], ['quick', 'Pilota della domenica']];
+    const ALL = [['first_podium', 'Champagne!'], ['first_win', 'Prima vittoria!'], ['one_two', 'Doppietta'], ['pole', 'Pole Position'], ['signing', 'Colpo di mercato'], ['driver_title', 'Campione del Mondo'], ['team_title', 'Dinastia'], ['switch', 'Giramondo'], ['level5', 'Manager affermato'], ['level10', 'Stratega leggendario'], ['rd5', 'Fabbrica a pieno regime'], ['sponsor3', 'Vetrina piena'], ['rain_win', 'Re della pioggia'], ['from_back', 'Rimonta epica'], ['quick', 'Pilota della domenica'],
+      ['status2', 'Fuori dall’anonimato'], ['status3', 'Si fa sul serio'], ['status4', 'Nell’Olimpo'], ['status5', 'Dinastia'], ['plan_done', 'Visionario'], ['promises3', 'Uomo di parola'],
+      ['sponsor_sweep', 'Cliente perfetto'], ['bet_win', 'Chi la fa l’aspetti'], ['alliance', 'Diplomatico del paddock'], ['peace', 'Calumet della pace'], ['tycoon', 'Il magnate'], ['saved', 'Salvataggio in extremis'],
+      ['phoenix', 'Fenice'], ['academy_sign', 'Talent scout'], ['academy_grad', 'Fatto in casa'], ['feeder_champ', 'Vivaio d’oro']];
     const need = xpForLevel(c.level);
     return `<div class="screen-title"><div><div class="sub">${esc(st.playerName)}</div><h1>Carriera</h1></div><div class="kpi" style="text-align:right"><b style="${c.points ? 'color:var(--good)' : ''}">${c.points}</b><span>Punti abilità</span></div></div>
     <div class="grid4 anim-in">
@@ -125,7 +129,7 @@ registerScreen({
       <div class="panel"><div class="panel-head"><h3>Bacheca trofei</h3></div>${c.trophies.length ? `<div class="grid3">${c.trophies.map((t) => `<div class="card" style="text-align:center">${icon('trophy', 'ico', 'style="width:40px;height:40px;color:var(--gold)"')}<div style="font-weight:800;margin-top:6px">Titolo ${t.type}</div><div class="small muted">${CATEGORIES[t.category].name} ${t.season}</div><div class="tiny">${esc(t.name)}</div></div>`).join('')}</div>` : `<div class="empty">${icon('trophy')}<b>Bacheca vuota</b><span>La bacheca ti aspetta. Vinci il tuo primo titolo!</span></div>`}</div>
     </div>
     <div class="panel mt16"><div class="panel-head"><h3>Obiettivi sbloccabili</h3></div><div class="grid4" style="grid-template-columns:repeat(5,1fr)">${ALL.map(([id, n]) => { const a = st.achievements[id]; return `<div class="card row" style="${a ? '' : 'opacity:.4'}">${icon(a ? 'star' : 'shield', 'ico', `style="width:24px;height:24px;color:${a ? 'var(--gold)' : 'var(--dim)'}"`)}<div><b class="small">${n}</b><div class="tiny muted">${a ? `Sbloccato nel ${a.season}` : 'Bloccato'}</div></div></div>`; }).join('')}</div></div>
-    <div class="panel mt16"><div class="panel-head"><h3>Storico</h3></div>${c.history.length ? `<table class="tbl"><thead><tr><th>Stagione</th><th>Categoria</th><th>Squadra</th><th class="right">Obiettivo</th><th class="right">Risultato</th></tr></thead><tbody>${c.history.map((h) => `<tr><td>${h.season}</td><td>${CATEGORIES[h.category].name}</td><td>${esc(h.team)}</td><td class="right">${h.target}°</td><td class="right"><b class="${h.pos <= h.target ? 'good' : 'bad'}">${h.pos}°</b></td></tr>`).join('')}</tbody></table>` : '<div class="muted small">Nessuna stagione completata.</div>'}</div>`;
+    <div class="panel mt16"><div class="panel-head"><h3>Storico</h3></div>${c.history.length ? `<table class="tbl"><thead><tr><th>Stagione</th><th>Categoria</th><th>Squadra</th><th>Status</th><th class="right">Obiettivo</th><th class="right">Risultato</th></tr></thead><tbody>${c.history.map((h) => `<tr><td>${h.season}</td><td>${CATEGORIES[h.category].name}</td><td>${esc(h.team)}</td><td>${h.status != null ? `<span class="small" style="color:${STATUS[h.status].color};font-weight:700">${esc(STATUS[h.status].name)}</span>` : '<span class="dim">-</span>'}</td><td class="right">${h.target}°</td><td class="right"><b class="${h.pos <= h.target ? 'good' : 'bad'}">${h.pos}°</b></td></tr>`).join('')}</tbody></table>` : '<div class="muted small">Nessuna stagione completata.</div>'}</div>`;
   },
   actions: {
     perk(el) { const r = buyPerk(S(), el.dataset.id); if (!r.ok) { App.toast('Impossibile', r.msg, 'bad'); return; } sfx.levelup(); App.toast('Abilità sbloccata!', '', 'good'); App.refresh(); },

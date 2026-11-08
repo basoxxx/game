@@ -9,11 +9,12 @@ import { createWorld } from '../engine/world.js';
 import { setState, saveGame, listSaves } from '../engine/state.js';
 import { addMail } from '../engine/season.js';
 import { sfx } from '../ui/audio.js';
+import { ensureDynasty, setMandate, MANDATES } from '../engine/dynasty.js';
 
 const PALETTE = ['#e10600', '#ff8000', '#ffd400', '#22d37a', '#00594f', '#00d2be', '#00c2ff', '#005aff', '#1b2a6b', '#9b30ff', '#ff4fa3', '#ffffff', '#c0c0c0', '#1a1a1a', '#6b3e1e', '#c9a227'];
 const PATTERNS = ['Classica', 'Banda', 'Bicolore', 'Frecce', 'Sfumata', 'Retrò'];
 
-const W = { step: 1, cat: 'formula', team: null, custom: null, name: 'Giocatore', diff: 'normal', len: 'normal', race: 'normal', slot: 1 };
+const W = { step: 1, cat: 'formula', team: null, custom: null, name: 'Giocatore', diff: 'normal', len: 'normal', race: 'normal', slot: 1, mandate: 'growth' };
 
 function teamStrengthLabel(td, all) {
   const sorted = all.slice().sort((a, b) => b.base - a.base);
@@ -56,8 +57,9 @@ registerScreen({
       W.name = name;
       const st = createWorld({ playerName: name, category: W.cat, teamId: W.team, difficulty: W.diff, seasonLength: W.len, raceLength: W.race, customTeam: W.team === 'custom' ? W.custom : null });
       st.slot = W.slot;
+      ensureDynasty(st); setMandate(st, W.mandate);
       const t = st.teams[st.playerTeam];
-      addMail(st, { from: 'Consiglio di Amministrazione', icon: 'board', type: 'info', subject: `Benvenuto in ${t.name}!`, body: `Caro ${name},\n\nil consiglio ti dà il benvenuto come nuovo Team Principal. Il nostro obiettivo per la stagione ${st.season} è chiudere almeno ${st.board.target}° nel campionato costruttori.\n\nPrima del primo evento:\n• Visita il Centro Tecnico per scegliere il concetto della vettura e la livrea\n• Firma gli sponsor nella sezione Sponsor & Finanze\n• Avvia i primi progetti di sviluppo\n\nBuona fortuna!` });
+      addMail(st, { from: 'Consiglio di Amministrazione', icon: 'board', type: 'info', subject: `Benvenuto in ${t.name}!`, body: `Caro ${name},\n\nil consiglio ti dà il benvenuto come nuovo Team Principal. Il nostro obiettivo per la stagione ${st.season} è chiudere almeno ${st.board.target}° nel campionato costruttori.\n\nIl mandato che ci hai presentato è «${MANDATES[W.mandate].name}». Ecco il piano che ti chiediamo di rispettare:\n${st.dyn.plan.steps.map((x) => `• ${x.season}: ${x.text}`).join('\n')}\n\nPrima del primo evento:\n• Visita il Centro Tecnico per scegliere il concetto della vettura e la livrea\n• Firma gli sponsor nella sezione Sponsor & Finanze\n• Avvia i primi progetti di sviluppo\n\nBuona fortuna!` });
       addMail(st, { from: 'Area Commerciale', icon: 'money', type: 'info', subject: 'Sponsor in attesa', body: 'Abbiamo diverse proposte di sponsorizzazione sul tavolo. Ogni sponsor paga a gara più un bonus legato agli obiettivi. Hai 3 spazi disponibili sulla livrea.' });
       setState(st); saveGame(W.slot);
       W.step = 1; W._slotInit = false;
@@ -125,6 +127,8 @@ function step3() {
       <label class="lbl">Nome del Team Principal</label><input type="text" id="pname" value="${esc(W.name)}" maxlength="24" style="width:100%;margin-top:8px;font-size:24px;font-family:var(--display);font-weight:700;text-transform:uppercase;letter-spacing:.03em">
       <div class="panel-head mt24"><h3>Difficoltà</h3></div>
       <div class="grid3">${Object.entries(DIFFICULTY).map(([k, d]) => opt('diff', k, d.name, d.desc)).join('')}</div>
+      <div class="panel-head mt24"><h3>Il tuo mandato</h3><span class="small muted">Cosa prometti al consiglio</span></div>
+      <div class="grid3">${Object.entries(MANDATES).map(([k, m]) => opt('mandate', k, m.name, m.desc)).join('')}</div>
       <div class="panel-head mt24"><h3>Slot di salvataggio</h3></div>
       <div class="row gap6">${saves.map((s) => `<button class="btn ${W.slot == s.slot ? 'active' : ''}" data-a="opt" data-k="slot" data-v="${s.slot}" data-tip="${s.empty ? 'Slot vuoto' : 'Contiene una partita'}">Slot ${s.slot}${s.empty ? '' : ' ·'}</button>`).join('')}</div>
       ${!saves.find((s) => s.slot == W.slot)?.empty ? '<div class="small warn mt8">Attenzione: lo slot contiene già una partita e verrà sovrascritto.</div>' : ''}

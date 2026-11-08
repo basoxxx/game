@@ -4,7 +4,10 @@ import { icon } from '../ui/icons.js';
 import { carSVG, teamBadge } from '../ui/art.js';
 import { esc, bar } from '../ui/dom.js';
 import { S } from '../engine/state.js';
-import { atrFactor, costCap, capSpent, cat, playerTeam, teamDrivers, partRanking, fmtM, rdSlots, rdCost, RD_TIERS, startProject, partName, applyConcept, changeEngine, overallCarRanking } from '../engine/season.js';
+import { atrFactor, costCap, capSpent, cat, playerTeam, teamDrivers, partRanking, fmtM, rdSlots, rdCost, RD_TIERS, RD_APPROACH, startProject, partName, applyConcept, changeEngine, overallCarRanking } from '../engine/season.js';
+import { getTrack } from '../engine/world.js';
+import { traitInfo } from '../engine/dynasty.js';
+import '../styles/career.css';
 import { ENGINE_SUPPLIERS } from '../data/teams.js';
 import { avgPart } from '../engine/world.js';
 import { sfx } from '../ui/audio.js';
@@ -17,6 +20,7 @@ const PALETTE = ['#e10600', '#d40000', '#ff8000', '#ffd400', '#cedc00', '#22d37a
 const PATTERNS = ['Classica', 'Banda', 'Bicolore', 'Frecce', 'Sfumata', 'Retrò'];
 let tab = 'dev';
 let devTarget = 'now';
+let devApproach = 'std';
 
 registerScreen({
   id: 'car',
@@ -62,12 +66,13 @@ registerScreen({
     v2d() { show3d = false; App.refresh(); },
     tab(el) { tab = el.dataset.t; App.refresh(); },
     target(el) { devTarget = el.dataset.v; App.refresh(); },
+    approach(el) { devApproach = el.dataset.v; App.refresh(); },
     start(el) {
       const st = S();
-      const r = startProject(st, el.dataset.part, el.dataset.tier, devTarget === 'next');
-      if (!r.ok && r.cap) { App.confirm('Sforare il budget cap?', r.msg, () => { st._capOk = true; const r2 = startProject(st, el.dataset.part, el.dataset.tier, devTarget === 'next'); if (r2.ok) { sfx.ok(); App.refresh(); } }, 'Sfora il cap', true); return; }
+      const r = startProject(st, el.dataset.part, el.dataset.tier, devTarget === 'next', devApproach);
+      if (!r.ok && r.cap) { App.confirm('Sforare il budget cap?', r.msg, () => { st._capOk = true; const r2 = startProject(st, el.dataset.part, el.dataset.tier, devTarget === 'next', devApproach); if (r2.ok) { sfx.ok(); App.refresh(); } }, 'Sfora il cap', true); return; }
       if (!r.ok) { App.toast('Impossibile avviare', r.msg, 'bad'); sfx.bad(); return; }
-      sfx.ok(); App.toast('Progetto avviato', `${partName(st, el.dataset.part)} · ${RD_TIERS[el.dataset.tier].name}`, 'good'); App.refresh();
+      sfx.ok(); App.toast('Progetto avviato', `${partName(st, el.dataset.part)} · ${RD_TIERS[el.dataset.tier].name} · ${RD_APPROACH[devApproach].name}`, 'good'); App.refresh();
     },
     concept(el) {
       const st = S();
@@ -97,8 +102,9 @@ function devTab(st, t, C) {
     <div class="grid3 mb16">
       <div class="card"><div class="tiny upper muted">Obiettivo dello sviluppo</div><div class="seg mt8"><div class="${devTarget === 'now' ? 'on' : ''}" data-a="target" data-v="now">Vettura ${st.season}</div><div class="${devTarget === 'next' ? 'on' : ''}" data-a="target" data-v="next" style="${nextOpen ? '' : 'opacity:.4'}">Vettura ${st.season + 1}</div></div><div class="tiny muted mt8">${devTarget === 'next' ? 'I guadagni (+35%) arrivano solo l’anno prossimo, ma non subiscono il calo di inizio stagione.' : 'I pezzi arrivano in pista subito.'}${nextOpen ? '' : ' Il progetto dell’anno prossimo si apre al round ' + (Math.floor(st.calendar.length * 0.25) + 1) + '.'}</div></div>
       <div class="card"><div class="tiny upper muted">Ore di galleria del vento (ATR)</div><div style="font-family:var(--display);font-weight:900;font-size:26px">${Math.round(atr * 100)}%</div><div class="tiny muted">Chi ha chiuso più indietro l’anno scorso sviluppa di più. ${st.capPenalty?.season === st.season ? '<span class="bad">Penalità per sforamento del cap.</span>' : ''}</div></div>
-      ${st.category === 'formula' ? `<div class="card"><div class="row between tiny upper muted"><span>Budget cap (sviluppo + strutture)</span><span class="${spent > cap ? 'bad' : ''}">${fmtM(spent)} / ${fmtM(cap)}</span></div>${bar(Math.min(100, (spent / cap) * 100), spent > cap * 0.9 ? 'red' : spent > cap * 0.7 ? 'gold' : 'green')}<div class="tiny muted mt8">Superarlo costa una multa del 150% e meno galleria del vento.</div></div>` : '<div></div>'}
+      ${st.category === 'formula' ? `<div class="card"><div class="row between tiny upper muted"><span>Budget cap (sviluppo + strutture)</span><span class="${spent > cap ? 'bad' : ''}">${fmtM(spent)} / ${fmtM(cap)}</span></div>${bar(Math.min(100, (spent / cap) * 100), spent > cap * 0.9 ? 'red' : spent > cap * 0.7 ? 'gold' : 'green')}<div class="tiny muted mt8">Superarlo costa una multa del 150% e meno galleria del vento.</div></div>` : `<div class="card"><div class="tiny upper muted">Direttore tecnico</div><div style="font-family:var(--display);font-weight:800;font-size:22px">${esc(td?.name || '')} <span class="muted">${td?.rating || ''}</span></div>${td && traitInfo('td', td.trait) ? `<div class="tiny mt8"><span class="trait">${esc(traitInfo('td', td.trait).name)}</span> <span class="muted">${esc(traitInfo('td', td.trait).desc)}</span></div>` : ''}</div>`}
     </div>
+    <div class="card mb16"><div class="row between"><div class="tiny upper muted">Filosofia di progetto · vale per i nuovi progetti</div><span class="tiny muted">Più rischi, più guadagni: un progetto fallito può persino peggiorare il pezzo</span></div><div class="appr">${Object.entries(RD_APPROACH).map(([k, A]) => `<div class="${devApproach === k ? 'on' : ''}" data-a="approach" data-v="${k}"><b>${A.name}</b><span>${A.desc}</span></div>`).join('')}</div></div>
     ${t.nextYear ? `<div class="card mb16 small">Già pronto per la vettura ${st.season + 1}: ${Object.entries(t.nextYear).map(([k, v]) => `<span class="chip good">${partName(st, k)} +${v}</span>`).join(' ')}</div>` : ''}
     <div class="grid3 mb16">${Object.entries(RD_TIERS).map(([k, T]) => `<div class="card"><div class="row between"><b>${T.name}</b><span class="chip">${fmtM(rdCost(st, k))}</span></div><div class="small muted mt8">${T.desc}</div><div class="row wrap mt8 gap6 tiny"><span class="chip">+${T.gain[0]}–${T.gain[1]}</span><span class="chip">${T.races} ${T.races > 1 ? 'eventi' : 'evento'}</span><span class="chip ${T.fail > 0.1 ? 'bad' : ''}">Rischio ${Math.round(T.fail * 100)}%</span></div></div>`).join('')}</div>
     ${C.parts.map((p) => {
@@ -108,7 +114,7 @@ function devTab(st, t, C) {
       return `<div class="part-row"><div><b>${p.name}</b><div class="tiny muted">${p.desc}</div></div>
         <div>${bar(v)}<div class="tiny muted mt8">Efficienza sviluppo: <span class="${dim > 0.8 ? 'good' : dim > 0.45 ? 'warn' : 'bad'}">${Math.round(dim * 100)}%</span></div></div>
         <b class="mono" style="font-size:20px;font-family:var(--display)">${v.toFixed(1)}</b>
-        <div class="row gap6" style="justify-content:flex-end">${proj ? `<div style="width:100%"><div class="row between small"><span class="info">${RD_TIERS[proj.tier].name}${proj.next ? ' · ' + (st.season + 1) : ''}</span><span>${proj.racesLeft} ${proj.racesLeft === 1 ? 'evento' : 'eventi'}</span></div>${bar(((proj.total - proj.racesLeft) / proj.total) * 100 + 8, 'blue')}</div>` :
+        <div class="row gap6" style="justify-content:flex-end">${proj ? `<div style="width:100%"><div class="row between small"><span class="info">${RD_TIERS[proj.tier].name}${proj.approach && proj.approach !== 'std' ? ' · ' + RD_APPROACH[proj.approach].name : ''}${proj.next ? ' · ' + (st.season + 1) : ''}</span><span>${proj.racesLeft} ${proj.racesLeft === 1 ? 'evento' : 'eventi'}</span></div>${bar(((proj.total - proj.racesLeft) / proj.total) * 100 + 8, 'blue')}<div class="tiny muted mt8">${proj.next ? `Pronto per la vettura ${st.season + 1}` : (() => { const ev = st.calendar[st.round + proj.racesLeft]; const tr = ev && getTrack(st.category, ev.trackId); return tr ? `In pista dal ${esc(tr.name)}` : 'Consegna dopo l’ultimo evento'; })()}</div></div>` :
         Object.keys(RD_TIERS).map((k) => `<button class="btn sm" data-a="start" data-part="${p.id}" data-tier="${k}" ${t.projects.length >= slots || t.money < rdCost(st, k) ? 'disabled' : ''} title="${RD_TIERS[k].name} – ${fmtM(rdCost(st, k))}">${k === 'base' ? 'Base' : k === 'major' ? 'Evo' : 'Rivo'}</button>`).join('')}</div></div>`;
     }).join('')}
     <div class="small muted mt16">I progetti si completano dopo il numero di eventi indicato. Più un componente è già sviluppato, minore è il guadagno (rendimenti decrescenti). Più slot con la Fabbrica, guadagni maggiori con Galleria del Vento e un Direttore Tecnico migliore.</div>

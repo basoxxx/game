@@ -10,6 +10,9 @@ import { driverChip, teamStripe, tyreBadge } from './common.js';
 import { pressQuestion } from '../engine/events.js';
 import { recordChallenge, CHALLENGES } from './challenges.js';
 import { sfx } from '../ui/audio.js';
+import { fmtM } from '../engine/season.js';
+import { principal, TP_PERSONAS } from '../engine/dynasty.js';
+import { portraitSVG, teamCol } from './career-ui.js';
 
 export function celebrate(n = 150) {
   const cv = document.createElement('canvas');
@@ -64,6 +67,7 @@ registerScreen({
           ${res.classification.map((r) => { const tm = st.teams[r.teamId]; const d = st.drivers[r.driverIds[0]]; return `<tr class="${tm.isPlayer ? 'me' : ''}"><td class="pos p${r.pos}">${r.status === 'dnf' ? 'RIT' : r.pos}</td><td style="width:8px;padding-left:0;padding-right:0">${teamStripe(tm)}</td><td>${C.driversPerCar > 1 ? `<div class="small"><b>${r.driverIds.map((id) => esc(st.drivers[id].name)).join(' / ')}</b></div>` : driverChip(st, d, { size: 22 })}</td><td class="small muted">${esc(tm.name)}</td>${rally ? `<td class="right mono">${r.stageWins || 0}</td><td class="right mono small">${r.time ? fmtLong(r.time) : '-'}</td>` : `<td class="right mono">${r.grid}</td><td><div class="row gap4">${(r.tyres || []).map((t) => tyreBadge(t)).join('')}</div></td><td class="right mono">${r.pitStops}</td><td class="right mono small ${res.fastest?.key === r.key ? 'fastest' : ''}"${res.fastest?.key === r.key ? ' data-tip="Giro più veloce della gara"' : ''}>${fmtTime(r.bestLap)}</td>`}<td class="right mono small">${r.status === 'dnf' ? `<span class="bad">${esc(r.reason || 'Ritiro')}</span>` : r.pos === 1 ? (rally ? '' : 'Vincitore') : rally ? fmtGap(r.gap) : fmtGap(r.gap)}</td><td class="right mono"><b>${r.pts || ''}</b>${r.ps ? `<span class="tiny warn"> (+${r.ps} PS)</span>` : ''}</td></tr>`; }).join('')}
         </tbody></table></div>
         <div class="col gap16">
+          ${weekendReport(st, ev)}
           <div class="panel"><div class="panel-head"><h3>La tua squadra</h3><span class="row" style="gap:8px">${teamBadge(pt, 24)}<span class="small muted">${esc(pt.name)}</span></span></div>${mine.map((r) => { const d = st.drivers[r.driverIds[0]]; return `<div class="res-mine">${helmetSVG(d.helmet, 44)}<div class="grow"><div class="drv-name">${esc(r.driverIds.map((id) => st.drivers[id].name).join(' / '))}</div><div class="drv-meta">${r.status === 'dnf' ? `Ritirato (${esc(r.reason || '')})` : `Arrivato ${r.pos}°${rally ? '' : ` · partito ${r.grid}°`}${r.pts ? ` · +${r.pts} punti` : ''}`}</div></div><div class="rm-pos pos p${r.pos}">${r.status === 'dnf' ? '—' : 'P' + r.pos}</div></div>`; }).join('')}</div>
           ${(res.penalties || []).length ? `<div class="panel"><div class="panel-head"><h3>${icon('scales')} Decisioni dei commissari</h3></div><table class="tbl small"><tbody>${res.penalties.map((p) => `<tr class="${p.teamId === pt.id ? 'me' : ''}"><td class="muted tiny">G${p.lap || '-'}</td><td>${esc(st.drivers[p.driverId]?.name || '')}</td><td class="small">${esc(p.text)}</td><td class="right mono tiny ${p.pts ? 'bad' : 'dim'}">${p.pts ? '+' + p.pts + ' pt' : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}
           ${res.sprint ? `<div class="panel"><div class="panel-head"><h3>${icon('bolt')} Sprint</h3></div><table class="tbl small"><tbody>${res.sprint.filter((r) => r.pts > 0).map((r) => `<tr class="${r.teamId === pt.id ? 'me' : ''}"><td class="pos p${r.pos}">${r.pos}</td><td>${esc(st.drivers[r.driverIds[0]]?.name || '')}</td><td class="right mono"><b>+${r.pts}</b></td></tr>`).join('')}</tbody></table></div>` : ''}
@@ -106,4 +110,18 @@ registerScreen({
 
 function medalSVG(col) {
   return `<svg class="medal-big" viewBox="0 0 120 120"><path d="M38 6h18l10 30H48z" fill="#c8102e"/><path d="M82 6H64L54 36h18z" fill="#1d3f8f"/><circle cx="60" cy="74" r="38" fill="${col}"/><circle cx="60" cy="74" r="29" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="3"/><path d="M60 54l6 13 14 1.5-10.5 9.5 3 14L60 85l-12.5 7 3-14L40 68.5 54 67z" fill="rgba(0,0,0,.28)"/></svg>`;
+}
+
+// Sponsor objectives, bets and the rival principals' reactions for the race just run
+function weekendReport(st, ev) {
+  const R = st.dyn?.lastReport;
+  if (!R || st.quick || ev !== st.calendar[st.round - 1]) return '';
+  if (!R.goals.length && !R.bet && !R.quotes.length) return '';
+  const pt = playerTeam(st);
+  const earned = R.goals.filter((g) => g.ok).reduce((a, g) => a + g.reward, 0) + (R.bet ? (R.bet.win ? R.bet.stake : -R.bet.stake) : 0);
+  return `<div class="panel"><div class="panel-head"><h3>${icon('target')} Bilancio del weekend</h3>${earned ? `<span class="chip ${earned > 0 ? 'good' : 'bad'}">${earned > 0 ? '+' : ''}${fmtM(earned)}</span>` : ''}</div>
+    ${R.goals.map((g) => `<div class="goal-row ${g.ok ? 'ok' : 'ko'}"><div class="goal-tier t${g.tier}">${'★'.repeat(g.tier)}</div><div style="min-width:0"><div class="gt">${esc(g.text)}</div><div class="gs">${esc(g.name)}</div></div><div class="gr">${g.ok ? '+' : ''}${fmtM(g.reward)}</div></div>`).join('')}
+    ${R.bet ? (() => { const t = st.teams[R.bet.team]; const p = principal(st, R.bet.team); return `<div class="card mt8 row" style="box-shadow:inset 3px 0 0 ${R.bet.win ? 'var(--good)' : 'var(--bad)'}">${p && t ? portraitSVG(p, t, 40) : ''}<div class="grow"><b>${R.bet.win ? 'Scommessa vinta' : 'Scommessa persa'}</b><div class="tiny muted">contro ${esc(p?.name || '')} (${esc(t?.short || '')}) · ${R.bet.win ? '+' : '-'}${fmtM(R.bet.stake)}</div></div></div>`; })() : ''}
+    ${R.quotes.map((q) => { const t = st.teams[q.team]; const p = principal(st, q.team); if (!t || !p) return ''; return `<div class="row mt8" style="gap:10px;align-items:flex-start">${portraitSVG(p, t, 40)}<div class="tp-quote" style="--tc:${teamCol(t)};margin:0;flex:1;font-size:14px;padding:8px 12px">${esc(q.text)}<div class="tiny muted" style="font-style:normal;margin-top:4px">${esc(p.name)} · ${esc(TP_PERSONAS[p.persona].name)}</div></div></div>`; }).join('')}
+  </div>`;
 }

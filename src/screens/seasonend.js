@@ -8,6 +8,9 @@ import { cat, playerTeam, endSeason, newSeason, jobOffers, fmtM, addMail, unlock
 import { CATEGORIES } from '../data/categories.js';
 import { celebrate } from './results.js';
 import { sfx } from '../ui/audio.js';
+import { getTrack } from '../engine/world.js';
+import { STATUS, MANDATES } from '../engine/dynasty.js';
+import { lineChart, chartLegend, statusEmblem, teamCol } from './career-ui.js';
 
 let summary = null, offers = null;
 
@@ -34,6 +37,7 @@ registerScreen({
         <div class="panel"><div class="tiny upper muted">La tua stagione</div><div style="font-family:var(--display);font-weight:900;font-size:44px;font-style:italic" class="${ok ? 'good' : 'bad'}">${sm.teamPos}°</div><div class="muted">Obiettivo: ${sm.target}° · Premio: <b>${fmtM(sm.prize)}</b></div>${sm.legacy ? `<div class="small mt8">Eredità: <b>${sm.legacy.score}</b>${sm.legacy.gained > 0 ? ` <span class="good">(+${sm.legacy.gained})</span>` : ''} · ${esc(sm.legacy.tier)}</div>` : ''}</div>
       </div>
       ${sm.awards?.length ? `<div class="panel mt16 anim-in"><div class="panel-head"><h3>Gala di fine stagione · Premi</h3></div><div class="grid4">${sm.awards.map((a, i) => `<div class="card" style="text-align:center;animation:rise .5s ${0.2 + i * 0.15}s both">${icon(a.icon, 'ico', 'style="width:34px;height:34px;color:var(--gold)"')}<div class="tiny upper muted mt8">${esc(a.name)}</div><div style="font-family:var(--display);font-weight:900;font-size:18px">${esc(a.who)}</div><div class="small muted">${esc(a.team || '')}${a.note ? ' · ' + esc(a.note) : ''}</div></div>`).join('')}</div></div>` : ''}
+      ${reviewPanel(st, sm)}
       <div class="panel mt16 ${sm.fired ? '' : ''}"><div class="panel-head"><h3>Verdetto del Consiglio</h3><span class="chip ${st.board.confidence < 30 ? 'bad' : st.board.confidence > 65 ? 'good' : 'warn'}">Fiducia ${st.board.confidence}%</span></div>
         <div style="font-size:16px">${sm.fired ? `<span class="bad"><b>Sei stato licenziato.</b></span> Il consiglio ha perso la fiducia nel tuo lavoro. Scegli una nuova squadra tra le offerte ricevute.` : ok ? (consMine || champMine ? 'Una stagione leggendaria! Il consiglio è entusiasta e ti rinnova la piena fiducia.' : 'Obiettivo raggiunto. Il consiglio è soddisfatto del lavoro svolto.') : 'Obiettivo mancato. Il consiglio si aspetta un netto miglioramento la prossima stagione.'}</div>
         ${bar(st.board.confidence, st.board.confidence < 30 ? 'red' : st.board.confidence > 65 ? 'green' : 'gold')}
@@ -68,3 +72,36 @@ registerScreen({
     },
   },
 });
+
+// ---------- season review: charts, status and plan ----------
+function reviewPanel(st, sm) {
+  const L = (st.dyn?.log || []).filter((x) => x.s === sm.season);
+  if (!L.length) return '';
+  const pt = playerTeam(st);
+  const labels = L.map((x) => x.nat || '');
+  const final = L[L.length - 1].pts;
+  const top = Object.keys(final).sort((a, b) => final[b] - final[a]).slice(0, 5);
+  if (!top.includes(pt.id)) top.push(pt.id);
+  const series = top.map((id) => ({ name: st.teams[id]?.name || id, color: id === pt.id ? '#ffffff' : teamCol(st.teams[id]), values: L.map((x) => x.pts[id] ?? 0), me: id === pt.id }));
+  const pos = [{ name: 'Posizione costruttori', color: 'var(--gold)', values: L.map((x) => x.pos), me: true }];
+  const money = [{ name: 'Liquidità', color: 'var(--good)', values: L.map((x) => x.money), me: true }];
+  const n = Object.keys(st.teams).length;
+  const d = sm.dyn;
+  const S0 = d ? STATUS[d.before] : null, S1 = d ? STATUS[d.after] : null;
+  return `<div class="panel mt16 anim-in"><div class="panel-head"><h3>${icon('chart')} La stagione in grafici</h3><span class="small muted">${L.length} eventi</span></div>
+    <div class="review-grid">
+      <div><div class="tiny upper muted mb8">Corsa al titolo costruttori</div>${lineChart(series, labels, { h: 280 })}${chartLegend(series)}</div>
+      <div class="col gap16">
+        <div><div class="tiny upper muted mb8">La tua posizione round dopo round</div>${lineChart(pos, labels, { w: 520, h: 150, invert: true, min: 1, max: n, fmt: (v) => Math.round(v) + '°' })}</div>
+        <div><div class="tiny upper muted mb8">Liquidità</div>${lineChart(money, labels, { w: 520, h: 150, area: true, fmt: (v) => fmtM(v) })}</div>
+      </div>
+    </div>
+    ${d ? `<div class="grid4 mt16">
+      <div class="card row" style="gap:14px;--stc:${S1.color}">${statusEmblem(d.after, 58)}<div><div class="tiny upper muted">Status</div><b style="font-family:var(--display);font-size:22px;text-transform:uppercase;color:${S1.color}">${esc(S1.name)}</b><div class="tiny ${d.after > d.before ? 'good' : d.after < d.before ? 'bad' : 'muted'}">${d.after > d.before ? `Promossi da ${esc(S0.name)}!` : d.after < d.before ? `Scesi da ${esc(S0.name)}` : 'Stabile'} · prestigio ${d.rep}</div></div></div>
+      <div class="card"><div class="tiny upper muted">Obiettivi sponsor</div><div class="kpi"><b>${d.goalsHit}/${d.goalsTot}</b></div>${bar(d.goalsTot ? (d.goalsHit / d.goalsTot) * 100 : 0, 'green')}</div>
+      <div class="card"><div class="tiny upper muted">Promesse al consiglio</div><div class="kpi"><b><span class="good">${d.kept}</span> / <span class="bad">${d.broken}</span></b></div><div class="tiny muted">mantenute / tradite</div></div>
+      <div class="card"><div class="tiny upper muted">Sfide tra team principal</div><div class="kpi"><b><span class="good">${d.betsWon}</span> / <span class="bad">${d.betsLost}</span></b></div><div class="tiny muted">vinte / perse</div></div>
+    </div>
+    ${d.plan.length ? `<div class="mt16"><div class="tiny upper muted mb8">Piano del consiglio · ${esc((MANDATES[d.mandate] || MANDATES.growth).name)}</div><div class="plan-tl">${d.plan.map((x) => `<div class="plan-step ${x.done ? 'ok' : 'ko'}"><div class="y">${x.season}</div><div class="t">${esc(x.text)}</div><span class="s chip tiny ${x.done ? 'good' : 'bad'}">${x.done ? 'Raggiunto' : 'Mancato'}</span></div>`).join('')}</div></div>` : ''}` : ''}
+  </div>`;
+}

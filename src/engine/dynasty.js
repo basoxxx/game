@@ -39,10 +39,13 @@ export function ensureDynasty(st, opts = {}) {
   D.pressure ??= 0;
   D.statusMax ??= statusIdx(st);
   D.stats ??= { goalsHit: 0, goalsTot: 0, betsWon: 0, betsLost: 0, promisesKept: 0, promisesBroken: 0, promoted: 0 };
-  for (const t of Object.values(st.teams)) {
+  D.seasonStats0 ??= { ...D.stats };
+  const order = Object.values(st.teams).slice().sort((a, b) => hash(a.id + a.principal) - hash(b.id + b.principal));
+  const off = hash(st.category + (st.playerName || '')) % TP_KEYS.length;
+  order.forEach((t, i) => {
     t.facilities.hospitality ??= clamp(Math.round((t.facilities.factory + t.facilities.academy) / 2), 1, 5);
-    if (!t.isPlayer && !D.principals[t.id]) D.principals[t.id] = makePrincipal(st, t);
-  }
+    if (!t.isPlayer && !D.principals[t.id]) D.principals[t.id] = makePrincipal(st, t, TP_KEYS[(i + off) % TP_KEYS.length]);
+  });
   for (const s of Object.values(st.staff)) if (!s.trait) s.trait = staffTraitFor(s.role, hash(s.id + s.name));
   for (const sp of playerTeam(st).sponsors) sp.sat ??= 60;
   if (!D.plan) D.plan = makePlan(st, D.mandate);
@@ -59,10 +62,10 @@ export function ensureDynasty(st, opts = {}) {
 // =====================================================================================
 export const STATUS = [
   { name: 'Fanalino di coda', min: -1, color: '#8a93a3', perks: ['Strutture fino al livello 3', 'Sponsor locali e fornitori'], icon: 'shield' },
-  { name: 'Centro gruppo', min: 0.2, color: '#3aa0ff', perks: ['Strutture fino al livello 4', 'Più offerte dagli sponsor Partner'], icon: 'chart' },
+  { name: 'Centro gruppo', min: 0.2, color: '#3aa0ff', perks: ['Strutture fino al livello 4', 'Più proposte di sponsorizzazione'], icon: 'chart' },
   { name: 'Outsider', min: 0.45, color: '#22d37a', perks: ['Più title sponsor sul tavolo', 'I piloti forti ti ascoltano'], icon: 'speed' },
-  { name: 'Contendente', min: 0.68, color: '#ffb020', perks: ['Strutture al livello 5', 'Investitori internazionali'], icon: 'flame' },
-  { name: 'Top Team', min: 0.88, color: '#ff4f4f', perks: ['Diritti commerciali +8%', 'Gli sponsor pagano di più'], icon: 'trophy' },
+  { name: 'Contendente', min: 0.68, color: '#ffb020', perks: ['Strutture al livello 5', 'Investitori internazionali', 'Offerte sponsor +8%'], icon: 'flame' },
+  { name: 'Top Team', min: 0.88, color: '#ff4f4f', perks: ['Diritti commerciali +8%', 'Offerte sponsor +12%'], icon: 'trophy' },
   { name: 'Dinastia', min: 9, color: '#ffd84a', perks: ['Leggenda del paddock: tutto il mondo ti guarda'], icon: 'star' },
 ];
 function repRange(catId) { const r = TEAMS[catId].map((t) => t.rep); return [Math.min(...r), Math.max(...r)]; }
@@ -144,9 +147,9 @@ export const TP_PERSONAS = {
   professore: { name: 'Il Professore', desc: 'Ingegnere fino al midollo: parla solo di dati e galleria del vento.', color: '#3aa0ff' },
 };
 const TP_KEYS = Object.keys(TP_PERSONAS);
-function makePrincipal(st, t) {
+function makePrincipal(st, t, persona) {
   const h = hash(t.id + (t.principal || ''));
-  return { persona: TP_KEYS[h % TP_KEYS.length], rel: (h % 21) - 10, name: t.principal || 'Team Principal', quote: null, met: 0 };
+  return { persona: persona || TP_KEYS[h % TP_KEYS.length], rel: ((h >> 4) % 21) - 10, name: t.principal || 'Team Principal', quote: null, met: 0 };
 }
 export function principal(st, teamId) { return st.dyn?.principals?.[teamId] || null; }
 export function relLabel(r) { return r >= 45 ? 'Alleato' : r >= 15 ? 'Cordiale' : r > -15 ? 'Neutrale' : r > -45 ? 'Ostile' : 'Nemico giurato'; }
@@ -675,7 +678,7 @@ export function dynPostRound(st, res, track) {
       const sp = pt.sponsors.find((x) => x.id === g.sp); if (!sp) continue;
       const ok = evalGoal(st, g, res);
       g.ok = ok; D.stats.goalsTot++;
-      sp.sat = clamp(Math.round((sp.sat ?? 60) + (ok ? 7 : -6)), 0, 100);
+      sp.sat = clamp(Math.round((sp.sat ?? 60) + (ok ? 7 : -6) + Math.max(0, (pt.facilities.hospitality || 1) - 3)), 0, 100);
       if (ok) { addFinance(st, `Obiettivo ${sp.name}: ${g.text}`, g.reward); D.stats.goalsHit++; }
       report.goals.push({ ...g });
     }
@@ -707,8 +710,8 @@ export function dynPostRound(st, res, track) {
   if (teamTrait(st, pt, 'engineer', 'psych')) teamDrivers(st, pt).forEach((d) => (d.morale = clamp(d.morale + 1, 10, 100)));
   if (teamTrait(st, pt, 'mechanic', 'reliab') && pt.car.parts.reliability != null) pt.car.parts.reliability = clamp(+(pt.car.parts.reliability + 0.1).toFixed(2), 30, 99.5);
   if (D.skim && D.skim.until >= st.season) { const comm = +(pt.baseBudget * 0.46 / st.calendar.length * (D.skim.pct || 0.1)).toFixed(2); addFinance(st, `Quota del fondo ${D.skim.who}`, -comm); }
-  if (statusIdx(st) >= 4) addFinance(st, 'Bonus commerciale Top Team', +(pt.baseBudget * 0.46 / st.calendar.length * 0.08).toFixed(2));
-  pt.facilities.hospitality && addFinance(st, 'Hospitality e marketing', +((pt.facilities.hospitality - 1) * 0.12 * sc).toFixed(2));
+  const hosp = +((pt.facilities.hospitality - 1) * 0.12 * sc).toFixed(2);
+  if (hosp >= 0.05) addFinance(st, 'Hospitality e marketing', hosp);
   if (academyDrivers(st).length) addFinance(st, 'Accademia giovani: borse di studio', -(academyUpkeep(st) / st.calendar.length));
   // ---- liquidity ----
   D.red = pt.money < 0 ? D.red + 1 : 0;
@@ -790,6 +793,7 @@ function roundPress(st, res, track, report) {
 export function dynEndSeason(st, sum) {
   if (st.quick) return;
   const D = ensureDynasty(st); const pt = playerTeam(st);
+  const before = statusIdx(st);
   checkPromises(st, true);
   // team reputation reacts to the final standing (player and AI)
   const n = sum.st.teams.length;
@@ -816,9 +820,18 @@ export function dynEndSeason(st, sum) {
     }
   }
   feederResults(st);
+  const planRefs = D.plan.steps.filter((x) => x.season === st.season);
+  const mandate = D.mandate;
   evalPlan(st, sum);
+  const planSteps = planRefs.map((x) => ({ ...x }));
   if (D.admin && pt.money < 0) sum.fired = true;
+  const after = statusIdx(st);
+  const hist = st.career.history[st.career.history.length - 1];
+  if (hist && hist.season === st.season) hist.status = after;
+  if (after > (D.statusMax ?? 0)) { D.statusMax = after; D.statusUp = after; if (after >= 3) D.tycoon = true; }
   D.summary = { season: st.season, goals: `${D.stats.goalsHit}/${D.stats.goalsTot}` };
+  sum.dyn = { before, after, mandate, plan: planSteps, goalsHit: D.stats.goalsHit - (D.seasonStats0?.goalsHit || 0), goalsTot: D.stats.goalsTot - (D.seasonStats0?.goalsTot || 0), betsWon: D.stats.betsWon - (D.seasonStats0?.betsWon || 0), betsLost: D.stats.betsLost - (D.seasonStats0?.betsLost || 0), kept: D.stats.promisesKept - (D.seasonStats0?.promisesKept || 0), broken: D.stats.promisesBroken - (D.seasonStats0?.promisesBroken || 0), rep: +pt.rep.toFixed(1) };
+
 }
 
 export function dynNewSeason(st) {
@@ -833,6 +846,7 @@ export function dynNewSeason(st) {
   D.promises = [];
   D.bet = null;
   D.red = 0;
+  D.seasonStats0 = { ...D.stats };
   for (const sp of playerTeam(st).sponsors) sp.sat ??= 60;
   makeProspects(st);
   makeRaceGoals(st);

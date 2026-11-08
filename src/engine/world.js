@@ -73,15 +73,15 @@ export function salaryFor(d, cat) {
   return +(Math.max(0.3, ((o - 60) / 38) ** 3.2 * 42) * scale + 0.25).toFixed(2);
 }
 
-export function makeSponsorOffers(rep, cat, n = 4) {
+export function makeSponsorOffers(rep, cat, n = 4, status = null) {
   const scale = CATEGORIES[cat].budgetScale;
   const out = [];
   const pool = shuffle(SPONSORS);
   for (let i = 0; i < n; i++) {
     const s = pool[i];
     const tierMult = s.tier === 3 ? 2.4 : s.tier === 2 ? 1.4 : 0.7;
-    if (s.tier === 3 && rep < 70 && Math.random() < 0.7) continue;
-    const perRace = +(tierMult * (0.35 + rep / 120) * scale * rand(0.75, 1.2)).toFixed(2);
+    if (s.tier === 3 && (status != null ? status < 2 : rep < 70) && Math.random() < 0.7) continue;
+    const perRace = +(tierMult * (0.35 + rep / 120) * scale * rand(0.75, 1.2) * (1 + Math.max(0, (status ?? 0) - 1) * 0.04)).toFixed(2);
     const objectives = [
       { id: 'points', text: 'Bonus per ogni gara a punti', bonus: +(perRace * 0.35).toFixed(2) },
       { id: 'podium', text: 'Bonus per ogni podio', bonus: +(perRace * 1.6).toFixed(2) },
