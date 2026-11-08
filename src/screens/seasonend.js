@@ -39,6 +39,7 @@ registerScreen({
       </div>
       ${sm.awards?.length ? `<div class="panel mt16 anim-in"><div class="panel-head"><h3>Gala di fine stagione · Premi</h3></div><div class="grid4">${sm.awards.map((a, i) => `<div class="card" style="text-align:center;animation:rise .5s ${0.2 + i * 0.15}s both">${icon(a.icon, 'ico', 'style="width:34px;height:34px;color:var(--gold)"')}<div class="tiny upper muted mt8">${esc(a.name)}</div><div style="font-family:var(--display);font-weight:900;font-size:18px">${esc(a.who)}</div><div class="small muted">${esc(a.team || '')}${a.note ? ' · ' + esc(a.note) : ''}</div></div>`).join('')}</div></div>` : ''}
       ${reviewPanel(st, sm)}
+      ${investPanel(st, sm)}
       <div class="panel mt16 ${sm.fired ? '' : ''}"><div class="panel-head"><h3>Verdetto del Consiglio</h3><span class="chip ${st.board.confidence < 30 ? 'bad' : st.board.confidence > 65 ? 'good' : 'warn'}">Fiducia ${st.board.confidence}%</span></div>
         <div style="font-size:16px">${sm.fired ? `<span class="bad"><b>Sei stato licenziato.</b></span> Il consiglio ha perso la fiducia nel tuo lavoro. Scegli una nuova squadra tra le offerte ricevute.` : ok ? (consMine || champMine ? 'Una stagione leggendaria! Il consiglio è entusiasta e ti rinnova la piena fiducia.' : 'Obiettivo raggiunto. Il consiglio è soddisfatto del lavoro svolto.') : 'Obiettivo mancato. Il consiglio si aspetta un netto miglioramento la prossima stagione.'}</div>
         ${bar(st.board.confidence, st.board.confidence < 30 ? 'red' : st.board.confidence > 65 ? 'green' : 'gold')}
@@ -108,6 +109,29 @@ function reviewPanel(st, sm) {
     ${d.quotes?.length ? `<div class="mt16"><div class="tiny upper muted mb8">Il paddock commenta la tua stagione</div><div class="grid2">${d.quotes.map((q) => { const t = st.teams[q.team]; const p = principal(st, q.team); return t && p ? `<div class="row" style="gap:12px;align-items:flex-start">${portraitSVG(p, t, 56)}<div class="tp-quote" style="--tc:${teamCol(t)};margin:0;flex:1">${esc(q.text)}<div class="tiny muted mt8" style="font-style:normal">${esc(p.name)} · ${esc(t.name)} · ${esc(TP_PERSONAS[p.persona].name)}</div></div></div>` : ''; }).join('')}</div></div>` : ''}
     ${d.plan.length ? `<div class="mt16"><div class="tiny upper muted mb8">Piano del consiglio · ${esc((MANDATES[d.mandate] || MANDATES.growth).name)}</div><div class="plan-tl">${d.plan.map((x) => `<div class="plan-step ${x.done ? 'ok' : 'ko'}"><div class="y">${x.season}</div><div class="t">${esc(x.text)}</div><span class="s chip tiny ${x.done ? 'good' : 'bad'}">${x.done ? 'Raggiunto' : 'Mancato'}</span></div>`).join('')}</div></div>` : ''}` : ''}
   </div>`;
+}
+
+// ---------- investments: what the money outside the cost cap brought back ----------
+function investPanel(st, sm) {
+  const v = sm.dyn?.inv;
+  if (!v) return '';
+  const any = v.museum || v.mkt || v.divs.length || v.junior || v.feeder?.length || v.builds.length || v.upkeep > 0 || v.bonus > 0;
+  if (!any) return '';
+  const sgn = (x) => `${x >= 0 ? '+' : '−'}${fmtM(Math.abs(x))}`;
+  const tile = (ic, label, val, cls, sub) => `<div class="inv-res"><div class="inv-ic">${icon(ic)}</div><div class="grow" style="min-width:0"><div class="tiny upper muted">${esc(label)}</div><b class="inv-res-v ${cls || ''}">${val}</b>${sub ? `<div class="tiny muted">${sub}</div>` : ''}</div></div>`;
+  const tiles = [];
+  if (v.rep) tiles.push(tile('star', 'Prestigio dagli investimenti', `+${String(v.rep).replace('.', ',')}`, 'good', [v.museum ? `Museo +${String(v.museum.rep).replace('.', ',')}` : '', v.mkt ? `${esc(v.mkt.name)} +${String(v.mkt.rep).replace('.', ',')}` : ''].filter(Boolean).join(' · ')));
+  if (v.museum) tiles.push(tile('trophy', 'Museo · biglietteria', sgn(v.museum.income), 'good', 'Visite e partner · sponsor più fedeli'));
+  if (v.divs.length) tiles.push(tile('users', 'Dividendi dalle quote', sgn(v.divTot), 'good', v.divs.map((d) => `${esc(d.name)} ${d.pct}% (${d.pos}°) ${fmtM(d.amt)}`).join(' · ') + (v.satellite ? ' · sedile satellite attivo' : '')));
+  if (v.junior || v.feeder?.length) {
+    const f = v.feeder || [];
+    const best = f.length ? f.reduce((a, b) => (b.pos < a.pos ? b : a)) : null;
+    tiles.push(tile('star', v.junior ? 'Programma junior' : 'Accademia', best ? `${best.pos}° ${esc(best.name)}` : 'Nessun junior', best && best.pos <= 3 ? 'good' : '', `${v.junior ? '+1 posto · crescita +35%' : 'Programma non attivo'}${f.length > 1 ? ' · ' + f.filter((x) => x !== best).map((x) => `${esc(x.name)} ${x.pos}°`).join(', ') : ''}`));
+  }
+  if (v.upkeep > 0 || v.bonus > 0) tiles.push(tile('factory', 'Costi di gestione', sgn(-(v.upkeep + v.bonus)), 'bad', [v.upkeep >= 0.05 ? `Infrastrutture ${fmtM(v.upkeep)}` : '', v.bonus >= 0.05 ? `Premi piloti ${fmtM(v.bonus)}` : ''].filter(Boolean).join(' · ')));
+  const net = (v.museum?.income || 0) + v.divTot - v.upkeep - v.bonus;
+  return `<div class="panel mt16 anim-in"><div class="panel-head"><h3>${icon('coin')} Il ritorno degli investimenti</h3><span class="small muted">${v.builds.length ? v.builds.map((b) => esc(b.short) + (b.lvl > 1 ? ' ' + b.lvl : '')).join(' · ') + ' · ' : ''}Spesi in stagione ${fmtM(v.spent)} · resa netta <b class="${net >= 0 ? 'good' : 'bad'}">${sgn(net)}</b></span></div>
+    <div class="inv-res-grid">${tiles.join('')}</div></div>`;
 }
 
 // ---------- driver report cards ("pagelle") ----------

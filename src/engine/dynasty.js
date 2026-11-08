@@ -441,6 +441,7 @@ function academySeason(st) {
   }
 }
 function feederResults(st) {
+  const out = [];
   for (const d of academyDrivers(st)) {
     const ov = driverOverall(d, st.category);
     const pos = clamp(Math.round(gauss(14 - (ov - 62) * 0.55 - (d.morale - 70) * 0.03 - (satelliteSeat(playerTeam(st)) ? 1.5 : 0) - (playerTeam(st).invest?.juniorActive ? 1 : 0), 2.6)), 1, 20);
@@ -451,7 +452,9 @@ function feederResults(st) {
       unlock(st, 'feeder_champ', 'Vivaio d’oro', 'Un tuo junior vince il campionato delle serie minori.');
     }
     addMail(st, { from: 'Accademia', icon: 'star', type: pos <= 3 ? 'good' : 'info', subject: `Stagione junior: ${d.name} ${pos}°`, body: `${d.name} chiude la stagione nelle serie minori al ${pos}° posto (OVR attuale ${ov}).${pos <= 3 ? ' Un risultato che fa parlare il paddock.' : ''}` });
+    out.push({ id: d.id, name: d.name, pos, ov, age: d.age });
   }
+  return out;
 }
 
 // =====================================================================================
@@ -848,7 +851,7 @@ export function dynEndSeason(st, sum) {
       t.rep = clamp(+(t.rep + clamp((byRep - pos) * 0.45, -3, 3) + (base - t.rep) * 0.1).toFixed(1), 20, 100);
     }
   }
-  const invRep = investSeasonEnd(st, sum);
+  const inv = investSeasonEnd(st, sum);
   // sponsors: renewals based on satisfaction
   for (const sp of pt.sponsors) {
     if (sp.seasonsLeft !== 1) continue;
@@ -857,7 +860,8 @@ export function dynEndSeason(st, sum) {
       addMail(st, { from: sp.name, icon: 'money', type: 'good', subject: `${sp.name} rinnova!`, body: `Soddisfatti degli obiettivi raggiunti, ${sp.name} rinnova il contratto con un aumento dell’8% (${fmtM(sp.perRace)}/evento).` });
     }
   }
-  feederResults(st);
+  const feeder = feederResults(st);
+  if (inv) inv.feeder = feeder;
   const planRefs = D.plan.steps.filter((x) => x.season === st.season);
   const mandate = D.mandate;
   evalPlan(st, sum);
@@ -868,7 +872,7 @@ export function dynEndSeason(st, sum) {
   if (hist && hist.season === st.season) hist.status = after;
   if (after > (D.statusMax ?? 0)) { D.statusMax = after; D.statusUp = after; if (after >= 3) D.tycoon = true; }
   D.summary = { season: st.season, goals: `${D.stats.goalsHit}/${D.stats.goalsTot}` };
-  sum.dyn = { quotes: seasonQuotes(st, sum), before, after, mandate, plan: planSteps, goalsHit: D.stats.goalsHit - (D.seasonStats0?.goalsHit || 0), goalsTot: D.stats.goalsTot - (D.seasonStats0?.goalsTot || 0), betsWon: D.stats.betsWon - (D.seasonStats0?.betsWon || 0), betsLost: D.stats.betsLost - (D.seasonStats0?.betsLost || 0), kept: D.stats.promisesKept - (D.seasonStats0?.promisesKept || 0), broken: D.stats.promisesBroken - (D.seasonStats0?.promisesBroken || 0), rep: +pt.rep.toFixed(1), invRep };
+  sum.dyn = { quotes: seasonQuotes(st, sum), before, after, mandate, plan: planSteps, goalsHit: D.stats.goalsHit - (D.seasonStats0?.goalsHit || 0), goalsTot: D.stats.goalsTot - (D.seasonStats0?.goalsTot || 0), betsWon: D.stats.betsWon - (D.seasonStats0?.betsWon || 0), betsLost: D.stats.betsLost - (D.seasonStats0?.betsLost || 0), kept: D.stats.promisesKept - (D.seasonStats0?.promisesKept || 0), broken: D.stats.promisesBroken - (D.seasonStats0?.promisesBroken || 0), rep: +pt.rep.toFixed(1), invRep: inv.rep, inv };
 
 }
 
@@ -975,6 +979,10 @@ export const INVEST = {
     desc: 'Compra quote di una squadra rivale: dividendi, un alleato al tavolo e un sedile per i tuoi junior.', eff: () => 'Dividendi a fine stagione · rapporti +12 · dal 20% sedile satellite per l’accademia' },
 };
 const INV_BUILD_KEYS = ['tunnel', 'hq', 'museum'];
+// Formula Apex teams sit on far bigger budgets: capex, campaigns and upkeep cost more there so the
+// surplus does not simply pile up (other categories keep the base prices).
+const TOP_INV = { cost: 1.6, upkeep: 1.8, stake: 1.3 };
+const invMul = (st, k) => (st.category === 'formula' ? TOP_INV[k] : 1);
 export function investState(team) {
   const I = (team.invest ??= {});
   I.tunnel ??= 0; I.hq ??= 0; I.museum ??= 0; I.junior ??= 0; I.bonus ??= 0;
@@ -983,14 +991,14 @@ export function investState(team) {
 }
 export function invLevel(team, key) { return team?.invest?.[key] || 0; }
 export function investCost(st, key, lvl) {
-  const I = INVEST[key]; const sc = scale(st);
+  const I = INVEST[key]; const sc = scale(st) * invMul(st, 'cost');
   lvl ??= invLevel(playerTeam(st), key) + 1;
   if (key === 'junior') return +(I.cost[0] * sc).toFixed(2);
   return +((I.cost[lvl - 1] ?? I.cost[I.cost.length - 1]) * sc).toFixed(2);
 }
-export function stakeCost(st, teamId) { const t = st.teams[teamId]; return +(t.baseBudget * 0.22 * (0.7 + t.rep / 250)).toFixed(2); }
+export function stakeCost(st, teamId) { const t = st.teams[teamId]; return +(t.baseBudget * 0.22 * (0.7 + t.rep / 250) * invMul(st, 'stake')).toFixed(2); }
 export function investUpkeep(st, team = playerTeam(st)) {
-  const I = investState(team); const sc = scale(st);
+  const I = investState(team); const sc = scale(st) * invMul(st, 'upkeep');
   return +(INV_BUILD_KEYS.reduce((a, k) => a + (I[k] ? INVEST[k].upkeep * I[k] : 0), 0) * sc).toFixed(2);
 }
 export function bonusRates(st, lvl) { const sc = scale(st); return { pts: [0, 0.12, 0.25][lvl] * sc, pod: [0, 0.5, 1.1][lvl] * sc, win: [0, 0.8, 1.8][lvl] * sc }; }
@@ -1118,19 +1126,31 @@ function investRound(st, res) {
 function investSeasonEnd(st, sum) {
   const pt = playerTeam(st); const I = investState(pt);
   const n = sum.st.teams.length;
-  const notes = [];
+  const notes = [], divs = [];
   for (const [id, pct] of Object.entries(I.stakes)) {
     const t = st.teams[id]; if (!t) { delete I.stakes[id]; continue; }
     const pos = sum.st.teams.findIndex((x) => x.id === id) + 1;
     const div = +(t.baseBudget * 0.4 * (pct / 100) * (1.35 - pos / n)).toFixed(2);
-    if (div > 0) { addFinance(st, `Dividendi ${t.name} (${pct}%)`, div); notes.push(`${t.short} ${fmtM(div)}`); }
+    if (div > 0) { addFinance(st, `Dividendi ${t.name} (${pct}%)`, div); notes.push(`${t.short} ${fmtM(div)}`); divs.push({ id, name: t.name, pct, pos, amt: div }); }
   }
   let rep = 0;
   if (I.museum) rep += 1.2;
   if (I.mkt?.season === st.season) rep += [0, 0.6, 1.3, 2.4][I.mkt.lvl];
   if (rep) pt.rep = clamp(+(pt.rep + rep).toFixed(1), 20, 100);
   if (notes.length) addMail(st, { from: 'Ufficio Finanza', icon: 'money', type: 'good', subject: 'Dividendi dalle partecipazioni', body: `Le quote nelle altre squadre hanno reso: ${notes.join(', ')}.` });
-  return rep;
+  // summary for the season-end review
+  const fin = (pre) => +st.finance.filter((f) => f.season === st.season && f.label.startsWith(pre)).reduce((a, b) => a + b.amount, 0).toFixed(2);
+  return {
+    rep: +rep.toFixed(1),
+    museum: I.museum ? { rep: 1.2, income: fin('Museo') } : null,
+    mkt: I.mkt?.season === st.season ? { lvl: I.mkt.lvl, name: INVEST.marketing.levels[I.mkt.lvl - 1], rep: [0, 0.6, 1.3, 2.4][I.mkt.lvl] } : null,
+    divs, divTot: +divs.reduce((a, b) => a + b.amt, 0).toFixed(2),
+    satellite: satelliteSeat(pt),
+    junior: !!I.juniorActive,
+    upkeep: -fin('Investimenti: gestione'), bonus: -fin('Premi risultato'),
+    builds: INV_BUILD_KEYS.filter((k) => I[k]).map((k) => ({ key: k, short: INVEST[k].short, lvl: I[k] })),
+    spent: investSpent(st),
+  };
 }
 // Academy hooks
 export function juniorProgramme(st, team = playerTeam(st)) { return (team.invest?.junior || 0) >= st.season; }
