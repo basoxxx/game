@@ -24,6 +24,7 @@ import { SETUP_PARAMS, idealFor, setupQuality } from './setup.js';
 import { isLiveSession, sessionRender, sessionMount, sessionStop, sessionActions, sessionKey, simulateQualifying } from './sessions.js';
 import { plannerPanel, plannerActions, raceStrategyHTML, adviceHTML, ensurePlan, isDryPlan } from './planner.js';
 import { optimise, normalizePlan } from '../engine/strategy.js';
+import { tvUpdate, trackerUpdate, stintChartSVG, liveStandingsHTML, analysisHTML, defaultSel } from './broadcast.js';
 
 function shortName(n) { const p = n.split(' '); return (p[p.length - 1] || n).replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase(); }
 export { shortName };
@@ -87,6 +88,8 @@ registerScreen({
   onKey(e) {
     if (sessionKey(e)) return;
     if (!R.sim) return;
+    if (R.an) { if (e.key === 'Escape' || e.code === 'KeyA') { e.preventDefault(); closeAnalysis(); } return; }
+    if (e.code === 'KeyA' && !R.moment) { openAnalysis(); return; }
     if (R.moment && /^Digit[1-3]$/.test(e.code)) { resolveMomentUI(+e.code.slice(5) - 1); return; }
     if (e.code === 'Space') { e.preventDefault(); R.paused = !R.paused; updateSpeedUI(); }
     const sp = { Digit1: 1, Digit2: 2, Digit3: 4, Digit4: 8, Digit5: 16, Digit6: 32, Digit0: 1 }[e.code];
@@ -141,6 +144,10 @@ registerScreen({
     pause() { R.paused = !R.paused; updateSpeedUI(); },
     'sim-end'() { App.confirm('Simulare fino alla fine?', 'La strategia dei tuoi piloti passerà all’ingegnere.', () => { R.sim.cars.forEach((c) => { if (c.isPlayer) c.auto = true; }); R.sim.momentsOn = false; R.sim.moments = []; document.getElementById('moment')?.remove(); R.moment = null; R.sim.runToEnd(); }); },
     'finish-race'() { finishRace(); },
+    'an-open'() { openAnalysis(); },
+    'an-close'() { closeAnalysis(); },
+    'an-tab'(el) { if (!R.an) return; R.an.tab = el.dataset.t; renderAnalysis(); },
+    'an-sel'(el) { if (!R.an) return; const k = el.dataset.key; const s = R.an.sel; const i = s.indexOf(k); if (i >= 0) { if (s.length > 1) s.splice(i, 1); } else s.push(k); renderAnalysis(); },
   },
 });
 
@@ -186,12 +193,13 @@ function raceScreen(st) {
       <div id="flagstatus"></div>
       <div class="grow"></div>
       <div class="speed-btns" id="speedbtns">${[1, 2, 4, 8, 16, 32].map((v, i) => `<button class="btn sm" data-a="speed" data-v="${v}" data-tip="${v === 1 ? 'Tempo reale' : `Velocità ${v}x`} · tasto ${i + 1}">${v === 1 ? '1x LIVE' : v + 'x'}</button>`).join('')}</div>
+      <button class="btn sm an-open" data-a="an-open" data-tip="Lap chart, distacchi, strategie e passo gara (A)">${icon('chart')} Analisi</button>
       <button class="btn sm" data-a="sim-end" data-tip="Simula il resto della gara: le decisioni passano all’ingegnere">${icon('ff')} Fine gara</button>
-      <span class="kbd-help" data-a="shortcuts" data-tip="Scorciatoie: Spazio pausa · 1-6 velocità · R replay">?</span>
+      <span class="kbd-help" data-a="shortcuts" data-tip="Scorciatoie: Spazio pausa · 1-6 velocità · R replay · A analisi">?</span>
       <div class="race-prog"><i id="race-prog"></i></div>
     </div>
     <div class="race-board" id="board"></div>
-    <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="race-sub" id="race-sub"></div><div class="battle" id="battle"></div><div id="finish-overlay"></div></div>
+    <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="race-sub" id="race-sub"></div><div class="battle" id="battle"></div><div class="tvg-layer" id="tvg"></div><div class="ivt-layer" id="tvtrack"></div><div id="finish-overlay"></div></div>
     <div class="race-side" id="side"></div>
     <div class="race-feed"><div class="row gap4 mb8" id="feed-tabs"></div><div id="feed" style="height:calc(100% - 46px);overflow-y:auto"></div></div>
   </div>`;
@@ -222,7 +230,7 @@ function mountRace() {
     if (R.sim.endurance && w.endPlan?.[c.key]) R.sim.setEndPlan(c, w.endPlan[c.key]);
     c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c);
   }
-  R.ctab = {};
+  R.ctab = {}; R.tvN = 0; R.tvQ = []; R.tvCur = null; R.ivh = {}; R.an = null;
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {}; R.gh = {};
   R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, padTop: 40, glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' || st.category === 'junior' ? drsZones('formula', tr) : [] });
   R.last = performance.now(); R.uiT = 0;
@@ -252,7 +260,7 @@ function mountRace() {
   R.raf = requestAnimationFrame(loop);
   updateSpeedUI();
 }
-function stopRace() { R.moment = null; R.replay = null; R.rbuf = []; cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = null; R.r3d?.destroy(); R.r3d = null; engineStop(); }
+function stopRace() { closeAnalysis(true); R.moment = null; R.replay = null; R.rbuf = []; cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = null; R.r3d?.destroy(); R.r3d = null; engineStop(); }
 
 function renderViewBtns() {
   const el = document.getElementById('view-btns'); if (!el) return;
@@ -364,7 +372,7 @@ function draw() {
   }, { rain: sim.rain, night: sim.night });
 }
 
-function updateAll(force) { updateBoard(); updateTop(); updateControls(force); updateFeed(); updateSub(); }
+function updateAll(force) { updateBoard(); updateTop(); updateControls(force); updateFeed(); updateSub(); try { tvUpdate(R.sim, R); trackerUpdate(R.sim, R); } catch (e) { console.warn(e); } }
 
 // TV-style subtitles: latest commentary line and driver radio outbursts
 function updateSub() {
@@ -558,7 +566,7 @@ function updateFeed(force) {
   }
   const tab = R.tab || 'feed';
   const head = document.getElementById('feed-tabs');
-  if (head) head.innerHTML = [['feed', 'Cronaca'], ['tele', 'Telemetria'], ['lap', 'Analisi giro']].map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="tele-tab" data-t="${k}">${n}</div>`).join('') + `<div class="grow"></div><button class="btn sm ghost" data-a="lessons" style="padding:3px 10px">${icon('info')} Lezioni</button>`;
+  if (head) head.innerHTML = [['feed', 'Cronaca'], ['tele', 'Telemetria'], ['lap', 'Analisi giro'], ['strat', 'Strategie'], ...(S().quick ? [] : [['champ', 'Mondiale live']])].map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="tele-tab" data-t="${k}">${n}</div>`).join('') + `<div class="grow"></div><button class="btn sm ghost" data-a="lessons" style="padding:3px 10px">${icon('info')} Lezioni</button>`;
   const f = document.getElementById('feed');
   if (!f) return;
   if (tab === 'feed') {
@@ -572,6 +580,14 @@ function updateFeed(force) {
     const keys = [...mine.map((c) => c.key), ...(leader.isPlayer ? [] : [leader.key])];
     const cols = [...mine.map((c, i) => (i ? '#ffffff' : c.team.car.livery.primary)), '#ffcc33'];
     drawTelemetry(document.getElementById('tele-cv'), sim, keys, cols);
+  } else if (tab === 'strat') {
+    if (!force && f.dataset.mode === 'strat' && performance.now() - (R._stratT || 0) < 1500) return;
+    R._stratT = performance.now(); f.dataset.mode = 'strat';
+    f.innerHTML = `<div class="feed-strat">${stintChartSVG(sim, sim.classification(), { w: Math.max(520, f.clientWidth - 8), rowH: 17, labW: 86 })}</div>`;
+  } else if (tab === 'champ') {
+    if (!force && f.dataset.mode === 'champ' && performance.now() - (R._champT || 0) < 1500) return;
+    R._champT = performance.now(); f.dataset.mode = 'champ';
+    f.innerHTML = liveStandingsHTML(S(), sim);
   } else {
     f.dataset.mode = 'lap';
     const mine = sim.cars.filter((c) => c.isPlayer);
@@ -593,7 +609,7 @@ function onRaceFinished() {
   const best = Math.min(...mine.map((r) => (r.status === 'dnf' ? 99 : r.pos)));
   if (best <= 3) { sfx.win(); celebrate(best === 1 ? 260 : 120); music.setMood('win'); }
   const ov = document.getElementById('finish-overlay');
-  if (ov) ov.innerHTML = `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:3"><div class="finish-card"><div class="tiny upper muted mt8">Bandiera a scacchi</div><div class="fc-t">${R.sim.isSprint ? 'Sprint finita' : 'Gara finita'}</div><div class="mt16" style="color:var(--text2);font-size:16px"><b style="color:#fff">${esc(st.drivers[res.classification[0].driverIds[0]].name)}</b> vince · il tuo miglior risultato: <b style="color:#fff">${best === 99 ? 'Ritiro' : 'P' + best}</b></div><button class="btn primary xl mt24" data-a="finish-race">Vai ai risultati ${icon('right')}</button></div></div>`;
+  if (ov) ov.innerHTML = `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:3"><div class="finish-card"><div class="tiny upper muted mt8">Bandiera a scacchi</div><div class="fc-t">${R.sim.isSprint ? 'Sprint finita' : 'Gara finita'}</div><div class="mt16" style="color:var(--text2);font-size:16px"><b style="color:#fff">${esc(st.drivers[res.classification[0].driverIds[0]].name)}</b> vince · il tuo miglior risultato: <b style="color:#fff">${best === 99 ? 'Ritiro' : 'P' + best}</b></div><div class="row mt24" style="justify-content:center;gap:10px"><button class="btn lg" data-a="an-open">${icon('chart')} Analisi gara</button><button class="btn primary xl" data-a="finish-race">Vai ai risultati ${icon('right')}</button></div></div></div>`;
 }
 
 function finishRace() {
@@ -684,8 +700,9 @@ function showMoment(m) {
   sfx.notify();
   if (m.key && m.key !== 'all') { R.focus = m.key; if (R.r3d) { R.r3d.director = false; R.r3d.camMode = m.type === 'sc' ? 'heli' : 'chase'; R.r3d._cut = true; R.r3d.focusKey = m.key; } }
   const ov = document.getElementById('finish-overlay'); if (!ov) return;
-  const col = { sc: 'var(--warn)', rain: 'var(--info)', attack: 'var(--bad)', defend: 'var(--bad)', undercut: 'var(--warn)' }[m.type] || 'var(--team)';
-  ov.insertAdjacentHTML('beforeend', `<div id="moment" class="decision" style="border-top-color:${col};width:min(660px,92%)"><div class="m-eyebrow" style="color:${col}">Momento chiave · gara in pausa</div>
+  const col = { sc: 'var(--warn)', rain: 'var(--info)', front: 'var(--info)', attack: 'var(--bad)', defend: 'var(--bad)', undercut: 'var(--warn)', issue: 'var(--warn)', restart: 'var(--good)', mates: 'var(--team)' }[m.type] || 'var(--team)';
+  const eyebrow = { issue: 'Problema tecnico', restart: 'Ripartenza', front: 'Radar meteo', mates: 'Ordini di scuderia' }[m.type] || 'Momento chiave';
+  ov.insertAdjacentHTML('beforeend', `<div id="moment" class="decision" style="border-top-color:${col};width:min(660px,92%)"><div class="m-eyebrow" style="color:${col}">${eyebrow} · gara in pausa</div>
     <div class="m-title">${esc(m.title)}</div>
     <div class="mt8" style="line-height:1.55;color:var(--text2)">${esc(m.text)}</div>
     <div class="col gap6 mt16">${m.options.map((o, i) => `<div class="opt" data-a="moment" data-i="${i}"><div class="row between"><b>${esc(o.label)}</b><span class="kbd">${i + 1}</span></div><div class="small muted mt8">${esc(o.desc)}</div></div>`).join('')}</div>
@@ -700,4 +717,21 @@ function resolveMomentUI(i) {
   if (R.r3d && R.view3d === 'auto') R.r3d.director = true;
   R.last = performance.now();
   updateControls(true);
+}
+
+// ---------------- ANALYSIS OVERLAY ----------------
+function openAnalysis() {
+  if (!R.sim || R.an) return;
+  R.an = { tab: 'lap', sel: defaultSel(R.sim), wasPaused: R.paused };
+  R.paused = true; updateSpeedUI();
+  const w = document.createElement('div'); w.className = 'an-wrap'; w.id = 'analysis';
+  w.addEventListener('mousedown', (e) => { if (e.target === w) closeAnalysis(); });
+  document.body.appendChild(w);
+  renderAnalysis();
+}
+function renderAnalysis() { const w = document.getElementById('analysis'); if (w && R.sim && R.an) w.innerHTML = analysisHTML(R.sim, S(), R.an.tab, R.an.sel); }
+function closeAnalysis(silent) {
+  document.getElementById('analysis')?.remove();
+  if (R.an && !silent) { R.paused = R.an.wasPaused; R.last = performance.now(); updateSpeedUI(); }
+  R.an = null;
 }

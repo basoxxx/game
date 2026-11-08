@@ -1,0 +1,132 @@
+/* =====================================================================
+   Race broadcast layer: TV lower-thirds, interval tracker, live
+   championship, strategy chart and post-race analysis
+   ===================================================================== */
+
+/* ---- Lower thirds ---- */
+.tvg-layer { position: absolute; left: 14px; top: 58px; z-index: 6; pointer-events: none; max-width: calc(100% - 28px); }
+.race-view.mode3d .tvg-layer { top: 58px; }
+.tvg { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 16px 0 0; background: rgba(6,7,9,.93); border-bottom: 3px solid var(--gc); box-shadow: 0 12px 30px rgba(0,0,0,.5); font-family: var(--display); color: #fff; animation: tvgIn .42s var(--ease-out) both; white-space: nowrap; }
+.tvg.out { animation: tvgOut .3s var(--ease-in) both; }
+.tvg.mine { box-shadow: 0 12px 30px rgba(0,0,0,.5), inset 0 0 0 1px color-mix(in srgb, var(--team) 60%, transparent); }
+.tvg-tag { align-self: stretch; display: flex; align-items: center; padding: 0 18px 0 12px; background: var(--gc); color: #050607; font-weight: 800; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%); }
+.tvg.retire .tvg-tag, .tvg.pass .tvg-tag, .tvg.pit .tvg-tag, .tvg.lead .tvg-tag { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+.tvg.fastest .tvg-tag { color: #fff; }
+.tvg-pos { font-weight: 800; font-style: italic; font-size: 22px; padding: 0 2px; }
+.tvg-pos.p1 { color: var(--gold); }
+.tvg-car { display: inline-flex; align-items: baseline; gap: 6px; }
+.tvg-car i { width: 4px; height: 20px; background: var(--tc); align-self: center; transform: skewX(calc(-1 * var(--slant))); }
+.tvg-car b { font-size: 20px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.tvg-car small { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+.tvg-on { color: var(--muted); font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; }
+.tvg-flag { font-style: normal; font-weight: 800; font-size: 12px; letter-spacing: .1em; padding: 2px 7px; text-transform: uppercase; }
+.tvg-flag.drs { background: var(--good); color: #000; }
+.tvg-flag.ers { background: linear-gradient(90deg, #7c4dff, #00e5ff); color: #000; }
+.tvg-big { font-size: 28px; font-weight: 800; font-style: italic; font-variant-numeric: tabular-nums; }
+.tvg-big small { font-size: 16px; margin-left: 1px; }
+.tvg-big.purple { color: var(--purple); }
+.tvg-big.good { color: var(--good); } .tvg-big.warn { color: var(--warn); } .tvg-big.bad { color: var(--bad); }
+.tvg-txt { font-size: 17px; font-weight: 600; color: var(--text2); letter-spacing: .02em; }
+.tvg-tyres { display: inline-flex; align-items: center; gap: 4px; }
+.tvg-arrow { color: var(--muted); font-size: 20px; line-height: 1; }
+@keyframes tvgIn { from { opacity: 0; transform: translateX(-26px); clip-path: inset(0 100% 0 0); } to { opacity: 1; transform: none; clip-path: inset(0 0 0 0); } }
+@keyframes tvgOut { to { opacity: 0; transform: translateX(-16px); } }
+
+/* ---- Interval tracker ---- */
+.ivt-layer { position: absolute; right: 14px; bottom: 14px; z-index: 5; pointer-events: none; }
+.race-view.mode3d .ivt-layer { bottom: 74px; }
+.ivt { width: 300px; background: rgba(6,7,9,.92); border-top: 3px solid var(--line3); box-shadow: 0 14px 34px rgba(0,0,0,.5); font-family: var(--display); animation: rise .35s ease both; }
+.ivt.warm { border-top-color: var(--warn); } .ivt.hot { border-top-color: var(--bad); }
+.ivt-h { padding: 6px 10px 2px; font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.ivt-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px; padding: 2px 10px 6px; }
+.ivt-car { display: flex; align-items: center; gap: 5px; border-left: 3px solid var(--tc); padding-left: 6px; min-width: 0; flex-wrap: wrap; }
+.ivt-row .ivt-car:last-child { flex-direction: row-reverse; border-left: 0; border-right: 3px solid var(--tc); padding: 0 6px 0 0; }
+.ivt-car .ivt-p { font-weight: 800; font-style: italic; font-size: 15px; }
+.ivt-car b { font-size: 17px; font-weight: 800; letter-spacing: .05em; }
+.ivt-car small { width: 100%; font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.ivt-row .ivt-car:last-child small { text-align: right; }
+.ivt-gap { text-align: center; }
+.ivt-gap b { display: block; font-size: 26px; font-weight: 800; font-style: italic; font-variant-numeric: tabular-nums; line-height: 1; }
+.ivt.hot .ivt-gap b { color: var(--bad); } .ivt.warm .ivt-gap b { color: var(--warn); }
+.ivt-gap small { font-size: 11.5px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.ivt-chart { display: flex; flex-direction: column; gap: 3px; padding: 6px 10px 8px; background: rgba(255,255,255,.03); border-top: 1px solid var(--line); }
+.ivt-chart svg { width: 100%; height: 28px; }
+.ivt-chart polyline { fill: none; stroke: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.ivt-chart .ivt-one { stroke: rgba(47,215,127,.55); stroke-dasharray: 3 3; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ivt-chart span { font-family: var(--font); font-size: 12.5px; font-weight: 600; color: var(--text2); }
+.ivt.warm .ivt-chart span { color: var(--warn); } .ivt.hot .ivt-chart span { color: #ff8a95; }
+
+/* ---- Race top: analysis button ---- */
+.race-top .btn.an-open { margin-right: 6px; }
+
+/* ---- Live championship (feed tab) ---- */
+.live-champ { font-size: 13.5px; }
+.lc-h { display: flex; justify-content: space-between; padding: 2px 4px 6px; font-family: var(--display); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text2); }
+.lc-row { display: grid; grid-template-columns: 26px 5px minmax(0, 1fr) 34px 34px 40px 40px; align-items: center; gap: 6px; height: 25px; padding-right: 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.lc-row.me { background: color-mix(in srgb, var(--team) 18%, transparent); }
+.lc-row .teamstripe { height: 15px; width: 4px; }
+.lc-pos { text-align: center; font-family: var(--display); font-weight: 800; font-size: 15px; }
+.lc-nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.lc-mv { font-size: 11.5px; font-weight: 700; text-align: center; }
+.lc-add { color: var(--good); font-family: var(--display); font-weight: 700; text-align: right; }
+.lc-pts { font-family: var(--display); font-size: 16px; text-align: right; }
+.lc-gap { color: var(--muted); font-family: var(--display); text-align: right; }
+
+/* ---- Strategy (stint) chart ---- */
+.stint-svg { display: block; font-family: var(--display); }
+.stint-svg .sc-grid { stroke: rgba(255,255,255,.06); stroke-width: 1; }
+.stint-svg .sc-ax { fill: var(--muted); font-size: 10.5px; font-weight: 600; }
+.stint-svg .sc-lab { fill: var(--muted); font-size: 11.5px; font-weight: 700; }
+.stint-svg .sc-name { fill: var(--text); font-size: 12.5px; font-weight: 800; letter-spacing: .05em; }
+.stint-svg .sc-c { fill: #0a0b0e; font-size: 11px; font-weight: 800; pointer-events: none; }
+.stint-svg .sc-dnf { fill: var(--bad); font-size: 12px; font-weight: 800; }
+.stint-svg .sc-me { fill: color-mix(in srgb, var(--team) 16%, transparent); }
+.stint-svg .sc-row:hover rect[rx] { filter: brightness(1.2); }
+.feed-strat { padding: 0 2px; }
+
+/* ---- Analysis overlay ---- */
+.an-wrap { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; background: rgba(4,5,7,.82); animation: fade .2s ease; }
+.an-panel { width: min(1080px, 96vw); max-height: 94vh; overflow-y: auto; background: var(--s1); border: 1px solid var(--line2); border-top: 4px solid var(--team); box-shadow: var(--shadow); padding: 18px 24px 20px; animation: modalIn .34s var(--ease-out); }
+.an-head { display: flex; align-items: flex-end; gap: 20px; }
+.an-head .tabs { margin-left: auto; }
+.an-eyebrow { font-family: var(--display); font-size: 12px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--team); }
+.an-title { font-family: var(--display); font-size: 30px; font-weight: 800; font-style: italic; text-transform: uppercase; line-height: 1; }
+.an-pick { display: flex; flex-wrap: wrap; gap: 3px; margin: 14px 0 4px; }
+.an-chip { min-width: 46px; padding: 3px 8px; border: 1px solid var(--line2); border-left: 3px solid var(--tc); background: var(--s2); color: var(--muted); font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .05em; cursor: pointer; }
+.an-chip:hover { color: #fff; }
+.an-chip.on { background: color-mix(in srgb, var(--tc) 28%, var(--s2)); color: #fff; border-color: var(--tc); }
+.an-body { margin-top: 8px; }
+.an-svg { width: 100%; display: block; font-family: var(--display); }
+.an-svg .an-grid { stroke: rgba(255,255,255,.06); stroke-width: 1; }
+.an-svg .an-ax { fill: var(--muted); font-size: 12px; font-weight: 600; }
+.an-svg .an-line polyline { fill: none; stroke-width: 1.4; stroke-opacity: .2; stroke-linejoin: round; stroke-linecap: round; transition: stroke-opacity .15s; }
+.an-svg .an-line.on polyline { stroke-width: 2.4; stroke-opacity: 1; }
+.an-svg .an-line.me polyline { stroke-width: 3.2; }
+.an-svg .an-line:hover polyline { stroke-opacity: 1; stroke-width: 3; }
+.an-svg .an-lab { fill: #fff; font-size: 13px; font-weight: 800; letter-spacing: .04em; paint-order: stroke; stroke: #121418; stroke-width: 3px; }
+.an-svg .an-pit { fill: #fff; stroke: #0a0b0e; stroke-width: 1.5; }
+.an-svg .an-sc { fill: rgba(255,210,58,.08); }
+.an-note { margin-top: 6px; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.an-key { display: inline-block; width: 10px; height: 10px; }
+.an-key.pit { background: #fff; } .an-key.sc { background: rgba(255,210,58,.35); }
+.an-strat { max-height: 420px; overflow-y: auto; }
+.an-pits { margin-top: 14px; }
+.an-pitrow { display: grid; grid-template-columns: 20px 5px minmax(0, 1fr) 60px auto auto auto 70px; gap: 8px; align-items: center; height: 28px; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 13.5px; }
+.an-pitrow.me { background: color-mix(in srgb, var(--team) 16%, transparent); }
+.an-pitrow .teamstripe { height: 16px; width: 4px; }
+.an-pitrow b.mono { text-align: right; }
+.an-tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; margin-top: 16px; }
+.an-tile { background: var(--bg2); padding: 10px 12px; min-width: 0; }
+.an-tile b { display: block; font-family: var(--display); font-size: 24px; font-weight: 800; font-style: italic; font-variant-numeric: tabular-nums; }
+.an-tile span { display: block; font-family: var(--display); font-size: 11.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.an-tile small { display: block; font-size: 12px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- Moment cards: issue / restart / front styling ---- */
+.decision .m-eyebrow .m-ico { width: 15px; height: 15px; vertical-align: -2px; margin-right: 6px; }
+
+@media (max-width: 1400px) {
+  .tvg-car small { display: none; }
+  .tvg-car b { font-size: 18px; }
+  .ivt { width: 260px; }
+  .an-tiles { grid-template-columns: repeat(3, 1fr); }
+}
