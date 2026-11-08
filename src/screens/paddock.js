@@ -7,7 +7,7 @@ import { S } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { cat, playerTeam, standings, fmtM } from '../engine/season.js';
 import { ensureDynasty, pressIssues, TP_PERSONAS, STATUS, MANDATES, statusInfo, relLabel, relColor, principal, strengthRanking } from '../engine/dynasty.js';
-import { pressArt, portraitSVG, principalCard, relMeter, statusEmblem, statusLadder, teamCol } from './career-ui.js';
+import { pressArt, portraitSVG, principalCard, relMeter, statusEmblem, statusLadder, teamCol, boardTable } from './career-ui.js';
 
 let tab = 'paper', issueKey = null;
 
@@ -103,7 +103,7 @@ function boardTab(st) {
     </div>
     <div class="col gap16">
       <div class="panel"><div class="panel-head"><h3>Il consiglio di amministrazione</h3><span class="chip ${conf < 30 ? 'bad' : conf > 65 ? 'good' : 'warn'}">Fiducia ${conf}%</span></div>
-        <div class="board-table">${['Presidente', 'Finanza', 'Azionisti', 'Sport'].map((n, i) => { const m = conf + [0, (pt.money < 0 ? -30 : 10), -5, (st.board.target >= (standings(st).teams.findIndex((x) => x.id === pt.id) + 1) ? 12 : -12)][i]; return `<div class="board-seat ${m >= 65 ? 'happy' : m < 35 ? 'angry' : ''}"><div class="face">${m >= 65 ? '+' : m < 35 ? '!' : '='}</div>${n}</div>`; }).join('')}</div>
+        ${boardTable(st)}
         <div class="grid3 mt16"><div class="kpi"><b>${st.board.target}°</b><span>Obiettivo stagione</span></div><div class="kpi"><b>${sRank}ª</b><span>Forza prevista</span></div><div class="kpi"><b class="${pt.money < 0 ? 'bad' : ''}">${fmtM(pt.money)}</b><span>Liquidità</span></div></div>
         ${D.admin ? '<div class="card mt16" style="box-shadow:inset 4px 0 0 var(--bad)"><b class="bad">Amministrazione controllata</b><div class="small muted">Se a fine stagione i conti saranno ancora in rosso verrai sostituito.</div></div>' : ''}
         ${D.skim ? `<div class="card mt16 small" style="box-shadow:inset 4px 0 0 var(--warn)">Il fondo <b>${esc(D.skim.who)}</b> trattiene il ${Math.round((D.skim.pct || 0.1) * 100)}% dei diritti commerciali fino a fine ${D.skim.until}.</div>` : ''}

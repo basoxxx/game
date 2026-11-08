@@ -115,10 +115,14 @@
 .dyn-opts .card b { display: block; font-family: var(--display); font-size: 19px; text-transform: uppercase; line-height: 1.1; margin-top: 4px; }
 .dyn-opts .card.risk { box-shadow: inset 3px 0 0 var(--warn); }
 .board-table { display: flex; gap: 10px; margin: 6px 0 4px; }
-.board-seat { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; background: var(--s2); font-family: var(--display); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.board-seat .face { width: 34px; height: 34px; border-radius: 50%; background: var(--s4); display: grid; place-items: center; font-weight: 800; font-size: 16px; color: var(--text); }
-.board-seat.happy .face { background: color-mix(in srgb, var(--good) 40%, var(--s3)); }
-.board-seat.angry .face { background: color-mix(in srgb, var(--bad) 45%, var(--s3)); }
+.board-seat { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 4px 8px; background: var(--s2); font-family: var(--display); text-transform: uppercase; position: relative; border-bottom: 3px solid var(--line3); }
+.board-seat b { font-size: 13px; letter-spacing: .08em; color: var(--text2); margin-top: 4px; }
+.board-seat .mood { font-size: 12px; font-weight: 700; letter-spacing: .1em; color: var(--muted); }
+.board-seat.happy { border-bottom-color: var(--good); } .board-seat.happy .mood { color: var(--good); }
+.board-seat.meh { border-bottom-color: var(--warn); } .board-seat.meh .mood { color: var(--warn); }
+.board-seat.angry { border-bottom-color: var(--bad); } .board-seat.angry .mood { color: var(--bad); }
+.board-seat.angry .portrait { animation: seatShake 2.4s ease-in-out infinite; }
+@keyframes seatShake { 0%, 90%, 100% { transform: none; } 93% { transform: translateX(-2px); } 96% { transform: translateX(2px); } }
 
 .status-up { text-align: center; }
 .status-up .st-emb { margin: 6px auto 0; filter: drop-shadow(0 12px 30px color-mix(in srgb, var(--stc) 55%, transparent)); animation: stPop .8s var(--ease-out) both; }
@@ -177,3 +181,4 @@
   .paper-main { border-right: 0; }
   .press-teaser { grid-template-columns: 120px minmax(0, 1fr); }
 }
+.pr-art .pr-flag svg { width: 54px !important; height: 36px !important; display: block; }

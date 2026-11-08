@@ -5,7 +5,8 @@ import { teamBadge, helmetSVG, trackSVG, flagSVG } from '../ui/art.js';
 import { esc } from '../ui/dom.js';
 import { getTrack } from '../engine/world.js';
 import { genStage, circuitPath, STAGE_STYLE } from '../ui/trackview.js';
-import { STATUS, TP_PERSONAS, statusInfo, relLabel, relColor } from '../engine/dynasty.js';
+import { STATUS, TP_PERSONAS, statusInfo, relLabel, relColor, statusIdx } from '../engine/dynasty.js';
+import { playerTeam, standings } from '../engine/season.js';
 
 const h32 = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; return h; };
 const vis = (c) => (/^#f[0-9a-f]{5}$/i.test(c) || /^#e[0-9a-f]{5}$/i.test(c) ? null : c);
@@ -124,4 +125,19 @@ export function barChart(values, labels, { w = 760, h = 160, fmt = (v) => v.toFi
   const step = Math.ceil(labels.length / 12);
   const xl = labels.map((l, i) => (i % step === 0 ? `<text x="${padL + i * bw + bw / 2}" y="${h - 8}" text-anchor="middle" class="ch-tick">${esc(l)}</text>` : '')).join('');
   return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="100%"><line x1="${padL}" x2="${w - padR}" y1="${zero}" y2="${zero}" class="ch-grid"/><text x="${padL - 8}" y="${padT + 8}" text-anchor="end" class="ch-tick">+${fmt(mx)}</text><text x="${padL - 8}" y="${h - padB}" text-anchor="end" class="ch-tick">-${fmt(mx)}</text>${bars}${xl}</svg>`;
+}
+
+// ---------- the board: four members with their own mood ----------
+export function boardTable(st) {
+  const pt = playerTeam(st);
+  const c = st.board.confidence;
+  const pos = standings(st).teams.findIndex((x) => x.id === pt.id) + 1;
+  const started = st.round > 0;
+  const seats = [
+    ['Presidente', 'gentiluomo', c],
+    ['Finanza', 'professore', c + (pt.money < 0 ? -30 : pt.money > pt.baseBudget * 0.4 ? 12 : 0)],
+    ['Azionisti', 'volpe', c - 6 + statusIdx(st) * 3],
+    ['Area sportiva', 'squalo', c + (started ? (st.board.target - pos) * 7 : 0)],
+  ];
+  return `<div class="board-table">${seats.map(([n, per, m], i) => { const mood = m >= 70 ? ['Entusiasta', 'happy'] : m >= 45 ? ['Fiducioso', ''] : m >= 25 ? ['Perplesso', 'meh'] : ['Furioso', 'angry']; return `<div class="board-seat ${mood[1]}">${portraitSVG({ name: `${n}${pt.id}${i}`, persona: per }, { id: pt.id, colors: ['#2a2f37', pt.colors[1] || '#fff', '#111'] }, 52)}<b>${n}</b><span class="mood">${mood[0]}</span></div>`; }).join('')}</div>`;
 }

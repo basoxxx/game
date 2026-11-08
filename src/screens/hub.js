@@ -18,7 +18,7 @@ import { SURFACES } from '../data/categories.js';
 import { driverChip, ovr, ratingBox, moraleChip, teamStripe } from './common.js';
 import './paddock.js';
 import { ensureDynasty, statusInfo, maybeDynDecision, dynDecisionView, resolveDynDecision, STATUS, MANDATES, pressIssues } from '../engine/dynasty.js';
-import { pressArt, portraitSVG, statusEmblem, teamCol } from './career-ui.js';
+import { pressArt, portraitSVG, statusEmblem, teamCol, boardTable } from './career-ui.js';
 import { celebrate } from './results.js';
 
 export function nextEventInfo(st) {
@@ -230,7 +230,7 @@ function openDynDecision(st) {
   const pd = st.pendingDyn;
   const head = v.persona && v.team ? `<div class="dyn-head">${portraitSVG(v.persona, v.team, 96)}<div class="grow"><div class="tiny upper">${esc(v.tag)} · ${esc(v.from)}</div><h2 style="margin-top:6px">${esc(v.title)}</h2></div></div>`
     : `<div class="tiny upper" style="color:var(--team)">${esc(v.tag)} · ${esc(v.from)}</div><h2 style="margin-top:8px">${esc(v.title)}</h2>`;
-  const board = pd.kind === 'board' ? `<div class="board-table mt8">${['Presidente', 'Finanza', 'Azionisti', 'Sport'].map((n, i) => { const m = st.board.confidence + [0, playerTeam(st).money < 0 ? -30 : 10, -5, 5][i]; return `<div class="board-seat ${m >= 65 ? 'happy' : m < 35 ? 'angry' : ''}"><div class="face">${m >= 65 ? '+' : m < 35 ? '!' : '='}</div>${n}</div>`; }).join('')}</div>` : '';
+  const board = pd.kind === 'board' ? `<div class="mt8">${boardTable(st)}</div>` : '';
   App.modal(`${head}${board}<p style="color:var(--text2);line-height:1.6">${esc(v.text)}</p>
     <div class="dyn-opts mt16">${v.a.map((a, i) => `<div class="card click ${a.risk ? 'risk' : ''}" data-a="choose" data-i="${i}"><div class="tiny upper ${a.risk ? 'warn' : 'muted'}">Opzione ${i + 1}${a.risk ? ' · rischio' : ''}</div><b>${esc(a.t)}</b><div class="small mt8" style="color:var(--text2)">${esc(a.note)}</div></div>`).join('')}</div>`,
   { choose(el) { const out = resolveDynDecision(st, +el.dataset.i); sfx.ok(); App.closeModal(); if (out) App.toast(v.title, out); App.refresh(); } }, 'locked wide');
