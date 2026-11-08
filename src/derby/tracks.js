@@ -21,7 +21,7 @@ export const VENUES = [
   { id: 'fattoria', name: 'Fattoria Pantano', desc: 'Circuito di campagna nel fango: pozzanghere, fienili, balle di paglia e un guado davanti alla stalla.', kind: 'race', surface: 'mud', surfaceName: 'fango', laps: 3, seed: 53, R: 150, wob: 0.38, elev: 4, jumps: [0.36, 0.83], width: 14, sky: 'day', ground: 'grass', farm: true, puddles: 22, water: [{ s: 0.6, w: 7, ang: 0.15, depth: 0.4 }] },
   { id: 'stadio', name: 'Stadio Ferrovecchio', desc: 'Otto in notturna sotto i riflettori: rampe sui rettilinei e incrocio a raso davanti alle tribune.', kind: 'race', surface: 'dirt', surfaceName: 'terra battuta', laps: 5, eight: true, A: 118, elev: 0, jumps: [0.13, 0.63], jumpH: 2.2, width: 14, sky: 'night', ground: 'rock', stadium: true },
   { id: 'arena', name: 'Arena Rottami', desc: 'Demolition derby: l’ultima auto che si muove vince.', kind: 'derby', surface: 'dirt', surfaceName: 'sterrato', laps: 0, width: 0, arenaR: 62, sky: 'dusk', ground: 'rock' },
-  { id: 'porto', name: 'Porto Vecchio', desc: 'Banchine di cemento tra muri di container e gru giganti, con un salto sopra la darsena.', kind: 'race', surface: 'asphalt', surfaceName: 'cemento', laps: 3, seed: 71, R: 160, wob: 0.3, elev: 1.5, jumps: [0.52], jumpH: 2.4, width: 15, sky: 'dusk', ground: 'rock', port: true, flat: true, water: [{ s: 0.536, w: 7, ang: 0, depth: 0.5, canal: true }] },
+  { id: 'porto', name: 'Porto Vecchio', desc: 'Banchine di cemento tra muri di container e gru giganti, con un salto sopra la darsena.', kind: 'race', surface: 'asphalt', surfaceName: 'cemento', laps: 3, seed: 71, R: 160, wob: 0.3, elev: 1.5, jumps: [0.52], jumpH: 2.4, width: 15, sky: 'day', ground: 'rock', port: true, flat: true, water: [{ s: 0.536, w: 7, ang: 0, depth: 0.5, canal: true }] },
   { id: 'fossa', name: 'Fossa dei Leoni', desc: 'Derby notturno in una buca di fango sotto i fari, con un’isola di rottami in mezzo.', kind: 'derby', surface: 'mud', surfaceName: 'fango', laps: 0, width: 0, arenaR: 54, sky: 'night', ground: 'rock', island: 5 },
   { id: 'rampa', name: 'Rampa del Diavolo', desc: 'Una discesa, un trampolino e il vuoto: salto in lungo con tre tentativi.', kind: 'stunt', surface: 'asphalt', surfaceName: 'asfalto', laps: 0, width: 30, sky: 'day', ground: 'grass' },
 ];
@@ -174,7 +174,7 @@ export function buildTerrain(v, tr, water = { streams: [], puddles: [] }) {
     }
     // valley rim: hills rise towards the edges so the world never ends in a flat plain
     const de = Math.min(c, nc - c, r, nr - r) * cell;
-    if (v.port) { const sea = z - (z1 + 34); if (sea > 0) { H[c * (nr + 1) + r] = -4.5; continue; } h = h * 0.25 + 0.4; if (Math.min(c, nc - c, r) * cell < 140) h += ((140 - Math.min(c, nc - c, r) * cell) / 140) ** 2 * 30; }
+    if (v.port) { const sea = z - (z1 + 34); if (sea > 0) { H[c * (nr + 1) + r] = -4.5; continue; } h = h * 0.25 + 0.4; if (Math.min(c, nc - c, r) * cell < 140) h += ((140 - Math.min(c, nc - c, r) * cell) / 140) ** 2 * 16; }
     else if (de < 140) h += ((140 - de) / 140) ** 2 * 38;
     H[c * (nr + 1) + r] = h;
   }

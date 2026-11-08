@@ -71,7 +71,7 @@ export function buildGround(game) {
   for (let c = 0; c < T.nc; c++) for (let r = 0; r < T.nr; r++) { const a = c * (T.nr + 1) + r, b = a + T.nr + 1; idx[o++] = a; idx[o++] = a + 1; idx[o++] = b; idx[o++] = b; idx[o++] = a + 1; idx[o++] = b + 1; }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setAttribute('blend', new THREE.BufferAttribute(bl, 1)); g.setAttribute('lat', new THREE.BufferAttribute(lat, 1)); g.setAttribute('wet', new THREE.BufferAttribute(wet, 1)); g.setIndex(new THREE.BufferAttribute(idx, 1)); g.computeVertexNormals();
   const rockGround = v.ground === 'rock';
-  const mat = pbr('aerial_grass_rock', { color: rockGround ? 0xcdbd9b : 0xa9c48a, roughness: 1 });
+  const mat = v.port ? pbr('concrete_floor_worn_001', { color: 0x9a968e, roughness: 1 }) : pbr('aerial_grass_rock', { color: rockGround ? 0xcdbd9b : 0xa9c48a, roughness: 1 });
   const surfId = v.surface === 'asphalt' ? 'asphalt_02' : 'gravel_floor';
   const surf = pbr(surfId, { color: 0xffffff, roughness: 1 });
   const rock = pbr('rocky_trail', { color: 0xbfae94, roughness: 1 });
@@ -372,7 +372,7 @@ function buildArena(game, R) {
     const a = (k / 6) * Math.PI * 2; const x = T.cx + Math.cos(a) * (tr.R + 16), z = T.cz + Math.sin(a) * (tr.R + 16);
     const m = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 26, 8), M.steel); m.position.set(x, T.heightAt(x, z) + 13, z); m.castShadow = true; game.S.add(m);
     const lamp = new THREE.Mesh(new THREE.BoxGeometry(3, 1.4, 0.6), M.lamp); lamp.position.set(x, m.position.y + 13.5, z); lamp.lookAt(T.cx, 0, T.cz); game.S.add(lamp);
-    if (game.venue.sky === 'night' && k % 2 === 0) { const sp = new THREE.SpotLight(0xfff1dc, 900, 220, 0.75, 0.6, 1.3); sp.position.copy(lamp.position); sp.target.position.set(T.cx - Math.cos(a) * 12, 0, T.cz - Math.sin(a) * 12); game.S.add(sp); game.S.add(sp.target); }
+    if (game.venue.sky === 'night' && k % 2 === 0) { const sp = new THREE.SpotLight(0xfff1dc, 600, 220, 0.75, 0.6, 1.3); sp.position.copy(lamp.position); sp.target.position.set(T.cx - Math.cos(a) * 12, 0, T.cz - Math.sin(a) * 12); game.S.add(sp); game.S.add(sp.target); }
   }
   // heap of scrapped cars on the central mound
   if (tr.island) {
@@ -405,12 +405,12 @@ function buildPort(game, R) {
   const lists = CONT_COLS.map(() => []);
   const near = (x, z, minD, iSkip) => { for (let k = 0; k < tr.N; k += 2) { if (Math.min(Math.abs(k - iSkip), tr.N - Math.abs(k - iSkip)) < 14) continue; const q = tr.pts[k]; if ((q.x - x) ** 2 + (q.z - z) ** 2 < minD * minD) return true; } return false; };
   for (let i = 0; i < tr.N; i += 3) {
-    const p = tr.pts[i]; if (Math.abs(p.k) > 1 / 110) continue;
+    const p = tr.pts[i]; if (Math.abs(p.k) > 1 / 55) continue;
     if (game.near(tr.jumps, i, 45) || i < 14 || i > tr.N - 10) continue;
     if (game.water.streams.some((s) => Math.hypot(s.x - p.x, s.z - p.z) < 30)) continue;
     if (Math.floor(i / 21) % 3 === 2) continue; // gaps between the blocks
     for (const sd of [1, -1]) {
-      if (R() < 0.18) continue;
+      if (R() < 0.08) continue;
       const off = hw + 4.8 + R() * 0.6, x = p.x - Math.sin(p.h) * sd * off, z = p.z + Math.cos(p.h) * sd * off;
       if (z > quayZ - 6 || near(x, z, hw + 6, i)) continue;
       const n = 1 + Math.floor(R() * 3), y = T.heightAt(x, z), yaw = -p.h;
@@ -418,6 +418,16 @@ function buildPort(game, R) {
       solid(game, x, y, z, yaw, 3.05, 1.3 * n, 1.22);
       game.blockers.push([x, z, 5]);
     }
+  }
+  // container yards: big blocks of stacks away from the circuit (the port skyline)
+  for (let a = 0; a < 70; a++) {
+    const x = T.cx + (R() - 0.5) * T.sx * 0.8, z = T.cz + (R() - 0.5) * T.sz * 0.8;
+    if (z > quayZ - 14 || !clearOf(game, x, z, 18) || game.blockers.some(([bx, bz, br]) => Math.hypot(bx - x, bz - z) < br + 16)) continue;
+    const rows = 2 + Math.floor(R() * 4), cols = 2 + Math.floor(R() * 3), yaw = Math.floor(R() * 2) * Math.PI / 2 + (R() - 0.5) * 0.05;
+    const cs = Math.cos(yaw), sn = Math.sin(yaw), y = T.heightAt(x, z);
+    for (let rI = 0; rI < rows; rI++) for (let cI = 0; cI < cols; cI++) { const lx = (cI - (cols - 1) / 2) * 6.4, lz = (rI - (rows - 1) / 2) * 2.6, h = 1 + Math.floor(R() * 4); for (let k = 0; k < h; k++) lists[Math.floor(R() * CONT_COLS.length)].push([x + lx * cs + lz * sn, y + 1.3 + k * 2.6, z - lx * sn + lz * cs, yaw]); }
+    solid(game, x, y, z, yaw, cols * 3.2, 5, rows * 1.3);
+    game.blockers.push([x, z, Math.max(cols * 3.2, rows * 1.3) + 4]);
   }
   const cg = new THREE.BoxGeometry(6.1, 2.6, 2.44), d = new THREE.Object3D();
   lists.forEach((L, ci) => { if (!L.length) return; const inst = new THREE.InstancedMesh(cg, M.corr(CONT_COLS[ci]), L.length); L.forEach(([x, y, z, yaw], i) => { d.position.set(x, y, z); d.rotation.set(0, yaw, 0); d.updateMatrix(); inst.setMatrixAt(i, d.matrix); }); inst.castShadow = inst.receiveShadow = true; game.scene.add(inst); });
@@ -510,7 +520,7 @@ export function buildTrees(game) {
   const T = game.terrain, tr = game.track, v = game.venue;
   const pool = v.ground === 'rock' ? vegOfKind(['broad', 'bush', 'desert']) : vegOfKind(['conifer', 'broad', 'bush']);
   if (!pool.length) return;
-  const items = []; const target = Math.round((v.forest ? 2600 : v.stadium ? 500 : v.farm ? 1100 : 1400) * (game.low ? 0.4 : 1));
+  const items = []; const target = Math.round((v.forest ? 2600 : v.stadium ? 500 : v.port ? 260 : v.farm ? 1100 : 1400) * (game.low ? 0.4 : 1));
   const bl = game.blockers || [];
   const clear = (x, z) => {
     if (tr.arena) return Math.hypot(x - T.cx, z - T.cz) > tr.R + 44;

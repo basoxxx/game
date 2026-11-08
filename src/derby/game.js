@@ -100,7 +100,7 @@ export class DerbyGame {
     const s = this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(62, 1, 0.1, 3000);
     const kind = this.venue.sky || 'day', night = kind === 'night';
-    s.fog = new THREE.FogExp2(night ? 0x10141c : 0xc9c2b2, night ? 0.0032 : 0.0024);
+    s.fog = new THREE.FogExp2(night ? 0x10141c : 0xc9c2b2, night ? 0.0032 : this.venue.port ? 0.0013 : this.venue.kind === 'stunt' ? 0.0017 : 0.0024);
     this.hemi = new THREE.HemisphereLight(night ? 0x8090b0 : 0xdde8ff, night ? 0x2a241c : 0x6b5a40, night ? 0.35 : 0.6); s.add(this.hemi);
     const sun = this.sun = new THREE.DirectionalLight(night ? 0xe8efff : 0xfff0d8, night ? 1.6 : kind === 'dusk' ? 2.2 : 2.8);
     sun.castShadow = true; const sm = this.low ? 1024 : 2048; sun.shadow.mapSize.set(sm, sm);

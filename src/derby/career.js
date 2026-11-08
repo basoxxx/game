@@ -110,9 +110,10 @@ export function recordCareer(evId, medal, extra = {}) {
 export const UP_PRICES = [3000, 7500, 15000];
 export function upgradePrice(carId, lvl) { const f = (PRICES[carId] || 0) >= 40000 ? 1.4 : (PRICES[carId] || 0) >= 20000 ? 1.2 : 1; return lvl >= 3 ? null : Math.round(UP_PRICES[lvl] * f / 100) * 100; }
 export function tuneOf(carId, p = prog()) { const t = p.garage[carId] || {}; return { eng: t.eng || 0, arm: t.arm || 0, tyr: t.tyr || 0, nit: t.nit || 0 }; }
+const DEF_LIVERY = { rally: 'tricolore', hotrod: 'fiamme', muscle: 'strisce', furgone: 'classica' };
 export function lookOf(carId, p = prog()) {
   const b = BANGERS.find((x) => x.id === carId) || BANGERS[0];
   const l = p.looks[carId] || {};
-  return { color: l.color || b.color, livery: l.livery || 'classica', num: l.num || 1, accent: l.accent || '#f2efe6', stickers: l.stickers !== false };
+  return { color: l.color || b.color, livery: l.livery || DEF_LIVERY[carId] || 'classica', num: l.num || 1, accent: l.accent || '#f2efe6', stickers: l.stickers !== false };
 }
 export { UPGRADES };
