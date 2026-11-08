@@ -100,7 +100,7 @@ export class DerbyGame {
     const s = this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(62, 1, 0.1, 3000);
     const kind = this.venue.sky || 'day', night = kind === 'night';
-    s.fog = new THREE.FogExp2(night ? 0x10141c : 0xc9c2b2, night ? 0.0032 : this.venue.port ? 0.0013 : this.venue.kind === 'stunt' ? 0.0017 : 0.0024);
+    s.fog = new THREE.FogExp2(night ? 0x10141c : 0xc9c2b2, night ? 0.0032 : this.venue.port ? 0.0013 : this.venue.kind === 'stunt' ? 0.0017 : kind === 'dusk' ? 0.0018 : 0.0022);
     this.hemi = new THREE.HemisphereLight(night ? 0x8090b0 : 0xdde8ff, night ? 0x2a241c : 0x6b5a40, night ? 0.35 : 0.6); s.add(this.hemi);
     const sun = this.sun = new THREE.DirectionalLight(night ? 0xe8efff : 0xfff0d8, night ? 1.6 : kind === 'dusk' ? 2.2 : 2.8);
     sun.castShadow = true; const sm = this.low ? 1024 : 2048; sun.shadow.mapSize.set(sm, sm);
@@ -764,8 +764,44 @@ export class DerbyGame {
       const total = ref * this.laps + 2.5; // standing start
       this.targets = [total * 1.12, total * 1.04, total * 0.985].map((t) => Math.round(t * 10) / 10);
     }
+    if (this.mode === 'time') this.loadGhost();
     if (this.mode === 'stunt') { this.targets = this.o.targets || [60, 80, 95]; this.stunt = { att: 1, max: 3, phase: 'hold', t: 0, best: 0, dists: [], hold: 1.6 }; }
     if (this.mode === 'caccia') { this.huntDmg = 0; this.laps = this.o.laps || Math.max(4, this.venue.laps); }
+  }
+  // ---- time-trial ghost: best run per venue and lap count, kept in its own localStorage key
+  ghostKey() { return `${this.venue.id}:${this.laps}`; }
+  loadGhost() {
+    this.ghostRec = []; this.ghostRecT = 0;
+    let all = {}; try { all = JSON.parse(localStorage.getItem('apexdynasty_derby_ghost') || '{}') || {}; } catch {}
+    const G = all[this.ghostKey()]; if (!G?.frames) return;
+    try {
+      const bin = atob(G.frames), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      const f = new Float32Array(u8.buffer); if (f.length < 16) return;
+      const mesh = buildBanger(G.car || 'berlina', G.color || '#8fd3ff', 0, 5, { livery: 'classica', clean: true, stickers: false });
+      mesh.traverse((o) => { if (o.isMesh) { o.material = (Array.isArray(o.material) ? o.material[0] : o.material).clone(); o.material.transparent = true; o.material.opacity = 0.32; o.material.depthWrite = false; o.material.emissive?.set?.(0x3a6aa0); o.castShadow = false; o.receiveShadow = false; } });
+      this.scene.add(mesh); this.ghost = { mesh, f, time: G.time, n: f.length / 8 };
+    } catch (e) { console.warn('ghost', e); }
+  }
+  recordGhost(dt) {
+    if (this.state !== 'race') return; this.ghostRecT -= dt; if (this.ghostRecT > 0) return; this.ghostRecT = 0.1;
+    const t = this.player.body.translation(), r = this.player.body.rotation(); this.ghostRec.push(this.time, t.x, t.y, t.z, r.x, r.y, r.z, r.w);
+  }
+  updateGhost() {
+    const G = this.ghost; if (!G) return; const t = this.state === 'countdown' ? 0 : this.time, f = G.f;
+    let lo = 0, hi = G.n - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (f[m * 8] <= t) lo = m; else hi = m; }
+    const a = lo * 8, b = hi * 8, u = Math.max(0, Math.min(1, (t - f[a]) / ((f[b] - f[a]) || 1)));
+    G.mesh.position.set(f[a + 1] + (f[b + 1] - f[a + 1]) * u, f[a + 2] + (f[b + 2] - f[a + 2]) * u, f[a + 3] + (f[b + 3] - f[a + 3]) * u);
+    tmpQ.set(f[a + 4], f[a + 5], f[a + 6], f[a + 7]).slerp(new THREE.Quaternion(f[b + 4], f[b + 5], f[b + 6], f[b + 7]), u); G.mesh.quaternion.copy(tmpQ);
+    G.mesh.visible = t < f[(G.n - 1) * 8] + 2 && G.mesh.position.distanceToSquared(this.player.mesh.position) > 9;
+  }
+  saveGhost(time) {
+    if (!this.ghostRec?.length || !time) return false;
+    let all = {}; try { all = JSON.parse(localStorage.getItem('apexdynasty_derby_ghost') || '{}') || {}; } catch {}
+    const k = this.ghostKey(); if (all[k]?.time && all[k].time <= time) return false;
+    const u8 = new Uint8Array(new Float32Array(this.ghostRec).buffer); let bin = ''; for (let i = 0; i < u8.length; i += 8192) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 8192));
+    all[k] = { time, car: this.player.spec.id, color: this.player.color, frames: btoa(bin) };
+    try { localStorage.setItem('apexdynasty_derby_ghost', JSON.stringify(all)); } catch { return false; }
+    return true;
   }
   eliminateLast() {
     const act = this.cars.filter((c) => !c.out); if (act.length <= 1) return;
@@ -795,7 +831,7 @@ export class DerbyGame {
         const flips = Math.floor(S.rot / (Math.PI * 1.6));
         const best = d > S.best; if (best) S.best = d;
         this.message(`${d.toFixed(1).replace('.', ',')} m`, d >= this.targets[2] ? 'big' : 'bonus', `${best ? 'Nuovo record! ' : ''}${flips ? `${flips} capriol${flips > 1 ? 'e' : 'a'} · ` : ''}altezza ${Math.round(S.maxY - (tr.pts[tr.lipIdx]?.y || 0))} m`);
-        this.player.score += Math.round(d * 10 + flips * 300); if (flips) this.award(c, 0, null, 0);
+        this.player.score += Math.round(d * 4 + flips * 250); if (flips) this.award(c, 0, null, 0);
         this.crashCandidate(d, [c], `Salto di ${d.toFixed(1)} m`);
         this.shake = Math.min(1.2, this.shake + 0.6); this.snd?.crowd(1);
       }
@@ -832,6 +868,7 @@ export class DerbyGame {
     const P = this.player, pos = res.indexOf(P) + 1;
     const r = { mode: this.mode, pos, rows: res, venue: this.venue.id, kills: P.kills || 0, score: Math.round(P.score || 0), bestLap: P.bestLap || null, time: P.finished ? P.time : null, targets: this.targets || null };
     if (this.mode === 'stunt') { r.distance = this.stunt.best; r.dists = this.stunt.dists.slice(); }
+    if (this.mode === 'time') { r.ghostPrev = this.ghost?.time || null; r.newGhost = this.saveGhost(r.time); }
     if (this.mode === 'caccia') { r.huntDmg = Math.min(100, Math.round(this.huntDmg || 0)); r.huntWreck = !!this.huntWreck; }
     r.medal = medalFor(this.mode, r);
     const ev = this.o.event || null;
@@ -914,6 +951,7 @@ export class DerbyGame {
     if (this.track.arena && this.state === 'race') { const alive = this.cars.filter((c) => !c.out); if (this.player.out || alive.length <= 1 || this.time > 240) { this.finishOrder = this.standings(); this.finish(); } }
     if (!this.track.arena && this.state === 'race' && this.player.finished) this.finish();
     if (this.mode === 'stunt' && this.state === 'race') this.stuntTick(dt);
+    if (this.mode === 'time') this.recordGhost(dt);
     if (this.mode === 'caccia' && this.state === 'race' && this.lepre?.finished) { this.message('La Lepre è scappata!', 'wreck'); this.finish(); }
     if (this.state === 'race') this.record();
     this.render(dt, false, pin, dtReal);
@@ -986,6 +1024,7 @@ export class DerbyGame {
     if (!frozen) { this.dust.update(dt); this.smoke.update(dt); this.fire.update(dt); this.sparks.update(dt); this.chips.update(dt); this.splash.update(dt); }
     this.updateCamera(dtReal);
     if (this.marker) { const p = this.player.mesh.position; this.marker.position.set(p.x, p.y + 2.4 + Math.sin(this.time * 4) * 0.1, p.z); this.marker.quaternion.copy(this.camera.quaternion); this.marker.visible = this.camMode < 2 && !this.lookBack && this.state !== 'finished'; }
+    if (this.ghost) this.updateGhost();
     if (this.lepreMark) { const p = this.lepre.mesh.position; this.lepreMark.position.set(p.x, p.y + 3.2 + Math.sin(this.time * 3) * 0.2, p.z); this.lepreMark.rotation.y = this.time * 2; this.lepreMark.visible = !this.lepre.out && this.camMode < 3; }
     // shadow camera follows the player
     const pp = this.player.mesh.position; this.sun.position.copy(pp).addScaledVector(this.sunDir, 150); this.sun.target.position.copy(pp);

@@ -123,7 +123,8 @@ function optsRows() {
 }
 function carPicker(P, compact = false, selId = D.car) {
   return `<div class="dz-cars ${compact ? 'compact' : ''}">${BANGERS.map((b) => { const own = P.owned.includes(b.id), canBuy = carBuyable(b.id, P); const lk = lookOf(b.id, P); const t = tuneOf(b.id, P), lv = t.eng + t.arm + t.tyr + t.nit;
-    return `<div class="dz-car ${b.id === selId ? 'sel' : ''} ${own ? '' : 'locked'}" data-a="dz-car" data-id="${b.id}"><div class="row between"><span class="dc-name"><i class="dz-sw" style="background:${lk.color}"></i>${esc(b.name)}</span>${own ? (lv ? `<span class="dc-lv">+${lv}</span>` : '') : canBuy ? `<span class="dc-price">${icon('lock')} ${money(PRICES[b.id])}</span>` : `<span class="dc-price">${icon('lock')} ${CAR_STARS[b.id]} ★</span>`}</div>${compact ? `<div class="tiny" style="color:var(--muted)">${esc(b.cls)}</div>` : `<div class="small mt8" style="color:var(--text2)">${esc(b.desc)}</div>${carStats(tuneSpec(b, t), b)}`}</div>`; }).join('')}</div>`;
+    const tag = own ? (lv ? `<span class="dc-lv">+${lv}</span>` : '') : canBuy ? `<span class="dc-price">${icon('lock')} ${money(PRICES[b.id])}</span>` : `<span class="dc-price">${icon('lock')} ${CAR_STARS[b.id]} ★</span>`;
+    return `<div class="dz-car ${b.id === selId ? 'sel' : ''} ${own ? '' : 'locked'}" data-a="dz-car" data-id="${b.id}"><div class="row between"><span class="dc-name"><i class="dz-sw" style="background:${lk.color}"></i>${esc(b.name)}</span>${compact ? (own ? tag : '') : tag}</div>${compact ? `<div class="tiny" style="color:var(--muted)">${own ? esc(b.cls) : tag}</div>` : `<div class="small mt8" style="color:var(--text2)">${esc(b.desc)}</div>${carStats(tuneSpec(b, t), b)}`}</div>`; }).join('')}</div>`;
 }
 function garageTab(P) {
   const b = BANGERS.find((x) => x.id === (D.gcar || D.car)) || BANGERS[0], own = P.owned.includes(b.id), canBuy = carBuyable(b.id, P);
