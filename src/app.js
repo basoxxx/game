@@ -1,8 +1,10 @@
 import { icon } from './ui/icons.js';
 import { teamBadge, logoMark, luminance, flagSVG, trackSVG } from './ui/art.js';
 import { esc } from './ui/dom.js';
-import { sfx, music } from './ui/audio.js';
-import { S, saveGame } from './engine/state.js';
+import { sfx, music, setAudioScene, AUDIO_BUSES, applyVolumes } from './ui/audio.js';
+import { S, saveGame, getSettings, setSettings } from './engine/state.js';
+import { initGamepad, moveFocus } from './ui/gamepad.js';
+import { maybeTour } from './ui/tour.js';
 import { fmtM, playerTeam, cat } from './engine/season.js';
 
 const screens = {};
@@ -36,11 +38,21 @@ export const App = {
       if (b && b !== this._lastHover) { this._lastHover = b; sfx.hover(); if (b.classList.contains('menu-item') && document.activeElement !== b) b.focus({ preventScroll: true }); }
     });
     initTooltips();
+    initGamepad(this);
     try { if (JSON.parse(localStorage.getItem('apexdynasty_settings') || '{}').reduceMotion) document.documentElement.classList.add('reduce-motion'); } catch {}
   },
   onKeyDown(e) {
     const modal = document.querySelector('.modal-wrap');
+    if (document.querySelector('.tour-mask')) return; // the guided tour owns the keyboard
+    const np = document.querySelector('.notes-panel');
+    if (e.key === 'Escape' && np) { np.remove(); return; }
     if (e.key === 'Escape' && modal) { if (!modal.querySelector('.modal.locked')) this.closeModal(); return; }
+    // keep Tab inside an open dialog
+    if (e.key === 'Tab' && modal) {
+      const f = [...modal.querySelectorAll('button:not([disabled]), [data-a], input, select, [tabindex="0"]')].filter((x) => x.offsetParent);
+      if (f.length) { const i = f.indexOf(document.activeElement); if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); } else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); } else if (i < 0) { e.preventDefault(); f[0].focus(); } }
+      return;
+    }
     if (e.key === 'Escape' && !modal) { const back = document.querySelector('.ph-back'); if (back) { e.preventDefault(); back.click(); return; } }
     if (e.key === 'F11' && window.apex?.toggleFullscreen) { e.preventDefault(); window.apex.toggleFullscreen(); return; }
     const tgt = e.target;
@@ -58,11 +70,16 @@ export const App = {
         return;
       }
     }
-    if (typing || modal) return;
+    // spatial arrow navigation between buttons/cards (not while driving, not inside sliders)
+    const spatial = (k) => !typing && k.startsWith('Arrow') && !document.querySelector('.dz-root canvas') && document.activeElement && document.activeElement !== document.body && tgt?.type !== 'range';
+    if (modal) { if (spatial(e.key) && !e.altKey) { e.preventDefault(); moveFocus(e.key.slice(5).toLowerCase()); } return; }
+    if (typing) return;
     const s = screens[this.cur];
     s?.onKey?.(e);
     if (e.defaultPrevented) return;
-    if (e.key === '?' || e.key === 'F1') { e.preventDefault(); this.shortcuts(); return; }
+    if (spatial(e.key) && !e.altKey && !e.ctrlKey && document.activeElement?.matches?.('button, [data-a], [tabindex="0"]')) { if (moveFocus(e.key.slice(5).toLowerCase())) { e.preventDefault(); return; } }
+    if (e.key === 'F1') { e.preventDefault(); if (this.cur !== 'howto') this.go('howto', { back: this.cur }); return; }
+    if (e.key === '?') { e.preventDefault(); this.shortcuts(); return; }
     // Management shell shortcuts
     if (S() && !s?.full) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); globalActions['quick-save'](); return; }
@@ -75,11 +92,13 @@ export const App = {
   shortcuts() {
     const k = (x) => x.split('+').map((p) => `<span class="kbd">${p}</span>`).join(' + ');
     const rows = (list) => list.map(([a, b]) => `<div class="row between small" style="padding:7px 0;border-bottom:1px solid var(--line)"><span class="muted">${b}</span><span>${a.split(' / ').map(k).join(' <span class="dim">/</span> ')}</span></div>`).join('');
-    this.modal(`<div class="tiny upper muted" style="letter-spacing:.3em">Comandi rapidi</div><h2 style="font-style:italic">Scorciatoie da tastiera</h2>
+    this.modal(`<div class="tiny upper muted" style="letter-spacing:.3em">Comandi rapidi</div><h2 style="font-style:italic">Tastiera e controller</h2>
       <div class="grid2 mt16" style="gap:28px;align-items:start">
         <div><h3 class="mb8" style="font-size:13px">Gestione</h3>${rows([['1 / 2 / … / 0', 'Sezioni del menu laterale'], ['Invio', 'Vai al weekend di gara'], ['Ctrl+S', 'Salvataggio rapido'], ['Tab / Invio', 'Muoviti e attiva senza mouse'], ['↑ / ↓', 'Scorri le voci del menu'], ['Esc', 'Chiudi finestra'], ['?', 'Mostra questo pannello']])}</div>
-        <div><h3 class="mb8" style="font-size:13px">In gara</h3>${rows([['Spazio', 'Pausa / riprendi'], ['1 / 2 / 3', 'Velocità 1x · 2x · 4x'], ['4 / 5 / 6', 'Velocità 8x · 16x · 32x'], ['R', 'Replay dell’ultima azione (3D)'], ['1 / 2 / 3', 'Scelta nei momenti chiave']])}</div>
+        <div><h3 class="mb8" style="font-size:13px">In gara</h3>${rows([['Spazio', 'Pausa / riprendi'], ['1 / 2 / 3', 'Velocità 1x · 2x · 4x'], ['4 / 5 / 6', 'Velocità 8x · 16x · 32x'], ['R', 'Replay dell’ultima azione (3D)'], ['1 / 2 / 3', 'Scelta nei momenti chiave'], ['F1', 'Guida “Come si gioca”']])}</div>
       </div>
+      <h3 class="mb8 mt24" style="font-size:13px">${icon('gamepad')} Controller</h3>
+      <div class="pad-map">${[['A', 'Seleziona'], ['B', 'Indietro / chiudi'], ['X', 'Pausa in gara'], ['Y', 'Questo pannello'], ['LB RB', 'Sezione precedente / successiva'], ['Start', 'Continua al weekend'], ['Croce / Stick', 'Muovi la selezione'], ['Stick destro', 'Scorri la pagina']].map(([k, d]) => `<div><span class="pad-btn">${k}</span><span class="muted small">${d}</span></div>`).join('')}</div>
       <div class="row mt24" style="justify-content:flex-end"><button class="btn primary" data-a="close-modal">Ho capito</button></div>`, {}, 'wide');
   },
   onEvent(e, type) {
@@ -100,7 +119,8 @@ export const App = {
     this.cur = id; this.params = params;
     this.closeModal();
     document.querySelector('.coach')?.remove();
-    const mood = { menu: 'menu', newgame: 'menu', settings: S() ? 'manage' : 'menu', weekend: null, rally: null, results: 'win', seasonend: 'win', quickrace: 'menu' }[id];
+    setAudioScene(id);
+    const mood = { intro: 'menu', menu: 'menu', newgame: 'menu', howto: S() ? 'manage' : 'menu', settings: S() ? 'manage' : 'menu', weekend: null, rally: null, results: 'win', seasonend: 'win', quickrace: 'menu', challenges: 'menu', derby: 'derby' }[id];
     if (mood !== null) music.setMood(mood || 'manage');
     if (prev && prev.id !== id) this.wipe();
     this.render();
@@ -139,6 +159,7 @@ export const App = {
     this._lastRendered = this.cur;
     makeFocusable(this.root);
     s.mount?.(this.root, this.params);
+    if (!same) { try { maybeTour(this.cur); } catch (e) { console.warn(e); } }
     if (st?._toast) { this.toast(st._toast.title, st._toast.text, 'good'); sfx.win(); st._toast = null; }
     if (st?._levelUp) { this.toast(`Livello manager ${st._levelUp}!`, 'Hai ottenuto un punto abilità: spendilo in Carriera.', 'good'); sfx.levelup(); st._levelUp = null; }
   },
@@ -170,7 +191,10 @@ export const App = {
         </div>
         <div class="grow"></div>
         <div class="tb-actions">
-          <button class="btn icon-btn ghost" data-a="shortcuts" data-tip="Scorciatoie da tastiera (?)" aria-label="Scorciatoie da tastiera">${icon('gamepad')}</button>
+          <button class="btn icon-btn ghost tb-notes" data-a="notes" data-tip="Centro notifiche" aria-label="Notifiche">${icon('bell')}${this.unreadNotes() ? `<span class="badge">${this.unreadNotes()}</span>` : ''}</button>
+          <button class="btn icon-btn ghost" data-a="mixer" data-tip="Audio: musica, motori, effetti" aria-label="Audio">${icon(getSettings().sound === false && getSettings().music === false ? 'mute' : 'volume')}</button>
+          <button class="btn icon-btn ghost" data-a="nav" data-to="howto" data-back="${this.cur}" data-tip="Come si gioca: guida e tour (F1)" aria-label="Guida">${icon('help')}</button>
+          <button class="btn icon-btn ghost" data-a="shortcuts" data-tip="Comandi: tastiera e controller (?)" aria-label="Comandi">${icon('gamepad')}</button>
           <button class="btn icon-btn ghost" data-a="quick-save" data-tip="Salvataggio rapido (Ctrl+S)" aria-label="Salva">${icon('save')}</button>
           <button class="btn icon-btn ghost" data-a="nav" data-to="settings" data-tip="Impostazioni" aria-label="Impostazioni">${icon('settings')}</button>
         </div>
@@ -187,28 +211,98 @@ export const App = {
     </div>`;
   },
   modal(html, actions = {}, cls = '') {
-    this.closeModal();
+    const had = !!document.querySelector('.modal-wrap');
+    const prevFocus = had ? this._modalReturn : document.activeElement;
+    this.closeModal(true);
     this.modalActions = actions;
     const w = document.createElement('div');
     w.className = 'modal-wrap';
+    w.setAttribute('role', 'dialog'); w.setAttribute('aria-modal', 'true');
     w.innerHTML = `<div class="modal ${cls}">${html}</div>`;
     w.addEventListener('mousedown', (e) => { if (e.target === w && !cls.includes('locked')) this.closeModal(); });
     document.body.appendChild(w);
+    const h = w.querySelector('h2, h1'); if (h) { h.id = h.id || 'modal-title'; w.setAttribute('aria-labelledby', h.id); }
+    makeFocusable(w);
+    this._modalReturn = prevFocus;
+    if (!had) sfx.open();
     actions.mount?.(w);
+    // move focus into the dialog (primary action first) so keyboard and controller users land in it
+    requestAnimationFrame(() => {
+      if (!w.isConnected || w.contains(document.activeElement)) return;
+      const f = w.querySelector('.btn.primary:not([disabled]), button:not([disabled]), [data-a], input, select');
+      f?.focus({ preventScroll: true });
+    });
     return w;
   },
-  closeModal() { document.querySelectorAll('.modal-wrap').forEach((m) => m.remove()); this.modalActions = null; },
+  closeModal(silent = false) {
+    const open = document.querySelectorAll('.modal-wrap');
+    open.forEach((m) => m.remove());
+    this.modalActions = null;
+    if (open.length && silent !== true) {
+      sfx.close();
+      const r = this._modalReturn; this._modalReturn = null;
+      if (r?.isConnected) r.focus?.({ preventScroll: true });
+    }
+  },
   toast(title, text = '', type = '') {
     let box = document.querySelector('.toasts');
     if (!box) { box = document.createElement('div'); box.className = 'toasts'; document.body.appendChild(box); }
     const t = document.createElement('div');
     t.className = `toast ${type}`;
     title = String(title).replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '');
+    this.notes.unshift({ title, text: String(text || ''), type, at: Date.now(), screen: this.cur, read: false });
+    if (this.notes.length > 60) this.notes.length = 60;
+    this.updateNotesBadge();
+    t.setAttribute('role', type === 'bad' ? 'alert' : 'status');
     t.innerHTML = `<div class="t-ic">${icon(type === 'bad' ? 'alert' : type === 'good' ? 'check' : 'info')}</div><b>${title}</b><div class="small muted">${text}</div><i class="t-bar"></i>`;
     while (box.children.length >= 4) box.firstElementChild.remove();
     box.appendChild(t);
     setTimeout(() => { t.style.transition = 'opacity .4s, transform .4s'; t.style.opacity = '0'; t.style.transform = 'translateX(30px)'; }, 3600);
     setTimeout(() => t.remove(), 4100);
+  },
+  // ---- Notification centre: every toast is kept here for the session
+  notes: [],
+  unreadNotes() { return this.notes.filter((n) => !n.read).length; },
+  updateNotesBadge() {
+    const b = document.querySelector('.tb-notes'); if (!b) return;
+    const n = this.unreadNotes();
+    let badge = b.querySelector('.badge');
+    if (!n) { badge?.remove(); return; }
+    if (!badge) { badge = document.createElement('span'); badge.className = 'badge'; b.appendChild(badge); }
+    badge.textContent = n > 9 ? '9+' : n;
+  },
+  openNotes() {
+    const old = document.querySelector('.notes-panel'); if (old) { old.remove(); return; }
+    const p = document.createElement('div');
+    p.className = 'notes-panel'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Centro notifiche');
+    const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'ora' : m < 60 ? `${m} min fa` : `${Math.round(m / 60)} h fa`; };
+    p.innerHTML = `<div class="np-head"><span>${icon('bell')} Notifiche</span>${this.notes.length ? '<button class="btn sm ghost" data-np="clear">Svuota</button>' : ''}</div>
+      <div class="np-list">${this.notes.length ? this.notes.map((n) => `<div class="np-item ${n.type} ${n.read ? '' : 'new'}"><i class="np-dot"></i><div><b>${n.title}</b>${n.text ? `<div class="small">${n.text}</div>` : ''}<div class="np-time">${ago(n.at)}</div></div></div>`).join('') : `<div class="np-empty">${icon('check')}<div>Nessuna notifica in questa sessione.</div></div>`}</div>`;
+    document.body.appendChild(p);
+    this.notes.forEach((n) => (n.read = true)); this.updateNotesBadge();
+    sfx.open();
+    p.addEventListener('click', (e) => { if (e.target.closest('[data-np="clear"]')) { this.notes = []; p.remove(); this.openNotes(); } });
+    const off = (e) => { if (!p.contains(e.target) && !e.target.closest('.tb-notes')) { p.remove(); document.removeEventListener('mousedown', off, true); } };
+    setTimeout(() => document.addEventListener('mousedown', off, true));
+  },
+  // ---- Audio mixer (per-bus volumes, works from any screen)
+  audioMixer() {
+    const s = getSettings();
+    const tg = (k, label, on) => `<div class="mx-row"><span>${label}</span><button class="btn sm ${on ? 'active' : ''}" data-a="mx-toggle" data-k="${k}" aria-pressed="${on}">${on ? 'ON' : 'OFF'}</button></div>`;
+    const sl = (b) => { const v = s[b.key] ?? b.def; return `<label class="mx-slider"><span>${b.label}</span><input type="range" min="0" max="1" step="0.05" value="${v}" data-input="mx-vol" data-k="${b.key}" aria-label="${b.label}"><b class="mono">${Math.round(v * 100)}</b></label>`; };
+    this.modal(`<div class="tiny upper muted" style="letter-spacing:.3em">Mixer</div><h2>Audio</h2>
+      <div class="mx-grid">
+        <div class="col gap8">${AUDIO_BUSES.map(sl).join('')}</div>
+        <div class="col gap8">${tg('sound', 'Effetti, motori e ambiente', s.sound !== false)}${tg('music', 'Colonna sonora', s.music !== false)}${tg('engineSound', 'Rombo motori in gara', s.engineSound !== false)}
+          <div class="mx-test"><button class="btn sm" data-a="mx-test" data-t="ok">${icon('play')} Prova effetti</button><button class="btn sm" data-a="mx-test" data-t="win">${icon('trophy')} Fanfara</button></div>
+          <div class="small muted" style="line-height:1.5">Colonna sonora generativa: un tema per menu, gestione, gara, podio e Scontro Totale, con dissolvenze tra le scene.</div>
+        </div>
+      </div>
+      <div class="row mt24" style="justify-content:flex-end"><button class="btn primary" data-a="close-modal">Fatto</button></div>`, {
+      'mx-vol'(el) { setSettings({ [el.dataset.k]: +el.value }); applyVolumes(); const b = el.parentElement.querySelector('b'); if (b) b.textContent = Math.round(el.value * 100); },
+      'mx-toggle'(el) { const k = el.dataset.k; const on = !(getSettings()[k] ?? true); setSettings({ [k]: on }); applyVolumes(); el.classList.toggle('active', on); el.textContent = on ? 'ON' : 'OFF'; el.setAttribute('aria-pressed', on); if (k === 'music' && on) music.kick(); },
+      'mx-test'(el) { sfx[el.dataset.t]?.(); },
+    }, 'mixer');
   },
   confirm(title, text, onYes, yesLabel = 'Conferma', danger = false) {
     this.modal(`<h2>${title}</h2><p class="muted">${text}</p><div class="row mt24" style="justify-content:flex-end"><button class="btn ghost" data-a="close-modal">Annulla</button><button class="btn ${danger ? 'danger' : 'primary'}" data-a="yes">${yesLabel}</button></div>`, { yes: () => { this.closeModal(); onYes(); } });
@@ -221,6 +315,8 @@ export function trackName(st, ev) { return getTrack(st.category, ev.trackId)?.na
 
 const globalActions = {
   shortcuts() { App.shortcuts(); },
+  notes() { App.openNotes(); },
+  mixer() { App.audioMixer(); },
   'quick-save'() { if (saveGame()) { App.toast('Partita salvata', `Slot ${S().slot}`, 'good'); sfx.ok(); } else App.toast('Salvataggio fallito', '', 'bad'); },
   'to-menu'() { App.confirm('Tornare al menu?', 'La partita verrà salvata automaticamente.', () => { saveGame(); App.go('menu'); }); },
   continue() {

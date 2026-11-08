@@ -13,12 +13,16 @@ import './screens/seasonend.js';
 import './screens/quickrace.js';
 import './screens/challenges.js';
 import './screens/derby.js';
+import './screens/howto.js';
+import { shouldShowIntro } from './screens/intro.js';
+import * as Audio from './ui/audio.js';
+const audioDebug = Audio.audioDebug;
 import { S, saveGame } from './engine/state.js';
 
 App.init();
-App.go('menu');
+App.go(shouldShowIntro() ? 'intro' : 'menu');
 window.addEventListener('beforeunload', () => { if (S()) saveGame(); });
-window.__apex = { App, S };
+window.__apex = { App, S, audio: audioDebug, sound: Audio };
 
 // Debug helper (used by automated tests): simulate the current round with AI strategy
 import { getTrack } from './engine/world.js';
