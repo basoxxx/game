@@ -74,22 +74,91 @@ function crowdPatch(mat) {
 }
 
 
-// simple standing figure (origin at the feet, facing +z). Vertex colours: pure white parts
-// (overalls, arms) take the per-instance team colour, the rest keeps its own colour.
-let _personGeo = null;
-function personGeo() {
-  if (_personGeo) return _personGeo;
+// People (origin at the feet, facing +z), merged into one vertex-coloured geometry per pose.
+// Pure white parts take the per-instance team colour (overalls / team shirt).
+//   'crew'  : pit-crew mechanic in a fire suit and helmet with dark visor, standing ready
+//   'kneel' : wheel-gunner down on one knee with the wheel gun raised
+//   'staff' : engineer in team shirt, dark trousers, headset
+//   'sit'   : seated engineer (pit-wall stand)
+const _people = {};
+function personGeo(kind = 'staff') {
+  if (_people[kind]) return _people[kind];
   const parts = [];
-  const add = (g, hex) => { const c = new THREE.Color(hex); const n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); parts.push(g); };
-  for (const sx of [-0.1, 0.1]) add(new THREE.CapsuleGeometry(0.075, 0.68, 3, 8).translate(sx, 0.42, 0), '#16181d');
-  for (const sx of [-0.1, 0.1]) add(new THREE.BoxGeometry(0.12, 0.08, 0.26).translate(sx, 0.04, 0.05), '#0c0d0f');
-  add(new THREE.CapsuleGeometry(0.165, 0.36, 4, 10).scale(1, 1, 0.68).translate(0, 1.13, 0), '#ffffff');
-  for (const sx of [-0.25, 0.25]) add(new THREE.CapsuleGeometry(0.052, 0.48, 3, 6).rotateZ(sx * 0.35).translate(sx, 1.1, 0.02), '#ffffff');
-  add(new THREE.SphereGeometry(0.105, 12, 8).translate(0, 1.6, 0), '#c99a7a');
-  add(new THREE.SphereGeometry(0.113, 12, 5, 0, Math.PI * 2, 0, Math.PI * 0.36).translate(0, 1.615, -0.012), '#15171b');
-  _personGeo = mergeGeometries(parts);
-  _personGeo.computeBoundingSphere();
-  return _personGeo;
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const paint = (g, hex) => { g = g.index ? g.toNonIndexed() : g; for (const k of Object.keys(g.attributes)) if (!['position', 'normal'].includes(k)) g.deleteAttribute(k); const c = new THREE.Color(hex); const n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); parts.push(g); return g; };
+  // tapered limb between two points with rounded joints
+  const limb = (a, b, r0, r1, hex, joint = true) => {
+    const d = b.clone().sub(a), L = d.length();
+    const g = new THREE.CylinderGeometry(r1, r0, L, 8, 1, true).translate(0, L / 2, 0);
+    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(V(0, 1, 0), d.normalize())); g.translate(a.x, a.y, a.z); paint(g, hex);
+    if (joint) paint(new THREE.SphereGeometry(r1, 8, 6).translate(b.x, b.y, b.z), hex);
+  };
+  const ball = (p, r, hex, sx = 1, sy = 1, sz = 1) => paint(new THREE.SphereGeometry(r, 10, 8).scale(sx, sy, sz).translate(p.x, p.y, p.z), hex);
+  const suit = '#ffffff', dark = '#15171b', glove = '#1b1d22', shoe = '#0c0d0f', skin = '#c99a7a';
+  const crew = kind === 'crew' || kind === 'kneel';
+  const legC = crew ? suit : '#23262d', shirt = '#ffffff';
+  // torso: lathe profile (hips -> chest -> shoulders), flattened front-to-back
+  const torso = (y0, lean = 0, zOff = 0) => {
+    const pr = [[0.0, 0.12], [0.02, 0.165], [0.15, 0.16], [0.3, 0.175], [0.44, 0.195], [0.52, 0.185], [0.56, 0.12], [0.58, 0.0]].map(([y, r]) => new THREE.Vector2(r, y));
+    const g = new THREE.LatheGeometry(pr, 12).scale(1, 1, 0.62).rotateX(lean).translate(0, y0, zOff);
+    paint(g, crew ? suit : shirt);
+    // belt / harness band
+    paint(new THREE.CylinderGeometry(0.168, 0.168, 0.05, 12, 1, true).scale(1, 1, 0.62).translate(0, 0.07, 0).rotateX(lean).translate(0, y0, zOff), dark);
+    const top = V(0, y0 + 0.56 * Math.cos(lean), zOff + 0.56 * Math.sin(lean));
+    return top;
+  };
+  const head = (neck, lean = 0) => {
+    const h = V(neck.x, neck.y + 0.16, neck.z + 0.03 + Math.sin(lean) * 0.08);
+    limb(V(neck.x, neck.y - 0.02, neck.z), V(neck.x, neck.y + 0.06, neck.z + 0.01), 0.055, 0.05, crew ? dark : skin, false);
+    if (crew) {
+      ball(h, 0.135, suit, 1, 1.05, 1.08);                                   // helmet in team colour
+      paint(new THREE.SphereGeometry(0.138, 12, 6, -0.9, 1.8, 1.15, 0.5).scale(1, 1.05, 1.08).translate(h.x, h.y, h.z), '#0a0c10'); // visor
+      paint(new THREE.BoxGeometry(0.2, 0.05, 0.06).translate(h.x, h.y - 0.1, h.z + 0.09), dark); // chin bar
+    } else {
+      ball(h, 0.105, skin, 1, 1.1, 1.05);
+      paint(new THREE.SphereGeometry(0.11, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.42).scale(1, 1.1, 1.05).translate(h.x, h.y + 0.012, h.z - 0.01), '#2a211b'); // hair
+      paint(new THREE.TorusGeometry(0.115, 0.012, 4, 12, Math.PI).translate(h.x, h.y + 0.01, h.z), '#111');          // headset band
+      for (const s of [-1, 1]) paint(new THREE.CylinderGeometry(0.045, 0.045, 0.035, 10).rotateZ(Math.PI / 2).translate(h.x + s * 0.115, h.y - 0.01, h.z), '#111');
+    }
+  };
+  if (kind === 'kneel') {
+    // right foot planted forward, left knee on the ground, leaning towards the wheel
+    const hip = 0.52;
+    for (const s of [-1, 1]) paint(new THREE.SphereGeometry(0.1, 8, 6).translate(s * 0.1, hip, 0), legC);
+    limb(V(0.1, hip, 0), V(0.11, hip - 0.02, 0.42), 0.09, 0.075, legC); limb(V(0.11, hip - 0.02, 0.42), V(0.11, 0.09, 0.44), 0.07, 0.06, legC, false);
+    paint(new THREE.BoxGeometry(0.11, 0.09, 0.27).translate(0.11, 0.045, 0.5), shoe);
+    limb(V(-0.1, hip, 0), V(-0.1, 0.09, 0.12), 0.09, 0.075, legC); limb(V(-0.1, 0.09, 0.12), V(-0.1, 0.08, -0.36), 0.07, 0.06, legC, false);
+    paint(new THREE.BoxGeometry(0.11, 0.08, 0.25).rotateX(0.9).translate(-0.1, 0.08, -0.44), shoe);
+    const top = torso(hip - 0.02, 0.42, 0.0);
+    head(top, 0.42);
+    // arms forward holding the gun
+    for (const s of [-1, 1]) { const sh = V(s * 0.2, top.y - 0.06, top.z - 0.02); const el = V(s * 0.17, top.y - 0.3, top.z + 0.22); const wr = V(s * 0.06, top.y - 0.3, top.z + 0.46); limb(sh, el, 0.06, 0.05, suit); limb(el, wr, 0.05, 0.045, suit); ball(wr, 0.055, glove); }
+    paint(new THREE.CylinderGeometry(0.06, 0.06, 0.32, 10).rotateX(Math.PI / 2).translate(0, top.y - 0.3, top.z + 0.6), '#2b2f36'); // wheel gun
+    paint(new THREE.BoxGeometry(0.06, 0.16, 0.06).translate(0, top.y - 0.39, top.z + 0.52), '#2b2f36');
+  } else if (kind === 'sit') {
+    const hip = 0.48;
+    for (const s of [-1, 1]) { limb(V(s * 0.1, hip, 0), V(s * 0.11, hip, 0.42), 0.085, 0.07, legC); limb(V(s * 0.11, hip, 0.42), V(s * 0.11, 0.08, 0.45), 0.065, 0.055, legC, false); paint(new THREE.BoxGeometry(0.1, 0.08, 0.25).translate(s * 0.11, 0.04, 0.52), shoe); }
+    const top = torso(hip - 0.04, -0.05);
+    head(top);
+    for (const s of [-1, 1]) { const sh = V(s * 0.21, top.y - 0.06, top.z); const el = V(s * 0.24, top.y - 0.32, top.z + 0.08); const wr = V(s * 0.12, top.y - 0.36, top.z + 0.34); limb(sh, el, 0.055, 0.048, shirt); limb(el, wr, 0.047, 0.04, skin); ball(wr, 0.045, skin); }
+  } else {
+    const hip = 0.92;
+    for (const s of [-1, 1]) {
+      paint(new THREE.SphereGeometry(0.105, 8, 6).translate(s * 0.1, hip, 0), legC);
+      limb(V(s * 0.1, hip, 0), V(s * 0.105, 0.5, 0.02), 0.095, 0.075, legC); limb(V(s * 0.105, 0.5, 0.02), V(s * 0.11, 0.09, -0.01), 0.07, 0.055, legC, false);
+      paint(new THREE.BoxGeometry(0.11, 0.09, 0.28).translate(s * 0.11, 0.045, 0.05), shoe);
+    }
+    const top = torso(hip - 0.04, 0.03);
+    head(top);
+    for (const s of [-1, 1]) {
+      const sh = V(s * 0.215, top.y - 0.07, top.z); const el = V(s * 0.26, top.y - 0.36, top.z - 0.02); const wr = V(s * 0.24, top.y - 0.62, top.z + 0.06);
+      limb(sh, el, 0.06, 0.05, crew ? suit : shirt); limb(el, wr, 0.05, 0.042, crew ? suit : skin); ball(wr, 0.05, crew ? glove : skin);
+    }
+    if (crew) for (const s of [-1, 1]) paint(new THREE.BoxGeometry(0.012, 0.5, 0.012).translate(s * 0.17, hip + 0.3, 0.108), dark); // suit piping
+  }
+  const g = mergeGeometries(parts); g.computeBoundingSphere();
+  _people[kind] = g;
+  return g;
 }
 
 export function webglAvailable() {
@@ -1405,7 +1474,23 @@ export class Race3D {
       const iw = bw - 0.8;
       put(G.vc, box(iw, 0.04, 9.6, 0, 0.02, F + 4.8), M, '#c8ccd2');
       put(G.vc, box(iw, 0.045, 0.6, 0, 0.025, F + 0.8), M, tc);
-      for (const sx of [-1, 1]) put(G.vc, box(0.08, 4.0, 9.4, sx * (bw / 2 - 0.42), 2.0, F + 4.9), M, '#eceff2');
+      for (const sx of [-1, 1]) {
+        const wx = sx * (bw / 2 - 0.42);
+        put(G.vc, box(0.08, 4.0, 9.4, wx, 2.0, F + 4.9), M, '#aeb4bc');
+        put(G.vc, box(0.1, 0.32, 9.4, wx - sx * 0.01, 2.75, F + 4.9), M, tc);             // team band
+        put(G.vc, box(0.1, 0.18, 9.4, wx - sx * 0.01, 0.09, F + 4.9), M, '#2a2d33');       // skirting
+        // tool cabinets with drawer fronts and a worktop
+        const cx = sx * (bw / 2 - 0.8);
+        put(G.vc, box(0.6, 0.95, 2.8, cx, 0.48, F + 3.2), M, '#1d2025');
+        put(G.vc, box(0.64, 0.05, 2.84, cx, 0.98, F + 3.2), M, '#a9afb7');
+        for (let dr = 0; dr < 4; dr++) put(G.vc, box(0.02, 0.025, 2.6, cx - sx * 0.31, 0.25 + dr * 0.2, F + 3.2), M, '#8c939b');
+        put(G.vc, box(0.02, 0.9, 0.03, cx - sx * 0.31, 0.48, F + 3.2), M, tc);
+        // wall-mounted monitor above the bench
+        put(G.vc, box(0.06, 0.62, 1.0, wx - sx * 0.05, 1.85, F + 3.2), M, '#0c0d10');
+      }
+      // overhead gantry with timing screens facing the pit lane
+      put(G.vc, box(iw - 1.2, 0.14, 0.35, 0, 3.35, F + 2.0), M, '#1a1c20');
+      for (const sx of [-0.6, 0.6]) { put(G.vc, box(0.04, 0.3, 0.04, sx, 3.15, F + 2.0), M, '#1a1c20'); put(G.screen, tilePlane(1.05, 0.62, sx, 2.75, F + 1.9, 0, 1, 1), M); }
       put(G.vc, box(iw, 0.06, 9.6, 0, 4.0, F + 4.8), M, '#23262b');
       for (const z of [1.6, 4.6, 7.6]) put(G.glow, box(iw - 1.6, 0.05, 0.22, 0, 3.95, F + z), M);
       put(G.art, tilePlane(iw, 4.0, 0, 2.0, F + 9.6, b.team, 4, 4), M);
@@ -1522,7 +1607,6 @@ export class Race3D {
       const qe = -P - 9; this.placeAt(sg, qe, this.pitBack - 1.5, this.geo.h ? this.geo.h[(qe + N) % N] : 0); this.scene.add(sg);
     }
     // ---- people: one instanced mesh for the static staff, one for the pit-stop crews
-    const pg = personGeo();
     const pMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75 });
     pMat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = TIME;
@@ -1541,18 +1625,18 @@ export class Race3D {
     };
     pMat.customProgramCacheKey = () => 'people';
     const ccol = new THREE.Color();
-    if (staff.length) {
-      const sm = new THREE.InstancedMesh(pg, pMat, staff.length);
-      staff.forEach((p, k) => {
-        const M = frame(p.q); d.position.set(p.x, p.sit ? -0.42 : 0, p.z); d.rotation.set(0, p.face, 0); d.scale.set(1, 1, 1); d.updateMatrix();
+    for (const sit of [0, 1]) {
+      const list = staff.filter((p) => !!p.sit === !!sit); if (!list.length) continue;
+      const sm = new THREE.InstancedMesh(personGeo(sit ? 'sit' : 'staff'), pMat, list.length);
+      list.forEach((p, k) => {
+        const M = frame(p.q); d.position.set(p.x, sit ? 0.0 : 0, p.z); d.rotation.set(0, p.face, 0); d.scale.set(1, 1, 1); d.updateMatrix();
         sm.setMatrixAt(k, M.clone().multiply(d.matrix)); sm.setColorAt(k, ccol.set(p.color));
       });
       sm.castShadow = true; sm.receiveShadow = true; sm.computeBoundingSphere(); this.scene.add(sm);
     }
     const nCrew = Math.min(bays.length, 12) * 10;
-    this.crew = new THREE.InstancedMesh(pg, pMat, nCrew); this.crew.count = 0; this.crew.castShadow = true; this.crew.frustumCulled = false;
-    this.crew.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(nCrew * 3), 3);
-    this.scene.add(this.crew);
+    const crewMesh = (kind, n) => { const im = new THREE.InstancedMesh(personGeo(kind), pMat, n); im.count = 0; im.castShadow = true; im.frustumCulled = false; im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3); this.scene.add(im); return im; };
+    this.crew = crewMesh('crew', nCrew); this.crewK = crewMesh('kneel', Math.ceil(nCrew / 2));
   }
 
   // pit crews around cars stopped in their box (wheel guns kneeling at each wheel, front and
@@ -1560,11 +1644,11 @@ export class Race3D {
   updatePitCrew() {
     if (!this.crew) return;
     const d = this._crewD ||= new THREE.Object3D(), col = this._crewC ||= new THREE.Color();
-    let k = 0; const max = this.crew.instanceMatrix.count;
+    let k = 0, kk = 0; const max = this.crew.instanceMatrix.count, maxK = this.crewK.instanceMatrix.count;
     const fm = this.category === 'formula' || this.category === 'junior';
     const L = fm ? 1.8 : 1.45, Wd = fm ? 1.45 : 1.35;
     for (const car of this.cars.values()) {
-      const pc = car.pc; if (!pc || !car.mesh.visible || k + 10 > max) continue;
+      const pc = car.pc; if (!pc || !car.mesh.visible || k + 10 > max || kk + 4 > maxK) continue;
       const ready = pc.phase === 'in' && pc.bayQ - pc.q < 8;
       if (!(pc.phase === 'stop' && (pc.g || 0) < 0.05) && !ready) continue;
       const m = car.mesh, tc = car.teamColor || '#dddddd';
@@ -1573,18 +1657,19 @@ export class Race3D {
       const base = ready ? this.pose(((pc.bayQ % this.geo.N) + this.geo.N) % this.geo.N, this.pitBoxOff) : { x: m.position.x, z: m.position.z, y: m.position.y };
       const spots = ready
         ? [[-2.5, 2.4, 0], [-1.2, 2.5, 0], [0, 2.6, 0], [1.2, 2.5, 0], [2.4, 2.4, 0], [-2.5, -2.4, Math.PI], [-1.2, -2.5, Math.PI], [1.2, -2.5, Math.PI], [3.6, 0.8, 0], [-3.4, 0.8, 0]]
-        : [[L, Wd, 1], [-L, Wd, 1], [L, -Wd, 1], [-L, -Wd, 1], [3.3, 0, 2], [-3.1, 0, 2], [0.2, 1.6, 0], [0.2, -1.6, 0], [L + 0.6, Wd + 0.5, 0], [-L - 0.6, Wd + 0.5, 0]];
+        : [[L, Wd + 0.55, 1], [-L, Wd + 0.55, 1], [L, -Wd - 0.55, 1], [-L, -Wd - 0.55, 1], [3.3, 0, 2], [-3.1, 0, 2], [0.2, 1.6, 0], [0.2, -1.6, 0], [L + 0.6, Wd + 0.5, 0], [-L - 0.6, Wd + 0.5, 0]];
       for (const [lx, lz, kind] of spots) {
         // local (lx along the car, lz to its left) -> world; figures face the car
         const wx = base.x + lx * c + lz * s, wz = base.z - lx * s + lz * c;
         d.position.set(wx, (base.y || 0) - 0.02, wz);
         const fx = base.x - wx, fz = base.z - wz; d.rotation.set(0, Math.atan2(fx, fz), 0);
-        d.scale.set(1, kind === 1 ? 0.62 : kind === 2 ? 0.8 : 1, 1); d.updateMatrix();
-        this.crew.setMatrixAt(k, d.matrix); this.crew.setColorAt(k, col.set(tc)); k++;
+        d.scale.set(1, 1, 1); d.updateMatrix();
+        // wheel guns kneel at the wheels, everyone else stands
+        if (kind === 1) { this.crewK.setMatrixAt(kk, d.matrix); this.crewK.setColorAt(kk, col.set(tc)); kk++; }
+        else { this.crew.setMatrixAt(k, d.matrix); this.crew.setColorAt(k, col.set(tc)); k++; }
       }
     }
-    this.crew.count = k;
-    if (k) { this.crew.instanceMatrix.needsUpdate = true; this.crew.instanceColor.needsUpdate = true; }
+    for (const [im, n] of [[this.crew, k], [this.crewK, kk]]) { im.count = n; if (n) { im.instanceMatrix.needsUpdate = true; im.instanceColor.needsUpdate = true; } }
   }
 
   // true when the straight segment a->b (world points) passes no grandstand, building or tree
