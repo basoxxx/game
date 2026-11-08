@@ -33,8 +33,8 @@
 @keyframes tvgOut { to { opacity: 0; transform: translateX(-16px); } }
 
 /* ---- Interval tracker ---- */
-.ivt-layer { position: absolute; right: 14px; bottom: 14px; z-index: 5; pointer-events: none; }
-.race-view.mode3d .ivt-layer { bottom: 74px; }
+.ivt-layer { position: absolute; right: 14px; top: 112px; z-index: 5; pointer-events: none; }
+.race-view.mode3d .ivt-layer { top: 112px; }
 .ivt { width: 300px; background: rgba(6,7,9,.92); border-top: 3px solid var(--line3); box-shadow: 0 14px 34px rgba(0,0,0,.5); font-family: var(--display); animation: rise .35s ease both; }
 .ivt.warm { border-top-color: var(--warn); } .ivt.hot { border-top-color: var(--bad); }
 .ivt-h { padding: 6px 10px 2px; font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }

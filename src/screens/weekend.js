@@ -62,6 +62,7 @@ registerScreen({
     const w = st.weekend;
     if (st.quickSkip && w.phase === 'practice') { for (const c of Object.values(w.cars)) c.q = aiSetupQuality(st, playerTeam(st)); w.phase = 'quali'; }
     if (st.quickSkip && w.phase === 'quali' && !w.quali) simulateQualifying(st);
+    if (w.quali && st.quick && st.quickGrid && st.quickGrid !== 'quali' && !w.gridMod) applyQuickGrid(st, w);
     if (w.phase === 'race') return raceScreen(st);
     if (isLiveSession(w)) return sessionRender(st);
     const tr = getTrack(st.category, w.trackId);
@@ -734,4 +735,15 @@ function closeAnalysis(silent) {
   document.getElementById('analysis')?.remove();
   if (R.an && !silent) { R.paused = R.an.wasPaused; R.last = performance.now(); updateSpeedUI(); }
   R.an = null;
+}
+
+// Quick race grid options: reversed, player from the back, random draw
+function applyQuickGrid(st, w) {
+  w.gridMod = true;
+  const g = w.quali.grid.slice();
+  const isMine = (k) => st.teams[k.split('#')[0]]?.isPlayer;
+  if (st.quickGrid === 'reverse') g.reverse();
+  else if (st.quickGrid === 'back') { const mine = g.filter(isMine); w.quali.grid = [...g.filter((k) => !isMine(k)), ...mine]; return; }
+  else if (st.quickGrid === 'random') for (let i = g.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [g[i], g[j]] = [g[j], g[i]]; }
+  w.quali.grid = g;
 }

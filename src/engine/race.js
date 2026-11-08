@@ -32,10 +32,11 @@ export function raceLaps(state, track) {
 
 export function makeWeatherPlan(track, laps, forcedRain) {
   const plan = new Array(laps + 2).fill(0);
-  const isRain = forcedRain ?? chance(track.rain);
+  const mixed = forcedRain === 'mixed';
+  const isRain = mixed ? true : forcedRain ?? chance(track.rain);
   let summary = 'Sereno';
   if (isRain) {
-    const type = forcedRain === true ? pick(['start', 'full', 'full', 'shower']) : pick(['shower', 'start', 'late', 'full']);
+    const type = mixed ? pick(['shower', 'shower', 'late', 'start']) : forcedRain === true ? pick(['start', 'full', 'full', 'shower']) : pick(['shower', 'start', 'late', 'full']);
     let s, e, peak;
     if (type === 'shower') { s = randInt(2, Math.floor(laps * 0.6)); e = s + randInt(3, Math.max(4, Math.floor(laps * 0.35))); peak = rand(0.35, 0.8); }
     else if (type === 'start') { s = 0; e = randInt(Math.floor(laps * 0.25), Math.floor(laps * 0.6)); peak = rand(0.5, 0.95); }

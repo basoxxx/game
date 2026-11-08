@@ -78,14 +78,14 @@ export class RallyEvent {
   constructor(state, ev, track, setups) {
     this.state = state; this.ev = ev; this.track = track;
     this.C = CATEGORIES.rally;
-    this.stages = ev.stages.map((s, i) => ({ ...s, idx: i, wet: s.surface !== 'snow' && (state.forceRain === true ? true : state.forceRain === false ? false : chance(track.rain)) }));
+    this.stages = ev.stages.map((s, i) => ({ ...s, idx: i, wet: s.surface !== 'snow' && (state.forceRain === true ? true : state.forceRain === false ? false : chance(state.forceRain === 'mixed' ? 0.5 : track.rain)) }));
     // pace-note sectors and a weather forecast per stage (deterministic per event)
     let h = 5; for (const ch of `${track.id}|${state.season}|${state.round}`) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     const r = mulberry32(h);
     for (const s of this.stages) {
       const pool = SECTOR_POOL[s.surface] || SECTOR_POOL.gravel;
       s.sectors = [0, 1, 2].map(() => pool[Math.floor(r() * pool.length)]);
-      s.rainP = s.surface === 'snow' ? 0 : state.forceRain != null ? (s.wet ? 95 : 3) : Math.round(clamp(s.wet ? 52 + r() * 40 : (track.rain || 0) * 60 + r() * 22, 2, 96));
+      s.rainP = s.surface === 'snow' ? 0 : state.forceRain === true || state.forceRain === false ? (s.wet ? 95 : 3) : Math.round(clamp(s.wet ? 52 + r() * 40 : (track.rain || 0) * 60 + r() * 22, 2, 96));
     }
     this.stageIdx = 0;
     this.fast = track.fast || 1;

@@ -115,6 +115,10 @@
 .rx-sw small { color: var(--muted); font-size: 12px; }
 
 @media (max-width: 1400px) {
+  .lb-row.rx-row { grid-template-columns: 26px 5px minmax(0, 1fr) 44px 44px 58px; gap: 5px; }
+  .lb-row.rx-row .rx-s { font-size: 12px; }
+  .lb-row.rx-row .gap { font-size: 13px; }
+  .lb-row.rx-row .nm { font-size: 15px; }
   .rx-prep, .rx-res { grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr); }
   .rx-tyres { grid-template-columns: repeat(2, 1fr); }
   .rx-dmg { grid-template-columns: 96px 1fr 220px; }
