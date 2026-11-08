@@ -190,6 +190,27 @@ export function applyHDRI(renderer, scene, kind = 'day', { background = true, in
       // some skies store a sun brighter than half-float range: the PMREM (half float) would turn
       // it into Inf/NaN and black out every reflection, so clamp the peak
       try { const a = t.image.data; if (a instanceof Float32Array) { let hit = false; for (let i = 0; i < a.length; i++) if (a[i] > 20000) { a[i] = 20000; hit = true; } if (hit) t.needsUpdate = true; } } catch {}
+      // the night sky (a golf course near a town) carries a bright orange light-pollution band
+      // along the horizon: pull it down and tint it toward a cold, deep blue so the night
+      // circuits get a dark sky with only a faint glow low down
+      if (kind === 'night') try {
+        const { data: a, width: W, height: H } = t.image;
+        if (a instanceof Float32Array) {
+          for (let y = 0; y < H; y++) {
+            const el = 0.5 - (y + 0.5) / H; // +0.5 = zenith (flipY data: row 0 at the top)
+            const h = Math.min(1, Math.max(0, el / 0.4)), k = 0.1 + 0.9 * (h * h * (3 - 2 * h)) ** 1.5;
+            for (let x = 0; x < W; x++) {
+              const i = (y * W + x) * 4, r = a[i], g = a[i + 1], b = a[i + 2], l = r * 0.2126 + g * 0.7152 + b * 0.0722;
+              const m = Math.min(1, 0.3 + 0.7 * h), lk = Math.min(l, 0.6) * k;
+              a[i] = (r * m + l * (1 - m) * 0.55) * k * 0.8; a[i + 1] = (g * m + l * (1 - m) * 0.75) * k * 0.9; a[i + 2] = (b * m + l * (1 - m) * 1.25) * k + lk * 0.05;
+              // the floodlights of the golf course near the horizon: squash them to a dim smudge
+              const cap = 0.012 + 0.3 * h * h, l2 = a[i] * 0.2126 + a[i + 1] * 0.7152 + a[i + 2] * 0.0722;
+              if (l2 > cap) { const f = (cap + (l2 - cap) / (1 + (l2 - cap) * 8)) / l2; a[i] *= f; a[i + 1] *= f; a[i + 2] *= f; }
+            }
+          }
+          t.needsUpdate = true;
+        }
+      } catch {}
       try { t.userData.sun = findSun(t); t.userData.horizon = findHorizon(t); } catch { t.userData.sun = null; }
       hdrCache[kind] = t;
       done(t);
