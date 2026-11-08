@@ -3,7 +3,7 @@ import { pick, chance, clamp, rand, shuffle } from './rng.js';
 import { addFinance, addMail, addNews, playerTeam, teamDrivers, fmtM, cat } from './season.js';
 import { gainXP } from './progress.js';
 import { rivalryList, addHeat, heatLabel } from './rivalry.js';
-import { addProspect } from './dynasty.js';
+import { addProspect, principal, adjustRel } from './dynasty.js';
 
 function morale(d, v) { if (d) d.morale = clamp(d.morale + v, 10, 100); }
 function board(st, v) { st.board.confidence = clamp(st.board.confidence + v, 0, 100); }
@@ -22,6 +22,17 @@ export function pressQuestion(st, res) {
   const pod = best.pos <= 3 && best.status !== 'dnf';
   const allDnf = mine.every((r) => r.status === 'dnf');
   const journalist = pick(['Gazzetta Motori', 'Autosprint Magazine', 'Pit Lane TV', 'The Racing Times', 'Motorsport Weekly', 'Radio Paddock']);
+  // a rival principal just took a shot at us: the press wants a reply
+  const jab = (st.dyn?.lastReport?.quotes || []).find((q) => q.beat);
+  const jp = jab && principal(st, jab.team);
+  if (jab && jp && chance(0.4)) {
+    const jt = st.teams[jab.team];
+    return { journalist, q: `${jp.name} (${jt.name}) ha appena detto: ${jab.text} Vuole rispondere?`, a: [
+      { t: 'Ci vediamo in pista. Lì le chiacchiere non contano.', fx: () => { adjustRel(st, jab.team, -8); teamDrivers(st, t).forEach((x) => morale(x, 3)); rep(st, 0.5); }, note: `Rapporto con ${jp.name} --, morale piloti +, reputazione +` },
+      { t: 'Non commento le parole dei colleghi.', fx: () => { board(st, 1); gainXP(st, 30, 'Stampa'); }, note: 'CdA +, +30 XP' },
+      { t: 'Gli offro un caffè: lo sport è anche rispetto.', fx: () => { adjustRel(st, jab.team, 10); rep(st, 0.3); }, note: `Rapporto con ${jp.name} ++` },
+    ] };
+  }
   if (won) return { journalist, q: `Che vittoria! ${d.name} è stato perfetto. È l’inizio di un dominio?`, a: [
     { t: 'Questo è solo l’inizio. Puntiamo al titolo.', fx: () => { board(st, 4); rep(st, 1.5); morale(d, 3); }, note: 'Fiducia CdA +, reputazione +, più pressione' },
     { t: 'Merito di tutta la squadra in fabbrica.', fx: () => { teamDrivers(st, t).forEach((x) => morale(x, 3)); rep(st, 0.5); }, note: 'Morale squadra +' },

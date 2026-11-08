@@ -161,6 +161,7 @@ export function principal(st, teamId) { return st.dyn?.principals?.[teamId] || n
 export function relLabel(r) { return r >= 45 ? 'Alleato' : r >= 15 ? 'Cordiale' : r > -15 ? 'Neutrale' : r > -45 ? 'Ostile' : 'Nemico giurato'; }
 export function relColor(r) { return r >= 45 ? '#22d37a' : r >= 15 ? '#7ad3a0' : r > -15 ? '#9aa3b2' : r > -45 ? '#ff8a00' : '#ff3b3b'; }
 function rel(st, teamId, v) { const p = principal(st, teamId); if (p) p.rel = clamp(Math.round(p.rel + v), -100, 100); }
+export function adjustRel(st, teamId, v) { rel(st, teamId, v); }
 // Market moves against a rival team sour the relationship (called by signings and staff raids)
 export function principalReact(st, teamId, kind, who) {
   if (st.quick || !st.dyn) return;
