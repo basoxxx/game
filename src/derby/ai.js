@@ -59,11 +59,11 @@ function raceAI(game, car, A, k, dt) {
   const tr = game.track, line = game.line, N = tr.N, i = car.idx, hw = tr.width / 2;
   const P = car.isPlayer && game.lepre ? { ...A.P, ram: 0, lean: 0, brakeTraffic: 0 } : A.P; // autopilot hunter: only the Lepre matters
   // ---- pace: personality, skill, class, subtle rubber band against the player
-  let pace = P.pace * (0.94 + car.skill * 0.07) * (car.paceMul || 1);
+  let pace = P.pace * (0.94 + car.skill * 0.07) * (car.paceMul || 1) * (car.stunT > 0 ? 0.72 : 1); // a rammed Lepre is dazed for a moment
   const pl = game.player;
-  if (pl && pl !== car && !pl.finished) {
+  if (pl && pl !== car && !pl.finished && !pl.out) {
     const gap = ((car.prog || 0) - (pl.prog || 0)) * tr.ds; // metres ahead of the player
-    const rb = car.lepre ? (gap > 0 ? -Math.min(0.22, Math.max(0, gap - 25) / 300) : 0.03) : gap > 0 ? -Math.min(0.05, Math.max(0, gap - 80) / 3000) : Math.min(0.05, Math.max(0, -gap - 120) / 3000);
+    const rb = car.lepre ? (gap > 0 ? -Math.min(0.3, Math.max(0, gap - 15) / 200) : 0.03) : gap > 0 ? -Math.min(0.05, Math.max(0, gap - 80) / 3000) : Math.min(0.05, Math.max(0, -gap - 120) / 3000);
     pace *= 1 + rb; car.rubber = 1 + rb * 1.2;
   } else car.rubber = 1;
   // pack compression: runaway leaders ease off a little, stragglers push (keeps the field together)

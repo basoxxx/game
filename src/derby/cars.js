@@ -395,7 +395,7 @@ export function dent(car, local, dir, amount) {
       const crease = 0.75 + 0.5 * Math.sin(A[ix] * 23.1 + A[ix + 1] * 17.3 + A[ix + 2] * 11.7);
       const f = fo * fo * (3 - 2 * fo) * amount * crease;
       let nx = A[ix] + dir.x * f, ny = A[ix + 1] + dir.y * f * 0.6 - f * 0.1, nz = A[ix + 2] + dir.z * f;
-      if (O) { const ox = O[ix], oy = O[ix + 1], oz = O[ix + 2]; const dd = Math.hypot(nx - ox, ny - oy, nz - oz); if (dd > 0.62) { const k = 0.62 / dd; nx = ox + (nx - ox) * k; ny = oy + (ny - oy) * k; nz = oz + (nz - oz) * k; } }
+      if (O) { const ox = O[ix], oy = O[ix + 1], oz = O[ix + 2]; const dd = Math.hypot(nx - ox, ny - oy, nz - oz); if (dd > 0.74) { const k = 0.74 / dd; nx = ox + (nx - ox) * k; ny = oy + (ny - oy) * k; nz = oz + (nz - oz) * k; } }
       A[ix] = nx; A[ix + 1] = ny; A[ix + 2] = nz;
       touched = true;
     }

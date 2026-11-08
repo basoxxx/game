@@ -10,6 +10,21 @@ import { mergeStatic } from './merge.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+// fake volumetric light cone from a floodlight to its target (additive, no lighting cost)
+let _beamMat = null;
+function beam(game, from, to, angle) {
+  if (!_beamMat) {
+    const c = document.createElement('canvas'); c.width = 4; c.height = 128; const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, 'rgba(255,244,220,0.0)'); gr.addColorStop(0.08, 'rgba(255,244,220,0.5)'); gr.addColorStop(1, 'rgba(255,244,220,0)'); g.fillStyle = gr; g.fillRect(0, 0, 4, 128);
+    const t = new THREE.CanvasTexture(c); _beamMat = new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.FrontSide, fog: false });
+  }
+  const len = from.distanceTo(to), r = Math.tan(angle * 0.42) * len;
+  const geo = new THREE.CylinderGeometry(0.4, r, len, 20, 1, true).translate(0, -len / 2, 0);
+  const m = new THREE.Mesh(geo, _beamMat); m.position.copy(from);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), to.clone().sub(from).normalize());
+  m.renderOrder = 2; game.scene.add(m);
+}
+// shared uniforms of the animated crowd (DerbyGame.render drives them)
+export const CROWD = { time: { value: 0 }, hype: { value: 0 } };
 function canvasTex(w, h, draw, repeat = null) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...repeat); } return t; }
 const shadowy = (o) => { o.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } }); return o; };
 
@@ -58,7 +73,20 @@ function mats() {
   MATS.wood = new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (g, W, H) => { g.fillStyle = '#7a5a3a'; g.fillRect(0, 0, W, H); for (let y = 0; y < H; y += 16) { g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, y, W, 2); } }), roughness: 0.9 });
   MATS.banner = null;
   MATS.crowd = canvasTex(512, 256, (g, W, H) => { g.fillStyle = '#2e2c2a'; g.fillRect(0, 0, W, H); for (let y = 6; y < H; y += 16) for (let x = 3 + (y % 32 ? 4 : 0); x < W; x += 9) { if (Math.random() < 0.12) continue; g.fillStyle = `hsl(${Math.random() * 360},${45 + Math.random() * 40}%,${30 + Math.random() * 40}%)`; g.fillRect(x - 3, y + 2, 7, 9); g.fillStyle = ['#f1c9a5', '#c58c62', '#8d5a3b', '#e6b892'][Math.floor(Math.random() * 4)]; g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); } }, [4, 1]);
+  MATS.crowd.wrapS = THREE.RepeatWrapping; // long stands tile the crowd instead of smearing the last column
   MATS.crowdMat = new THREE.MeshStandardMaterial({ map: MATS.crowd, roughness: 0.9 });
+  // animated crowd: every column of spectators bobs on its own beat, and jumps when the hype rises
+  MATS.crowdMat.onBeforeCompile = (sh) => {
+    sh.uniforms.uCrowdT = CROWD.time; sh.uniforms.uHype = CROWD.hype;
+    sh.fragmentShader = 'uniform float uCrowdT;\nuniform float uHype;\n' + sh.fragmentShader.replace('#include <map_fragment>', `
+      float cCol = floor(vMapUv.x * 56.9);
+      float cH = fract(sin(cCol * 12.9898 + floor(vMapUv.y * 16.0) * 3.1) * 43758.5453);
+      float cJ = max(0.0, sin(uCrowdT * (5.0 + cH * 4.0) + cH * 6.2831));
+      vec2 cUv = vMapUv + vec2(0.0, -cJ * (0.004 + uHype * 0.018) * (0.4 + cH));
+      vec4 sampledDiffuseColor = texture2D(map, cUv);
+      diffuseColor *= sampledDiffuseColor;`);
+  };
+  MATS.crowdMat.customProgramCacheKey = () => 'dz-crowd';
   return MATS;
 }
 
@@ -340,6 +368,7 @@ function buildFarm(game, R) {
 
 function buildStadium(game, R) {
   const tr = game.track, T = game.terrain, scene = game.scene, M = mats();
+  if (game.low && game.venue.sky === 'night') game.hemi.intensity += 0.35;
   const [x0, z0, x1, z1] = tr.bbox, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, ex = (x1 - x0) / 2 + 30, ez = (z1 - z0) / 2 + 30;
   // grandstands on all four sides, facing the infield
   for (const [x, z, len, yaw] of [[cx, cz - ez, (x1 - x0) + 30, 0], [cx, cz + ez, (x1 - x0) + 30, Math.PI], [cx - ex, cz, (z1 - z0) + 20, Math.PI / 2], [cx + ex, cz, (z1 - z0) + 20, -Math.PI / 2]]) {
@@ -355,13 +384,16 @@ function buildStadium(game, R) {
     const x = cx + sx * (ex + 6), z = cz + sz * (ez + 6), y = T.heightAt(x, z);
     const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 34, 8).translate(0, 17, 0), M.steel); tower.position.set(x, y, z); tower.castShadow = true; game.S.add(tower);
     const head = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 0.6), M.lamp); head.position.set(x, y + 34, z); head.lookAt(cx, 0, cz); game.S.add(head);
-    const sp = new THREE.SpotLight(0xfff1dc, 1100, 320, 0.62, 0.55, 1.35); sp.position.set(x, y + 34, z); sp.target.position.set(cx - sx * 20, 0, cz - sz * 15); game.S.add(sp); game.S.add(sp.target);
+    const tgt = new THREE.Vector3(cx - sx * 20, 0, cz - sz * 15);
+    if (!game.low) { const sp = new THREE.SpotLight(0xfff1dc, 1100, 320, 0.62, 0.55, 1.35); sp.position.set(x, y + 34, z); sp.target.position.copy(tgt); game.S.add(sp); game.S.add(sp.target); }
+    beam(game, new THREE.Vector3(x, y + 34, z), tgt, 0.62);
   }
   // wreck pile and tyre mountains in the infield lobes
 }
 
 function buildArena(game, R) {
   const tr = game.track, s = game.scene, T = game.terrain, M = mats();
+  if (game.low && game.venue.sky === 'night') game.hemi.intensity += 0.35;
   const wallMat = pbr('concrete_floor_worn_001', { color: 0xb8b0a0, repeat: [20, 1] });
   const wall = new THREE.Mesh(new THREE.CylinderGeometry(tr.R + 10.5, tr.R + 10.5, 3, 96, 1, true), wallMat); wall.position.set(T.cx, 7.6, T.cz); wall.material.side = THREE.DoubleSide; wall.receiveShadow = true; game.S.add(wall);
   // sponsor boards on the inner ring
@@ -372,7 +404,12 @@ function buildArena(game, R) {
     const a = (k / 6) * Math.PI * 2; const x = T.cx + Math.cos(a) * (tr.R + 16), z = T.cz + Math.sin(a) * (tr.R + 16);
     const m = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 26, 8), M.steel); m.position.set(x, T.heightAt(x, z) + 13, z); m.castShadow = true; game.S.add(m);
     const lamp = new THREE.Mesh(new THREE.BoxGeometry(3, 1.4, 0.6), M.lamp); lamp.position.set(x, m.position.y + 13.5, z); lamp.lookAt(T.cx, 0, T.cz); game.S.add(lamp);
-    if (game.venue.sky === 'night' && k % 2 === 0) { const sp = new THREE.SpotLight(0xfff1dc, 600, 220, 0.75, 0.6, 1.3); sp.position.copy(lamp.position); sp.target.position.set(T.cx - Math.cos(a) * 12, 0, T.cz - Math.sin(a) * 12); game.S.add(sp); game.S.add(sp.target); }
+    if (game.venue.sky === 'night') {
+      const tgt = new THREE.Vector3(T.cx - Math.cos(a) * 12, T.heightAt(T.cx, T.cz), T.cz - Math.sin(a) * 12);
+      // low setting: no real spot lights (each one costs on every lit pixel), only the fake beams
+      if (k % 2 === 0 && !game.low) { const sp = new THREE.SpotLight(0xfff1dc, 600, 220, 0.75, 0.6, 1.3); sp.position.copy(lamp.position); sp.target.position.copy(tgt); game.S.add(sp); game.S.add(sp.target); }
+      beam(game, lamp.position, tgt, 0.5);
+    }
   }
   // heap of scrapped cars on the central mound
   if (tr.island) {
@@ -420,17 +457,20 @@ function buildPort(game, R) {
     }
   }
   // container yards: big blocks of stacks away from the circuit (the port skyline)
+  const yard = CONT_COLS.map(() => []);
   for (let a = 0; a < 70; a++) {
+    if (game.low && a % 2) { R(); R(); continue; }
     const x = T.cx + (R() - 0.5) * T.sx * 0.8, z = T.cz + (R() - 0.5) * T.sz * 0.8;
     if (z > quayZ - 14 || !clearOf(game, x, z, 18) || game.blockers.some(([bx, bz, br]) => Math.hypot(bx - x, bz - z) < br + 16)) continue;
     const rows = 2 + Math.floor(R() * 4), cols = 2 + Math.floor(R() * 3), yaw = Math.floor(R() * 2) * Math.PI / 2 + (R() - 0.5) * 0.05;
     const cs = Math.cos(yaw), sn = Math.sin(yaw), y = T.heightAt(x, z);
-    for (let rI = 0; rI < rows; rI++) for (let cI = 0; cI < cols; cI++) { const lx = (cI - (cols - 1) / 2) * 6.4, lz = (rI - (rows - 1) / 2) * 2.6, h = 1 + Math.floor(R() * 4); for (let k = 0; k < h; k++) lists[Math.floor(R() * CONT_COLS.length)].push([x + lx * cs + lz * sn, y + 1.3 + k * 2.6, z - lx * sn + lz * cs, yaw]); }
+    for (let rI = 0; rI < rows; rI++) for (let cI = 0; cI < cols; cI++) { const lx = (cI - (cols - 1) / 2) * 6.4, lz = (rI - (rows - 1) / 2) * 2.6, h = 1 + Math.floor(R() * 4); for (let k = 0; k < h; k++) yard[Math.floor(R() * CONT_COLS.length)].push([x + lx * cs + lz * sn, y + 1.3 + k * 2.6, z - lx * sn + lz * cs, yaw]); }
     solid(game, x, y, z, yaw, cols * 3.2, 5, rows * 1.3);
     game.blockers.push([x, z, Math.max(cols * 3.2, rows * 1.3) + 4]);
   }
   const cg = new THREE.BoxGeometry(6.1, 2.6, 2.44), d = new THREE.Object3D();
-  lists.forEach((L, ci) => { if (!L.length) return; const inst = new THREE.InstancedMesh(cg, M.corr(CONT_COLS[ci]), L.length); L.forEach(([x, y, z, yaw], i) => { d.position.set(x, y, z); d.rotation.set(0, yaw, 0); d.updateMatrix(); inst.setMatrixAt(i, d.matrix); }); inst.castShadow = inst.receiveShadow = true; game.scene.add(inst); });
+  const addStacks = (lists, shadow) => lists.forEach((L, ci) => { if (!L.length) return; const inst = new THREE.InstancedMesh(cg, M.corr(CONT_COLS[ci]), L.length); L.forEach(([x, y, z, yaw], i) => { d.position.set(x, y, z); d.rotation.set(0, yaw, 0); d.updateMatrix(); inst.setMatrixAt(i, d.matrix); }); inst.castShadow = shadow; inst.receiveShadow = !game.low; inst.computeBoundingSphere(); game.scene.add(inst); });
+  addStacks(lists, true); addStacks(yard, !game.low);
   // the sea beyond the quay, a concrete edge with bollards and a low kerb
   const sea = new THREE.Mesh(new THREE.PlaneGeometry(2600, 900).rotateX(-Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: 0x11262c, roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 0.9 }));
   sea.position.set(T.cx, -1.6, quayZ + 450); sea.receiveShadow = true; game.scene.add(sea);
