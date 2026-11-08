@@ -10,7 +10,7 @@ import { engineStart, engineSet, engineStop, sfx } from '../ui/audio.js';
 import { getSettings, setSettings } from '../engine/state.js';
 import { buildTrack, buildTerrain, buildRacingLine, buildWater, SURFACES } from './tracks.js';
 import { buildBanger, dent, crackGlass, BANGERS, AI_COLORS, LIVERIES, tuneSpec } from './cars.js';
-import { DIFFICULTY, medalFor, payout, recordCareer, prog, saveProg } from './career.js';
+import { DIFFICULTY, medalFor, payout, recordCareer, prog, saveProg, checkChallenges } from './career.js';
 import { DerbySound } from './sound.js';
 import { Particles, SkidMarks } from './fx.js';
 import { aiInput, initAI } from './ai.js';
@@ -206,7 +206,7 @@ export class DerbyGame {
     if (!best) return;
     this.snd?.prop(b.userData.type, t);
     best.score = (best.score || 0) + 10; best.nitro = Math.min(100, best.nitro + 1.5);
-    if (best.isPlayer) { this.propCombo = (this.time - (this.propComboT || -9) < 1.5 ? (this.propCombo || 0) : 0) + 1; this.propComboT = this.time; if (this.propCombo === 4 || this.propCombo === 10 || this.propCombo === 20) this.message(`Distruzione x${this.propCombo}!`, 'bonus', `+${this.propCombo * 10} punti`); }
+    if (best.isPlayer) { this.playerProps = (this.playerProps || 0) + 1; this.propCombo = (this.time - (this.propComboT || -9) < 1.5 ? (this.propCombo || 0) : 0) + 1; this.propComboT = this.time; if (this.propCombo === 4 || this.propCombo === 10 || this.propCombo === 20) this.message(`Distruzione x${this.propCombo}!`, 'bonus', `+${this.propCombo * 10} punti`); }
     if (b.userData.type === 'barrel' || b.userData.type === 'crate') for (let k = 0; k < 6; k++) this.chips.emit(t.x, t.y + 0.3, t.z, (Math.random() - 0.5) * 6, 2 + Math.random() * 4, (Math.random() - 0.5) * 6, 1.2, 0.22, b.userData.type === 'crate' ? 0.55 : 0.7, b.userData.type === 'crate' ? 0.4 : 0.15, 0.2, 1);
     if (b.userData.type === 'hay') for (let k = 0; k < 10; k++) this.dust.emit(t.x, t.y + 0.5, t.z, (Math.random() - 0.5) * 4, 1 + Math.random() * 2, (Math.random() - 0.5) * 4, 1.6, 0.8, 0.82, 0.68, 0.36, 0.5);
   }
@@ -623,7 +623,7 @@ export class DerbyGame {
     if (car.isPlayer) dmg *= this.diff.dmgTaken;
     if (car.lepre && by?.isPlayer) dmg *= 1.5;
     if (car.lepre && by?.isPlayer) { this.huntDmg = (this.huntDmg || 0) + dmg; if (dmg > 4) this.message(`Lepre colpita! ${Math.min(100, Math.round(this.huntDmg))}%`, 'bonus'); }
-    const before = car.hp; car.hp = Math.max(0, car.hp - dmg);
+    const before = car.hp; car.hp = Math.max(0, car.hp - dmg); if (car.isPlayer) car.minHp = Math.min(car.minHp ?? 100, car.hp);
     this.snd?.impact(car, dmg, by);
     dent(car.mesh, local, dir, Math.min(0.32, dmg * 0.012));
     const ud = car.mesh.userData, L = ud.dims.L;
@@ -890,7 +890,9 @@ export class DerbyGame {
     if (this.mode === 'stunt') p.stats.jump = Math.max(p.stats.jump || 0, r.distance || 0);
     if (this.mode === 'time' && r.time) { const k = this.venue.id + ':' + this.laps; p.stats.tt ||= {}; p.stats.tt[k] = Math.min(p.stats.tt[k] || 1e9, r.time); }
     saveProg(p);
-    r.money = p.money;
+    r.car = P.spec.id; r.minHp = Math.round(P.minHp ?? P.hp); r.props = this.playerProps || 0;
+    r.challenges = checkChallenges(r);
+    r.money = prog().money;
     return r;
   }
 

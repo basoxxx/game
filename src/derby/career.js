@@ -106,6 +106,34 @@ export function recordCareer(evId, medal, extra = {}) {
   return { medal, prev, improved: medal > prev, newCups, newVenues, newCars, stars: after };
 }
 
+// ---------------------------------------------------------------- challenges (one-off, paid once)
+// check(r, p): r = event result (mode, pos, medal, kills, car, minHp, props, distance, huntWreck...), p = progress
+export const CHALLENGES = [
+  { id: 'primo', name: 'Prima vittoria', desc: 'Vinci un evento qualsiasi', prize: 2000, icon: 'trophy', check: (r) => r.pos === 1 && !['time', 'stunt'].includes(r.mode) },
+  { id: 'tris', name: 'Tris di lamiere', desc: 'Demolisci 3 avversari nello stesso evento', prize: 5000, icon: 'burst', check: (r) => r.kills >= 3 },
+  { id: 'macellaio', name: 'Il macellaio', desc: 'Demolisci 25 avversari in carriera', prize: 9000, icon: 'burst', check: (r, p) => (p.stats.wrecks || 0) >= 25 },
+  { id: 'cento', name: 'Oltre i cento', desc: 'Salta più di 100 metri dalla Rampa del Diavolo', prize: 6000, icon: 'speed', check: (r) => r.mode === 'stunt' && r.distance >= 100 },
+  { id: 'lepre', name: 'Lepre in salmì', desc: 'Demolisci la Lepre dorata', prize: 6000, icon: 'target', check: (r) => r.mode === 'caccia' && r.huntWreck },
+  { id: 'ultimo', name: 'Ultimo uomo in piedi', desc: 'Vinci un’eliminazione', prize: 5000, icon: 'alert', check: (r) => r.mode === 'elim' && r.pos === 1 },
+  { id: 'gladiatore', name: 'Gladiatore', desc: 'Vinci un demolition derby', prize: 5000, icon: 'shield', check: (r) => r.mode === 'derby' && r.pos === 1 },
+  { id: 'lancette', name: 'Lancette d’oro', desc: 'Medaglia d’oro in un contro il tempo', prize: 3000, icon: 'hourglass', check: (r) => r.mode === 'time' && r.medal === 3 },
+  { id: 'immacolato', name: 'Senza un graffio', desc: 'Vinci una gara chiudendo con il telaio sopra il 75%', prize: 6000, icon: 'check', check: (r) => r.mode === 'race' && r.pos === 1 && r.minHp >= 75 },
+  { id: 'ruspa', name: 'Ruspa umana', desc: 'Distruggi 60 oggetti in un solo evento', prize: 4000, icon: 'bolt', check: (r) => (r.props || 0) >= 60 },
+  { id: 'trasloco', name: 'Trasloco espresso', desc: 'Vinci una gara con il Bestione Van', prize: 7000, icon: 'car', check: (r) => r.car === 'furgone' && r.pos === 1 && ['race', 'elim'].includes(r.mode) },
+  { id: 'formica', name: 'Formica atomica', desc: 'Vinci un derby con la Grillo GT', prize: 7000, icon: 'car', check: (r) => r.car === 'utilitaria' && r.pos === 1 && r.mode === 'derby' },
+  { id: 'meccanico', name: 'Mani di grasso', desc: 'Porta un potenziamento al livello massimo', prize: 3000, icon: 'wrench', check: (r, p) => Object.values(p.garage || {}).some((t) => Object.values(t).some((l) => l >= 3)) },
+  { id: 'collezione', name: 'Collezionista', desc: 'Possiedi 5 auto', prize: 8000, icon: 'factory', check: (r, p) => p.owned.length >= 5 },
+  { id: 'ferraglia', name: 'Re della ferraglia', desc: 'Tutti gli ori nella Coppa Ferraglia', prize: 8000, icon: 'medal', check: (r, p) => CUPS[0].events.every((e) => p.career.res[e.id]?.medal === 3) },
+  { id: 'campione', name: 'Campione del Rottame', desc: 'Tutti gli ori nel Gran Premio Rottame', prize: 30000, icon: 'trophy', check: (r, p) => CUPS[3].events.every((e) => p.career.res[e.id]?.medal === 3) },
+];
+// evaluate after an event: marks and pays new challenges, returns the list completed now
+export function checkChallenges(r) {
+  const p = prog(); p.ach ||= {}; const got = [];
+  for (const c of CHALLENGES) { if (p.ach[c.id]) continue; let ok = false; try { ok = !!c.check(r, p); } catch {} if (ok) { p.ach[c.id] = Date.now(); p.money += c.prize; got.push(c); } }
+  if (got.length) saveProg(p);
+  return got;
+}
+
 // ---------------------------------------------------------------- garage
 export const UP_PRICES = [3000, 7500, 15000];
 export function upgradePrice(carId, lvl) { const f = (PRICES[carId] || 0) >= 40000 ? 1.4 : (PRICES[carId] || 0) >= 20000 ? 1.2 : 1; return lvl >= 3 ? null : Math.round(UP_PRICES[lvl] * f / 100) * 100; }

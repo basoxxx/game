@@ -95,3 +95,4 @@
 .dzx.photo > :not(.dzx-photo) { display: none !important; }
 .dzx.photo .dzx-photo { display: flex; }
 .dzx.photo.photo-clean .dzx-photo { opacity: 0; }
+.dzx-unlock.ach { border-left-color: #3ddc84; background: linear-gradient(90deg, rgba(61,220,132,.22), rgba(61,220,132,.04)); }

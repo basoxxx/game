@@ -7,7 +7,7 @@ import { sfx, music } from '../ui/audio.js';
 import { VENUES, buildTrack } from '../derby/tracks.js';
 import { BANGERS, LIVERIES, UPGRADES, tuneSpec } from '../derby/cars.js';
 import { CHAMPIONSHIP, champGet, champStart, champNext, champReset } from '../derby/champ.js';
-import { prog, saveProg, PRICES, CAR_STARS, DIFFICULTY, MODES, MEDALS, MEDAL_COLORS, CUPS, eventById, starsOf, cupUnlocked, cupStars, venueUnlocked, VENUE_STARS, carBuyable, upgradePrice, tuneOf, lookOf } from '../derby/career.js';
+import { CHALLENGES, checkChallenges, prog, saveProg, PRICES, CAR_STARS, DIFFICULTY, MODES, MEDALS, MEDAL_COLORS, CUPS, eventById, starsOf, cupUnlocked, cupStars, venueUnlocked, VENUE_STARS, carBuyable, upgradePrice, tuneOf, lookOf } from '../derby/career.js';
 import { FILTER_PRESETS, applyFilterSettings } from '../ui/gfx.js';
 import { getSettings, setSettings } from '../engine/state.js';
 import '../derby/menu.css';
@@ -36,6 +36,7 @@ function carStats(spec, base = null) {
   return `<div class="dz-stats"><span>Potenza</span>${bar(...r('power', 1.6))}<span>Velocità</span>${bar(...r('top', 1.3))}<span>Resistenza</span>${bar(...r('armor', 2.3))}<span>Tenuta</span>${bar(...r('grip', 1.4))}</div>`;
 }
 
+function achToast() { for (const c of checkChallenges({})) { App.toast?.(`Sfida completata: ${c.name}`, `+${money(c.prize)}`); try { sfx.levelup?.(); } catch {} } }
 // ---------------------------------------------------------------- garage turntable preview
 const PV = { r: null, raf: 0, key: '' };
 async function mountPreview(el, P) {
@@ -92,6 +93,8 @@ function careerTab(P) {
         <b>${i + 1}. ${esc(e.name)}</b><div class="tiny">${esc(v?.name || e.venue)}${e.opponents ? ` · ${e.opponents} avversari` : ''}</div><div class="dz-ev-map">${v ? trackSVG(v) : ''}</div><div class="tiny dz-ev-prize">Oro: ${money(e.prize)}</div></div>`; }).join('')}</div>
     </section>`;
   }).join('')}</div>
+  <div class="dz-section mt24">Sfide · ${Object.keys(P.ach || {}).length}/${CHALLENGES.length}</div>
+  <div class="dz-achs">${CHALLENGES.map((c) => { const done = !!P.ach?.[c.id]; return `<div class="dz-ach ${done ? 'done' : ''}"><div class="dz-ach-i">${icon(done ? 'check' : c.icon)}</div><div><b>${esc(c.name)}</b><div class="tiny">${esc(c.desc)}</div></div><span class="dz-ach-p">${done ? 'Fatto' : money(c.prize)}</span></div>`; }).join('')}</div>
   ${ev ? `<div class="qr-go mt24"><div class="qg-sum"><b>${esc(ev.name)}</b><span>${esc(MODES[ev.mode].name)} · ${esc(VENUES.find((x) => x.id === ev.venue)?.name || '')} · ${esc(BANGERS.find((b) => b.id === D.car)?.name || '')}${ev.targets ? ` · medaglie a ${ev.targets.join(' / ')} m` : ''}</span><span class="tiny" style="display:block;color:var(--muted)">${esc(MODES[ev.mode].desc)}</span></div><button class="btn primary xl" style="min-width:300px" data-a="dz-go-ev">${icon('flag')} Corri l’evento</button></div>` : `<div class="qr-go mt24"><div class="qg-sum"><b>Scegli un evento</b><span>Vinci medaglie per guadagnare stelle: le stelle sbloccano nuove coppe, arene e auto.</span></div><button class="btn primary xl" style="min-width:300px" data-a="dz-next-ev">${icon('play')} Prossimo evento</button></div>`}`;
 }
 function freeTab(P) {
@@ -220,13 +223,13 @@ registerScreen({
       const P = prog(); const id = el.dataset.id, price = PRICES[id], b = BANGERS.find((x) => x.id === id);
       if (P.owned.includes(id) || !carBuyable(id, P)) return;
       if (P.money < price) { App.toast?.('Crediti insufficienti', `Servono ${money(price)}: vinci qualche evento!`); sfx.bad?.(); return; }
-      App.confirm(`Comprare ${b.name}?`, `Costa ${money(price)}.`, () => { const Q = prog(); Q.money -= price; Q.owned.push(id); saveProg(Q); D.car = id; D.gcar = id; try { sfx.coin?.(); } catch {} App.refresh(); });
+      App.confirm(`Comprare ${b.name}?`, `Costa ${money(price)}.`, () => { const Q = prog(); Q.money -= price; Q.owned.push(id); saveProg(Q); D.car = id; D.gcar = id; try { sfx.coin?.(); } catch {} achToast(); App.refresh(); });
     },
     'dz-up'(el) {
       const id = D.gcar || D.car; const P = prog(); if (!P.owned.includes(id)) return; const u = el.dataset.id; const t = tuneOf(id, P); const price = upgradePrice(id, t[u]);
       if (price == null) return;
       if (P.money < price) { App.toast?.('Crediti insufficienti', `Il potenziamento costa ${money(price)}.`); sfx.bad?.(); return; }
-      P.money -= price; P.garage[id] = { ...t, [u]: t[u] + 1 }; saveProg(P); try { sfx.levelup?.(); } catch {} App.refresh();
+      P.money -= price; P.garage[id] = { ...t, [u]: t[u] + 1 }; saveProg(P); try { sfx.levelup?.(); } catch {} achToast(); App.refresh();
     },
     'dz-look'(el) { const id = D.gcar || D.car; const P = prog(); const k = el.dataset.k; let v = el.dataset.v; if (k === 'stickers') v = v === '1'; P.looks[id] = { ...lookOf(id, P), [k]: v }; saveProg(P); App.refresh(); },
     'dz-num'(el) { const id = D.gcar || D.car; const P = prog(); const l = lookOf(id, P); l.num = ((l.num - 1 + +el.dataset.v + 99) % 99) + 1; P.looks[id] = l; saveProg(P); App.refresh(); },

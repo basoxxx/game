@@ -139,12 +139,13 @@ export function showResults(game, R = null) {
   // career block: medal, unlocks
   const C = R.career;
   const unlocks = C ? [...C.newCups.map((n) => `Nuova coppa sbloccata: <b>${esc(n)}</b>`), ...C.newVenues.map((v) => `Nuova arena per l’evento libero: <b>${esc(VENUES.find((x) => x.id === v)?.name || v)}</b>`), ...C.newCars.map((n) => `Ora puoi comprare: <b>${esc(n)}</b>`)] : [];
+  const chHtml = (R.challenges || []).map((c) => `<div class="dzx-unlock ach">Sfida completata: <b>${esc(c.name)}</b> · +€ ${c.prize.toLocaleString('it-IT')}</div>`).join('');
   const careerHtml = ev ? `<div class="dzx-career"><div class="dzx-sub">${esc(CUPS.find((c) => c.id === ev.cup)?.name || 'Carriera')} · ${esc(ev.name)}</div>${C?.improved ? `<div class="dzx-new">NUOVO RECORD · ${MEDALS[m].toUpperCase()}</div>` : ''}<div class="small">Stelle carriera: <b>${C?.stars ?? 0}</b></div>${unlocks.map((u) => `<div class="dzx-unlock">${u}</div>`).join('')}</div>` : '';
   const el = game.hud.results;
   el.innerHTML = `<div class="dzx-card"><div class="dzx-head"><div>${(ev || ['stunt', 'time', 'caccia'].includes(mode)) ? medalSVG(m, 74) : ''}</div><div><div class="dzx-sub">${esc(MODES[mode]?.name || 'Gara')} · ${esc(game.venue.name)}</div>
     <h2>${title}</h2>${(ev || ['stunt', 'time', 'caccia'].includes(mode)) ? `<div class="dzx-medal-l m${m}">${m ? `Medaglia di ${MEDALS[m].toLowerCase()}` : 'Nessuna medaglia'}</div>` : ''}</div></div>
     ${detail}
-    <div class="dzx-res-grid"><div>${table}</div>${champHtml}${careerHtml}</div>
+    <div class="dzx-res-grid"><div>${table}</div>${champHtml}${careerHtml}${!ev && chHtml ? `<div class="dzx-career">${chHtml}</div>` : ''}</div>${ev && chHtml ? `<div class="dzx-career mt8">${chHtml}</div>` : ''}
     <div class="dzx-foot"><span class="muted">Premio: <b>€ ${R.prize.toLocaleString('it-IT')}</b>${R.bonus ? ` + bonus spettacolo € ${R.bonus.toLocaleString('it-IT')}` : ''} · Crediti: <b>€ ${(R.money || 0).toLocaleString('it-IT')}</b>${P.bestCrash ? `<br>Momento migliore: ${esc(P.bestCrash)}` : ''}</span>
     <div class="dzx-btns">${game.replay?.frames?.length ? '<button class="btn lg" id="dzx-replay-btn">▶ Rivedi il botto</button>' : ''}<button class="btn lg" data-a="dz-restart">Rigioca</button><button class="btn primary lg" data-a="dz-quit">Continua</button></div></div></div>`;
   el.classList.add('on');
