@@ -18,6 +18,12 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 3.9
+- **Grafica 3D**: fari con fasci luminosi e luci dei freni nelle notti Endurance, illuminazione delle piste notturne e della pit lane, riflessi delle auto sull'asfalto bagnato, nuova scia d'acqua, ruote sfocate in velocità, sporco che si accumula durante la gara, ripresa in elicottero alla partenza, profondità di campo, retro delle tribune e arredo urbano nei circuiti cittadini.
+- **Strategia sotto la pioggia**: il pianificatore usa le previsioni (intermedie, da bagnato, giri di crossover) e il cambio gomme automatico segue la pioggia reale; anche gli avversari hanno guasti e scelte meteo, mostrati nelle grafiche TV; tempi sul giro più realistici nei sorpassi.
+- **Scontro Totale**: guida più viva (trasferimento di carico, derapate che ricaricano il nitro, atterraggi perfetti), replay al rallentatore del miglior incidente, danni più spettacolari, spettatore dopo l'eliminazione, controller nei menu, folla animata, HUD con schema dei danni e scritte giganti, prestazioni migliori in qualità bassa.
+- **Carriera**: Formula Apex 2 più impegnativa, nuovi investimenti fuori dal tetto di spesa (galleria del vento di nuova generazione, nuova sede, museo, programma junior, marketing, bonus piloti, quote dei rivali), schermata finanze con grafici, posta con cartelle e resoconti di gara.
+
 ## Novità della versione 3.8
 - **Dinastia**: status della squadra da Fanalino di coda a Dinastia, mandato del consiglio con piano pluriennale, quattro consiglieri con umori e promesse, team principal rivali con personalità, scommesse e frecciatine, nuova schermata **Paddock** con giornale, accademia giovani, tratti dello staff, obiettivi sponsor per ogni gara.
 - **Weekend da TV**: grafiche broadcast (sorpassi, pit stop, giro veloce, safety car), interval tracker, guasti da gestire, ripartenze dietro safety car, radar pioggia, notte e alba nell'Endurance, analisi post-gara con grafici.
