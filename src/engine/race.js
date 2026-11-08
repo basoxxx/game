@@ -1237,7 +1237,19 @@ export class CircuitSim {
           { label: 'Resta fuori con le slick', desc: 'Scommessa: guadagni tanto se smette', act: 'stay', radio: 'Resta fuori, potrebbe smettere.' },
         ] });
     }
-    if (rain < 0.1 && this._lastRain >= 0.1) this.log('☀ La pioggia smette, pista in asciugatura.', 'weather', null, true);
+    if (rain < 0.1 && this._lastRain >= 0.1) {
+      this.log('☀ La pioggia smette, pista in asciugatura.', 'weather', null, true);
+      this.pushTV({ kind: 'weather', title: 'Pista in asciugatura', text: 'Smette di piovere: chi monta per primo le slick?' });
+      const wetMine = this.mine().filter((c) => COMPOUNDS[c.tyre].wet && this.laps - c.dist > 3 && !c.pitReq);
+      if (wetMine.length) {
+        const dry = this.dryChoice(wetMine[0], this.laps - wetMine[0].dist);
+        this.pushMoment({ type: 'dry', key: 'all', keys: wetMine.map((c) => c.key), cd: 120, title: 'Smette di piovere', text: `La traiettoria si asciuga giro dopo giro. Le gomme da bagnato si surriscaldano e si consumano sull’asciutto, ma con le slick troppo presto si scivola. ${wetMine.map((c) => `${this.driver(c).name}: P${c.pos}, ${COMPOUNDS[c.tyre].name}`).join(' · ')}.`,
+          options: [
+            { label: `Box ora per le ${COMPOUNDS[dry].name}`, desc: 'Primi sulle slick: grande guadagno se la pista è pronta', act: 'pit', compound: dry, radio: `Box, box! Slick ${COMPOUNDS[dry].name} pronte.` },
+            { label: 'Ancora un giro sulle intermedie', desc: 'Più sicuro: aspetti che la traiettoria sia asciutta', act: 'none', radio: 'Resta fuori ancora un giro, dicci tu come va.' },
+          ] });
+      }
+    }
     { const lapNow = Math.floor(this.progress * this.laps); if (lapNow !== this._wxLap) { this._wxLap = lapNow; if (this.weather.isRain) this.frontMoment(); if (this.endurance && this.track.night) this.nightCheck(); } }
     this._lastRain = rain;
     if (!this._started && this.time > 2.5) { this._started = true; this.restartScramble(true); }

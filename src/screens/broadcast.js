@@ -151,12 +151,12 @@ export function liveStandingsHTML(st, sim) {
 }
 
 // ---------------- POST-RACE / LIVE ANALYSIS ----------------
-const AN_TABS = [['lap', 'Lap chart'], ['gap', 'Distacchi'], ['strat', 'Strategie'], ['pace', 'Passo gara']];
+const AN_TABS = [['lap', 'Lap chart'], ['gap', 'Distacchi'], ['strat', 'Strategie'], ['pace', 'Passo gara'], ['story', 'Momenti']];
 export function analysisHTML(sim, st, tab = 'lap', sel = null) {
   const cls = sim.classification();
   const keys = sel || defaultSel(sim);
-  const body = tab === 'lap' ? lapChart(sim, cls, keys) : tab === 'gap' ? gapChart(sim, cls, keys) : tab === 'strat' ? `<div class="an-strat">${stintChartSVG(sim, cls, { w: 980, rowH: 21, labW: 96 })}</div>${pitTable(sim)}` : paceChart(sim, cls, keys);
-  const picker = tab === 'strat' ? '' : `<div class="an-pick">${cls.map((c) => `<button class="an-chip ${keys.includes(c.key) ? 'on' : ''}" data-a="an-sel" data-key="${c.key}" style="--tc:${c.team.car.livery.primary}">${esc(short3(sim.driver(c).name))}</button>`).join('')}</div>`;
+  const body = tab === 'lap' ? lapChart(sim, cls, keys) : tab === 'gap' ? gapChart(sim, cls, keys) : tab === 'strat' ? `<div class="an-strat">${stintChartSVG(sim, cls, { w: 980, rowH: 21, labW: 96 })}</div>${pitTable(sim)}` : tab === 'story' ? storyHTML(sim) : paceChart(sim, cls, keys);
+  const picker = tab === 'strat' || tab === 'story' ? '' : `<div class="an-pick">${cls.map((c) => `<button class="an-chip ${keys.includes(c.key) ? 'on' : ''}" data-a="an-sel" data-key="${c.key}" style="--tc:${c.team.car.livery.primary}">${esc(short3(sim.driver(c).name))}</button>`).join('')}</div>`;
   return `<div class="an-panel"><div class="an-head"><div><div class="an-eyebrow">${sim.finished ? 'Analisi post-gara' : `Analisi live · giro ${Math.min(sim.laps, Math.floor(sim.progress * sim.laps) + 1)}/${sim.laps}`}</div><div class="an-title">${esc(sim.track.name)}</div></div>
     <div class="tabs">${AN_TABS.map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="an-tab" data-t="${k}">${n}</div>`).join('')}</div><button class="btn icon-btn" data-a="an-close" aria-label="Chiudi analisi">${icon('x')}</button></div>
     ${picker}<div class="an-body">${body}</div>${summary(sim, cls)}</div>`;
@@ -264,4 +264,24 @@ function summary(sim, cls) {
   const bestStop = sim.stopsLog.slice().sort((a, b) => a.stat - b.stat)[0];
   const tile = (v, l, sub = '') => `<div class="an-tile"><b>${v}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ''}</div>`;
   return `<div class="an-tiles">${tile(mover && mover.g > 0 ? '+' + mover.g : '—', 'Rimonta migliore', mover && mover.g > 0 ? esc(sim.driver(mover.c).name) : '')}${tile(fl ? fmtTime(sim.fastest.time) : '—', 'Giro più veloce', fl ? esc(sim.driver(fl).name) : '')}${tile(bestStop ? bestStop.stat.toFixed(2) + 's' : '—', 'Pit stop migliore', bestStop ? esc(sim.driver(sim.cars.find((c) => c.key === bestStop.key)).name) : '')}${tile(sim.stopsLog.length, 'Pit stop totali')}${tile(sim.scCount, 'Safety car')}${tile(cls.filter((c) => c.status === 'dnf').length, 'Ritiri')}</div>`;
+}
+
+// race story: the key moments of the race as a lap-by-lap timeline
+function storyHTML(sim) {
+  const mine = new Set(sim.cars.filter((c) => c.isPlayer).map((c) => c.key));
+  const items = sim.tv.filter((g) => ['lead', 'retire', 'sc', 'vsc', 'restart', 'issue', 'weather', 'night'].includes(g.kind) || (g.kind === 'pass' && (mine.has(g.key) || mine.has(g.other) || g.pos <= 2)) || (g.kind === 'pit' && mine.has(g.key)));
+  if (!items.length) return '<div class="muted" style="padding:30px">Gara tranquilla: nessun momento chiave da segnalare.</div>';
+  const name = (k) => { const c = sim.cars.find((x) => x.key === k); return c ? esc(sim.driver(c).name) : ''; };
+  const ico = { lead: 'trophy', retire: 'alert', sc: 'flag', vsc: 'flag', restart: 'flag', issue: 'wrench', weather: 'rain', night: 'moon', pass: 'swap', pit: 'pit' };
+  const txt = (g) => {
+    switch (g.kind) {
+      case 'lead': return `<b>${name(g.key)}</b> passa al comando`;
+      case 'retire': return `<b>${esc(g.title)}</b>: ${esc(g.text)}`;
+      case 'pass': return `<b>${name(g.key)}</b> ${g.err ? 'approfitta dell’errore di' : 'supera'} ${name(g.other)} per la P${g.pos}`;
+      case 'pit': return `Pit stop di <b>${name(g.key)}</b>: ${g.stat.toFixed(2)}s${g.to ? ` · ${COMPOUNDS[g.from]?.short || ''} › ${COMPOUNDS[g.to]?.short || ''}` : ''}`;
+      case 'issue': return `<b>${esc(g.title)}</b> per ${esc(g.text)}`;
+      default: return `<b>${esc(g.title)}</b> · ${esc(g.text || '')}`;
+    }
+  };
+  return `<div class="an-story">${items.slice(-60).map((g) => `<div class="an-ev k-${g.kind} ${mine.has(g.key) || mine.has(g.other) ? 'me' : ''}"><span class="an-ev-lap">G${g.lap}</span><i>${icon(ico[g.kind] || 'flag')}</i><span>${txt(g)}</span></div>`).join('')}</div>`;
 }

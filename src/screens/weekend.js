@@ -701,8 +701,8 @@ function showMoment(m) {
   sfx.notify();
   if (m.key && m.key !== 'all') { R.focus = m.key; if (R.r3d) { R.r3d.director = false; R.r3d.camMode = m.type === 'sc' ? 'heli' : 'chase'; R.r3d._cut = true; R.r3d.focusKey = m.key; } }
   const ov = document.getElementById('finish-overlay'); if (!ov) return;
-  const col = { sc: 'var(--warn)', rain: 'var(--info)', front: 'var(--info)', attack: 'var(--bad)', defend: 'var(--bad)', undercut: 'var(--warn)', issue: 'var(--warn)', restart: 'var(--good)', mates: 'var(--team)', night: '#7c8cff', fatigue: 'var(--warn)' }[m.type] || 'var(--team)';
-  const eyebrow = { issue: 'Problema tecnico', restart: 'Ripartenza', front: 'Radar meteo', mates: 'Ordini di scuderia', night: 'Endurance · notte', fatigue: 'Endurance · cambio pilota' }[m.type] || 'Momento chiave';
+  const col = { sc: 'var(--warn)', rain: 'var(--info)', dry: 'var(--gold)', front: 'var(--info)', attack: 'var(--bad)', defend: 'var(--bad)', undercut: 'var(--warn)', issue: 'var(--warn)', restart: 'var(--good)', mates: 'var(--team)', night: '#7c8cff', fatigue: 'var(--warn)' }[m.type] || 'var(--team)';
+  const eyebrow = { issue: 'Problema tecnico', restart: 'Ripartenza', front: 'Radar meteo', dry: 'Meteo', rain: 'Meteo', mates: 'Ordini di scuderia', night: 'Endurance · notte', fatigue: 'Endurance · cambio pilota' }[m.type] || 'Momento chiave';
   ov.insertAdjacentHTML('beforeend', `<div id="moment" class="decision" style="border-top-color:${col};width:min(660px,92%)"><div class="m-eyebrow" style="color:${col}">${eyebrow} · gara in pausa</div>
     <div class="m-title">${esc(m.title)}</div>
     <div class="mt8" style="line-height:1.55;color:var(--text2)">${esc(m.text)}</div>
