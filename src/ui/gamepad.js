@@ -113,7 +113,12 @@ function poll() {
     used = true;
     const navs = [...document.querySelectorAll('.sidebar .nav[data-to]')];
     const i = navs.findIndex((n) => n.classList.contains('active'));
-    if (navs.length) { const n = navs[(i + (rb ? 1 : -1) + navs.length) % navs.length]; n.click(); requestAnimationFrame(() => document.querySelector('.sidebar .nav.active')?.focus({ preventScroll: true })); }
+    const tabs = [...(document.querySelector('.modal-wrap [role="tablist"]') || document.querySelector('#app [role="tablist"]'))?.querySelectorAll('[role="tab"]') || []];
+    if (tabs.length) {
+      // pages with tabs (Impostazioni…): bumpers switch tab
+      const k = tabs.findIndex((t) => t.getAttribute('aria-selected') === 'true');
+      tabs[(k + (rb ? 1 : -1) + tabs.length) % tabs.length].click();
+    } else if (navs.length) { const n = navs[(i + (rb ? 1 : -1) + navs.length) % navs.length]; n.click(); requestAnimationFrame(() => document.querySelector('.sidebar .nav.active')?.focus({ preventScroll: true })); }
   }
   if (used) document.documentElement.classList.add('pad-nav');
 }

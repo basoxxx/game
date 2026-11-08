@@ -77,6 +77,12 @@
 .main.enter > *:not(.screen-title):not(.anim-in) { animation: screenIn .42s var(--ease-out) .16s both; }
 .main.enter > .anim-in > * { animation-delay: .16s; }
 .screen-enter { animation: screenFade .32s ease .08s both; }
+@keyframes screenRise { from { opacity: 0; transform: translateY(14px); } }
+/* full-screen pages (menu sub-pages, guide, settings): header slides in, body rises after it */
+.full-screen.screen-enter { animation: screenFade .28s ease .06s both; }
+.full-screen.screen-enter > .page-head { animation: screenIn .38s var(--ease-out) .1s both; }
+.full-screen.screen-enter > :not(.page-head) { animation: screenRise .44s var(--ease-out) .18s both; }
+.full-screen.screen-enter > :nth-child(3) { animation-delay: .24s; }
 
 /* ---- Responsive shell ---- */
 @media (max-width: 1500px) {

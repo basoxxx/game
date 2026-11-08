@@ -165,60 +165,8 @@ registerScreen({
 });
 function fmtLapT(t) { const m = Math.floor(t / 60); return `${m}:${(t - m * 60).toFixed(3).padStart(6, '0')}`; }
 
-// ---------------- SETTINGS ----------------
-registerScreen({
-  id: 'settings',
-  get full() { return !S() || App.params?.back === 'menu'; },
-  render(params) {
-    const s = getSettings();
-    const back = params?.back === 'menu' || !S();
-    const inner = `<div class="screen-title"><div><div class="sub">Preferenze</div><h1>Impostazioni</h1></div>${back ? `<button class="btn ph-back" data-a="nav" data-to="menu" data-tip="Indietro (Esc)">${icon('left')} Menu</button>` : ''}</div>
-    <div class="grid2 anim-in" style="max-width:1000px">
-      <div class="panel"><div class="panel-head"><h3>Audio</h3></div>
-        <div class="row between"><span>Effetti sonori</span><button class="btn sm ${s.sound ? 'active' : ''}" data-a="toggle" data-k="sound">${s.sound ? 'ON' : 'OFF'}</button></div>
-        <div class="row between mt16"><span>Rombo motori in gara</span><button class="btn sm ${s.engineSound ? 'active' : ''}" data-a="toggle" data-k="engineSound">${s.engineSound ? 'ON' : 'OFF'}</button></div>
-        <div class="row between mt16"><span>Colonna sonora</span><button class="btn sm ${s.music !== false ? 'active' : ''}" data-a="toggle" data-k="music">${s.music !== false ? 'ON' : 'OFF'}</button></div>
-        <div class="mt16"><label class="lbl">Volume generale</label><input type="range" min="0" max="1" step="0.05" value="${s.volume}" data-change="vol" class="mt8"></div>
-        <div class="mt16"><label class="lbl">Volume musica</label><input type="range" min="0" max="1" step="0.05" value="${s.musicVol ?? 0.55}" data-change="mvol" class="mt8"></div>
-      </div>
-      <div class="panel"><div class="panel-head"><h3>Gioco</h3></div>
-        <div class="row between"><span>Velocità gara predefinita</span><div class="row gap6">${[1, 2, 4, 8, 16, 32].map((v) => `<button class="btn sm ${s.raceSpeed === v ? 'active' : ''}" data-a="speed" data-v="${v}">${v}x</button>`).join('')}</div></div>
-        <div class="row between mt16"><span>Qualità grafica 3D</span><div class="row gap6"><button class="btn sm ${s.gfx !== 'low' ? 'active' : ''}" data-a="gfx" data-v="high">Alta</button><button class="btn sm ${s.gfx === 'low' ? 'active' : ''}" data-a="gfx" data-v="low">Prestazioni</button></div></div>
-        <div class="row between mt16"><span data-tip="Riduce transizioni e animazioni dell’interfaccia">Riduci animazioni</span><button class="btn sm ${s.reduceMotion ? 'active' : ''}" data-a="motion">${s.reduceMotion ? 'ON' : 'OFF'}</button></div>
-        <div class="row between mt16"><span>Vista 3D in gara</span><button class="btn sm ${s.view3d !== false ? 'active' : ''}" data-a="toggle" data-k="view3d">${s.view3d !== false ? 'ON' : 'OFF'}</button></div>
-        <div class="panel-head mt24"><h3>Filtri visivi 3D</h3></div>
-        <div><span data-tip="Correzione colore applicata alla gara, al garage e a tutte le viste 3D">Stile immagine</span><div class="row wrap gap6 mt8">${Object.entries(FILTER_PRESETS).map(([k, p]) => `<button class="btn sm ${(s.gfxFilter || 'naturale') === k ? 'active' : ''}" data-a="gfxf" data-v="${k}" data-tip="${p.desc}">${p.label}</button>`).join('')}</div></div>
-        ${[['gfxSharpen', 'Nitidezza adattiva', 'Rende più definiti bordi e dettagli lontani', false], ['gfxGrain', 'Grana pellicola', 'Leggera grana cinematografica animata', false], ['gfxVignette', 'Vignettatura', 'Scurisce leggermente i bordi dell’immagine', true]].map(([k, n, tip, def]) => `<div class="row between mt8"><span data-tip="${tip}">${n}</span><button class="btn sm ${(s[k] ?? def) ? 'active' : ''}" data-a="gfxt" data-k="${k}" data-d="${def ? 1 : 0}">${(s[k] ?? def) ? 'ON' : 'OFF'}</button></div>`).join('')}
-        <div class="mt8"><span data-tip="Corregge i colori per chi ha un deficit nella percezione dei colori">Modalità daltonici</span><div class="row wrap gap6 mt8">${Object.entries(COLORBLIND_MODES).map(([k, l]) => `<button class="btn sm ${(s.gfxColorblind || 'off') === k ? 'active' : ''}" data-a="gfxcb" data-v="${k}">${l}</button>`).join('')}</div></div>
-        <div class="panel-head mt24"><h3>Realismo gara</h3></div>
-        ${[['failures', 'Guasti meccanici'], ['damage', 'Incidenti e danni'], ['aiAggr', 'Aggressività avversari']].map(([k, n]) => `<div class="row between mt8"><span>${n}</span><div class="row gap6">${[[0.3, 'Bassi'], [1, 'Realistici'], [1.6, 'Alti']].map(([v, l]) => `<button class="btn sm ${(s[k] ?? 1) === v ? 'active' : ''}" data-a="real" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div></div>`).join('')}
-        ${window.apex?.toggleFullscreen ? `<div class="row between mt16"><span>Schermo intero</span><button class="btn sm" data-a="fs">${icon('fullscreen')} F11</button></div>` : ''}
-      </div>
-      ${S() ? `<div class="panel"><div class="panel-head"><h3>Salvataggi</h3></div><div class="row wrap gap6"><button class="btn" data-a="save-as">${icon('save')} Salva in slot…</button><button class="btn" data-a="export">${icon('download')} Esporta su file</button></div><div class="small muted mt8">Il gioco salva automaticamente dopo ogni evento.</div></div>` : ''}
-      <div class="panel"><div class="panel-head"><h3>Comandi</h3><button class="btn sm ghost" data-a="shortcuts">Tutte le scorciatoie</button></div><div class="col gap6 small">${[['Spazio', 'Pausa in gara'], ['1 – 6', 'Velocità di simulazione'], ['1 – 0', 'Sezioni della gestione'], ['Ctrl + S', 'Salvataggio rapido'], ['?', 'Elenco comandi']].map(([k, d]) => `<div class="row between"><span class="muted">${d}</span><span class="kbd">${k}</span></div>`).join('')}</div></div>
-      <div class="panel"><div class="panel-head"><h3>Info</h3></div><div class="small muted" style="line-height:1.6">Apex Dynasty v${__APP_VERSION__}<br>Gioco gestionale di fantasia. Tutti i nomi di squadre, piloti, sponsor e marchi sono parodie inventate e non sono affiliati a persone o aziende reali.</div></div>
-    </div>`;
-    return back ? `<div class="full-screen" style="padding-top:36px">${inner}</div>` : inner;
-  },
-  actions: {
-    toggle(el) { const k = el.dataset.k; const cur = getSettings()[k]; setSettings({ [k]: !(cur ?? true) }); applyVolumes(); App.refresh(); },
-    vol(el) { setSettings({ volume: +el.value }); applyVolumes(); },
-    mvol(el) { setSettings({ musicVol: +el.value }); applyVolumes(); },
-    speed(el) { setSettings({ raceSpeed: +el.dataset.v }); App.refresh(); },
-    gfx(el) { setSettings({ gfx: el.dataset.v }); App.refresh(); },
-    gfxf(el) { setSettings({ gfxFilter: el.dataset.v }); applyFilterSettings(); App.refresh(); },
-    gfxt(el) { const k = el.dataset.k; setSettings({ [k]: !(getSettings()[k] ?? el.dataset.d === '1') }); applyFilterSettings(); App.refresh(); },
-    gfxcb(el) { setSettings({ gfxColorblind: el.dataset.v }); applyFilterSettings(); App.refresh(); },
-    real(el) { setSettings({ [el.dataset.k]: +el.dataset.v }); App.refresh(); },
-    fs() { window.apex?.toggleFullscreen?.(); },
-    motion() { const v = !getSettings().reduceMotion; setSettings({ reduceMotion: v }); document.documentElement.classList.toggle('reduce-motion', v); App.refresh(); },
-    'save-as'() { openLoad(true); },
-    export() {
-      const b = exportSave(); const a = document.createElement('a'); a.href = URL.createObjectURL(b);
-      a.download = `apex-dynasty-${S().season}-r${S().round + 1}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    },
-  },
-});
+// Impostazioni live in their own module
+import './settings.js';
 
 // ---------------- DYNASTY SUMMARY ----------------
 function dynastyPanel(st) {

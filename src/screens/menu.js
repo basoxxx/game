@@ -104,18 +104,6 @@ registerScreen({
     quit() { window.apex?.quit?.(); },
     lessons() { openLessons(); },
     mixer() { App.audioMixer(); },
-    credits() {
-      App.modal(`<h2>Come si gioca</h2>
-      <div class="col small" style="gap:12px;line-height:1.55">
-        <p><b>Sei il Team Principal.</b> Scegli Formula, Rally o Endurance e una squadra (o fondane una tua). In alternativa lanciati in una <b>Gara Rapida</b>.</p>
-        <p><b>Circuiti reali e fisica:</b> i 24 tracciati della Formula usano la geometria reale. La velocità in ogni curva deriva da raggio, carico aerodinamico, grip e potenza: per questo Monza premia il motore e Monaco il carico.</p>
-        <p><b>Centro Tecnico:</b> concetto della vettura, livrea (con garage 3D) e progetti R&D con rischi e rendimenti decrescenti.</p>
-        <p><b>Weekend:</b> trova l’assetto ascoltando il pilota, qualificati, poi scegli la strategia con il pianificatore (curve di degrado, soste ottimali). In gara gestisci ritmo, gomme, temperature, DRS, safety car e meteo. Segui la gara in <b>3D</b> (TV, camera car, onboard, elicottero) o sulla mappa 2D, con telemetria e analisi del giro.</p>
-        <p><b>Rally:</b> gomme e ritmo per ogni prova, decisioni live del copilota, parco assistenza a tempo.</p>
-        <p><b>Carriera:</b> guadagni XP e livelli manager, sblocchi abilità, completi obiettivi stagionali, ricevi offerte anche da altre categorie. Attento alla fiducia del consiglio!</p>
-        <p class="muted">Scorciatoie in gara: <span class="kbd">Spazio</span> pausa · <span class="kbd">1-5</span> velocità · clic su un pilota in classifica per seguirlo · <span class="kbd">F11</span> schermo intero (desktop).</p>
-      </div><div class="row mt24" style="justify-content:flex-end"><button class="btn primary" data-a="close-modal">Ho capito</button></div>`);
-    },
   },
 });
 
@@ -164,14 +152,18 @@ export function openLoad(saveMode = false) {
       <div class="rating sm">${s.slot}</div>
       ${s.empty ? `<div class="grow muted">Slot vuoto</div>` : `<div class="grow"><div style="font-weight:700">${esc(s.team)} <span class="chip" style="margin-left:6px">${CATEGORIES[s.category]?.name}</span></div><div class="small muted">${esc(s.player)} · Stagione ${s.season} · Round ${Math.min(s.round + 1, s.total)}/${s.total} · ${s.savedAt ? new Date(s.savedAt).toLocaleString('it-IT') : ''}</div></div>`}
       ${saveMode ? `<button class="btn sm primary" data-a="save-slot" data-slot="${s.slot}">Salva qui</button>` : !s.empty ? `<button class="btn sm primary" data-a="load-slot" data-slot="${s.slot}">Carica</button>` : ''}
-      ${!s.empty ? `<button class="btn sm ghost icon-btn" data-a="del-slot" data-slot="${s.slot}" title="Elimina">${icon('trash')}</button>` : ''}
+      ${!s.empty ? `<button class="btn sm ghost icon-btn" data-a="del-slot" data-slot="${s.slot}" data-tip="Elimina salvataggio" aria-label="Elimina salvataggio">${icon('trash')}</button>` : ''}
     </div>`).join('')}</div>
     <div class="row mt16 between"><div class="row"><label class="btn sm ghost">${icon('upload')} Importa file<input type="file" accept=".json,application/json" data-change="import" hidden></label></div><button class="btn ghost" data-a="close-modal">Chiudi</button></div>`;
   };
   const actions = {
     'load-slot'(el) { if (loadGame(+el.dataset.slot)) { migrateSave(window.__apex.S()); App.closeModal(); sfx.ok(); App.go('hub'); } },
     'save-slot'(el) { saveGame(+el.dataset.slot); App.toast('Partita salvata', `Slot ${el.dataset.slot}`, 'good'); App.closeModal(); },
-    'del-slot'(el) { deleteSave(+el.dataset.slot); document.querySelector('.modal').innerHTML = render(); },
+    'del-slot'(el) {
+      const n = +el.dataset.slot;
+      const info = listSaves().find((x) => x.slot === n);
+      App.confirm('Eliminare il salvataggio?', `Lo slot ${n}${info?.team ? ` (${esc(info.team)}, stagione ${info.season})` : ''} verrà cancellato definitivamente.`, () => { deleteSave(n); if (App.cur === 'menu') App.go('menu'); openLoad(saveMode); }, 'Elimina', true);
+    },
     import(el) {
       const f = el.files?.[0]; if (!f) return;
       f.text().then((t) => { try { const s = migrateSave(importSave(t)); s.slot = s.slot || 1; saveGame(s.slot); App.closeModal(); App.go('hub'); } catch (e) { App.toast('Import fallito', e.message, 'bad'); } });
