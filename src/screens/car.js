@@ -4,7 +4,7 @@ import { icon } from '../ui/icons.js';
 import { carSVG, teamBadge } from '../ui/art.js';
 import { esc, bar } from '../ui/dom.js';
 import { S } from '../engine/state.js';
-import { atrFactor, costCap, capSpent, cat, playerTeam, teamDrivers, partRanking, fmtM, rdSlots, rdCost, RD_TIERS, RD_APPROACH, startProject, partName, applyConcept, changeEngine, overallCarRanking } from '../engine/season.js';
+import { atrFactor, costCap, capSpent, cat, playerTeam, teamDrivers, partRanking, fmtM, rdSlots, rdCost, RD_TIERS, RD_APPROACH, rushProject, rushCost, startProject, partName, applyConcept, changeEngine, overallCarRanking } from '../engine/season.js';
 import { getTrack } from '../engine/world.js';
 import { traitInfo } from '../engine/dynasty.js';
 import '../styles/career.css';
@@ -67,6 +67,7 @@ registerScreen({
     tab(el) { tab = el.dataset.t; App.refresh(); },
     target(el) { devTarget = el.dataset.v; App.refresh(); },
     approach(el) { devApproach = el.dataset.v; App.refresh(); },
+    rush(el) { const r = rushProject(S(), el.dataset.id); if (!r.ok) { App.toast('Impossibile', r.msg, 'bad'); sfx.bad(); return; } sfx.ok(); App.toast('Straordinari in fabbrica', 'Il pezzo arriverà un evento prima.', 'good'); App.refresh(); },
     start(el) {
       const st = S();
       const r = startProject(st, el.dataset.part, el.dataset.tier, devTarget === 'next', devApproach);
@@ -114,7 +115,7 @@ function devTab(st, t, C) {
       return `<div class="part-row"><div><b>${p.name}</b><div class="tiny muted">${p.desc}</div></div>
         <div>${bar(v)}<div class="tiny muted mt8">Efficienza sviluppo: <span class="${dim > 0.8 ? 'good' : dim > 0.45 ? 'warn' : 'bad'}">${Math.round(dim * 100)}%</span></div></div>
         <b class="mono" style="font-size:20px;font-family:var(--display)">${v.toFixed(1)}</b>
-        <div class="row gap6" style="justify-content:flex-end">${proj ? `<div style="width:100%"><div class="row between small"><span class="info">${RD_TIERS[proj.tier].name}${proj.approach && proj.approach !== 'std' ? ' · ' + RD_APPROACH[proj.approach].name : ''}${proj.next ? ' · ' + (st.season + 1) : ''}</span><span>${proj.racesLeft} ${proj.racesLeft === 1 ? 'evento' : 'eventi'}</span></div>${bar(((proj.total - proj.racesLeft) / proj.total) * 100 + 8, 'blue')}<div class="tiny muted mt8">${proj.next ? `Pronto per la vettura ${st.season + 1}` : (() => { const ev = st.calendar[st.round + proj.racesLeft]; const tr = ev && getTrack(st.category, ev.trackId); return tr ? `In pista dal ${esc(tr.name)}` : 'Consegna dopo l’ultimo evento'; })()}</div></div>` :
+        <div class="row gap6" style="justify-content:flex-end">${proj ? `<div style="width:100%"><div class="row between small"><span class="info">${RD_TIERS[proj.tier].name}${proj.approach && proj.approach !== 'std' ? ' · ' + RD_APPROACH[proj.approach].name : ''}${proj.next ? ' · ' + (st.season + 1) : ''}</span><span>${proj.racesLeft} ${proj.racesLeft === 1 ? 'evento' : 'eventi'}</span></div>${bar(((proj.total - proj.racesLeft) / proj.total) * 100 + 8, 'blue')}<div class="tiny muted mt8">${proj.next ? `Pronto per la vettura ${st.season + 1}` : (() => { const ev = st.calendar[st.round + proj.racesLeft]; const tr = ev && getTrack(st.category, ev.trackId); return tr ? `In pista dal ${esc(tr.name)}` : 'Consegna dopo l’ultimo evento'; })()}${proj.racesLeft > 1 && !proj.rushed ? ` · <a class="info" style="cursor:pointer;text-decoration:underline" data-a="rush" data-id="${proj.id}" data-tip="Un evento prima, rischio di fallimento +6%">Straordinari ${fmtM(rushCost(st, proj))}</a>` : proj.rushed ? ' · <span class="warn">Accelerato</span>' : ''}</div></div>` :
         Object.keys(RD_TIERS).map((k) => `<button class="btn sm" data-a="start" data-part="${p.id}" data-tier="${k}" ${t.projects.length >= slots || t.money < rdCost(st, k) ? 'disabled' : ''} title="${RD_TIERS[k].name} – ${fmtM(rdCost(st, k))}">${k === 'base' ? 'Base' : k === 'major' ? 'Evo' : 'Rivo'}</button>`).join('')}</div></div>`;
     }).join('')}
     <div class="small muted mt16">I progetti si completano dopo il numero di eventi indicato. Più un componente è già sviluppato, minore è il guadagno (rendimenti decrescenti). Più slot con la Fabbrica, guadagni maggiori con Galleria del Vento e un Direttore Tecnico migliore.</div>

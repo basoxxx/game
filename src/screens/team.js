@@ -229,7 +229,7 @@ registerScreen({
     <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px" class="mt16">
       <div class="col gap16">
         <div class="panel"><div class="panel-head"><h3>Sponsor attivi (${t.sponsors.length}/3)</h3></div>
-          ${t.sponsors.length ? `<div class="grid3">${t.sponsors.map((s) => `<div class="card"><div class="tiny upper muted">${s.tier === 3 ? 'Title sponsor' : s.tier === 2 ? 'Partner' : 'Fornitore'}</div><div style="font-family:var(--display);font-weight:800;font-size:18px">${esc(s.name)}</div><div class="small mt8">${fmtM(s.perRace)}/evento</div><div class="tiny muted">Bonus ${objNames[s.objective]}: ${fmtM(s.bonus)}</div><div class="tiny muted">${s.seasonsLeft} ${s.seasonsLeft === 1 ? 'stagione' : 'stagioni'} rimanenti</div>${sponsorExtra(st, s)}</div>`).join('')}</div>` : '<div class="muted small">Nessuno sponsor attivo. Firmane uno dalle offerte!</div>'}
+          ${t.sponsors.length ? `<div class="grid3">${t.sponsors.map((s) => `<div class="card"><div class="tiny upper muted">${s.tier === 3 ? 'Title sponsor' : s.tier === 2 ? 'Partner' : 'Fornitore'}</div><div style="font-family:var(--display);font-weight:800;font-size:18px">${esc(s.name)}</div><div class="small mt8">${fmtM(s.perRace)}/evento</div><div class="tiny muted">Bonus ${objNames[s.objective]}: ${fmtM(s.bonus)}</div><div class="tiny muted">${s.seasonsLeft} ${s.seasonsLeft === 1 ? 'stagione' : 'stagioni'} rimanenti</div>${sponsorExtra(st, s)}<button class="btn sm ghost mt8" data-a="drop-sp" data-id="${s.id}">${icon('x')} Rescindi</button></div>`).join('')}</div>` : '<div class="muted small">Nessuno sponsor attivo. Firmane uno dalle offerte!</div>'}
         </div>
         <div class="panel"><div class="panel-head"><h3>Offerte di sponsorizzazione</h3></div>
           ${st.sponsorOffers.length ? `<div class="col gap6">${st.sponsorOffers.map((o) => `<div class="card row" style="gap:14px"><div class="grow"><div class="row"><b style="font-family:var(--display);font-size:17px">${esc(o.name)}</b><span class="stars small">${'★'.repeat(o.tier)}</span></div><div class="small muted">${o.objText}: +${fmtM(o.bonus)} · ${o.seasons} ${o.seasons === 1 ? 'stagione' : 'stagioni'}</div></div><div class="right"><div><b>${fmtM(o.perRace)}</b><span class="tiny muted">/evento</span></div><div class="tiny good">Firma: +${fmtM(o.signing)}</div></div><button class="btn sm primary" data-a="sign" data-id="${o.id}" ${t.sponsors.length >= 3 ? 'disabled' : ''}>Firma</button></div>`).join('')}</div>` : '<div class="muted small">Nessuna offerta al momento. Arriveranno con i risultati!</div>'}
@@ -255,6 +255,12 @@ registerScreen({
     </div>`;
   },
   actions: {
+    'drop-sp'(el) {
+      const st = S(); const t = playerTeam(st);
+      const sp = t.sponsors.find((x) => x.id === el.dataset.id); if (!sp) return;
+      const pen = +(sp.perRace * 2).toFixed(2);
+      App.confirm(`Rescindere con ${esc(sp.name)}?`, `Penale di uscita: ${fmtM(pen)}. Lo spazio sulla livrea si libererà subito.`, () => { t.sponsors = t.sponsors.filter((x) => x !== sp); addFinance(st, `Rescissione sponsor ${sp.name}`, -pen); App.refresh(); }, 'Rescindi', true);
+    },
     sign(el) {
       const st = S(); const t = playerTeam(st);
       const o = st.sponsorOffers.find((x) => x.id === el.dataset.id);

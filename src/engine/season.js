@@ -84,6 +84,20 @@ export function startProject(state, partId, tier, nextYear = false, approach = '
   state._capOk = false;
   return { ok: true };
 }
+// Overtime: pay to bring a running project forward by one event (riskier: rushed parts fail more often)
+export function rushCost(state, proj) { return +(rdCost(state, proj.tier) * 0.45).toFixed(2); }
+export function rushProject(state, projId) {
+  const t = playerTeam(state);
+  const p = t.projects.find((x) => x.id === projId);
+  if (!p) return { ok: false, msg: 'Progetto non trovato.' };
+  if (p.racesLeft <= 1) return { ok: false, msg: 'Il pezzo è già in arrivo al prossimo evento.' };
+  if (p.rushed) return { ok: false, msg: 'Questo progetto è già stato accelerato.' };
+  const c = rushCost(state, p);
+  if (t.money < c) return { ok: false, msg: 'Fondi insufficienti.' };
+  addFinance(state, `R&D: straordinari su ${partName(state, p.part)}`, -c);
+  p.racesLeft--; p.rushed = true;
+  return { ok: true };
+}
 // Wind tunnel allocation (ATR): the further back in last year's standings, the more development
 export function atrFactor(state, team) {
   const n = Object.keys(state.teams).length;
@@ -104,7 +118,7 @@ function completeProject(state, team, proj) {
   const wtF = 1 + (team.facilities.windtunnel - 1) * 0.06;
   const A = RD_APPROACH[proj.approach] || RD_APPROACH.std;
   const trait = (id) => team.isPlayer && teamTrait(state, team, 'td', id);
-  const failP = T.fail * (1.3 - (td?.rating || 60) / 160) * A.fail * (trait('prudent') ? 0.5 : 1);
+  const failP = (T.fail * (1.3 - (td?.rating || 60) / 160) * A.fail + (proj.rushed ? 0.06 : 0)) * (trait('prudent') ? 0.5 : 1);
   const cur = team.car.parts[proj.part];
   let gain;
   proj.failed = false;

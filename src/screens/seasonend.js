@@ -6,6 +6,7 @@ import { S, setState, saveGame } from '../engine/state.js';
 import { createWorld } from '../engine/world.js';
 import { cat, playerTeam, endSeason, newSeason, jobOffers, fmtM, addMail, unlock } from '../engine/season.js';
 import { CATEGORIES } from '../data/categories.js';
+import { STAFF_NAMES } from '../data/teams.js';
 import { celebrate } from './results.js';
 import { sfx } from '../ui/audio.js';
 import { getTrack } from '../engine/world.js';
@@ -55,9 +56,10 @@ registerScreen({
       const st = S(); const o = offers[+el.dataset.i];
       App.confirm(`Firmare con ${esc(o.name)}?`, `${o.category !== st.category ? `Passerai al campionato ${CATEGORIES[o.category].name}. ` : ''}Inizierai la stagione ${st.season + 1} con la nuova squadra.`, () => {
         if (o.category === st.category) {
-          const old = playerTeam(st); old.isPlayer = false; old.principal = 'Nuovo TP';
+          const old = playerTeam(st); old.isPlayer = false; old.principal = `${STAFF_NAMES.first[Math.floor(Math.random() * STAFF_NAMES.first.length)]} ${STAFF_NAMES.last[Math.floor(Math.random() * STAFF_NAMES.last.length)]}`;
           const nt = st.teams[o.teamId]; nt.isPlayer = true; nt.principal = st.playerName; st.playerTeam = nt.id;
           st.board.confidence = 65;
+          if (st.dyn) { st.dyn.plan = null; st.dyn.statusMax = null; st.dyn.promises = []; st.dyn.mandate = 'growth'; delete st.dyn.principals[nt.id]; }
           newSeason(st);
         } else {
           const career = st.career; const ach = st.achievements;

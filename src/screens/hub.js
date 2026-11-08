@@ -17,7 +17,7 @@ import { sfx } from '../ui/audio.js';
 import { SURFACES } from '../data/categories.js';
 import { driverChip, ovr, ratingBox, moraleChip, teamStripe } from './common.js';
 import './paddock.js';
-import { ensureDynasty, statusInfo, maybeDynDecision, dynDecisionView, resolveDynDecision, STATUS, MANDATES, pressIssues } from '../engine/dynasty.js';
+import { ensureDynasty, statusInfo, maybeDynDecision, dynDecisionView, resolveDynDecision, STATUS, MANDATES, pressIssues, academyDrivers, academySlots } from '../engine/dynasty.js';
 import { pressArt, portraitSVG, statusEmblem, teamCol, boardTable } from './career-ui.js';
 import { celebrate } from './results.js';
 
@@ -56,6 +56,14 @@ registerScreen({
     if (st.career.points) todo.push(['good', `${st.career.points} punti abilità da spendere`, 'career']);
     if (unread) todo.push(['info', unread === 1 ? '1 messaggio non letto' : `${unread} messaggi non letti`, 'inbox']);
     if (st.ultimatum?.season === st.season) { const my = s.teams.find((x) => x.id === t.id)?.pts || 0; todo.unshift(['bad', `Ultimatum del consiglio: ${Math.max(0, my - st.ultimatum.start)}/${st.ultimatum.need} punti entro il round ${st.ultimatum.until}`, 'standings']); }
+    if (st.dyn) {
+      const D = st.dyn;
+      if (D.bet && D.bet.season === st.season && D.bet.round === st.round) { const bt = st.teams[D.bet.team]; todo.unshift(['warn', `Sfida in corso: arriva davanti a ${bt?.name} (${fmtM(D.bet.stake)} in palio)`, 'paddock:tp']); }
+      for (const p of D.promises) if (p.until != null && p.until - st.round <= 2 && p.until >= st.round) todo.unshift(['bad', `Promessa al consiglio in scadenza: ${p.t}`, 'paddock:board']);
+      if (D.prospects?.list?.length && academyDrivers(st).length < academySlots(t) && st.round <= 2) todo.push(['info', `Gli scout segnalano ${D.prospects.list.length} giovani talenti per l’accademia`, 'drivers']);
+      const ready = academyDrivers(st).find((j) => myDrivers.some((m) => ovr(st, j) >= ovr(st, m)));
+      if (ready) todo.push(['good', `${ready.name} è pronto per la prima squadra`, 'drivers']);
+    }
     for (const d of myDrivers) { if (d.rivalOffer) todo.unshift(['bad', `${d.name} ha un’offerta da ${st.teams[d.rivalOffer.teamId]?.name}: rinnova o lo perderai`, 'drivers']); else if (d.nextTeam && d.nextTeam !== t.id) todo.push(['warn', `${d.name} partirà a fine anno: trova un sostituto`, 'market']); }
 
     let hero = '';
@@ -120,7 +128,7 @@ registerScreen({
           </div>
           <div class="col gap16">
             ${goalsPanel(st)}
-            ${todo.length ? `<div class="panel"><div class="panel-head"><h3>Da fare</h3><span class="small muted">${todo.length}</span></div><div>${todo.map(([cls, txt, to]) => `<div class="todo t-${cls}" data-a="nav" data-to="${to}"><span class="grow">${txt}</span>${icon('right')}</div>`).join('')}</div></div>` : ''}
+            ${todo.length ? `<div class="panel"><div class="panel-head"><h3>Da fare</h3><span class="small muted">${todo.length}</span></div><div>${todo.map(([cls, txt, to]) => `<div class="todo t-${cls}" data-a="nav" data-to="${to.split(':')[0]}"${to.includes(':') ? ` data-tab="${to.split(':')[1]}"` : ''}><span class="grow">${txt}</span>${icon('right')}</div>`).join('')}</div></div>` : ''}
             ${st.objectives?.length ? `<div class="panel"><div class="panel-head"><h3>Obiettivi stagionali</h3><span class="small muted">Manager Lv ${st.career.level || 1}</span></div><div>${st.objectives.map((o) => `<div class="obj-row">${icon(o.done ? 'check' : 'target', 'ico', `style="width:18px;height:18px;flex:none;color:${o.done ? 'var(--good)' : 'var(--dim)'}"`)}<span class="grow ${o.done ? 'good' : ''}">${esc(o.text)}</span><span class="small muted mono">${o.xp} XP</span></div>`).join('')}</div></div>` : ''}
             <div class="panel"><div class="panel-head"><h3>Classifica piloti</h3><button class="btn sm ghost" data-a="nav" data-to="standings">Tutte ${icon('right')}</button></div>
               <table class="tbl"><tbody>${s.drivers.slice(0, 6).map((x, i) => { const d = st.drivers[x.id]; const tm = st.teams[d.teamId]; return `<tr class="${d.teamId === t.id ? 'me' : ''}"><td class="pos p${i + 1}">${i + 1}</td><td style="width:8px;padding-left:0;padding-right:0">${tm ? teamStripe(tm) : ''}</td><td>${driverChip(st, d, { helmet: false })}</td><td class="right mono"><b>${x.pts}</b></td></tr>`; }).join('')}</tbody></table>
