@@ -14,7 +14,8 @@ import { applyVolumes, sfx } from '../ui/audio.js';
 import { applyFilterSettings, FILTER_PRESETS, COLORBLIND_MODES } from '../ui/gfx.js';
 import { PERKS, xpForLevel, ensureProgress, buyPerk } from '../engine/progress.js';
 import { legacyInfo } from '../engine/legacy.js';
-import { STATUS } from '../engine/dynasty.js';
+import { STATUS, MANDATES, ensureDynasty, statusInfo, relColor } from '../engine/dynasty.js';
+import { statusEmblem, statusLadder, portraitSVG } from './career-ui.js';
 
 // ---------------- INBOX ----------------
 let selMail = null;
@@ -119,6 +120,7 @@ registerScreen({
       <div class="panel"><div class="kpi"><b>${c.trophies.length}</b><span>Titoli vinti · ${c.seasonsManaged} stagioni</span></div></div>
       <div class="panel"><div class="kpi"><b>${ach.length}/${ALL.length}</b><span>Obiettivi sbloccati</span></div></div>
     </div>
+    ${dynastyPanel(st)}
     ${legacyPanel(st)}
     <div class="panel mt16"><div class="panel-head"><h3>Albero delle abilità</h3><span class="small muted">Guadagni XP con punti, podi, vittorie e obiettivi. Ogni livello = 1 punto abilità.</span></div>
       <div class="grid3">${Object.entries(PERKS).map(([k, b]) => `<div class="card" style="border-top:3px solid ${b.color}"><div class="row">${icon(b.icon, 'ico', `style="width:22px;height:22px;color:${b.color}"`)}<h3>${b.name}</h3></div>
@@ -217,3 +219,23 @@ registerScreen({
     },
   },
 });
+
+// ---------------- DYNASTY SUMMARY ----------------
+function dynastyPanel(st) {
+  if (st.quick) return '';
+  const D = ensureDynasty(st); if (!D) return '';
+  const si = statusInfo(st);
+  const M = MANDATES[D.mandate] || MANDATES.growth;
+  const ps = Object.entries(D.principals).map(([id, p]) => ({ id, p, t: st.teams[id] })).filter((x) => x.t && !x.t.isPlayer).sort((a, b) => b.p.rel - a.p.rel);
+  const ally = ps[0], foe = ps[ps.length - 1];
+  const who = (x, lab) => x ? `<div class="row" style="gap:10px">${portraitSVG(x.p, x.t, 44)}<div><div class="tiny upper muted">${lab}</div><b>${esc(x.p.name)}</b><div class="tiny" style="color:${relColor(x.p.rel)}">${esc(x.t.name)} · ${x.p.rel > 0 ? '+' : ''}${x.p.rel}</div></div></div>` : '';
+  return `<div class="panel mt16" style="--stc:${si.color}"><div class="panel-head"><h3>${icon('star')} La tua dinastia</h3><button class="btn sm ghost" data-a="nav" data-to="paddock" data-tab="board">Paddock e consiglio ${icon('right')}</button></div>
+    <div class="grid4" style="align-items:center">
+      <div class="row" style="gap:14px">${statusEmblem(si.idx, 70)}<div><div class="tiny upper muted">Status</div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:28px;line-height:1;text-transform:uppercase;color:${si.color}">${esc(si.name)}</div><div class="tiny muted">Prestigio ${si.rep}${si.next ? ` · prossimo: ${esc(si.next.name)}` : ''}</div></div></div>
+      <div><div class="tiny upper muted">Mandato</div><b style="font-family:var(--display);font-size:20px;text-transform:uppercase">${esc(M.name)}</b><div class="tiny muted">${D.plan.steps.filter((x) => x.done).length}/${D.plan.steps.length} tappe del piano · promesse ${D.stats.promisesKept}/${D.stats.promisesKept + D.stats.promisesBroken}</div></div>
+      ${who(ally, 'Rapporto migliore')}
+      ${who(foe, 'Rapporto peggiore')}
+    </div>
+    <div class="mt16">${statusLadder(st)}</div>
+  </div>`;
+}
