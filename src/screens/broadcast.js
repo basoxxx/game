@@ -157,7 +157,8 @@ export function analysisHTML(sim, st, tab = 'lap', sel = null) {
   const cls = sim.classification();
   const keys = sel || defaultSel(sim);
   const body = tab === 'lap' ? lapChart(sim, cls, keys) : tab === 'gap' ? gapChart(sim, cls, keys) : tab === 'strat' ? `<div class="an-strat">${stintChartSVG(sim, cls, { w: 980, rowH: 21, labW: 96 })}</div>${pitTable(sim)}` : tab === 'story' ? storyHTML(sim) : paceChart(sim, cls, keys);
-  const picker = tab === 'strat' || tab === 'story' ? '' : `<div class="an-pick">${cls.map((c) => `<button class="an-chip ${keys.includes(c.key) ? 'on' : ''}" data-a="an-sel" data-key="${c.key}" style="--tc:${c.team.car.livery.primary}">${esc(short3(sim.driver(c).name))}</button>`).join('')}</div>`;
+  const lsAll = lineStyles(sim, keys);
+  const picker = tab === 'strat' || tab === 'story' ? '' : `<div class="an-pick">${cls.map((c) => `<button class="an-chip ${keys.includes(c.key) ? 'on' : ''}" data-a="an-sel" data-key="${c.key}" style="--tc:${lsAll[c.key]?.col || c.team.car.livery.primary}">${esc(short3(sim.driver(c).name))}${lsAll[c.key] ? `<svg class="an-swatch" viewBox="0 0 22 6"><line x1="1" x2="21" y1="3" y2="3" stroke="${lsAll[c.key].col}" stroke-width="2.5"${dashAttr(lsAll[c.key])}/></svg>` : ''}</button>`).join('')}</div>`;
   return `<div class="an-panel"><div class="an-head"><div><div class="an-eyebrow">${sim.finished ? 'Analisi post-gara' : `Analisi live · giro ${Math.min(sim.laps, Math.floor(sim.progress * sim.laps) + 1)}/${sim.laps}`}</div><div class="an-title">${esc(sim.track.name)}</div></div>
     <div class="tabs">${AN_TABS.map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="an-tab" data-t="${k}">${n}</div>`).join('')}</div><button class="btn icon-btn" data-a="an-close" aria-label="Chiudi analisi">${icon('x')}</button></div>
     ${picker}<div class="an-body">${body}</div>${summary(sim, cls)}</div>`;
@@ -168,6 +169,25 @@ export function defaultSel(sim) {
   for (const c of sim.cars) if (c.isPlayer) s.add(c.key);
   return [...s];
 }
+// Line styles for the selected cars: team colour, plus a dash pattern whenever the colour is too close
+// to one already used (team-mates always share a livery), so every line stays tellable apart.
+const DASH = ['', '8 4', '2 4', '12 4 2 4', '4 2'];
+function hexRgb(h) { const m = String(h).replace('#', ''); const v = m.length === 3 ? m.split('').map((x) => x + x).join('') : m.padEnd(6, '0'); return [0, 2, 4].map((i) => parseInt(v.slice(i, i + 2), 16) || 0); }
+function lineStyles(sim, keys) {
+  const used = []; const out = {};
+  const ordered = sim.classification().filter((c) => keys.includes(c.key));
+  for (const c of ordered) {
+    let col = c.team.car.livery.primary;
+    // near-black liveries vanish on the dark chart: use the secondary colour
+    if (hexRgb(col).reduce((a, b) => a + b, 0) < 110) col = c.team.car.livery.secondary || '#9aa3b2';
+    const rgb = hexRgb(col);
+    const clash = used.filter((u) => Math.hypot(u.rgb[0] - rgb[0], u.rgb[1] - rgb[1], u.rgb[2] - rgb[2]) < 95).length;
+    out[c.key] = { col, dash: DASH[clash % DASH.length] };
+    used.push({ rgb });
+  }
+  return out;
+}
+const dashAttr = (st) => (st?.dash ? ` stroke-dasharray="${st.dash}"` : '');
 function chartFrame(W, H, padL, padB, xLabels, yLabels) {
   let g = '';
   for (const [x, t] of xLabels) g += `<line x1="${x}" x2="${x}" y1="10" y2="${H - padB}" class="an-grid"/><text x="${x}" y="${H - padB + 16}" class="an-ax" text-anchor="middle">${t}</text>`;
@@ -183,25 +203,27 @@ function lapChart(sim, cls, keys) {
   const y = (p) => 14 + ((p - 1) / Math.max(1, N - 1)) * (H - padB - 24);
   let s = `<svg class="an-svg" viewBox="0 0 ${W} ${H}">` + chartFrame(W, H, padL, padB, lapTicks(L, x), [1, 5, 10, 15, 20, 25, 30].filter((p) => p <= N).map((p) => [y(p).toFixed(1), 'P' + p]));
   const order = cls.slice().sort((a, b) => (keys.includes(a.key) ? 1 : 0) - (keys.includes(b.key) ? 1 : 0));
+  const ls = lineStyles(sim, keys);
   for (const c of order) {
     const h = sim.history[c.key] || [];
     const pts = [[0, c.grid], ...h.map((e) => [e.lap, e.pos])];
-    const on = keys.includes(c.key); const col = c.team.car.livery.primary;
+    const on = keys.includes(c.key); const col = on ? ls[c.key].col : c.team.car.livery.primary;
     const d = pts.map(([l, p]) => `${x(l).toFixed(1)},${y(p).toFixed(1)}`).join(' ');
-    s += `<g class="an-line ${on ? 'on' : ''}${c.isPlayer ? ' me' : ''}"><title>${esc(sim.driver(c).name)}: dalla P${c.grid} alla ${c.status === 'dnf' ? 'ritiro' : 'P' + c.pos}</title><polyline points="${d}" stroke="${col}"/>`;
+    s += `<g class="an-line ${on ? 'on' : ''}${c.isPlayer ? ' me' : ''}"><title>${esc(sim.driver(c).name)}: dalla P${c.grid} alla ${c.status === 'dnf' ? 'ritiro' : 'P' + c.pos}</title>${on ? `<polyline points="${d}" class="an-halo"/>` : ''}<polyline points="${d}" stroke="${col}"${on ? dashAttr(ls[c.key]) : ''}/>`;
     const last = pts[pts.length - 1];
-    if (on) s += `<circle cx="${x(last[0])}" cy="${y(last[1])}" r="4" fill="${col}"/>${lab(labels, x(last[0]) + 8, y(last[1]) + 4, `${esc(short3(sim.driver(c).name))}${c.status === 'dnf' ? ' ✕' : ''}`)}`;
+    if (on) s += `<circle cx="${x(last[0])}" cy="${y(last[1])}" r="4" fill="${col}" stroke="#0a0b0e" stroke-width="1.5"/>${lab(labels, x(last[0]) + 8, y(last[1]) + 4, `${esc(short3(sim.driver(c).name))}${c.status === 'dnf' ? ' ✕' : ''}`, col)}`;
     s += '</g>';
   }
   for (const st of sim.stopsLog) { if (!keys.includes(st.key)) continue; const h = sim.history[st.key]?.find((e) => e.lap === st.lap); if (h) s += `<rect x="${x(st.lap) - 3}" y="${y(h.pos) - 3}" width="6" height="6" class="an-pit"><title>Pit stop giro ${st.lap}</title></rect>`; }
   return s + labelsSVG(labels) + '</svg><div class="an-note"><span class="an-key pit"></span> pit stop · seleziona i piloti da evidenziare qui sopra</div>';
 }
 // end-of-line labels, pushed apart vertically so they never overlap
-function lab(arr, x, y, t) { arr.push({ x: +x, y: +y, t }); return ''; }
+function lab(arr, x, y, t, col) { arr.push({ x: +x, y: +y, y0: +y, t, col }); return ''; }
 function labelsSVG(arr) {
   arr.sort((a, b) => a.y - b.y);
   for (let i = 1; i < arr.length; i++) if (arr[i].y - arr[i - 1].y < 15) arr[i].y = arr[i - 1].y + 15;
-  return arr.map((l) => `<text x="${l.x}" y="${l.y.toFixed(1)}" class="an-lab">${l.t}</text>`).join('');
+  // a colour tick ties each (possibly pushed) label back to the end of its line
+  return arr.map((l) => `${l.col ? `<line x1="${l.x - 6}" y1="${(l.y0 - 4).toFixed(1)}" x2="${l.x - 1}" y2="${(l.y - 4).toFixed(1)}" stroke="${l.col}" stroke-width="1.5"/><rect x="${l.x}" y="${(l.y - 9).toFixed(1)}" width="4" height="10" fill="${l.col}"/>` : ''}<text x="${l.x + (l.col ? 7 : 0)}" y="${l.y.toFixed(1)}" class="an-lab">${l.t}</text>`).join('');
 }
 function cumTimes(sim) {
   const cum = {};
@@ -223,12 +245,13 @@ function gapChart(sim, cls, keys) {
   // neutralised laps (safety car) shading
   const scLaps = new Set(Object.values(sim.history).flat().filter((e) => e.sc).map((e) => e.lap));
   for (const l of scLaps) s += `<rect x="${x(l - 1)}" y="10" width="${(x(l) - x(l - 1)).toFixed(1)}" height="${H - padB - 10}" class="an-sc"><title>Safety car / VSC</title></rect>`;
+  const ls = lineStyles(sim, keys);
   for (const { c, pts } of series) {
     if (!pts.length) continue;
-    const col = c.team.car.livery.primary;
-    s += `<g class="an-line on${c.isPlayer ? ' me' : ''}"><title>${esc(sim.driver(c).name)}</title><polyline points="${pts.map(([l, g]) => `${x(l).toFixed(1)},${y(g).toFixed(1)}`).join(' ')}" stroke="${col}"/>`;
+    const col = ls[c.key].col; const pp = pts.map(([l, g]) => `${x(l).toFixed(1)},${y(g).toFixed(1)}`).join(' ');
+    s += `<g class="an-line on${c.isPlayer ? ' me' : ''}"><title>${esc(sim.driver(c).name)}</title><polyline points="${pp}" class="an-halo"/><polyline points="${pp}" stroke="${col}"${dashAttr(ls[c.key])}/>`;
     const last = pts[pts.length - 1];
-    s += `<circle cx="${x(last[0])}" cy="${y(last[1])}" r="4" fill="${col}"/>${lab(labels, x(last[0]) + 8, y(last[1]) + 4, `${esc(short3(sim.driver(c).name))} ${last[1] > 0.05 ? '+' + last[1].toFixed(1) : ''}`)}</g>`;
+    s += `<circle cx="${x(last[0])}" cy="${y(last[1])}" r="4" fill="${col}" stroke="#0a0b0e" stroke-width="1.5"/>${lab(labels, x(last[0]) + 8, y(last[1]) + 4, `${esc(short3(sim.driver(c).name))} ${last[1] > 0.05 ? '+' + last[1].toFixed(1) : ''}`, col)}</g>`;
   }
   return s + labelsSVG(labels) + `</svg><div class="an-note"><span class="an-key sc"></span> safety car / VSC · distacco dal leader alla fine di ogni giro${maxG >= 120 ? ' (scala limitata a 2 minuti)' : ''}</div>`;
 }
@@ -243,13 +266,14 @@ function paceChart(sim, cls, keys) {
   const y = (t) => 14 + ((Math.min(t, hi) - lo) / (hi - lo)) * (H - padB - 24);
   const yl = []; const st = (hi - lo) > 6 ? 2 : (hi - lo) > 2.5 ? 1 : 0.5; for (let t = Math.ceil(lo / st) * st; t <= hi; t += st) yl.push([y(t).toFixed(1), fmtTime(t).replace(/\.\d+$/, (m) => m.slice(0, 2))]);
   let s = `<svg class="an-svg" viewBox="0 0 ${W} ${H}">` + chartFrame(W, H, padL, padB, lapTicks(L, x), yl);
+  const ls = lineStyles(sim, keys);
   for (const { c, pts } of series) {
     if (!pts.length) continue;
-    const col = c.team.car.livery.primary;
-    s += `<g class="an-line on${c.isPlayer ? ' me' : ''}"><polyline points="${pts.map((e) => `${x(e.lap).toFixed(1)},${y(e.time).toFixed(1)}`).join(' ')}" stroke="${col}"/>`;
+    const col = ls[c.key].col; const pp = pts.map((e) => `${x(e.lap).toFixed(1)},${y(e.time).toFixed(1)}`).join(' ');
+    s += `<g class="an-line on${c.isPlayer ? ' me' : ''}"><polyline points="${pp}" class="an-halo"/><polyline points="${pp}" stroke="${col}"${dashAttr(ls[c.key])}/>`;
     for (const e of pts) s += `<circle cx="${x(e.lap).toFixed(1)}" cy="${y(e.time).toFixed(1)}" r="3.4" fill="${COMPOUNDS[e.tyre]?.color || col}" stroke="#0a0b0e" stroke-width="1.2"><title>${esc(sim.driver(c).name)} · giro ${e.lap} · ${fmtTime(e.time)} · ${COMPOUNDS[e.tyre]?.name || ''}</title></circle>`;
     const last = pts[pts.length - 1];
-    s += `${lab(labels, x(last.lap) + 8, y(last.time) + 4, `${esc(short3(sim.driver(c).name))}`)}</g>`;
+    s += `${lab(labels, x(last.lap) + 8, y(last.time) + 4, `${esc(short3(sim.driver(c).name))}`, col)}</g>`;
   }
   return s + labelsSVG(labels) + '</svg><div class="an-note">Tempi sul giro esclusi giri di sosta e safety car · il colore del punto indica la mescola · più in alto = più veloce</div>';
 }

@@ -287,6 +287,7 @@ export const ISSUES = {
 
 // ------------------ RACE ------------------
 const MIN_GAP = 0.0028;
+export const TACTICAL = new Set(['attack', 'defend', 'undercut', 'mates']);
 
 export class CircuitSim {
   constructor(state, track, { grid, setups, weather, laps }) {
@@ -729,6 +730,10 @@ export class CircuitSim {
     const k = m.type + ':' + (m.key || '');
     if (this.momentCD[k] && this.time - this.momentCD[k] < (m.cd || 120)) return;
     if (this.moments.some((x) => x.type === m.type && x.key === m.key)) return;
+    // tactical calls (battles, undercuts, team-mates) are spaced out: at most one every ~3 laps
+    const tactical = TACTICAL.has(m.type);
+    if (tactical && this.time - (this._tacT ?? -1e9) < this.track.lap * 3) return;
+    if (tactical) this._tacT = this.time;
     this.momentCD[k] = this.time;
     this.moments.push({ id: ++this.radioId, ...m });
   }
@@ -1258,7 +1263,7 @@ export class CircuitSim {
     if (c.issue) { this.issueLap(c); if (c.status !== 'running') return; }
     this.maybeIssue(c);
     if (c.auto) { const req = this.aiThink(c); if (req) c.pitReq = req; }
-    else if (c.wxAuto && !c.pitReq && !this.endurance) {
+    else if ((c.wxAuto || !this.momentsOn) && !c.pitReq && !this.endurance) {
       const w = this.wxCall(c, 0);
       if (w) { c.pitReq = { compound: w, fuel: true, crew: c.crew, repair: c.repair !== false }; this.log(`📻 Ingegnere a ${d.name.split(' ')[0]}: «Crossover: box, box per le ${COMPOUNDS[w].name}!»`, 'radio', c.key, true); }
     }
@@ -1281,7 +1286,7 @@ export class CircuitSim {
       this._wxPhase = (this._wxPhase || 0) + 1;
       this.log('🌧 Inizia a piovere!', 'weather', null, true);
       this.pushTV({ kind: 'weather', title: 'Inizia a piovere', text: 'Slick o gomme da bagnato? Il momento delle scelte' });
-      for (const c of this.mine()) if ((c.rainReady || c.wxAuto) && !COMPOUNDS[c.tyre].wet && this.laps - c.dist > 2 && !c.pitReq) { c.rainReady = false; c.pitReq = { compound: this.C.compounds.includes('inter') ? 'inter' : 'wet', fuel: true, crew: c.crew, repair: true }; this.log(`📻 Ingegnere a ${this.driver(c).name.split(' ')[0]}: «Eccola! Box, box, gomme da bagnato pronte.»`, 'radio', c.key, true); }
+      for (const c of this.mine()) if ((c.rainReady || c.wxAuto || !this.momentsOn) && !COMPOUNDS[c.tyre].wet && this.laps - c.dist > 2 && !c.pitReq) { c.rainReady = false; c.pitReq = { compound: this.C.compounds.includes('inter') ? 'inter' : 'wet', fuel: true, crew: c.crew, repair: true }; this.log(`📻 Ingegnere a ${this.driver(c).name.split(' ')[0]}: «Eccola! Box, box, gomme da bagnato pronte.»`, 'radio', c.key, true); }
       const mine = this.mine().filter((c) => !COMPOUNDS[c.tyre].wet && this.laps - c.dist > 2 && !c.pitReq);
       const nxt = this.weather.plan.slice(Math.floor(this.progress * this.laps), Math.floor(this.progress * this.laps) + 4);
       const peak = Math.max(...nxt, rain);
@@ -1295,7 +1300,7 @@ export class CircuitSim {
       this._wxPhase = (this._wxPhase || 0) + 1;
       this.log('☀ La pioggia smette, pista in asciugatura.', 'weather', null, true);
       this.pushTV({ kind: 'weather', title: 'Pista in asciugatura', text: 'Smette di piovere: chi monta per primo le slick?' });
-      for (const c of this.mine()) if (c.wxAuto && COMPOUNDS[c.tyre].wet && this.laps - c.dist > 3 && !c.pitReq && c.stintLap >= 1) { const dry = this.dryChoice(c, this.laps - c.dist); c.pitReq = { compound: dry, fuel: true, crew: c.crew, repair: true }; this.log(`📻 Ingegnere a ${this.driver(c).name.split(' ')[0]}: «La pista si asciuga: box, box, slick ${COMPOUNDS[dry].name} pronte!»`, 'radio', c.key, true); }
+      for (const c of this.mine()) if ((c.wxAuto || !this.momentsOn) && COMPOUNDS[c.tyre].wet && this.laps - c.dist > 3 && !c.pitReq && c.stintLap >= 1) { const dry = this.dryChoice(c, this.laps - c.dist); c.pitReq = { compound: dry, fuel: true, crew: c.crew, repair: true }; this.log(`📻 Ingegnere a ${this.driver(c).name.split(' ')[0]}: «La pista si asciuga: box, box, slick ${COMPOUNDS[dry].name} pronte!»`, 'radio', c.key, true); }
       const wetMine = this.mine().filter((c) => COMPOUNDS[c.tyre].wet && this.laps - c.dist > 3 && !c.pitReq);
       if (wetMine.length) {
         const dry = this.dryChoice(wetMine[0], this.laps - wetMine[0].dist);

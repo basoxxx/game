@@ -143,3 +143,34 @@
   .ivt { width: 260px; }
   .an-tiles { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* ---- 2D map mode: graphics live in a top band and a bottom line, the map in between ----
+   (weekend.js reserves that space with the track view paddings) */
+.race-view:not(.mode3d) .tvg-layer { top: 52px; left: 10px; max-width: calc(100% - 290px); transform: scale(.84); transform-origin: left top; }
+.race-view:not(.mode3d) .tvg { min-height: 40px; }
+.race-view:not(.mode3d) .ivt-layer { top: 52px; right: 10px; }
+.race-view:not(.mode3d) .ivt { width: 262px; }
+.race-view:not(.mode3d) .ivt-h, .race-view:not(.mode3d) .ivt-chart svg { display: none; }
+.race-view:not(.mode3d) .ivt-row { padding-top: 6px; padding-bottom: 4px; }
+.race-view:not(.mode3d) .ivt-chart { padding: 3px 10px 5px; }
+.race-view:not(.mode3d) .ivt-chart span { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.race-view:not(.mode3d) .ivt-gap b { font-size: 22px; }
+.race-view:not(.mode3d) .race-sub { bottom: 8px; width: min(640px, calc(100% - 20px)); }
+.race-view:not(.mode3d) .race-sub .sub { padding: 5px 12px 5px 0; font-size: 13.5px; }
+.race-view:not(.mode3d) .race-sub .sub:nth-child(n+2) { display: none; }
+.tvg-flag.call { background: rgba(255,176,32,.16); color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 55%, transparent); }
+.tvg.wxcall .tvg-tag { color: #050607; }
+.an-ev.k-wxcall::before { background: var(--info); }
+
+@media (max-width: 1500px) {
+  .race-view:not(.mode3d) .tvg-layer { max-width: calc(100% - 250px); transform: scale(.76); }
+  .race-view:not(.mode3d) .ivt { width: 228px; }
+  .race-view:not(.mode3d) .ivt-car small { display: none; }
+  /* 3D: keep the subtitles clear of the minimap in the bottom-left corner */
+  .race-view.mode3d .race-sub { left: 284px; right: 12px; width: auto; transform: none; align-items: flex-start; bottom: 14px; }
+  .race-view.mode3d .ivt { width: 240px; }
+}
+.an-svg .an-halo { fill: none; stroke: #0a0b0e; stroke-width: 5.5; stroke-opacity: .85; stroke-linejoin: round; stroke-linecap: round; }
+.an-svg .an-line.me .an-halo { stroke-width: 6.5; }
+.an-chip { display: inline-flex; align-items: center; gap: 5px; }
+.an-swatch { width: 22px; height: 6px; }

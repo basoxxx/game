@@ -20,7 +20,7 @@ export function planCtx(st, tr, laps, team, d, key) {
   const bias = SETUP_BIAS[setupBias(st, key, tr)]?.wear ?? 1;
   return { cat: st.category, track: tr, scale: realLaps(st, tr) / laps, wm: estimateWearMult(team, d, w.weather.trackTemp) * (1 + wearError(st)) * bias, pitLoss: (tr.pit || 21) + 2.4, comps: DRY };
 }
-const mustTwo = (st, w) => !w.weather.isRain && (st.category === 'formula' || st.category === 'junior');
+const mustTwo = (st, w) => circuit(st) && !wxOutlook(st, w).wet; // the forecast decides the plan (the real weather is unknown)
 const circuit = (st) => st.category === 'formula' || st.category === 'junior';
 // Rain the team expects lap by lap: the forecast, except the start, which everyone can see from the grid.
 export function wxRain(st, w, tr) {

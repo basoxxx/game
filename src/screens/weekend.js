@@ -7,7 +7,7 @@ import { S, saveGame, getSettings } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { applyRaceRivalry } from '../engine/rivalry.js';
 import { cat, playerTeam, teamDrivers, applyRoundResults, standings, seatsPerTeam, aiFillSeats, addMail } from '../engine/season.js';
-import { buildEntries, runQualifying, makeWeatherPlan, raceLaps, CircuitSim, aiSetupQuality, weatherForecast, SETUP_BIAS } from '../engine/race.js';
+import { buildEntries, runQualifying, makeWeatherPlan, raceLaps, CircuitSim, aiSetupQuality, weatherForecast, SETUP_BIAS, TACTICAL } from '../engine/race.js';
 import { compEnabled, compStatus, fitComponent } from '../engine/components.js';
 import { licencePoints, BAN_POINTS } from '../engine/stewards.js';
 import { COMPOUNDS } from '../data/categories.js';
@@ -236,7 +236,7 @@ function mountRace() {
   }
   R.ctab = {}; R.tvN = 0; R.tvQ = []; R.tvCur = null; R.ivh = {}; R.an = null;
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {}; R.gh = {};
-  R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { pad: 50, padTop: 40, glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' || st.category === 'junior' ? drsZones('formula', tr) : [] });
+  R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { ...viewPads(false), glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' || st.category === 'junior' ? drsZones('formula', tr) : [] });
   R.last = performance.now(); R.uiT = 0;
   R.focus = R.sim.cars.find((c) => c.isPlayer)?.key;
   R.view3d = getSettings().view3d !== false && webglAvailable() ? (R.cam || 'auto') : null;
@@ -251,6 +251,8 @@ function mountRace() {
     if (!R.paused && !R.sim.finished && !R.replay && !R.moment) {
       let rem = dt * R.speed;
       while (rem > 0 && !R.sim.moments.length) { const d = Math.min(0.5, rem); R.sim.step(d); rem -= d; }
+      // fast-forwarding (16x and up): battles and undercuts are left to the drivers, only big calls stop the race
+      while (R.sim.moments.length && R.speed >= 16 && TACTICAL.has(R.sim.moments[0].type)) { const m = R.sim.moments.shift(); R.sim.log(`📻 ${m.title}: decide il pilota (gara accelerata).`, 'radio', m.key && m.key !== 'all' ? m.key : null, false); }
       if (R.sim.moments.length) showMoment(R.sim.moments[0]);
     }
     if (R.replay) playReplay(dt); else if (R.r3d) update3D(dt); else draw();
@@ -266,6 +268,10 @@ function mountRace() {
 }
 function stopRace() { closeAnalysis(true); R.moment = null; R.replay = null; R.rbuf = []; cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = null; R.r3d?.destroy(); R.r3d = null; engineStop(); }
 
+// 2D map: keep a top band (camera buttons, TV graphics, interval tracker) and a subtitle line free;
+// as a 3D minimap the map fills its little box
+function viewPads(mini) { return mini ? { pad: 14, padTop: 0, padBottom: 0 } : { pad: 30, padTop: 104, padBottom: 44 }; }
+function applyViewPads() { if (!R.view) return; Object.assign(R.view.opts, viewPads(!!R.r3d)); R.view.resize(); }
 function renderViewBtns() {
   const el = document.getElementById('view-btns'); if (!el) return;
   const can3d = webglAvailable();
@@ -285,13 +291,13 @@ function enable3D(cam) {
   R.r3d.director = cam === 'auto'; R.r3d.camMode = cam === 'auto' ? 'tv' : cam; R.r3d.dirT = 0; R.r3d.focusKey = R.focus; R.r3d._cut = true;
   rv.classList.add('mode3d');
   document.getElementById('hud3d')?.classList.remove('hidden');
-  R.view?.resize();
+  applyViewPads();
 }
 function disable3D() {
   R.r3d?.destroy(); R.r3d = null; R.view3d = null;
   const rv = document.getElementById('race-view'); rv?.classList.remove('mode3d'); rv?.querySelector('.r3d')?.remove();
   document.getElementById('hud3d')?.classList.add('hidden');
-  setTimeout(() => R.view?.resize(), 30);
+  setTimeout(() => applyViewPads(), 30);
 }
 function update3D(dt) {
   const sim = R.sim, r = R.r3d; if (!r) return;
