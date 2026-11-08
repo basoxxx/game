@@ -457,7 +457,7 @@ function rallyTV() {
   if (g.kind === 'split') {
     const ref = g.ref && ev.crews.find((x) => x.key === g.ref);
     const cls = g.fastest ? 'purple' : g.delta < 1 ? 'good' : g.delta < 4 ? 'warn' : 'bad';
-    html = `<div class="tvg split${g.mine ? ' mine' : ''}" style="--gc:${g.fastest ? 'var(--purple)' : col}"><span class="tvg-tag">Intermedio ${g.idx}</span>${who(c)}<span class="tvg-big">${fmtLong(g.t)}</span>${g.delta != null ? `<span class="tvg-big ${cls}">${g.delta <= 0 ? '−' : '+'}${Math.abs(g.delta).toFixed(1)}</span>${ref ? `<span class="tvg-on">su</span>${who(ref)}` : ''}` : '<span class="tvg-txt">primo riferimento</span>'}</div>`;
+    html = `<div class="tvg split${g.mine ? ' mine' : ''}" style="--gc:${g.fastest ? 'var(--purple)' : col}"><span class="tvg-tag">${g.idx === 'F' ? (g.fastest ? 'Miglior tempo' : 'Arrivo') : 'Intermedio ' + g.idx}</span>${who(c)}<span class="tvg-big">${fmtLong(g.t)}</span>${g.delta != null ? `<span class="tvg-big ${cls}">${g.delta <= 0 ? '−' : '+'}${Math.abs(g.delta).toFixed(1)}</span>${ref ? `<span class="tvg-on">su</span>${who(ref)}` : ''}` : '<span class="tvg-txt">primo riferimento</span>'}</div>`;
     if (g.mine) { if (g.fastest || g.delta < 0) sfx.ok(); }
   } else if (g.kind === 'drama') html = `<div class="tvg retire${g.mine ? ' mine' : ''}" style="--gc:var(--bad)"><span class="tvg-tag">${esc(g.title)}</span>${who(c)}</div>`;
   else if (g.kind === 'decision') html = `<div class="tvg ${g.good ? 'restart' : 'retire'} mine" style="--gc:${g.good ? 'var(--good)' : 'var(--bad)'}"><span class="tvg-tag">${g.good ? 'Rischio pagato' : 'Errore'}</span>${who(c)}<span class="tvg-txt">${esc(g.text)}</span></div>`;

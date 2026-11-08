@@ -358,7 +358,7 @@ export class RallyEvent {
     if ((s.kind === 'major' || s.kind === 'crash' || s.kind === 'terminal') && (c.isPlayer || this.overall().indexOf(c) < 6)) this.pushTV({ kind: 'drama', key: c.key, title: s.kind === 'major' ? 'Uscita di strada' : s.kind === 'crash' ? 'Incidente' : 'Guasto', text: this.driver(c).name, big: s.dur >= 9999 });
   }
   onSplit(c, sp) {
-    const idx = sp < 0.5 ? 1 : 2;
+    const idx = sp >= 1 ? 'F' : sp < 0.5 ? 1 : 2;
     const others = this.crews.filter((x) => x !== c && x.splitTimes?.[sp] != null);
     const best = others.length ? others.reduce((a, b) => (a.splitTimes[sp] < b.splitTimes[sp] ? a : b)) : null;
     const t = c.splitTimes[sp];
@@ -399,6 +399,8 @@ export class RallyEvent {
   finishCrew(c) {
     c.done = true;
     c.stageResult = c.stageT;
+    (c.splitTimes ||= {})[1] = c.stageT;
+    this.onSplit(c, 1);
   }
 
   allDone() { return this.crews.every((c) => !c.plan || c.done); }
