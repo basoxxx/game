@@ -124,8 +124,8 @@ function evalPlan(st, sum) {
       addMail(st, { from: 'Consiglio di Amministrazione', icon: 'board', type: 'good', subject: `Piano rispettato: ${s.text}`, body: `Il consiglio è entusiasta: la tappa ${s.season} del piano «${M.name}» è stata raggiunta.\n\nPremio: budget strutturale +8% dalla prossima stagione, fiducia +12.` });
       press(st, { kind: 'team', tone: 'good', h: `${pt.name}, il piano funziona`, t: `${s.text}: il consiglio premia il Team Principal ${st.playerName} con un aumento del budget.`, img: { k: 'team', id: pt.id }, tag: 'Consiglio' });
     } else {
-      st.board.confidence = clamp(st.board.confidence - Math.round(12 * M.conf), 0, 100);
-      addMail(st, { from: 'Consiglio di Amministrazione', icon: 'board', type: 'bad', subject: `Piano mancato: ${s.text}`, body: `La tappa ${s.season} del piano «${M.name}» non è stata raggiunta. Fiducia -${Math.round(12 * M.conf)}. Il consiglio vuole vedere una reazione.` });
+      st.board.confidence = clamp(st.board.confidence - Math.round(10 * M.conf), 0, 100);
+      addMail(st, { from: 'Consiglio di Amministrazione', icon: 'board', type: 'bad', subject: `Piano mancato: ${s.text}`, body: `La tappa ${s.season} del piano «${M.name}» non è stata raggiunta. Fiducia -${Math.round(10 * M.conf)}. Il consiglio vuole vedere una reazione.` });
     }
   }
   if (D.plan.steps.every((s) => s.done !== null)) {
@@ -155,6 +155,23 @@ export function principal(st, teamId) { return st.dyn?.principals?.[teamId] || n
 export function relLabel(r) { return r >= 45 ? 'Alleato' : r >= 15 ? 'Cordiale' : r > -15 ? 'Neutrale' : r > -45 ? 'Ostile' : 'Nemico giurato'; }
 export function relColor(r) { return r >= 45 ? '#22d37a' : r >= 15 ? '#7ad3a0' : r > -15 ? '#9aa3b2' : r > -45 ? '#ff8a00' : '#ff3b3b'; }
 function rel(st, teamId, v) { const p = principal(st, teamId); if (p) p.rel = clamp(Math.round(p.rel + v), -100, 100); }
+// Market moves against a rival team sour the relationship (called by signings and staff raids)
+export function principalReact(st, teamId, kind, who) {
+  if (st.quick || !st.dyn) return;
+  const p = principal(st, teamId); const t = st.teams[teamId]; if (!p || !t) return;
+  const hit = { squalo: -16, volpe: -12, gentiluomo: -5, showman: -8, professore: -9 }[p.persona] ?? -8;
+  rel(st, teamId, hit);
+  const lines = {
+    squalo: [`«Ci hanno rubato ${who}? Bene. Adesso è guerra.»`, `«${playerTeam(st).name} ha fatto la sua mossa. Io farò la mia.»`],
+    volpe: [`«Verificheremo ogni clausola del contratto di ${who}. Ogni singola virgola.»`, '«Interessante operazione. I nostri avvocati la trovano… molto interessante.»'],
+    gentiluomo: [`«${who} merita una grande occasione. Gli auguro il meglio, anche se mi mancherà.»`, '«È il mercato. Nessun rancore.»'],
+    showman: [`«${who}? Glielo lascio volentieri. Ho già in mente un nome che vi farà cadere dalla sedia.»`, '«Ottimo, così sui giornali parleranno ancora di noi.»'],
+    professore: [`«Perdere ${who} rallenterà il programma di due settimane. Le abbiamo già recuperate.»`, '«Il dato rilevante non è chi va via. È chi resta.»'],
+  }[p.persona];
+  const text = pick(lines);
+  p.quote = { text, s: st.season, r: Math.max(0, st.round - 1) };
+  press(st, { kind: 'quote', tone: 'bad', h: `${p.name} reagisce: ${kind === 'staff' ? 'raid sullo staff' : 'colpo di mercato'} di ${playerTeam(st).name}`, t: '', q: { team: teamId, text }, img: { k: 'team', id: teamId }, tag: 'Mercato' });
+}
 
 const QUOTES = {
   squalo: {
@@ -380,6 +397,7 @@ export function promoteJunior(st, id, replaceId) {
   const d = st.drivers[id]; const pt = playerTeam(st);
   if (!d || d.academy !== pt.id) return { ok: false, msg: 'Pilota non disponibile.' };
   const free = seatsPerTeam(st) - teamDrivers(st, pt).length;
+  if (replaceId && !pt.drivers.includes(replaceId)) replaceId = null;
   if (free <= 0 && !replaceId) return { ok: false, msg: 'Scegli quale titolare sostituire.' };
   const sal = +(salaryFor(d, st.category) * 0.65).toFixed(2);
   d.academy = null;

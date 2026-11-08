@@ -102,6 +102,31 @@ function reviewPanel(st, sm) {
       <div class="card"><div class="tiny upper muted">Promesse al consiglio</div><div class="kpi"><b><span class="good">${d.kept}</span> / <span class="bad">${d.broken}</span></b></div><div class="tiny muted">mantenute / tradite</div></div>
       <div class="card"><div class="tiny upper muted">Sfide tra team principal</div><div class="kpi"><b><span class="good">${d.betsWon}</span> / <span class="bad">${d.betsLost}</span></b></div><div class="tiny muted">vinte / perse</div></div>
     </div>
+    ${reportCards(st, sm)}
     ${d.plan.length ? `<div class="mt16"><div class="tiny upper muted mb8">Piano del consiglio · ${esc((MANDATES[d.mandate] || MANDATES.growth).name)}</div><div class="plan-tl">${d.plan.map((x) => `<div class="plan-step ${x.done ? 'ok' : 'ko'}"><div class="y">${x.season}</div><div class="t">${esc(x.text)}</div><span class="s chip tiny ${x.done ? 'good' : 'bad'}">${x.done ? 'Raggiunto' : 'Mancato'}</span></div>`).join('')}</div></div>` : ''}` : ''}
   </div>`;
+}
+
+// ---------- driver report cards ("pagelle") ----------
+function reportCards(st, sm) {
+  const pt = playerTeam(st);
+  const rows = [];
+  const ids = new Set();
+  for (const ev of st.calendar) for (const r of ev.results?.classification || []) if (r.teamId === pt.id) r.driverIds.forEach((id) => ids.add(id));
+  for (const id of ids) {
+    const d = st.drivers[id]; if (!d) continue;
+    const res = st.calendar.map((ev) => ev.results?.classification.find((r) => r.driverIds.includes(id))).filter(Boolean);
+    if (!res.length) continue;
+    const fin = res.filter((r) => r.status !== 'dnf');
+    const avg = fin.length ? fin.reduce((a, r) => a + r.pos, 0) / fin.length : 25;
+    const pts = res.reduce((a, r) => a + (r.pts || 0), 0);
+    const best = fin.length ? Math.min(...fin.map((r) => r.pos)) : null;
+    const pos = sm.st.drivers.findIndex((x) => x.id === id) + 1;
+    const exp = 1 + (sm.teamPos - 1) * 2;
+    const score = (exp - avg) + (res.length - fin.length) * -0.8 + (best === 1 ? 2 : 0);
+    const grade = score >= 4 ? ['10', 'Leggenda'] : score >= 2 ? ['9', 'Fenomenale'] : score >= 0.5 ? ['8', 'Ottimo'] : score >= -1 ? ['7', 'Solido'] : score >= -3 ? ['6', 'Sufficiente'] : score >= -5 ? ['5', 'Deludente'] : ['4', 'Da rivedere'];
+    rows.push({ d, pts, best, pos, grade, races: res.length });
+  }
+  if (!rows.length) return '';
+  return `<div class="mt16"><div class="tiny upper muted mb8">Le pagelle dei tuoi piloti</div><div class="grid4">${rows.slice(0, 4).map((x) => `<div class="card row" style="gap:12px">${helmetSVG(x.d.helmet, 46)}<div class="grow" style="min-width:0"><b style="font-family:var(--display);font-size:17px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${esc(x.d.name)}</b><div class="tiny muted">${x.pos ? x.pos + '° · ' : ''}${x.pts} pt · migliore ${x.best ? 'P' + x.best : '—'}</div><div class="tiny" style="color:${+x.grade[0] >= 8 ? 'var(--good)' : +x.grade[0] >= 6 ? 'var(--warn)' : 'var(--bad)'};font-weight:700">${x.grade[1]}</div></div><div class="verdict-big" style="font-size:46px;color:${+x.grade[0] >= 8 ? 'var(--good)' : +x.grade[0] >= 6 ? 'var(--text)' : 'var(--bad)'}">${x.grade[0]}</div></div>`).join('')}</div></div>`;
 }

@@ -10,7 +10,7 @@ import { bindMarket, evaluateOffer, marketTick, developDriver, seasonMarket, aiS
 import { postRaceComponents } from './components.js';
 import { processStewards } from './stewards.js';
 import { updateLegacy, recordCareerRace, legacyInfo } from './legacy.js';
-import { dynPostRound, dynEndSeason, dynNewSeason, teamTrait, facilityCap, STATUS, statusIdx, repSpan, strengthRanking } from './dynasty.js';
+import { dynPostRound, dynEndSeason, dynNewSeason, teamTrait, facilityCap, STATUS, statusIdx, repSpan, strengthRanking, principalReact } from './dynasty.js';
 
 export const fmtM = (v) => `${v < 0 ? '-' : ''}€${Math.abs(v).toFixed(Math.abs(v) >= 100 ? 0 : 1)}M`;
 
@@ -437,6 +437,7 @@ export function signDriver(state, driverId, salary, years, replaceId, prechecked
   if (t.money < buy + signing) return { ok: false, msg: 'Fondi insufficienti per clausola e bonus firma.' };
   if (buy > 0) {
     const old = state.teams[d.teamId];
+    try { principalReact(state, old.id, 'driver', d.name); } catch {}
     old.drivers = old.drivers.filter((x) => x !== d.id);
     addFinance(state, `Clausola rescissoria ${d.name}`, -buy);
     // AI team replaces
@@ -472,6 +473,7 @@ export function hireStaff(state, staffId) {
     const extra = +(s.salary * 1.2).toFixed(2);
     if (t.money < fee + extra) return { ok: false, msg: 'Fondi insufficienti per liberarlo dal contratto.' };
     addFinance(state, `Liberatoria ${s.name}`, -extra);
+    try { principalReact(state, other.id, 'staff', s.name); } catch {}
     const repl = makeStaff(s.role, s.rating - rand(4, 12), other.id);
     state.staff[repl.id] = repl; other.staff[s.role] = repl.id;
   }
@@ -525,7 +527,7 @@ export function endSeason(state) {
   sum.legacy = { ...legacyInfo(state), gained: legacyInfo(state).score - legacyBefore };
   // board verdict
   const diff = sum.target - sum.teamPos;
-  state.board.confidence = clamp(state.board.confidence + diff * 8, 0, 100);
+  state.board.confidence = clamp(state.board.confidence + diff * (diff >= 0 ? 8 : 6), 0, 100);
   for (const t of Object.values(state.teams)) t.lastPos = sum.st.teams.findIndex((x) => x.id === t.id) + 1;
   sum.prize = prize;
   // season awards
