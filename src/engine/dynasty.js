@@ -104,9 +104,11 @@ export function makePlan(st, mandate, from = st.season) {
   const s0 = statusIdx(st);
   const steps = [];
   const stat = (dy, plus) => steps.push(s0 + plus <= 4 ? planStep(st, from + dy, 'status', Math.min(4, s0 + plus)) : planStep(st, from + dy, 'pos', Math.max(1, 3 - (s0 + plus - 5))));
-  if (mandate === 'rebuild') { stat(1, 1); stat(3, 2); steps.push(planStep(st, from + 4, s0 >= 3 ? 'title' : 'pos', 3)); }
-  else if (mandate === 'win') { steps.push(planStep(st, from, 'pos', s0 >= 3 ? 2 : Math.max(3, 6 - s0))); steps.push(planStep(st, from + 1, s0 >= 3 ? 'title' : 'pos', 3)); steps.push(planStep(st, from + 2, 'title', 1)); }
-  else { stat(0, 1); stat(2, 2); steps.push(planStep(st, from + 3, s0 >= 2 ? 'title' : 'pos', 3)); }
+  const n = Object.keys(st.teams).length;
+  const tgt = clamp(st.board?.target || Math.ceil(n / 2), 1, n);
+  if (mandate === 'rebuild') { steps.push(planStep(st, from, 'pos', clamp(tgt + 1, 1, n))); stat(2, 1); stat(4, 2); }
+  else if (mandate === 'win') { steps.push(planStep(st, from, 'pos', Math.max(1, tgt - 1))); steps.push(planStep(st, from + 1, s0 >= 3 ? 'title' : 'pos', s0 >= 3 ? 1 : 3)); steps.push(planStep(st, from + 2, 'title', 1)); }
+  else { steps.push(planStep(st, from, 'pos', tgt)); stat(1, 1); stat(3, 2); }
   for (const s of steps) if (s.kind === 'pos' && s.val === 1) s.kind = 'title';
   return { from, mandate, steps };
 }
