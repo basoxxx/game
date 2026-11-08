@@ -77,7 +77,24 @@ export function detailPatch(mat, { antiTile = true, macro = 0.18, macroScale = 0
       diffuseColor.rgb *= 1.0 + (mN - 0.5) * ${f(macro * 2)};
       ${tintAmt ? `diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(${f(tintV.r)}, ${f(tintV.g)}, ${f(tintV.b)}), smoothstep(0.45, 0.75, dfbm(vWPos.xz * ${f(macroScale * 0.6)} + 31.0)) * ${f(tintAmt)});` : ''}
       float rub = 0.0, wetL = uWet;
-      ${track ? `#ifdef USE_MAP
+      ${track && track.ruts ? `#ifdef USE_MAP
+      {
+        // loose-surface stage: two compacted wheel ruts along the driving line (darker, smoother;
+        // icy on snow), loose gravel ridges between them and along the edges, scattered stones
+        float lat = vTrk.x, along = vMapUv.y * ${f(track.uScale)};
+        float dl = lat - vTrk.y + 0.25 * sin(along * 0.031) * (1.0 - vTrk.z);
+        float rr = abs(abs(dl) - 0.85 - 0.06 * sin(along * 0.11));
+        rub = (1.0 - smoothstep(0.16, 0.52, rr)) * (0.7 + 0.3 * dvn(vec2(lat * 5.0, along * 0.12)));
+        diffuseColor.rgb *= 1.0 - ${track.snow ? '0.1' : '0.26'} * rub;
+        ${track.snow ? 'diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.78, 0.86, 0.95), rub * 0.8);' : ''}
+        float ridge = (1.0 - smoothstep(0.0, 0.35, abs(dl))) * 0.6 + smoothstep(${f(track.halfW - 1.5)}, ${f(track.halfW - 0.1)}, abs(lat));
+        float stone = step(0.7, dh21(floor(vWPos.xz * 14.0))) * (0.4 + 0.6 * dvn(vWPos.xz * 3.0));
+        diffuseColor.rgb *= 1.0 + ridge * (0.1 + 0.22 * stone) - 0.08 * stone * (1.0 - rub);
+        // the corners get swept clean towards the outside: wider, darker driven area
+        diffuseColor.rgb *= 1.0 - 0.08 * vTrk.z * (1.0 - smoothstep(1.5, 2.6, abs(dl)));
+        wetL = uWet * (0.7 + 0.6 * rub);
+      }
+      #endif` : track ? `#ifdef USE_MAP
       {
         float lat = vTrk.x, along = vMapUv.y * ${f(track.uScale)};
         float dl = abs(lat - vTrk.y);
@@ -124,14 +141,14 @@ export function detailPatch(mat, { antiTile = true, macro = 0.18, macroScale = 0
       diffuseColor.rgb *= 1.0 - 0.38 * wetL - 0.2 * pud;` : ''}
     `);
     // remap first, then wetness (so puddles can still reach mirror-like roughness)
-    const rr = (rough ? `\nroughnessFactor = ${f(rough[0])} + ${f(rough[1] - rough[0])} * roughnessFactor;` : '') + (wet ? '\nroughnessFactor *= 1.0 - 0.12 * rub; roughnessFactor = mix(roughnessFactor, 0.16, wetL * 0.75); roughnessFactor = mix(roughnessFactor, 0.03, pud);' : '');
+    const rr = (rough ? `\nroughnessFactor = ${f(rough[0])} + ${f(rough[1] - rough[0])} * roughnessFactor;` : '') + (track && track.ruts ? `\nroughnessFactor *= 1.0 - ${track.snow ? '0.55' : '0.25'} * rub;` : '') + (wet ? '\nroughnessFactor *= 1.0 - 0.12 * rub; roughnessFactor = mix(roughnessFactor, 0.16, wetL * 0.75); roughnessFactor = mix(roughnessFactor, 0.03, pud);' : '');
     if (rr) fs = fs.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + rr);
     if (wet) {
       fs = fs.replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(mix(normal, normalize(vNormal) * faceDirection, max(pud, wetL * 0.5)));');
     }
     sh.fragmentShader = fs;
   };
-  mat.customProgramCacheKey = () => `detail|${antiTile}|${macro}|${macroScale}|${tintAmt}|${tintV.getHex()}|${wet}|${rough}|${key}|${track ? track.halfW + ',' + track.uScale : ''}|${mow ? mow.uScale : ''}`;
+  mat.customProgramCacheKey = () => `detail|${antiTile}|${macro}|${macroScale}|${tintAmt}|${tintV.getHex()}|${wet}|${rough}|${key}|${track ? track.halfW + ',' + track.uScale + ',' + !!track.ruts + !!track.snow : ''}|${mow ? mow.uScale : ''}`;
   return mat;
 }
 
