@@ -68,7 +68,7 @@
 .rx-prog i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, var(--info), #7fd0ff); }
 .rx-prog em { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #0a0b0e; }
 .rx-secbar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 5; display: flex; gap: 3px; pointer-events: none; }
-.race-view.mode3d .rx-secbar { bottom: 74px; }
+.race-view.mode3d .rx-secbar { bottom: auto; top: 112px; left: auto; right: 14px; transform: none; }
 .rx-secbar > div { min-width: 120px; padding: 5px 12px; background: rgba(6,7,9,.86); border-bottom: 3px solid var(--line2); font-family: var(--display); opacity: .55; }
 .rx-secbar > div.cur { opacity: 1; border-bottom-color: #fff; }
 .rx-secbar > div.done { opacity: .35; }

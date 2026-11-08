@@ -67,7 +67,7 @@ registerScreen({
       <div class="wk-body">${w.phase === 'shakedown' ? shakedown(st, tr) : w.phase === 'prep' ? prep(st, tr) : w.phase === 'stageres' ? stageResults(st, tr) : w.phase === 'service' ? service(st) : w.phase === 'final' ? finalView(st) : ''}</div>
     </div>`;
   },
-  mount() { const ph = S().weekend?.phase; if (ph === 'run') { mountRun(); coach('rallyrun', 'Prova speciale in corso', 'Quando il copilota ti chiama, hai pochi secondi per decidere (tasti <b>A</b>/<b>B</b>). Rischiare fa guadagnare tempo ma può costare il rally!'); } else if (ph === 'prep') coach('rallyprep', 'Gomme e ritmo', 'Scegli le gomme adatte alla superficie e al meteo. Sulle prove lunghe le morbide si consumano. Il ritmo Attacco è più veloce ma molto più rischioso.'); },
+  mount() { const ph = S().weekend?.phase; if (ph === 'run') { mountRun(); coach('rallyrun', 'Prova speciale in corso', 'Guarda il <b>delta</b> sui rivali agli intermedi e cambia ritmo in diretta dal pannello a destra. Quando il copilota ti chiama hai pochi secondi per decidere (tasti <b>A</b>/<b>B</b>): rischiare fa guadagnare tempo ma può costare il rally!'); } else if (ph === 'prep') coach('rallyprep', 'Giri, gomme e note', 'Le prove sono a <b>giri</b> di due: le gomme si montano in assistenza e devono durare per tutto il giro, scorte comprese. Leggi le <b>note del copilota</b> e scegli il ritmo per ogni sezione: attaccare dove la strada è veloce paga, nelle sezioni strette costa caro.'); },
   unmount() { stopRun(); },
   onKey(e) {
     if (S().weekend?.phase !== 'run') return;
