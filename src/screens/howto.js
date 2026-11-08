@@ -7,7 +7,7 @@ import { esc, pageHead } from '../ui/dom.js';
 import { S } from '../engine/state.js';
 import { COMPOUNDS } from '../data/categories.js';
 import { openLessons } from './engineer.js';
-import { startTour, TOURS } from '../ui/tour.js';
+import { startTour, TOURS, resetTips } from '../ui/tour.js';
 import { sfx } from '../ui/audio.js';
 
 let chapter = 'basi';
@@ -64,7 +64,8 @@ const CH = [
       <div class="ht-card"><span class="ht-ic">${icon('keyboard')}</span><b>Tastiera</b><p>${kb('1')}…${kb('0')} sezioni della gestione · ${kb('Invio')} weekend di gara · ${kb('Ctrl S')} salvataggio rapido · ${kb('Esc')} indietro · ${kb('F1')} questa guida · ${kb('?')} tutti i comandi. Le frecce spostano la selezione tra pulsanti e schede.</p></div>
       <div class="ht-card"><span class="ht-ic">${icon('gamepad')}</span><b>Controller</b><p>Croce o stick per muoverti, <span class="pad-btn">A</span> seleziona, <span class="pad-btn">B</span> indietro, <span class="pad-btn">LB</span> <span class="pad-btn">RB</span> cambiano sezione, <span class="pad-btn">Start</span> va al weekend, <span class="pad-btn">X</span> mette in pausa la gara.</p></div>
       <div class="ht-card"><span class="ht-ic">${icon('eye')}</span><b>Accessibilità</b><p>Nelle impostazioni: <b>riduci animazioni</b>, modalità per <b>daltonici</b>, qualità grafica. Tutto è raggiungibile senza mouse.</p></div>
-      <div class="ht-card"><span class="ht-ic">${icon('volume')}</span><b>Audio</b><p>Mixer separato per musica, motori, effetti e pubblico dall’icona altoparlante in alto.</p></div>
+      <div class="ht-card"><span class="ht-ic">${icon('volume')}</span><b>Audio</b><p>Mixer separato per musica, motori, effetti e pubblico dall’icona altoparlante in alto.</p><div class="row gap8 mt8"><button class="btn sm" data-a="mixer">${icon('sliders')} Apri il mixer</button></div></div>
+      <div class="ht-card"><span class="ht-ic">${icon('bulb')}</span><b>Consigli e tour</b><p>Hai saltato i consigli dell’ingegnere o il tour guidato? Riattivali: ricompariranno la prossima volta che apri ogni schermata.</p><div class="row gap8 mt8"><button class="btn sm" data-a="ht-tips">${icon('replay')} Riattiva i consigli</button></div></div>
     </div>` },
 ];
 
@@ -89,6 +90,7 @@ registerScreen({
   actions: {
     'ht-ch'(el) { chapter = el.dataset.id; sfx.select(); App.refresh(); requestAnimationFrame(() => { document.querySelector('.ht-ch.on')?.focus({ preventScroll: true }); document.querySelector('.full-screen')?.scrollTo({ top: 0, behavior: 'smooth' }); }); },
     'ht-lessons'() { openLessons(); },
+    'ht-tips'() { resetTips(); sfx.ok(); App.toast('Consigli riattivati', 'I suggerimenti e i tour ricompariranno nelle schermate.', 'good'); },
     'ht-tour'() { App.go('hub'); setTimeout(() => startTour('tour_career', TOURS.career(), { screen: 'hub', label: 'Primi passi', finish: 'Iniziamo' }), 450); },
   },
   onKey(e) {

@@ -209,6 +209,9 @@ html.has-pad .menu-hint .hint-pad { display: inline-flex; }
 html.has-pad .menu-hint .hint-kb { display: none; }
 @media (max-height: 800px) { .menu-continue { top: 24px; width: 320px; padding: 10px 14px 12px; } .mc-t b { font-size: 20px; } }
 
+.coach { overflow: hidden; }
+.coach .coach-t { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--team); transform-origin: left; animation: toastT 20s linear forwards; opacity: .6; }
+
 /* ============================ LOADING ============================ */
 .loader { display: inline-flex; align-items: center; gap: 12px; font-family: var(--display); font-weight: 600; font-size: 14px; letter-spacing: .2em; text-transform: uppercase; color: var(--text2); }
 .loader::before { content: ''; width: 34px; height: 6px; background: linear-gradient(90deg, var(--accent) 0 33%, transparent 33% 50%, var(--accent) 50% 83%, transparent 83%) 0 0 / 200% 100%; transform: skewX(calc(-1 * var(--slant))); animation: loadBar .8s linear infinite; }

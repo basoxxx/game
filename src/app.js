@@ -161,6 +161,11 @@ export const App = {
     makeFocusable(this.root);
     s.mount?.(this.root, this.params);
     if (!same) { try { maybeTour(this.cur); } catch (e) { console.warn(e); } }
+    // settings page: link the per-bus mixer from its Audio panel
+    if (this.cur === 'settings') {
+      const h = [...this.root.querySelectorAll('.panel-head h3')].find((x) => x.textContent.trim() === 'Audio');
+      if (h && !h.parentElement.querySelector('[data-a="mixer"]')) h.insertAdjacentHTML('afterend', `<button class="btn sm ghost" data-a="mixer">${icon('sliders')} Mixer completo</button>`);
+    }
     if (st?._toast) { this.toast(st._toast.title, st._toast.text, 'good'); sfx.win(); st._toast = null; }
     if (st?._levelUp) { this.toast(`Livello manager ${st._levelUp}!`, 'Hai ottenuto un punto abilità: spendilo in Carriera.', 'good'); sfx.levelup(); st._levelUp = null; }
   },
@@ -345,16 +350,21 @@ export function teamColor(L) {
 export function coach(id, title, text) {
   let seen = {};
   try { seen = JSON.parse(localStorage.getItem('apexdynasty_tips') || '{}'); } catch {}
-  if (seen[id]) return;
+  if (seen[id] || seen.__off) return;
   seen[id] = 1;
   try { localStorage.setItem('apexdynasty_tips', JSON.stringify(seen)); } catch {}
   document.querySelector('.coach')?.remove();
   const el = document.createElement('div');
-  el.className = 'coach';
-  el.innerHTML = `<div class="coach-h">${icon('bulb')} Consiglio dell’ingegnere</div><b style="display:block;margin-top:6px">${title}</b><div class="small mt8" style="line-height:1.55;color:var(--text2)">${text}</div><div class="row mt16" style="justify-content:flex-end"><button class="btn sm">Ho capito</button></div>`;
-  el.querySelector('button').onclick = () => el.remove();
+  el.className = 'coach'; el.setAttribute('role', 'status');
+  el.innerHTML = `<div class="coach-h">${icon('bulb')} Consiglio dell’ingegnere</div><b style="display:block;margin-top:6px">${title}</b><div class="small mt8" style="line-height:1.55;color:var(--text2)">${text}</div><div class="row mt16" style="justify-content:space-between"><button class="btn sm ghost" data-coach="off">Non mostrare più consigli</button><button class="btn sm" data-coach="ok">Ho capito</button></div><i class="coach-t"></i>`;
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-coach]'); if (!b) return;
+    if (b.dataset.coach === 'off') { try { const t = JSON.parse(localStorage.getItem('apexdynasty_tips') || '{}'); t.__off = 1; localStorage.setItem('apexdynasty_tips', JSON.stringify(t)); } catch {} App.toast('Consigli disattivati', 'Puoi rivederli dalla guida “Come si gioca”.'); }
+    el.remove();
+  });
   document.body.appendChild(el);
-  setTimeout(() => el.remove(), 16000);
+  sfx.notify();
+  setTimeout(() => el.remove(), 20000);
 }
 
 // ---------------------------------------------------------------------------

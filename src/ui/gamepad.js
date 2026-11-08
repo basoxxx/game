@@ -15,10 +15,11 @@ let App = null, raf = 0, prev = {}, held = {}, lastMove = 0;
 
 export function initGamepad(app) {
   App = app;
+  window.__apexPad = { moveFocus, candidates };
   window.addEventListener('gamepadconnected', (e) => {
     App.toast?.('Controller collegato', `${String(e.gamepad.id || 'Gamepad').replace(/\(.*\)/, '').trim().slice(0, 40)} · A seleziona, B indietro`, '');
     document.documentElement.classList.add('has-pad');
-    if (!raf) raf = requestAnimationFrame(poll);
+    if (!raf) raf = setInterval(poll, 33); // timer, not rAF: keeps working while a heavy 3D scene drops frames
   });
   window.addEventListener('gamepaddisconnected', () => {
     if (!(navigator.getGamepads?.() || []).some(Boolean)) document.documentElement.classList.remove('has-pad', 'pad-nav');
@@ -71,10 +72,10 @@ export function moveFocus(dir) {
 function key(k, code = k) { document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: k, code, bubbles: true, cancelable: true })); }
 
 function poll() {
-  raf = 0;
+  
   const pads = (navigator.getGamepads?.() || []).filter(Boolean);
-  if (!pads.length) return;
-  raf = requestAnimationFrame(poll);
+  if (!pads.length) { clearInterval(raf); raf = 0; return; }
+  
   if (document.hidden) return;
   // a running derby race reads the pad itself
   const driving = document.querySelector('.dz-root canvas') && !document.querySelector('.modal-wrap');
