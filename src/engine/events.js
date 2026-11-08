@@ -3,6 +3,7 @@ import { pick, chance, clamp, rand, shuffle } from './rng.js';
 import { addFinance, addMail, addNews, playerTeam, teamDrivers, fmtM, cat } from './season.js';
 import { gainXP } from './progress.js';
 import { rivalryList, addHeat, heatLabel } from './rivalry.js';
+import { addProspect } from './dynasty.js';
 
 function morale(d, v) { if (d) d.morale = clamp(d.morale + v, 10, 100); }
 function board(st, v) { st.board.confidence = clamp(st.board.confidence + v, 0, 100); }
@@ -84,7 +85,7 @@ const EVENTS = [
     { t: 'Ci serve per noi', note: 'Nessun effetto', fx: () => {} },
   ] }),
   (st, t, C) => ({ title: 'Giovane talento', from: 'Accademia', text: 'Un ragazzo dell’accademia ha battuto i tempi dei titolari al simulatore. Vuole un test.', a: [
-    { t: 'Facciamolo provare', note: `-${fmtM(0.5 * C.budgetScale)}, +60 XP e nuovo talento sul mercato`, fx: () => { addFinance(st, 'Test giovane', -0.5 * C.budgetScale); gainXP(st, 60, 'Accademia'); addNews(st, 'Un giovane dell’accademia impressiona nei test!'); } },
+    { t: 'Facciamolo provare', note: `-${fmtM(0.5 * C.budgetScale)}, +60 XP · un talento speciale entra nella lista degli scout`, fx: () => { addFinance(st, 'Test giovane', -0.5 * C.budgetScale); gainXP(st, 60, 'Accademia'); const d = addProspect(st, 6); addNews(st, `${d.name}, ${d.age} anni, impressiona al simulatore: gli scout lo vogliono in accademia!`); } },
     { t: 'Non è il momento', note: 'Nessun effetto', fx: () => {} },
   ] }),
 ];

@@ -6,7 +6,7 @@ import { esc, bar } from '../ui/dom.js';
 import { S } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { cat, playerTeam, standings, fmtM } from '../engine/season.js';
-import { ensureDynasty, pressIssues, TP_PERSONAS, STATUS, MANDATES, statusInfo, relLabel, relColor, principal, strengthRanking } from '../engine/dynasty.js';
+import { ensureDynasty, pressIssues, TP_PERSONAS, STATUS, MANDATES, statusInfo, relLabel, relColor, principal, strengthRanking, statusIdx } from '../engine/dynasty.js';
 import { pressArt, portraitSVG, principalCard, relMeter, statusEmblem, statusLadder, teamCol, boardTable } from './career-ui.js';
 
 let tab = 'paper', issueKey = null;
@@ -72,7 +72,7 @@ function tpTab(st) {
     const p = principal(st, t.id); if (!p) return '';
     const pos = s.teams.findIndex((x) => x.id === t.id) + 1;
     const pts = s.teams.find((x) => x.id === t.id)?.pts || 0;
-    return `<div class="tp-big" style="--tc:${teamCol(t)}">${principalCard(st, t.id, `<div class="col" style="align-items:flex-end;gap:2px">${teamBadge(t, 34)}<span class="tiny muted">${pos}° · ${pts} pt</span></div>`)}
+    return `<div class="tp-big" style="--tc:${teamCol(t)}">${principalCard(st, t.id, `<div class="col" style="align-items:flex-end;gap:2px">${teamBadge(t, 34)}<span class="tiny muted">${pos}° · ${pts} pt</span><span class="tiny" style="color:${STATUS[statusIdx(st, t)].color};font-weight:700">${esc(STATUS[statusIdx(st, t)].name)}</span></div>`)}
       <div><div class="row between tiny upper muted"><span>Rapporto con te</span><span style="color:${relColor(p.rel)}">${p.rel > 0 ? '+' : ''}${p.rel}</span></div>${relMeter(p.rel)}</div>
       ${p.quote ? `<div class="tp-quote">${esc(p.quote.text)}<div class="tiny muted mt8" style="font-style:normal">Stagione ${p.quote.s}, dopo il round ${p.quote.r + 1}</div></div>` : '<div class="tp-quote" style="opacity:.6">Non ha ancora parlato di te. Per ora.</div>'}
     </div>`;

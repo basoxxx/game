@@ -355,21 +355,27 @@ export function academySlots(team) { return 1 + Math.floor((team.facilities.acad
 export function academyDrivers(st) { return Object.values(st.drivers).filter((d) => d.academy === st.playerTeam && !d.retired); }
 export function prospectFee(st, d) { return +((0.25 + (d.pot - 75) * 0.03) * scale(st) * 3).toFixed(2); }
 export function academyUpkeep(st) { return +(academyDrivers(st).length * 0.08 * scale(st) * 3).toFixed(2); }
-function makeProspects(st) {
-  const D = st.dyn; const pt = playerTeam(st);
+function makeProspect(st, boost = 0) {
+  const pt = playerTeam(st);
   const lvl = pt.facilities.academy || 1;
-  const list = [];
-  for (let i = 0; i < 3; i++) {
-    const d = generateRookie(st.category, 0.6);
-    d.age = randInt(15, 17);
-    const drop = randInt(7, 12);
-    for (const k of Object.keys(d.attrs)) d.attrs[k] = clamp(d.attrs[k] - drop, 40, 80);
-    d.attrs.exp = randInt(2, 12);
-    d.pot = clamp(Math.round(rand(76, 90) + lvl * 1.4 + (chance(0.15) ? 5 : 0)), 70, 99);
-    d.prospect = true;
-    list.push(d);
-  }
-  D.prospects = { season: st.season, list };
+  const d = generateRookie(st.category, 0.6);
+  d.age = randInt(15, 17);
+  const drop = randInt(7, 12) - Math.round(boost / 2);
+  for (const k of Object.keys(d.attrs)) d.attrs[k] = clamp(d.attrs[k] - drop, 40, 80);
+  d.attrs.exp = randInt(2, 12);
+  d.pot = clamp(Math.round(rand(76, 90) + lvl * 1.4 + boost + (chance(0.15) ? 5 : 0)), 70, 99);
+  d.prospect = true;
+  return d;
+}
+// A wonderkid knocks on the door (paddock event): straight onto the scouts' list
+export function addProspect(st, boost = 6) {
+  const D = ensureDynasty(st);
+  const d = makeProspect(st, boost);
+  D.prospects.list.unshift(d);
+  return d;
+}
+function makeProspects(st) {
+  st.dyn.prospects = { season: st.season, list: [0, 1, 2].map(() => makeProspect(st)) };
 }
 export function scoutedPot(st, d) {
   const lvl = playerTeam(st).facilities.academy || 1;
