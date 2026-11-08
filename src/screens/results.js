@@ -93,6 +93,7 @@ registerScreen({
       st.pressPending = false;
       const pq = pressQuestion(st, ev.results);
       if (pq) setTimeout(() => {
+        if (App.cur !== 'results') { st.pressPending = true; return; }
         App.modal(`<div class="tiny upper" style="color:var(--team);display:flex;align-items:center;gap:8px">${icon('mic', 'ico', 'style="width:16px;height:16px"')} Conferenza stampa · ${esc(pq.journalist)}</div><h2 style="margin-top:8px">«${esc(pq.q)}»</h2>
           <div class="col gap6 mt16">${pq.a.map((a, i) => `<div class="card click" data-a="answer" data-i="${i}"><b style="font-size:16px">«${esc(a.t)}»</b><div class="small muted mt8">${esc(a.note)}</div></div>`).join('')}</div>`,
           { answer(el) { pq.a[+el.dataset.i].fx(); sfx.ok(); App.closeModal(); App.toast('Dichiarazione rilasciata', pq.a[+el.dataset.i].note, 'good'); } }, 'locked');

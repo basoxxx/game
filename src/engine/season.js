@@ -446,7 +446,7 @@ export function signDriver(state, driverId, salary, years, replaceId, prechecked
   const idx = replaceId ? t.drivers.indexOf(replaceId) : -1;
   if (replaceId) releaseDriver(state, state.drivers[replaceId], true);
   if (idx >= 0) t.drivers.splice(idx, 0, d.id); else t.drivers.push(d.id);
-  d.teamId = t.id; d.salary = salary; d.contract = years; d.morale = 80; d.rivalOffer = null; d._s0 = d.stats.starts; d.joinedTeam = t.id; d.joinedAge = d.age;
+  d.teamId = t.id; d.salary = salary; d.contract = years; d.morale = 80; d.rivalOffer = null; d.standIn = false; d._s0 = d.stats.starts; d.joinedTeam = t.id; d.joinedAge = d.age;
   if (d.reserveFor) { const rt = state.teams[d.reserveFor]; if (rt?.reserve === d.id) rt.reserve = null; d.reserveFor = null; }
   addNews(state, `${d.name} firma con ${t.name}!`);
   unlock(state, 'signing', 'Colpo di mercato', 'Ingaggia un nuovo pilota.');
@@ -454,7 +454,7 @@ export function signDriver(state, driverId, salary, years, replaceId, prechecked
 }
 
 export function releaseDriver(state, d, payout) {
-  if (payout && d.contract > 0 && d.teamId === state.playerTeam) addFinance(state, `Rescissione ${d.name}`, -(d.salary * d.contract * 0.5));
+  if (payout && d.contract > 0 && !d.standIn && d.teamId === state.playerTeam) addFinance(state, `Rescissione ${d.name}`, -(d.salary * d.contract * 0.5));
   const t = state.teams[d.teamId];
   if (t) { t.drivers = t.drivers.filter((x) => x !== d.id); if (t.number1 === d.id) t.number1 = null; }
   d.teamId = null; d.contract = 0; d.salary = salaryFor(d, state.category); d.releaseAtEnd = false; d.rivalOffer = null;

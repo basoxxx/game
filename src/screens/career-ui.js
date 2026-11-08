@@ -89,9 +89,10 @@ export function statusLadder(st) {
 // series: [{ name, color, values:[number|null], me }]; labels: x labels
 export function lineChart(series, labels, { w = 760, h = 260, invert = false, yLabel = '', fmt = (v) => Math.round(v), min = null, max = null, area = false } = {}) {
   const padL = 46, padR = 16, padT = 14, padB = 30;
+  series = series.map((s) => ({ ...s, values: s.values.map((v) => (Number.isFinite(+v) && v !== null ? +v : null)) }));
   const all = series.flatMap((s) => s.values.filter((v) => v != null));
   if (!all.length) return '<div class="muted small">Nessun dato</div>';
-  let lo = min ?? Math.min(...all), hi = max ?? Math.max(...all);
+  let lo = Number.isFinite(min) ? min : Math.min(...all), hi = Number.isFinite(max) ? max : Math.max(...all);
   if (hi === lo) { hi += 1; lo -= 1; }
   const n = Math.max(2, labels.length);
   const X = (i) => padL + (i / (n - 1)) * (w - padL - padR);

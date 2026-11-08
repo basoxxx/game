@@ -69,7 +69,7 @@ registerScreen({
     renew(el) { openContract(el.dataset.id, null, true); },
     release(el) {
       const st = S(); const d = st.drivers[el.dataset.id];
-      App.confirm(`Liberare ${esc(d.name)}?`, `Pagherai una penale di ${fmtM(d.salary * d.contract * 0.5)} (50% del contratto residuo).`, () => { releaseDriver(st, d, true); App.refresh(); }, 'Libera', true);
+      App.confirm(`Liberare ${esc(d.name)}?`, d.standIn ? `È un ingaggio d’emergenza: nessuna penale.` : `Pagherai una penale di ${fmtM(d.salary * d.contract * 0.5)} (50% del contratto residuo).`, () => { releaseDriver(st, d, true); App.refresh(); }, 'Libera', true);
     },
     'acad-sign'(el) {
       const st = S(); const r = signProspect(st, el.dataset.id);

@@ -198,8 +198,8 @@ export function pressIssues(st) {
   return [...by.entries()].map(([k, items]) => { const [s, r] = k.split(':').map(Number); return { key: k, s, r, items }; });
 }
 const LEAD = [
-  (w, tr, tm) => `${w} conquista ${tr}`, (w, tr, tm) => `${tm}, che giornata: ${w} vince a ${tr}`, (w, tr, tm) => `${tr} parla ${w}`,
-  (w, tr, tm) => `Firma d’autore di ${w} a ${tr}`, (w, tr, tm) => `${w} non sbaglia: festa ${tm}`,
+  (w, tr, tm, pl) => `${w} ${pl ? 'conquistano' : 'conquista'} ${tr}`, (w, tr, tm, pl) => `${tm}, che giornata: ${w} ${pl ? 'vincono' : 'vince'} a ${tr}`, (w, tr) => `${tr} parla ${w}`,
+  (w, tr) => `Firma d’autore di ${w} a ${tr}`, (w, tr, tm, pl) => `${w} non ${pl ? 'sbagliano' : 'sbaglia'}: festa ${tm}`,
 ];
 
 // =====================================================================================
@@ -517,8 +517,7 @@ export function maybeDynDecision(st, opts = {}) {
   }
   if (st.round === 0 || opts.roll === false) return;
   // principals
-  const busy = st.pendingEvent || st.pendingTech;
-  if (!chance(busy ? 0.08 : 0.26)) return;
+  if (!chance(st.pendingTech ? 0.08 : st.pendingEvent ? 0.2 : 0.34)) return;
   const pd = principalDecision(st);
   if (pd) st.pendingDyn = pd;
 }
@@ -742,6 +741,7 @@ export function dynPostRound(st, res, track) {
   D.log.push({ s: st.season, r: rIdx, nat: track?.nat, tn: track?.name, pts: Object.fromEntries(s.teams.map((x) => [x.id, x.pts])), pos: s.teams.findIndex((x) => x.id === pt.id) + 1, money: +pt.money.toFixed(2), conf: st.board.confidence, car: +avgPart(pt).toFixed(1), rank: overallCarRanking(st).indexOf(pt.id) + 1, rep: +pt.rep.toFixed(1) });
   D.log = D.log.filter((x) => x.s >= st.season - 2);
   D._pressRound = null;
+  if (st.round < st.calendar.length) ensureSeats(st);
   // next round
   makeRaceGoals(st);
   maybeDynDecision(st);
@@ -752,7 +752,7 @@ function roundPress(st, res, track, report) {
   const win = res.classification[0];
   const wd = st.drivers[win.driverIds[0]]; const wt = st.teams[win.teamId];
   const wName = win.driverIds.map((id) => lastName(st.drivers[id]?.name)).join(' / ');
-  press(st, { kind: 'lead', tone: wt.isPlayer ? 'good' : 'info', h: pick(LEAD)(wName, track.name, wt.name), t: `${wd?.name} (${wt.name}) vince ${track.name}${res.wet ? ' sotto la pioggia' : ''}. ${res.classification[1] ? `Secondo ${st.drivers[res.classification[1].driverIds[0]]?.name}` : ''}${res.classification[2] ? `, terzo ${st.drivers[res.classification[2].driverIds[0]]?.name}.` : '.'}`, img: { k: 'track', id: track.id }, tag: track.name });
+  press(st, { kind: 'lead', tone: wt.isPlayer ? 'good' : 'info', h: pick(LEAD)(wName, track.name, wt.name, win.driverIds.length > 1), t: `${wd?.name} (${wt.name}) vince ${track.name}${res.wet ? ' sotto la pioggia' : ''}. ${res.classification[1] ? `Secondo ${st.drivers[res.classification[1].driverIds[0]]?.name}` : ''}${res.classification[2] ? `, terzo ${st.drivers[res.classification[2].driverIds[0]]?.name}.` : '.'}`, img: { k: 'track', id: track.id }, tag: track.name });
   const mine = res.classification.filter((r) => r.teamId === pt.id);
   const ok = (r) => r.status !== 'dnf';
   const best = mine.filter(ok).sort((a, b) => a.pos - b.pos)[0];
@@ -843,6 +843,7 @@ export function dynNewSeason(st) {
   if (M.ease < 0) st.board.target = clamp(st.board.target + M.ease, 1, Object.keys(st.teams).length);
   if (D.pressure) st.board.target = clamp(st.board.target - Math.min(1, D.pressure), 1, Object.keys(st.teams).length);
   academySeason(st);
+  ensureSeats(st);
   D.promises = [];
   D.bet = null;
   D.red = 0;
@@ -852,6 +853,24 @@ export function dynNewSeason(st) {
   makeRaceGoals(st);
   press(st, { kind: 'lead', tone: 'info', h: `Si alza il sipario sulla stagione ${st.season}`, t: `Presentazioni, nuove livree e grandi promesse: ${playerTeam(st).name} punta al ${st.board.target}° posto.`, img: { k: 'team', id: playerTeam(st).id }, tag: 'Pre-stagione' });
   void yrs;
+}
+
+// Never let the player start an event with an empty seat: the contracts office signs a stand-in
+export function ensureSeats(st) {
+  const pt = playerTeam(st);
+  const need = seatsPerTeam(st) - teamDrivers(st, pt).length;
+  if (need <= 0) return [];
+  const C = st.category;
+  const pool = Object.values(st.drivers).filter((d) => !d.teamId && !d.retired && !d.academy && !d.nextTeam).sort((a, b) => driverOverall(b, C) - driverOverall(a, C));
+  const out = [];
+  for (let i = 0; i < need; i++) {
+    const d = pool.find((x) => !out.includes(x) && salaryFor(x, C) <= Math.max(0.5, pt.money * 0.15)) || pool.find((x) => !out.includes(x));
+    if (!d) break;
+    d.teamId = pt.id; d.contract = 1; d.salary = salaryFor(d, C); d.morale = 70; d._s0 = d.stats.starts; d.standIn = true;
+    pt.drivers.push(d.id); out.push(d);
+  }
+  if (out.length) addMail(st, { from: 'Ufficio Contratti', icon: 'driver', type: 'bad', subject: 'Sedile coperto d’urgenza', body: `Avevamo un sedile vuoto: per non saltare l’evento abbiamo ingaggiato ${out.map((d) => d.name).join(' e ')} con un contratto di una stagione. Puoi sostituirl${out.length > 1 ? 'i' : 'o'} in qualsiasi momento dal Mercato, senza penali.` });
+  return out;
 }
 
 export function setMandate(st, id) {
