@@ -5,6 +5,7 @@
 
 /* ---- Prep ---- */
 .rx-prep { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.rx-prep > .col:last-child { position: sticky; top: 0; }
 .rx-hero .rx-map { display: flex; justify-content: center; margin: 6px 0 10px; }
 .rx-hero .rx-map svg { max-width: 100%; height: auto; }
 .rx-sectors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
@@ -87,7 +88,7 @@
 .rx-mine { padding: 7px 10px; background: color-mix(in srgb, var(--team) 14%, var(--bg2)); font-size: 13.5px; }
 
 /* ---- Service ---- */
-.rx-svc { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; align-items: start; }
+.rx-svc { display: grid; grid-template-columns: repeat(auto-fit, minmax(370px, 1fr)); gap: 16px; align-items: start; }
 .rx-clock { text-align: right; font-family: var(--display); }
 .rx-clock b { font-size: 34px; font-weight: 800; font-style: italic; line-height: 1; }
 .rx-clock span { margin-left: 4px; font-size: 14px; color: var(--muted); }
@@ -121,7 +122,6 @@
   .lb-row.rx-row .nm { font-size: 15px; }
   .rx-prep, .rx-res { grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr); }
   .rx-tyres { grid-template-columns: repeat(2, 1fr); }
-  .rx-dmg { grid-template-columns: 96px 1fr 220px; }
-  .rx-svc { grid-template-columns: 1fr; }
+  .rx-dmg { grid-template-columns: 84px 1fr 196px; gap: 8px; }
   .rx-secbar > div { min-width: 96px; }
 }

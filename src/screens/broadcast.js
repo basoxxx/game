@@ -47,7 +47,7 @@ function tvHTML(sim, g) {
   switch (g.kind) {
     case 'pass': { const b = carBits(sim, g.other); return wrap('pass', 'Sorpasso', `<span class="tvg-pos">P${g.pos}</span>${who(a)}<span class="tvg-on">su</span>${who(b)}${g.err ? '<em class="tvg-flag err">Errore</em>' : g.drs ? '<em class="tvg-flag drs">DRS</em>' : g.ers ? '<em class="tvg-flag ers">Override</em>' : ''}${R3D() && g.mine ? '<em class="tvg-flag rp">R · Replay</em>' : ''}`, a?.col); }
     case 'fastest': return wrap('fastest', 'Giro più veloce', `${who(a)}<span class="tvg-big purple">${fmtTime(g.time)}</span>`, 'var(--purple)');
-    case 'pit': return wrap('pit', 'Pit stop', `<span class="tvg-pos">P${g.pos}</span>${who(a)}<span class="tvg-tyres">${tyreBadge(g.from)}${g.to ? `<span class="tvg-arrow">›</span>${tyreBadge(g.to)}` : ''}</span><span class="tvg-big ${g.stat < 2.6 ? 'good' : g.stat < 3.6 ? 'warn' : 'bad'}">${g.stat.toFixed(2)}<small>s</small></span>`, a?.col);
+    case 'pit': return wrap('pit', 'Pit stop', `<span class="tvg-pos">P${g.pos}</span>${who(a)}<span class="tvg-tyres">${tyreBadge(g.from)}${g.to ? `<span class="tvg-arrow">›</span>${tyreBadge(g.to)}` : ''}</span><span class="tvg-big ${g.stat < (sim.endurance ? 27 : 2.6) ? 'good' : g.stat < (sim.endurance ? 32 : 3.6) ? 'warn' : 'bad'}">${g.stat.toFixed(2)}<small>s</small></span>`, a?.col);
     case 'retire': return wrap('retire', g.title || 'Ritiro', `${who(a)}<span class="tvg-txt">${esc(String(g.text || '').split(' · ').slice(1).join(' · '))}</span>`, 'var(--bad)');
     case 'lead': return wrap('lead', 'Nuovo leader', `<span class="tvg-pos p1">P1</span>${who(a)}`, a?.col);
     case 'issue': return wrap('issue', 'Problema tecnico', `${who(a)}<span class="tvg-txt">${esc(g.title)}</span>`, 'var(--warn)');

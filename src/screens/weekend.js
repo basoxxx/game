@@ -218,7 +218,7 @@ function mountRace() {
     sfx.pit();
     const ov = document.getElementById('finish-overlay'); if (!ov) return;
     document.getElementById('pit-ov')?.remove();
-    const col = stat < 2.6 ? 'var(--good)' : stat < 3.5 ? 'var(--warn)' : 'var(--bad)';
+    const col = stat < (R.sim.endurance ? 27 : 2.6) ? 'var(--good)' : stat < (R.sim.endurance ? 32 : 3.5) ? 'var(--warn)' : 'var(--bad)';
     ov.insertAdjacentHTML('beforeend', `<div id="pit-ov" class="pit-ov" style="--pc:${col}"><div class="tiny upper muted">Pit stop · ${esc(R.sim.driver(c).name)}</div><div class="pt">${stat.toFixed(2)}s</div><div class="small muted">${c.tyre ? COMPOUNDS[c.tyre].name : ''}</div></div>`);
     setTimeout(() => document.getElementById('pit-ov')?.remove(), 3500);
   };
@@ -701,8 +701,8 @@ function showMoment(m) {
   sfx.notify();
   if (m.key && m.key !== 'all') { R.focus = m.key; if (R.r3d) { R.r3d.director = false; R.r3d.camMode = m.type === 'sc' ? 'heli' : 'chase'; R.r3d._cut = true; R.r3d.focusKey = m.key; } }
   const ov = document.getElementById('finish-overlay'); if (!ov) return;
-  const col = { sc: 'var(--warn)', rain: 'var(--info)', front: 'var(--info)', attack: 'var(--bad)', defend: 'var(--bad)', undercut: 'var(--warn)', issue: 'var(--warn)', restart: 'var(--good)', mates: 'var(--team)' }[m.type] || 'var(--team)';
-  const eyebrow = { issue: 'Problema tecnico', restart: 'Ripartenza', front: 'Radar meteo', mates: 'Ordini di scuderia' }[m.type] || 'Momento chiave';
+  const col = { sc: 'var(--warn)', rain: 'var(--info)', front: 'var(--info)', attack: 'var(--bad)', defend: 'var(--bad)', undercut: 'var(--warn)', issue: 'var(--warn)', restart: 'var(--good)', mates: 'var(--team)', night: '#7c8cff', fatigue: 'var(--warn)' }[m.type] || 'var(--team)';
+  const eyebrow = { issue: 'Problema tecnico', restart: 'Ripartenza', front: 'Radar meteo', mates: 'Ordini di scuderia', night: 'Endurance · notte', fatigue: 'Endurance · cambio pilota' }[m.type] || 'Momento chiave';
   ov.insertAdjacentHTML('beforeend', `<div id="moment" class="decision" style="border-top-color:${col};width:min(660px,92%)"><div class="m-eyebrow" style="color:${col}">${eyebrow} · gara in pausa</div>
     <div class="m-title">${esc(m.title)}</div>
     <div class="mt8" style="line-height:1.55;color:var(--text2)">${esc(m.text)}</div>
