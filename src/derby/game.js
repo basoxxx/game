@@ -92,7 +92,7 @@ export class DerbyGame {
 
   // ---------------------------------------------------------------- rendering setup
   setupRenderer() {
-    const r = this.renderer = new THREE.WebGLRenderer({ antialias: !this.low, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+    const r = this.renderer = new THREE.WebGLRenderer({ antialias: !this.low, powerPreference: 'high-performance' });
     r.setPixelRatio(this.low ? 1 : Math.min(1.5, window.devicePixelRatio || 1));
     r.shadowMap.enabled = true; r.shadowMap.type = this.low ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.0; r.outputColorSpace = THREE.SRGBColorSpace;
