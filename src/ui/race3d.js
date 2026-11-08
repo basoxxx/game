@@ -405,7 +405,7 @@ export class Race3D {
     this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x3b3e44, roughness: 0.85 }) : D(pbr('asphalt_02', { color: 0x75757a, roughness: 1, normalScale: 0.8 }), { macro: 0.1, macroScale: 0.06, wet: true, rough: [0.62, 1.0], key: 'asph', track: { halfW: W / 2, uScale: 6 } });
     const runoffMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x777b82, roughness: 0.9 }) : D(pbr('concrete_floor_worn_001', { color: street > 0.7 ? 0x8a8a8a : 0xb8b8b8 }), { macro: 0.12, macroScale: 0.05, wet: true });
     const grassCol = this.desert ? 0xc9b98a : 0x8db86a;
-    const groundMat = this.low ? new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x5d6066 : 0x3f7a34, roughness: 1 }) : D(pbr(street > 0.7 ? 'concrete_floor_worn_001' : 'aerial_grass_rock', { repeat: [1400, 1400], color: street > 0.7 ? 0x67696d : grassCol }), { macro: street > 0.7 ? 0.3 : 0.22, macroScale: 0.012, tint: 0xd8c27a, tintAmt: street > 0.7 ? 0 : 0.45 });
+    const groundMat = this.low ? new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x5d6066 : 0x3f7a34, roughness: 1 }) : D(pbr(street > 0.7 ? 'concrete_floor_worn_001' : 'aerial_grass_rock', { repeat: [1400, 1400], color: street > 0.7 ? 0x55575b : grassCol }), { macro: street > 0.7 ? 0.34 : 0.22, macroScale: street > 0.7 ? 0.03 : 0.012, tint: street > 0.7 ? 0x9a8f80 : 0xd8c27a, tintAmt: street > 0.7 ? 0.5 : 0.45 });
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(12000, 12000), groundMat);
     ground.rotation.x = -Math.PI / 2; ground.position.set((this.geo.bbox[0] + this.geo.bbox[2]) / 2, -0.25, (this.geo.bbox[1] + this.geo.bbox[3]) / 2);
     ground.receiveShadow = true;
@@ -866,6 +866,88 @@ export class Race3D {
     if (this.scene.fog) { this.scene.fog = new THREE.FogExp2(this.scene.fog.color, this.night ? 0.0009 : 0.00025); this.fogDensity = this.scene.fog.density; }
   }
 
+  // city skyline behind street circuits (and a distant downtown for park circuits): glass and
+  // concrete towers in a few clusters, curtain-wall shader (floors, mullions, per-tower glass
+  // tint) with random lit offices at night. One instanced mesh.
+  buildSkyline(street) {
+    if (!this.hillC || street < 0.4) return;
+    const [cx, cz] = this.hillC, R0 = this.hillR0, full = street > 0.7;
+    const n = Math.round((full ? 190 : 70) * (this.low ? 0.45 : 1));
+    const clusters = Array.from({ length: full ? 3 : 1 }, (_, k) => ({ a: Math.random() * 6.283 + k * 2.1, w: full ? 0.5 + Math.random() * 0.4 : 0.32, peak: full ? 150 + Math.random() * 120 : 190 }));
+    const items = []; const d = new THREE.Object3D(); const col = new THREE.Color();
+    const tints = [0x9fb6cc, 0x7f99b3, 0x8fb0b0, 0xa9a49a, 0xb7bcc2, 0x6f8499, 0xc2b49a];
+    for (let k = 0, guard = 0; k < n && guard < n * 8; guard++) {
+      const c = clusters[guard % clusters.length];
+      const da = (Math.random() + Math.random() + Math.random() - 1.5) * c.w;
+      const a = c.a + da;
+      const r = (full ? R0 - 260 : R0 + 300) + Math.pow(Math.random(), 0.8) * (full ? 1100 : 900);
+      const px = cx + Math.cos(a) * r, pz = cz + Math.sin(a) * r;
+      const wd = 22 + Math.random() * 30, dp = 18 + Math.random() * 26;
+      if (!this.clearOfTrack(px, pz, this.TW / 2 + 40 + wd)) continue;
+      if ((this.obstacles || []).some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.r + wd) ** 2)) continue;
+      if (items.some((it) => (it.x - px) ** 2 + (it.z - pz) ** 2 < ((it.w + wd) * 0.62) ** 2)) continue;
+      const core = Math.exp(-((da / c.w) ** 2) * 2.2);
+      const h = 35 + c.peak * core * (0.35 + Math.random() * 0.75) + Math.random() * 30;
+      items.push({ x: px, z: pz, w: wd, dp, h, y: this.hillH ? this.hillH(px, pz) - 3 : -3, rot: Math.random() * 6.283, t: tints[Math.floor(Math.random() * tints.length)] });
+      k++;
+      // a stepped crown / podium on some towers
+      if (h > 110 && Math.random() < 0.5) items.push({ x: px, z: pz, w: wd * 0.62, dp: dp * 0.62, h: h + 12 + Math.random() * 25, y: this.hillH ? this.hillH(px, pz) - 3 : -3, rot: items[items.length - 1].rot, t: items[items.length - 1].t });
+    }
+    // street circuits: low and mid-rise blocks fill the city between the circuit and the towers
+    if (full) {
+      const [bx0, bz0, bx1, bz1] = this.geo.bbox; const rIn = Math.hypot(bx1 - bx0, bz1 - bz0) * 0.2;
+      const nf = Math.round(260 * (this.low ? 0.4 : 1));
+      for (let k = 0, guard = 0; k < nf && guard < nf * 6; guard++) {
+        const a = Math.random() * 6.283, r = rIn + Math.random() * (R0 + 200 - rIn);
+        const px = cx + Math.cos(a) * r, pz = cz + Math.sin(a) * r;
+        const wd = 16 + Math.random() * 22, dp = 14 + Math.random() * 20;
+        if (!this.clearOfTrack(px, pz, this.TW / 2 + 34 + wd * 0.7)) continue;
+        if ((this.obstacles || []).some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.r + wd * 0.7) ** 2)) continue;
+        if (items.some((it) => (it.x - px) ** 2 + (it.z - pz) ** 2 < ((it.w + wd) * 0.6) ** 2)) continue;
+        items.push({ x: px, z: pz, w: wd, dp, h: 12 + Math.random() ** 2 * 40, y: (this.hillH ? this.hillH(px, pz) : 0) - 0.5, rot: Math.random() * 6.283, t: [0xd8cfc0, 0xc9c2b6, 0xb8bec6, 0xe0d6c4, 0x9fb6cc][Math.floor(Math.random() * 5)] });
+        k++;
+      }
+    }
+    if (!items.length) return;
+    const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.55, roughness: 0.22, envMapIntensity: 1.2, ...(this.night ? { emissive: 0xffd9a0, emissiveIntensity: 2.1 } : {}) });
+    const nightK = { value: this.night ? 1 : 0 }; this._skylineNight = nightK;
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uNight = nightK;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec4 vTw;')
+        .replace('#include <uv_vertex>', `#include <uv_vertex>
+          vec3 tsc = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
+          vTw = vec4(uv.x * (abs(normal.x) > 0.5 ? tsc.z : tsc.x), position.y * tsc.y, normal.y, instanceMatrix[3].x * 0.011 + instanceMatrix[3].z * 0.017);`);
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec4 vTw; uniform float uNight;\nfloat th(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }')
+        .replace('#include <map_fragment>', `#include <map_fragment>
+          float roofT = step(0.5, vTw.z);
+          float fl = fract(vTw.y / 3.8), cl = fract(vTw.x / 1.6);
+          float spandrel = 1.0 - step(0.16, fl) * step(fl, 0.86);
+          float mull = 1.0 - step(0.07, cl) * step(cl, 0.93);
+          float win = (1.0 - spandrel) * (1.0 - mull) * (1.0 - roofT);
+          float var = th(vec2(floor(vTw.x / 1.6), floor(vTw.y / 3.8)) + vTw.w);
+          diffuseColor.rgb *= mix(vec3(0.42), vec3(0.55 + 0.25 * var), win);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.22), roofT);
+          float lit = step(0.7, th(vec2(floor(vTw.x / 6.4) + vTw.w * 13.0, floor(vTw.y / 3.8)))) * win;`)
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(0.85, 0.12, win);')
+        .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(0.05, 0.7, win);')
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance *= lit * uNight * (0.6 + 0.8 * var);');
+    };
+    mat.customProgramCacheKey = () => 'skyline' + (this.night ? 'n' : '');
+    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), mat, items.length);
+    items.forEach((it, k) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.set(it.w, it.h, it.dp); d.updateMatrix(); im.setMatrixAt(k, d.matrix); im.setColorAt(k, col.setHex(it.t)); });
+    im.castShadow = false; im.receiveShadow = false; im.computeBoundingSphere();
+    this.scene.add(im); this.skyline = im;
+    // aircraft warning lights on the tallest towers at night
+    if (this.night) {
+      const tops = items.filter((it) => it.h > 120);
+      if (tops.length) {
+        const lm = new THREE.InstancedMesh(new THREE.SphereGeometry(1.4, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff2a1a, toneMapped: false }), tops.length);
+        tops.forEach((it, k) => { d.position.set(it.x, it.y + it.h + 1.5, it.z); d.rotation.set(0, 0, 0); d.scale.set(1, 1, 1); d.updateMatrix(); lm.setMatrixAt(k, d.matrix); });
+        lm.computeBoundingSphere(); this.scene.add(lm);
+      }
+    }
+  }
+
   // photoreal vegetation (Poly Haven CC0 trees rendered into impostors)
   buildForest(street) {
     const N = this.geo.N, W = this.TW;
@@ -1272,8 +1354,8 @@ export class Race3D {
       c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, 246, w, 10);
     }) : null;
     if (facade) { facade.wrapS = THREE.RepeatWrapping; facade.wrapT = THREE.ClampToEdgeWrapping; }
-    const glow = street > 0.7 && this.night ? canvasTex(256, 256, (c, w, h) => { c.fillStyle = '#000'; c.fillRect(0, 0, w, h); for (let k = 0; k < 4; k++) { c.fillStyle = k % 3 ? '#fff4d6' : '#ffe2a8'; c.fillRect(14 + k * 62, 26, 34, 80); } c.fillStyle = '#fff0d0'; c.fillRect(12, 174, 104, 72); c.fillRect(140, 174, 104, 72); }) : null;
-    const m = street > 0.7 ? new THREE.MeshStandardMaterial({ map: facade, roughness: 0.85, ...(glow ? { emissive: 0xffffff, emissiveMap: glow, emissiveIntensity: 0.9 } : {}) }) : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
+    const glow = street > 0.7 && this.night ? canvasTex(256, 256, (c, w, h) => { c.fillStyle = '#000'; c.fillRect(0, 0, w, h); for (let k = 0; k < 4; k++) { const gw = c.createLinearGradient(0, 26, 0, 106); gw.addColorStop(0, k % 3 ? '#ffd9a0' : '#ffe6c2'); gw.addColorStop(1, k % 3 ? '#c98a4a' : '#d9b48a'); c.fillStyle = gw; c.fillRect(14 + k * 62, 26, 34, 80); } c.fillStyle = '#fff0d0'; c.fillRect(12, 174, 104, 72); c.fillRect(140, 174, 104, 72); }) : null;
+    const m = street > 0.7 ? new THREE.MeshStandardMaterial({ map: facade, roughness: 0.85, ...(glow ? { emissive: 0xffffff, emissiveMap: glow, emissiveIntensity: 0.6 } : {}) }) : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
     if (street > 0.7) {
       m.onBeforeCompile = (sh) => {
         sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec4 vFac;')
@@ -1291,7 +1373,7 @@ export class Race3D {
             float roof = step(0.5, vFac.z);
             vec4 sampledDiffuseColor = mix(texture2D(map, fuv), vec4(0.36, 0.36, 0.37, 1.0), roof);
             diffuseColor *= sampledDiffuseColor;
-            float litW = step(0.55, fhash(vec2(floor(vFac.x * 4.0) + vFac.w * 17.0, floor((fy - 4.4) / 3.3) + vFac.w)));`)
+            float litW = step(0.66, fhash(vec2(floor(vFac.x * 4.0) + vFac.w * 17.0, floor((fy - 4.4) / 3.3) + vFac.w))) * (0.35 + 0.65 * fhash(vec2(floor(vFac.x * 4.0) + 3.1, floor(fy / 3.3) + vFac.w * 7.0)));`)
           .replace('#include <emissivemap_fragment>', `
             #ifdef USE_EMISSIVEMAP
               totalEmissiveRadiance *= texture2D(emissiveMap, fuv).rgb * (1.0 - roof) * mix(0.25 + 0.75 * fhash(vec2(floor(vFac.x * 2.0), vFac.w)), litW, upper);
@@ -1344,6 +1426,7 @@ export class Race3D {
     }
     this.tvCams ||= this.makeTvCams();
     this.buildTerrain(street);
+    this.buildSkyline(street);
     this.buildTrackside(street);
     this.buildDressing(street);
     this.buildForest(street);
