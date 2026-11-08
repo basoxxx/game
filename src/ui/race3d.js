@@ -2893,7 +2893,7 @@ export class Race3D {
             // thin them out with distance and let them spread a little wider, so the trail reads
             // as a low veil of mist instead of a bright cloud behind each car
             float far = smoothstep(25.0, 160.0, dz);
-            vA *= mix(1.0, 0.28, far) / (1.0 + 0.004 * uPx * (1.0 - far * 0.5) / max(8.0, dz));
+            vA *= mix(1.25, 0.3, far) / (1.0 + max(0.0, uPx - 900.0) * 0.0006 * far);
             gl_PointSize *= 1.0 + 0.5 * far;
             #include <logdepthbuf_vertex>
             #include <fog_vertex>
