@@ -18,6 +18,14 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 3.8
+- **Dinastia**: status della squadra da Fanalino di coda a Dinastia, mandato del consiglio con piano pluriennale, quattro consiglieri con umori e promesse, team principal rivali con personalità, scommesse e frecciatine, nuova schermata **Paddock** con giornale, accademia giovani, tratti dello staff, obiettivi sponsor per ogni gara.
+- **Weekend da TV**: grafiche broadcast (sorpassi, pit stop, giro veloce, safety car), interval tracker, guasti da gestire, ripartenze dietro safety car, radar pioggia, notte e alba nell'Endurance, analisi post-gara con grafici.
+- **Rally rinnovato**: gomme per giro di prove con ricambi, note del navigatore e ritmo per settore, tempi intermedi live, parco assistenza a tempo con riparazioni a scelta.
+- **Scontro Totale**: carriera a coppe con medaglie, 6 tipi di evento (eliminazione, contro il tempo con fantasma, caccia alla lepre, salto in lungo), 3 nuove arene, 4 nuove auto, garage con potenziamenti e livree, sfide, modalità foto.
+- **Grafica 3D**: tribune ricostruite, nuvole e temporali con fulmini, squadre ai box animate, skyline per i circuiti cittadini, prove rally con solchi, nastro e spettatori.
+- **Audio e interfaccia**: motori diversi per categoria, colonne sonore dinamiche, schermata titolo, guida "Come si gioca", tour guidati, mixer, notifiche, supporto controller, nuove impostazioni a schede, mappa 2D in stile TV.
+
 ## Novità della versione 3.7
 
 - **Prove libere e qualifiche in diretta**: sessioni con cronometro e auto in pista (2D e 3D); per ogni pilota scegli treno di gomme (nuovo o usato), benzina, giri e ritmo, e decidi tu quando premere "Esci dal box"; feedback sull'assetto dopo ogni uscita, long run che misurano il degrado, pista che si gomma, bandiere; qualifiche Q1/Q2/Q3 con eliminazioni (Hyperpole in Endurance), giri da annullare
