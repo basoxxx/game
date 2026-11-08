@@ -1828,7 +1828,7 @@ export class Race3D {
     this.skyMat.uniforms.bot.value.copy(day.bot).lerp(nite.bot, n);
     this.scene.fog.color.copy(this.fogDay || day.fog).lerp(nite.fog, n);
     if (!this.hdr) this.scene.background = this.scene.fog.color.clone(); else { this.scene.backgroundIntensity = (T.bg ?? 1) * (1 - n * 0.85); this.scene.environmentIntensity = 0.9 - n * 0.6; }
-    const dk = T.k; this.hemi.intensity = (1.1 - n * 0.55) * (0.6 + 0.4 * dk); this.sun.intensity = (2.6 - n * 2.0) * dk;
+    const dk = T.k; this.hemi.intensity = this._hemiBase = (1.1 - n * 0.55) * (0.6 + 0.4 * dk); this.sun.intensity = (2.6 - n * 2.0) * dk;
     this._lit = { sun: this.sun.intensity, bg: this.hdr ? this.scene.backgroundIntensity : 1, fog: this.scene.fog.color.clone() }; this._wetApplied = -1;
     if (this.forest) this.forest.material.uniforms.light.value = 1 - n * 0.8;
     this.renderer.toneMappingExposure = T.exp - n * 0.2;
@@ -1855,34 +1855,139 @@ export class Race3D {
     this.lights?.forEach((l, k) => { const on = !go && k < n; l.material.emissive.setHex(on ? 0xff0000 : 0x000000); l.material.color.setHex(on ? 0xff2020 : 0x220000); });
   }
 
+  // Optional: cloud cover 0..1 independent of rain (overcast dry race). setRain() derives the
+  // cover from the rain level and uses whichever is larger.
+  setOvercast(v) { this._ovcSet = Math.max(0, Math.min(1, v || 0)); this._wetApplied = -1; this.setRain(this._rainLvl || 0); }
+
+  // procedural cloud layer drawn over the HDRI sky: thin broken cloud -> full overcast ->
+  // dark storm deck with lightning. Transparent, depth-tested, so it only shows where the sky does.
+  buildCloudDome() {
+    const mat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, fog: false, side: THREE.BackSide,
+      uniforms: { uCover: { value: 0 }, uStorm: { value: 0 }, uTime: TIME, uFlash: { value: 0 }, uTop: { value: new THREE.Color() }, uHor: { value: new THREE.Color() }, uSun: { value: new THREE.Vector3(0, 1, 0) } },
+      vertexShader: /* glsl */`varying vec3 vDir;
+        #include <common>
+        #include <logdepthbuf_pars_vertex>
+        void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        #include <logdepthbuf_vertex>
+        }`,
+      fragmentShader: /* glsl */`uniform float uCover, uStorm, uTime, uFlash; uniform vec3 uTop, uHor, uSun; varying vec3 vDir;
+        #include <logdepthbuf_pars_fragment>
+        float ch(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+        float cn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(ch(i), ch(i + vec2(1, 0)), f.x), mix(ch(i + vec2(0, 1)), ch(i + vec2(1, 1)), f.x), f.y); }
+        float fbm(vec2 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * cn(p); p = p * 2.03 + 11.7; a *= 0.5; } return s; }
+        void main() {
+          #include <logdepthbuf_fragment>
+          vec3 d = normalize(vDir); float h = d.y;
+          vec2 p = d.xz / (max(h, 0.0) + 0.1) * 0.9 + vec2(uTime * 0.012, uTime * 0.005);
+          float n = fbm(p), n2 = fbm(p * 2.6 + 7.0 + uTime * 0.01);
+          // coverage: low cover leaves gaps of clear sky, high cover a solid deck with darker lumps
+          float thr = mix(0.75, 0.05, uCover);
+          float dens = smoothstep(thr, thr + 0.28, n * 0.75 + n2 * 0.25);
+          vec3 base = mix(uHor, uTop, smoothstep(-0.02, 0.55, h));
+          // cloud bases are darker, tops catch light; storm cells are near-black
+          float lump = smoothstep(0.35, 0.8, n2);
+          vec3 col = base * mix(1.12, 0.62 - 0.22 * uStorm, lump);
+          float sunG = pow(max(dot(d, normalize(uSun)), 0.0), 8.0) * (1.0 - uStorm) * (1.0 - dens * 0.7);
+          col += uHor * sunG * 0.6;
+          col += uFlash * vec3(0.75, 0.8, 1.0) * (0.35 + 0.9 * lump) * smoothstep(-0.05, 0.3, h);
+          float a = clamp(max(dens, smoothstep(0.35, 0.85, uCover)) * smoothstep(0.0, 0.25, uCover), 0.0, 1.0);
+          gl_FragColor = vec4(col, a);
+        }`,
+    });
+    this.cloudDome = new THREE.Mesh(new THREE.SphereGeometry(5900, 32, 16), mat);
+    this.cloudDome.renderOrder = -5; this.cloudDome.frustumCulled = false;
+    this.scene.add(this.cloudDome);
+    // overcast reflection environment: the cloud deck over a grey ground, rendered once
+    try {
+      const sc = new THREE.Scene(); const m2 = mat.clone(); m2.uniforms = THREE.UniformsUtils.clone(mat.uniforms); m2.uniforms.uTime = TIME;
+      m2.uniforms.uCover.value = 1; m2.uniforms.uTop.value.setRGB(0.42, 0.45, 0.5); m2.uniforms.uHor.value.setRGB(0.62, 0.65, 0.7); m2.transparent = false;
+      sc.add(new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), m2));
+      const gnd = new THREE.Mesh(new THREE.CircleGeometry(49, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x3c3f42 })); gnd.position.y = -2; sc.add(gnd);
+      const pm = new THREE.PMREMGenerator(this.renderer); this._ovcEnv = pm.fromScene(sc, 0.03).texture; pm.dispose();
+    } catch { this._ovcEnv = null; }
+  }
+
   setRain(level) {
     this._rainLvl = level;
     if (level > 0.08 && !this.rain) {
-      // falling streaks (line segments) around the camera
-      const n = this.low ? 1200 : 3000; const g = new THREE.BufferGeometry(); const p = new Float32Array(n * 6);
-      for (let i = 0; i < n; i++) { const x = (Math.random() - 0.5) * 110, y = Math.random() * 60, z = (Math.random() - 0.5) * 110; p.set([x, y, z, x + 0.05, y - 0.75, z + 0.03], i * 6); }
+      // falling streaks (line segments) around the camera, slanted by the wind
+      const n = this.low ? 1500 : 4000; const g = new THREE.BufferGeometry(); const p = new Float32Array(n * 6);
+      for (let i = 0; i < n; i++) { const x = (Math.random() - 0.5) * 110, y = Math.random() * 60, z = (Math.random() - 0.5) * 110; p.set([x, y, z, x + 0.12, y - 0.85, z + 0.05], i * 6); }
       g.setAttribute('position', new THREE.BufferAttribute(p, 3));
       this.rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xc4d2e0, transparent: true, opacity: 0.32, depthWrite: false }));
-      this.rain.frustumCulled = false;
+      this.rain.frustumCulled = false; this._rainN = n;
       this.scene.add(this.rain);
     }
-    if (this.rain) this.rain.visible = level > 0.08;
+    if (this.rain) {
+      this.rain.visible = level > 0.08;
+      // drizzle: few faint streaks; downpour: dense and brighter
+      const k = Math.min(1, (level - 0.05) * 1.4);
+      this.rain.geometry.setDrawRange(0, Math.round(this._rainN * Math.max(0.15, k)) * 2);
+      this.rain.material.opacity = 0.16 + 0.24 * k;
+    }
     const wet = Math.min(1, level * 1.3);
     this.wet = wet;
-    // overcast: weaker sun, duller sky, grey haze, less saturated grade
-    if (Math.abs(wet - (this._wetApplied ?? -1)) > 0.01) {
-      this._wetApplied = wet;
+    const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const ovc = Math.max(this._ovcSet || 0, sm(0.02, 0.4, level));
+    const storm = sm(0.55, 0.95, level);
+    this.overcast = ovc; this.storm = storm;
+    // overcast: cloud deck over the sky, weaker sun, grey haze, overcast reflections, flatter grade
+    const key = wet + ovc * 3 + storm * 7 + (this._night || 0) * 13;
+    if (Math.abs(key - (this._wetApplied ?? -1)) > 0.01) {
+      this._wetApplied = key;
       const base = this._lit || { sun: this.night ? 1.55 : this.tod?.sunI ?? 2.2, bg: this.night ? 0.35 : this.tod?.bg ?? 1, fog: (this.fogDay || this.scene.fog.color).clone() };
       if (!this._lit && this.fogDay) this._lit = base;
-      this.sun.intensity = base.sun * (1 - 0.72 * wet);
-      if (this.hdr) { this.scene.backgroundIntensity = base.bg * (1 - 0.55 * wet); this.scene.backgroundBlurriness = 0.12 * wet; }
-      this.scene.fog.color.copy(base.fog).lerp(this._rainFog ||= new THREE.Color(this.night ? 0x0b0e14 : 0x7d858e), wet * 0.75);
-      if (this.composer?.grade) this.composer.grade.uniforms.uSat.value = (this.tod?.sat ?? 1.08) - 0.28 * wet;
+      const nite = this.night ? 1 : (this._night || 0);
+      if (ovc > 0.01 && !this.cloudDome) this.buildCloudDome();
+      const hor = (this._wHor ||= new THREE.Color()), top = (this._wTop ||= new THREE.Color());
+      // overcast greys -> slate storm deck; at night the deck is dark with a warm glow from the circuit lights
+      hor.setRGB(0.6, 0.63, 0.68).lerp(this._c1 ||= new THREE.Color(0.2, 0.22, 0.25), storm);
+      top.setRGB(0.4, 0.44, 0.5).lerp(this._c2 ||= new THREE.Color(0.07, 0.08, 0.1), storm);
+      if (this.skyKind === 'dusk' || this.skyKind === 'afternoon') { hor.multiply(this._c3 ||= new THREE.Color(1.1, 0.95, 0.85)); }
+      if (nite > 0) { hor.lerp(this._c4 ||= new THREE.Color(0.045, 0.04, 0.038), nite); top.lerp(this._c5 ||= new THREE.Color(0.008, 0.01, 0.014), nite); }
+      if (this.cloudDome) {
+        const u = this.cloudDome.material.uniforms; u.uCover.value = ovc; u.uStorm.value = storm; u.uTop.value.copy(top); u.uHor.value.copy(hor);
+        if (this._sunDiscDir) u.uSun.value.copy(this._sunDiscDir);
+        this.cloudDome.visible = ovc > 0.01;
+      }
+      this.sun.intensity = base.sun * (1 - 0.8 * ovc - 0.1 * storm);
+      this.hemi.intensity = (this._hemiBase ??= this.hemi.intensity) * (1 + 0.35 * ovc * (1 - nite));
+      if (this.hdr) { this.scene.backgroundIntensity = base.bg * (1 - 0.4 * ovc); this.scene.backgroundBlurriness = 0.1 * ovc; }
+      // reflections: the overcast deck replaces the sunny HDRI under heavy cloud
+      if (this._ovcEnv && !this.night) {
+        if (ovc > 0.55 && this.scene.environment !== this._ovcEnv) { this._envSunny = this.scene.environment; this._envI = this.scene.environmentIntensity; this.scene.environment = this._ovcEnv; }
+        else if (ovc < 0.45 && this.scene.environment === this._ovcEnv && this._envSunny) this.scene.environment = this._envSunny;
+        if (this.scene.environment === this._ovcEnv) this.scene.environmentIntensity = (this._envI ?? 0.9) * (1.05 - 0.55 * storm);
+        else if (this._envI != null) this.scene.environmentIntensity = this._envI;
+      }
+      const fogT = (this._rainFog ||= new THREE.Color());
+      fogT.copy(hor).multiplyScalar(0.92);
+      this.scene.fog.color.copy(base.fog).lerp(fogT, Math.min(1, ovc * 0.9 + wet * 0.1));
+      if (this.composer?.grade) this.composer.grade.uniforms.uSat.value = (this.tod?.sat ?? 1.08) - 0.18 * ovc - 0.12 * wet;
+      if (this.composer?.grade) this.composer.grade.uniforms.uWarm.value = (this.tod?.warm ?? 0.035) * (1 - ovc * 0.8);
     }
     if (!this.asphaltMat.userData.wetPatch) { this.asphaltMat.roughness = 0.82 - wet * 0.5; this.asphaltMat.metalness = 0.04 + wet * 0.12; if (this.asphaltMat.color) { this._asphBase ??= this.asphaltMat.color.getHex(); this.asphaltMat.color.setHex(this._asphBase).multiplyScalar(1 - wet * 0.45); } }
     WET.value = wet;
-    if (this.scene.fog.isFogExp2) this.scene.fog.density = this.fogDensity * (1 + wet * 2.6);
+    if (this.scene.fog.isFogExp2) this.scene.fog.density = this.fogDensity * (1 + wet * 2.6 + ovc * 0.6);
     else { this.scene.fog.near = 400 * (1 - wet * 0.75); this.scene.fog.far = 2600 * (1 - wet * 0.68); }
+  }
+
+  // storm: occasional lightning (cloud flash + a brief cold fill light), called every frame
+  updateWeather(dt) {
+    if (!this.cloudDome || !this.cloudDome.visible) return;
+    this.cloudDome.position.copy(this.camera.position);
+    const u = this.cloudDome.material.uniforms;
+    if ((this.storm || 0) > 0.5) {
+      this._ltT = (this._ltT ?? 4 + Math.random() * 8) - dt;
+      if (this._ltT <= 0) { this._lt = 0.45; this._ltT = 5 + Math.random() * 12; }
+    }
+    if (this._lt > 0) {
+      this._lt -= dt; const t = 0.45 - this._lt;
+      const f = Math.max(0, (t < 0.08 ? 1 : t < 0.14 ? 0.15 : t < 0.22 ? 0.8 : 0) * (0.6 + 0.4 * this.storm));
+      u.uFlash.value = f * 1.6; this.hemi.intensity = (this._hemiBase ?? 0.45) * (1 + 0.35 * this.overcast) + f * 1.4;
+      if (this._lt <= 0) { u.uFlash.value = 0; this.hemi.intensity = (this._hemiBase ?? 0.45) * (1 + 0.35 * this.overcast); }
+    }
   }
 
   // states: [{key, s (0..N sample float), speed (m/s), inPit, tyreColor, label, show}]
@@ -1978,6 +2083,7 @@ export class Race3D {
       p.needsUpdate = true;
       this.rain.position.set(this.camera.position.x, 0, this.camera.position.z);
     }
+    this.updateWeather(dt);
     this.updateFx(dt);
     if (this.wet > 0.3 && !this.open) this.updateSpray(dt);
     else if (this.spray) this.spray.visible = false;
@@ -2119,7 +2225,7 @@ export class Race3D {
     const cam = this.camera.position;
     for (const car of this.cars.values()) {
       const m = car.mesh, sp = car.state?.speed || 0;
-      if (!m.visible || sp < 18 || m.position.distanceToSquared(cam) > 260 * 260) continue;
+      if (!m.visible || sp < 18 || (car === this._camCar && (this.camMode === 'onboard' || this.camMode === 'cockpit')) || m.position.distanceToSquared(cam) > 260 * 260) continue;
       const fx = Math.cos(m.rotation.y), fz = -Math.sin(m.rotation.y);
       const n = Math.min(6, Math.ceil(sp * dt * 1.4 * this.wet));
       for (let q = 0; q < n; q++) {
@@ -2300,6 +2406,7 @@ export class Race3D {
       if (df && df.mesh.visible) focus = df;
     }
     if (!focus) return;
+    this._camCar = focus;
     // garage camera falls back to the TV coverage while the car is out on track
     const mode = this.camMode === 'garage' && !focus.pc ? 'tv' : this.camMode;
     const wasCut = this._cut;
