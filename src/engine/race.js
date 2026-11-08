@@ -1338,6 +1338,17 @@ export class CircuitSim {
           const da = this.driver(a), db = this.driver(b);
           const duel = duelModifiers(this.state, da.id, db.id);
           const mates = a.teamId === b.teamId;
+          // pressure tells: the defender can crack (lock-up, running wide) on worn tyres or in the wet
+          const errP = 0.018 * (1.35 - da.attrs.cons / 100) * (a.wear > 0.75 ? 2 : 1) * (this.rain > 0.3 ? 1.6 : 1) * (a.defendUntil > this.time ? 1.4 : 1) * (a.mode === 'push' ? 1.3 : 1);
+          if (!mates && chance(errP)) {
+            const loss = rand(0.6, 2.2);
+            a.dist -= loss / this.track.lap; b.dist = Math.max(b.dist, a.dist + 0.0012);
+            [order[i - 1], order[i]] = [b, a];
+            const how = pick(['bloccaggio in staccata', 'va lungo in curva', 'sbaglia la cambiata in uscita', 'finisce sul cordolo e perde trazione']);
+            if (a.isPlayer || b.isPlayer || i <= 8) { this.log(`⚠ ${da.name} sotto pressione: ${how}! ${db.name} passa per la P${i}.`, 'overtake', b.key, a.isPlayer || b.isPlayer); this.comment(`Errore di ${da.name}: ${how}, e ${db.name} non perdona!`, b.key, a.isPlayer || b.isPlayer); this.pushTV({ kind: 'pass', key: b.key, other: a.key, pos: i, err: true }); this.onOvertake?.(b, a); }
+            if (a.isPlayer && chance(0.5)) this.log(`📻 ${da.name.split(' ')[0]}: «${pick(['Ho bloccato l’anteriore, scusate!', 'Non avevo più grip dietro...', 'Mi sono innervosito, errore mio.'])}»`, 'radio', a.key, true);
+            continue;
+          }
           const p = clamp(duel.pBonus + 0.05 + this.track.ovt * 0.42 + (paceDiff / this.ls) * 0.3 + (db.attrs.race - da.attrs.race) / 110 + (b.drs ? 0.1 : 0) + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.16 : 0) - (a.ersMode === 'deploy' ? 0.1 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.12 : 0) + (b.attackUntil > this.time ? 0.12 : 0) - (a.defendUntil > this.time ? 0.18 : 0) + (a.yieldUntil > this.time ? 0.6 : 0), 0.02, 0.95);
           if (chance(p)) {
             b.dist = a.dist + 0.0012; a.dist -= 0.0012;

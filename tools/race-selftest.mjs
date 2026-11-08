@@ -24,6 +24,7 @@ for (const cat of ['formula', 'junior', 'endurance']) {
     const res = sim.results();
     stats.issues += sim.tv.filter((x) => x.kind === 'issue').length;
     stats.races++; stats.sc += sim.scCount; stats.dnf += res.classification.filter((x) => x.status === 'dnf').length;
+    stats.err = (stats.err || 0) + sim.events.filter((e) => /sotto pressione/.test(e.text)).length; stats.passes = (stats.passes || 0) + sim.tv.filter((x) => x.kind === 'pass').length;
     stats.tv += sim.tv.length; stats.restarts += sim.tv.filter((x) => x.kind === 'restart').length;
     const best = Math.min(...Object.values(sim.history).flat().filter((h) => !h.sc).map((h) => h.time));
     rows.push(`${tr.id.padEnd(5)} real ${tr.lap.toFixed(1)}  pole ${Math.min(...Object.values(q.times)).toFixed(2)}  bestRace ${best.toFixed(2)}  winner ${res.classification[0].key}`);
