@@ -6,7 +6,7 @@ import { esc, bar, fmtLong, fmtGap } from '../ui/dom.js';
 import { S, saveGame, getSettings } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { playerTeam, applyRoundResults, teamDrivers, seatsPerTeam, aiFillSeats } from '../engine/season.js';
-import { RallyEvent, PACE_MODES, SECTOR_TYPES, bestTyreFor, tyreFit, repairMinutes, quickMinutes, SERVICE_TIME, SERVICE_BASE, SERVICE_SETUP, SERVICE_CHECK } from '../engine/rally.js';
+import { RallyEvent, PACE_MODES, SECTOR_TYPES, tyreFit, repairMinutes, quickMinutes, SERVICE_TIME, SERVICE_BASE, SERVICE_SETUP, SERVICE_CHECK } from '../engine/rally.js';
 import '../styles/broadcast.css';
 import '../styles/rally.css';
 import { buildEntries, aiSetupQuality } from '../engine/race.js';

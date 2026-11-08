@@ -259,7 +259,6 @@ function pitTable(sim) {
 }
 function summary(sim, cls) {
   const mover = cls.filter((c) => c.status !== 'dnf').map((c) => ({ c, g: c.grid - c.pos })).sort((a, b) => b.g - a.g)[0];
-  const passes = sim.tv.filter((g) => g.kind === 'pass').length;
   const fl = sim.fastest.key && sim.cars.find((c) => c.key === sim.fastest.key);
   const bestStop = sim.stopsLog.slice().sort((a, b) => a.stat - b.stat)[0];
   const tile = (v, l, sub = '') => `<div class="an-tile"><b>${v}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ''}</div>`;
