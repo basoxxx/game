@@ -132,6 +132,7 @@ function completeProject(state, team, proj) {
     if (hasPerk(state, 'rd_gain')) gain *= 1.1;
     if (hasPerk(state, 'reverse')) { const vals = Object.values(state.teams).map((t) => t.car.parts[proj.part]).sort((a, b) => a - b); if (cur < vals[Math.floor(vals.length / 2)]) gain *= 1.2; }
   }
+  if (state.category === 'junior' && gain > 0) gain *= 0.6; // near-spec cars: development matters less than drivers
   gain = +gain.toFixed(1);
   if (proj.next) { team.nextYear ||= {}; team.nextYear[proj.part] = +((team.nextYear[proj.part] || 0) + gain * 1.35).toFixed(1); return gain; }
   team.car.parts[proj.part] = clamp(+(cur + gain).toFixed(1), 30, 99.5);
@@ -145,7 +146,7 @@ function aiDevelopment(state, team) {
   const all = Object.values(state.teams);
   const avgB = all.reduce((s, t) => s + t.baseBudget, 0) / all.length;
   const budgetF = Math.sqrt(team.baseBudget / avgB);
-  const total = rand(0.9, 2.6) * diff * atrFactor(state, team) * clamp(budgetF, 0.75, 1.25) * (0.8 + (td?.rating || 70) / 250) * (1 + (team.facilities.windtunnel - 3) * 0.05);
+  const total = rand(0.9, 2.6) * (state.category === 'junior' ? 0.6 : 1) * diff * atrFactor(state, team) * clamp(budgetF, 0.75, 1.25) * (0.8 + (td?.rating || 70) / 250) * (1 + (team.facilities.windtunnel - 3) * 0.05);
   // distribute
   const parts = C.parts.map((p) => p.id);
   let remaining = total;
@@ -281,9 +282,9 @@ export function applyRoundResults(state, results) {
         state.career.rdDone = (state.career.rdDone || 0) + 1;
         if (state.career.rdDone >= 5) unlock(state, 'rd5', 'Fabbrica a pieno regime', 'Completa 5 progetti R&D.');
         addMail(state, {
-          from: state.staff[team.staff.td]?.name || 'Direttore Tecnico', type: g > 0.9 ? 'good' : 'bad', icon: 'rd',
-          subject: p.failed ? `Progetto fallito: ${partName(state, p.part)}` : p.next ? `Progetto ${state.season + 1} completato: ${partName(state, p.part)}` : g > 0.9 ? `R&D completato: ${partName(state, p.part)} +${g}` : `R&D deludente su ${partName(state, p.part)}`,
-          body: p.next ? `Il lavoro sulla vettura ${state.season + 1} ha prodotto +${(g * 1.35).toFixed(1)} punti su ${partName(state, p.part)}, che verranno applicati al nuovo progetto (senza perdite di inizio stagione).` : g > 0.9 ? `Il ${RD_TIERS[p.tier].name.toLowerCase()} su ${partName(state, p.part)} ha portato un guadagno di +${g} punti. Ora siamo a ${team.car.parts[p.part].toFixed(1)}. Il componente è già montato sulle vetture.`
+          from: state.staff[team.staff.td]?.name || 'Direttore Tecnico', type: (!p.failed && g > 0.3) ? 'good' : 'bad', icon: 'rd',
+          subject: p.failed ? `Progetto fallito: ${partName(state, p.part)}` : p.next ? `Progetto ${state.season + 1} completato: ${partName(state, p.part)}` : (!p.failed && g > 0.3) ? `R&D completato: ${partName(state, p.part)} +${g}` : `R&D deludente su ${partName(state, p.part)}`,
+          body: p.next ? `Il lavoro sulla vettura ${state.season + 1} ha prodotto +${(g * 1.35).toFixed(1)} punti su ${partName(state, p.part)}, che verranno applicati al nuovo progetto (senza perdite di inizio stagione).` : (!p.failed && g > 0.3) ? `Il ${RD_TIERS[p.tier].name.toLowerCase()} su ${partName(state, p.part)} ha portato un guadagno di +${g} punti. Ora siamo a ${team.car.parts[p.part].toFixed(1)}. Il componente è già montato sulle vetture.`
             : `Purtroppo il ${RD_TIERS[p.tier].name.toLowerCase()} su ${partName(state, p.part)} non ha dato i risultati sperati (${g >= 0 ? '+' : ''}${g}). I dati della galleria non hanno trovato riscontro in pista.`,
         });
       }

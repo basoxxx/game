@@ -48,6 +48,10 @@ export function ensureDynasty(st, opts = {}) {
   });
   for (const s of Object.values(st.staff)) if (!s.trait) s.trait = staffTraitFor(s.role, hash(s.id + s.name));
   for (const sp of playerTeam(st).sponsors) sp.sat ??= 60;
+  // repair salaries broken by older versions (drivers rated under 60 got NaN)
+  for (const d of Object.values(st.drivers)) if (!Number.isFinite(d.salary)) d.salary = salaryFor(d, st.category);
+  if (!Number.isFinite(playerTeam(st).money)) playerTeam(st).money = +(playerTeam(st).baseBudget * 0.3).toFixed(1);
+  for (const f of st.finance || []) if (!Number.isFinite(f.amount)) f.amount = 0;
   if (!D.plan) D.plan = makePlan(st, D.mandate);
   if (opts.goals !== false) {
     if (!D.goals || D.goals.season !== st.season || D.goals.round !== st.round) makeRaceGoals(st);
@@ -613,7 +617,7 @@ export function dynDecisionView(st) {
     case 'tycoon': return {
       tag: 'Nuovo investitore', from: 'Ufficio del Presidente', title: `${pd.who} vuole investire in ${pt.name}`,
       text: `La crescita della squadra ha attirato ${pd.who}, magnate con ambizioni sportive. Offre ${fmtM(pd.amount)} subito e un aumento permanente del budget del 10%. In cambio pretende risultati: il consiglio alzerà le aspettative.`,
-      a: [{ t: 'Benvenuto a bordo', note: `+${fmtM(pd.amount)} · budget +10% · obiettivi più ambiziosi (-1 posizione ogni anno)` }, { t: 'Solo una sponsorizzazione', note: `+${fmtM(pd.amount * 0.35)} una tantum` }, { t: 'Grazie, restiamo indipendenti', note: 'Fiducia +3 dal vecchio consiglio' }] };
+      a: [{ t: 'Benvenuto a bordo', note: `+${fmtM(pd.amount)} · budget +10% · obiettivi più ambiziosi per due stagioni` }, { t: 'Solo una sponsorizzazione', note: `+${fmtM(pd.amount * 0.35)} una tantum` }, { t: 'Grazie, restiamo indipendenti', note: 'Fiducia +3 dal vecchio consiglio' }] };
     default: return null;
   }
 }
@@ -671,7 +675,7 @@ export function resolveDynDecision(st, i) {
       if (i === 2) { st.board.confidence = clamp(st.board.confidence - 6, 0, 100); out = 'Nessun investitore'; }
       break;
     case 'tycoon':
-      if (i === 0) { addFinance(st, `Investimento di ${pd.who}`, pd.amount); pt.baseBudget = +(pt.baseBudget * 1.1).toFixed(2); D.pressure = (D.pressure || 0) + 1; st.board.target = Math.max(1, st.board.target - 1); unlock(st, 'tycoon', 'Il magnate', 'Accetta l’investimento di un magnate.'); out = `+${fmtM(pd.amount)} e budget +10%`; }
+      if (i === 0) { addFinance(st, `Investimento di ${pd.who}`, pd.amount); pt.baseBudget = +(pt.baseBudget * 1.1).toFixed(2); D.pressure = 1; D.pressureUntil = st.season + 2; st.board.target = Math.max(1, st.board.target - 1); unlock(st, 'tycoon', 'Il magnate', 'Accetta l’investimento di un magnate.'); out = `+${fmtM(pd.amount)} e budget +10%`; }
       if (i === 1) { addFinance(st, `Sponsorizzazione di ${pd.who}`, +(pd.amount * 0.35).toFixed(2)); out = `+${fmtM(pd.amount * 0.35)}`; }
       if (i === 2) { st.board.confidence = clamp(st.board.confidence + 3, 0, 100); out = 'Indipendenti'; }
       break;
@@ -861,7 +865,7 @@ export function dynNewSeason(st) {
   const yrs = st.season - (D.plan?.from ?? st.season);
   if (M.ease > 0 && st.season - (st.career.firstSeason ?? st.season) < M.easeSeasons) st.board.target = clamp(st.board.target + M.ease, 1, Object.keys(st.teams).length);
   if (M.ease < 0) st.board.target = clamp(st.board.target + M.ease, 1, Object.keys(st.teams).length);
-  if (D.pressure) st.board.target = clamp(st.board.target - Math.min(1, D.pressure), 1, Object.keys(st.teams).length);
+  if (D.pressure && st.season <= (D.pressureUntil ?? st.season)) st.board.target = clamp(st.board.target - 1, 1, Object.keys(st.teams).length);
   academySeason(st);
   ensureSeats(st);
   D.promises = [];

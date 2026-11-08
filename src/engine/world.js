@@ -41,8 +41,10 @@ export function generateRookie(cat, quality = 1) {
 export function generateVeteranFreeAgent(cat) {
   const nat = pick(NATS);
   const pool = NAME_POOLS[nat];
-  const age = randInt(25, 36);
-  const base = clamp(gauss(76, 4), 66, 86);
+  // Formula Apex 2 is a junior series: its free agents are young journeymen, not seasoned pros
+  const jr = cat === 'junior';
+  const age = jr ? randInt(21, 25) : randInt(25, 36);
+  const base = jr ? clamp(gauss(69, 3), 62, 76) : clamp(gauss(76, 4), 66, 86);
   const v = () => Math.round(clamp(base + gauss(0, 3.5), 55, 92));
   return makeDriver([`${pick(pool.f)} ${pick(pool.l)}`, nat, age, v(), v(), v(), v(), v(), randInt(40, 85), Math.round(base + rand(0, 3))]);
 }
@@ -70,7 +72,7 @@ export const FACILITIES = {
 export function salaryFor(d, cat) {
   const o = driverOverall(d, cat);
   const scale = CATEGORIES[cat].budgetScale;
-  return +(Math.max(0.3, ((o - 60) / 38) ** 3.2 * 42) * scale + 0.25).toFixed(2);
+  return +(Math.max(0.3, (Math.max(0, o - 60) / 38) ** 3.2 * 42) * scale + 0.25).toFixed(2);
 }
 
 export function makeSponsorOffers(rep, cat, n = 4, status = null) {
