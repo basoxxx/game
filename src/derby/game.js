@@ -9,10 +9,12 @@ import { applyHDRI, makeComposer, hdriSun, hdriHorizon, applyFilterSettings, FIL
 import { engineStart, engineSet, engineStop, sfx } from '../ui/audio.js';
 import { getSettings, setSettings } from '../engine/state.js';
 import { buildTrack, buildTerrain, buildRacingLine, buildWater, SURFACES } from './tracks.js';
-import { buildBanger, dent, crackGlass, BANGERS, AI_COLORS } from './cars.js';
+import { buildBanger, dent, crackGlass, BANGERS, AI_COLORS, LIVERIES, tuneSpec } from './cars.js';
+import { DIFFICULTY, medalFor, payout, recordCareer, prog, saveProg, checkChallenges } from './career.js';
+import { DerbySound } from './sound.js';
 import { Particles, SkidMarks } from './fx.js';
 import { aiInput, initAI } from './ai.js';
-import { buildGround, buildWaterMeshes, buildScenery, buildTrees } from './scenery.js';
+import { buildGround, buildWaterMeshes, buildScenery, buildTrees, buildScorch } from './scenery.js';
 import { buildHud, updateHud, message, showResults } from './hud.js';
 import { CHAMPIONSHIP, champRecord } from './champ.js';
 
@@ -41,15 +43,21 @@ export class DerbyGame {
     this.onEnd = opts.onEnd || (() => {});
     this.timeScale = 1; this.slowT = 0; this.slowCool = 0; this.shake = 0;
     this.simStats = { stuck: 0, respawn: 0, respawnWhy: {}, wrecks: 0, crashes: 0, props: 0 };
+    this.diff = DIFFICULTY[opts.difficulty] || DIFFICULTY.normale;
   }
 
   async start() {
     if (!this.venue) { const { VENUES } = await import('./tracks.js'); this.venue = VENUES.find((v) => v.id === this.o.venue) || VENUES[0]; }
     await initPhysics();
+    const kind = this.venue.kind;
+    this.mode = kind === 'derby' ? 'derby' : kind === 'stunt' ? 'stunt' : (['race', 'elim', 'time', 'caccia'].includes(this.o.mode) ? this.o.mode : 'race');
+    if (this.mode === 'time' || this.mode === 'stunt') this.o.opponents = 0;
+    if (this.mode === 'elim') this.o.opponents = Math.max(2, this.o.opponents);
+    if (this.mode === 'caccia') this.o.opponents = Math.max(1, Math.min(5, this.o.opponents));
     this.track = buildTrack(this.venue);
     this.water = buildWater(this.venue, this.track);
     this.terrain = buildTerrain(this.venue, this.track, this.water);
-    this.line = this.track.arena ? null : buildRacingLine(this.track, this.venue);
+    this.line = this.track.arena || this.track.stunt ? null : buildRacingLine(this.track, this.venue);
     this.surface = SURFACES[this.venue.surface] || SURFACES.dirt;
     this.setupRenderer();
     this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
@@ -63,8 +71,10 @@ export class DerbyGame {
     this.buildProps();
     buildTrees(this);
     this.buildCars();
+    this.setupMode();
     buildHud(this);
     this.bindInput();
+    this.snd = new DerbySound(this);
     await this.envReady;
     this.state = 'countdown'; this.countdown = 3.6; this._lastCount = 4;
     try { engineStart(this.player.spec.engine || 'endurance'); } catch {}
@@ -74,7 +84,7 @@ export class DerbyGame {
   }
 
   destroy() {
-    this.dead = true; cancelAnimationFrame(this.raf); try { engineStop(); } catch {}
+    this.dead = true; cancelAnimationFrame(this.raf); try { engineStop(); } catch {} try { this.snd?.stop(); } catch {}
     window.removeEventListener('keydown', this._kd); window.removeEventListener('keyup', this._ku); window.removeEventListener('resize', this._rs);
     this.renderer?.dispose(); this.world?.free?.();
     this.c.innerHTML = '';
@@ -90,7 +100,7 @@ export class DerbyGame {
     const s = this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(62, 1, 0.1, 3000);
     const kind = this.venue.sky || 'day', night = kind === 'night';
-    s.fog = new THREE.FogExp2(night ? 0x10141c : 0xc9c2b2, night ? 0.0032 : 0.0024);
+    s.fog = new THREE.FogExp2(night ? 0x10141c : 0xc9c2b2, night ? 0.0032 : this.venue.port ? 0.0013 : this.venue.kind === 'stunt' ? 0.0017 : kind === 'dusk' ? 0.0018 : 0.0022);
     this.hemi = new THREE.HemisphereLight(night ? 0x8090b0 : 0xdde8ff, night ? 0x2a241c : 0x6b5a40, night ? 0.35 : 0.6); s.add(this.hemi);
     const sun = this.sun = new THREE.DirectionalLight(night ? 0xe8efff : 0xfff0d8, night ? 1.6 : kind === 'dusk' ? 2.2 : 2.8);
     sun.castShadow = true; const sm = this.low ? 1024 : 2048; sun.shadow.mapSize.set(sm, sm);
@@ -145,6 +155,14 @@ export class DerbyGame {
     if (tr.arena) {
       for (let k = 0; k < 90; k++) { const a = (k / 90) * Math.PI * 2; place('tyres', T.cx + Math.cos(a) * (tr.R - 1), T.cz + Math.sin(a) * (tr.R - 1)); }
       for (let k = 0; k < 30; k++) { const a = Math.random() * 6.28, r = 8 + Math.random() * tr.R * 0.65; place(['barrel', 'crate', 'hay'][k % 3], T.cx + Math.cos(a) * r, T.cz + Math.sin(a) * r, Math.random() * 3); }
+    } else if (tr.stunt) {
+      // the run-out: a pyramid of barrels and walls of crates waiting for the long jumpers
+      const x0 = tr.lipX;
+      for (let row = 0; row < 5; row++) for (let k = 0; k <= 4 - row; k++) place('barrel', x0 + 168 + row * 0.02, -2.4 + k * 1.2 + row * 0.6, 0, row * 0.92);
+      for (let k = 0; k < 9; k++) for (let h = 0; h < 2; h++) { place('crate', x0 + 185, -8 + k * 1.05 + (h ? 0.5 : 0), 0, h * 1.0); place('crate', x0 + 185, 3 + k * 1.05 + (h ? 0.5 : 0), 0, h * 1.0); }
+      for (let k = 0; k < 24; k++) place('tyres', x0 + 205, -14 + k * 1.2);
+      for (let k = -6; k <= 6; k++) place('cone', x0 - 40, k * 2.2);
+      for (let x = tr.bbox[0] + 20; x < x0 - 25; x += 12) for (const z of [-15.5, 15.5]) place('fence', x, z, 0);
     } else {
       const hw = tr.width / 2;
       // barrels before every jump kicker; cones marking the crossings
@@ -186,8 +204,9 @@ export class DerbyGame {
     let best = null, bd = 30;
     for (const c of this.cars) { const p = c.body.translation(); const d = (p.x - t.x) ** 2 + (p.z - t.z) ** 2; if (d < bd) { bd = d; best = c; } }
     if (!best) return;
+    this.snd?.prop(b.userData.type, t);
     best.score = (best.score || 0) + 10; best.nitro = Math.min(100, best.nitro + 1.5);
-    if (best.isPlayer) { this.propCombo = (this.time - (this.propComboT || -9) < 1.5 ? (this.propCombo || 0) : 0) + 1; this.propComboT = this.time; if (this.propCombo === 4 || this.propCombo === 10 || this.propCombo === 20) this.message(`Distruzione x${this.propCombo}!`, 'bonus', `+${this.propCombo * 10} punti`); }
+    if (best.isPlayer) { this.playerProps = (this.playerProps || 0) + 1; this.propCombo = (this.time - (this.propComboT || -9) < 1.5 ? (this.propCombo || 0) : 0) + 1; this.propComboT = this.time; if (this.propCombo === 4 || this.propCombo === 10 || this.propCombo === 20) this.message(`Distruzione x${this.propCombo}!`, 'bonus', `+${this.propCombo * 10} punti`); }
     if (b.userData.type === 'barrel' || b.userData.type === 'crate') for (let k = 0; k < 6; k++) this.chips.emit(t.x, t.y + 0.3, t.z, (Math.random() - 0.5) * 6, 2 + Math.random() * 4, (Math.random() - 0.5) * 6, 1.2, 0.22, b.userData.type === 'crate' ? 0.55 : 0.7, b.userData.type === 'crate' ? 0.4 : 0.15, 0.2, 1);
     if (b.userData.type === 'hay') for (let k = 0; k < 10; k++) this.dust.emit(t.x, t.y + 0.5, t.z, (Math.random() - 0.5) * 4, 1 + Math.random() * 2, (Math.random() - 0.5) * 4, 1.6, 0.8, 0.82, 0.68, 0.36, 0.5);
   }
@@ -196,22 +215,29 @@ export class DerbyGame {
   buildCars() {
     const tr = this.track, T = this.terrain;
     const nAI = this.o.opponents;
-    const player = BANGERS.find((b) => b.id === this.o.car) || BANGERS[0];
+    const player = tuneSpec(BANGERS.find((b) => b.id === this.o.car) || BANGERS[0], this.o.tune);
+    const look = this.o.look || {};
     this.cars = [];
     const grid = [];
     for (let k = 0; k <= nAI; k++) {
       if (tr.arena) { const a = (k / (nAI + 1)) * Math.PI * 2; grid.push({ x: T.cx + Math.cos(a) * tr.R * 0.75, z: T.cz + Math.sin(a) * tr.R * 0.75, yaw: a + Math.PI }); }
+      else if (tr.stunt) { const p = tr.pts[6]; grid.push({ x: p.x, z: 0, yaw: 0, idx: 6 }); }
       else { const i = (tr.N - 8 - Math.floor(k / 2) * 4) % tr.N; const p = tr.pts[i], nx = -Math.sin(p.h), nz = Math.cos(p.h), lat = (k % 2 ? -1 : 1) * tr.width * 0.22; grid.push({ x: p.x + nx * lat, z: p.z + nz * lat, yaw: p.h, idx: i }); }
     }
-    // player starts at the back of the grid in races (comeback drive), anywhere in the derby
-    const order = tr.arena ? [0, ...Array.from({ length: nAI }, (_, i) => i + 1)] : [nAI, ...Array.from({ length: nAI }, (_, i) => i)];
+    // player starts at the back of the grid in races (comeback drive), anywhere in the derby; the Lepre takes pole
+    const order = tr.arena || tr.stunt ? [0, ...Array.from({ length: nAI }, (_, i) => i + 1)] : [nAI, ...Array.from({ length: nAI }, (_, i) => i)];
     for (let k = 0; k <= nAI; k++) {
       const isP = k === 0;
-      const spec = isP ? player : BANGERS[(k * 3 + 1) % BANGERS.length];
-      const color = isP ? (this.o.color || spec.color) : AI_COLORS[(k - 1) % AI_COLORS.length];
+      const lepre = this.mode === 'caccia' && k === 1;
+      let spec = isP ? player : BANGERS[(k * 3 + 1) % BANGERS.length];
+      if (lepre) spec = { ...BANGERS.find((b) => b.id === 'muscle'), armor: 1.3, power: 1.2 };
+      const color = isP ? (this.o.color || look.color || spec.color) : lepre ? '#ffcf3a' : AI_COLORS[(k - 1) % AI_COLORS.length];
+      const aiLook = { livery: lepre ? 'saetta' : k % 3 === 0 ? 'classica' : LIVERIES[(k * 5) % LIVERIES.length].id, accent: lepre ? '#111' : ['#f2efe6', '#111', '#ffd400'][k % 3], clean: lepre };
       const g = grid[order[k]];
-      const car = this.makeCar({ spec, color, num: isP ? 1 : k + 1, name: isP ? (this.o.playerName || 'Tu') : AI_NAMES[(k - 1) % AI_NAMES.length], isPlayer: isP, pos: g, skill: 0.8 + ((k * 0.37) % 1) * 0.2 });
-      if (!isP) initAI(car, k);
+      const num = isP ? (look.num || 1) : k + 1 + (look.num && k + 1 >= look.num ? 1 : 0);
+      const car = this.makeCar({ spec, color, num, name: isP ? (this.o.playerName || 'Tu') : lepre ? 'La Lepre' : AI_NAMES[(k - 1) % AI_NAMES.length], isPlayer: isP, pos: g, skill: lepre ? 1 : 0.8 + ((k * 0.37) % 1) * 0.2, look: isP ? look : aiLook });
+      if (!isP) { initAI(car, lepre ? 1 : k); car.paceMul = this.diff.aiPace * (this.o.aiBoost || 1) * (lepre ? 0.86 : 1); car.ai.P = { ...car.ai.P, ram: car.ai.P.ram * this.diff.aiAggr * (lepre ? 0 : 1), aggr: car.ai.P.aggr * this.diff.aiAggr }; }
+      if (lepre) { car.lepre = true; this.lepre = car; }
       this.cars.push(car);
     }
     this.player = this.cars[0];
@@ -220,11 +246,17 @@ export class DerbyGame {
       const arrow = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color: 0xffd400, transparent: true, opacity: 0.9, depthTest: false, side: THREE.DoubleSide }));
       arrow.renderOrder = 10; this.marker = arrow; this.scene.add(arrow);
     }
+    if (this.lepre) {
+      // floating golden diamond over the Lepre, visible from afar
+      const g = new THREE.OctahedronGeometry(0.55, 0); g.scale(1, 1.5, 1);
+      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffcf3a, transparent: true, opacity: 0.92, depthTest: false }));
+      m.renderOrder = 10; this.lepreMark = m; this.scene.add(m);
+    }
     this.rec = []; this.replay = null; this.bestCrash = null;
   }
 
-  makeCar({ spec, color, num, name, isPlayer, pos, skill }) {
-    const mesh = buildBanger(spec.id, color, num, num * 31 + 7); this.scene.add(mesh);
+  makeCar({ spec, color, num, name, isPlayer, pos, skill, look = {} }) {
+    const mesh = buildBanger(spec.id, color, num, num * 31 + 7, look); this.scene.add(mesh);
     const { L, W } = mesh.userData.dims; const T = this.terrain;
     const y = T.heightAt(pos.x, pos.z) + 0.45;
     const rot = new THREE.Quaternion().setFromAxisAngle(UP, -pos.yaw);
@@ -236,11 +268,11 @@ export class DerbyGame {
     const cab = this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.9, 0.25, W - 0.18).setTranslation(-0.2, 1.15, 0).setMass(20).setFriction(0.3).setCollisionGroups(GROUPS_CAR)
       .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(12000), body);
     const vc = this.world.createVehicleController(body);
-    const wr = mesh.userData.wr;
-    mesh.userData.wheelPos.forEach(([x, z]) => vc.addWheel({ x, y: wr + 0.12, z }, { x: 0, y: -1, z: 0 }, { x: 0, y: 0, z: 1 }, 0.3, wr));
+    const wrs = mesh.userData.wrs;
+    mesh.userData.wheelPos.forEach(([x, z], i) => vc.addWheel({ x, y: wrs[i] + 0.12, z }, { x: 0, y: -1, z: 0 }, { x: 0, y: 0, z: 1 }, 0.3, wrs[i]));
     const slip = (this.venue.surface === 'asphalt' ? 1.35 : this.venue.surface === 'mud' ? 0.88 : 1.05) * spec.grip;
     for (let i = 0; i < 4; i++) { vc.setWheelSuspensionStiffness(i, 30); vc.setWheelSuspensionCompression(i, 3.2); vc.setWheelSuspensionRelaxation(i, 3.8); vc.setWheelFrictionSlip(i, slip); vc.setWheelMaxSuspensionTravel(i, 0.32); vc.setWheelMaxSuspensionForce?.(i, 90000); vc.setWheelSideFrictionStiffness?.(i, 1.0); }
-    const car = { mesh, body, col, cabCol: cab, vc, spec, name, isPlayer, color, num, skill, slip, hp: 100, nitro: isPlayer ? 35 : 30, steer: 0, idx: pos.idx ?? 0, lap: 0, half: false, finished: false, time: 0, wrecks: 0, out: false, flipT: 0, airT: 0, wreckT: 0, lastHit: null, smokeT: 0,
+    const car = { mesh, body, col, cabCol: cab, vc, spec, name, isPlayer, color, num, skill, slip, hp: 100, nitro: Math.min(100, (isPlayer ? 35 : 30) + (spec.nitroStart || 0)), steer: 0, idx: pos.idx ?? 0, lap: 0, half: false, finished: false, time: 0, wrecks: 0, out: false, flipT: 0, airT: 0, wreckT: 0, lastHit: null, smokeT: 0,
       gear: 1, rpm: 0.1, shiftT: 0, gearLabel: 'N', score: 0, kills: 0, lapStart: 0, lastLap: 0, bestLap: 0, wheelLost: [false, false, false, false], ghostT: 0, accF: 0, accL: 0, lastV: null, burnT: 0, wrongWayT: 0, stuckHintT: 0, rubber: 1, dirtRate: 0 };
     this.handles.set(col.handle, { kind: 'car', car }); this.handles.set(cab.handle, { kind: 'car', car });
     return car;
@@ -262,7 +294,8 @@ export class DerbyGame {
   respawn(car) {
     const tr = this.track, T = this.terrain;
     let x, z, yaw;
-    if (tr.arena) { const a = Math.random() * 6.28, r = Math.random() * tr.R * 0.5; x = T.cx + Math.cos(a) * r; z = T.cz + Math.sin(a) * r; yaw = Math.random() * 6.28; }
+    if (tr.arena) { const a = Math.random() * 6.28, r = (tr.island ? 0.45 + Math.random() * 0.3 : Math.random() * 0.5) * tr.R; x = T.cx + Math.cos(a) * r; z = T.cz + Math.sin(a) * r; yaw = Math.random() * 6.28; }
+    else if (tr.stunt) { const p = tr.pts[6]; x = p.x; z = 0; yaw = 0; car.idx = 6; }
     else {
       // a little behind where we were, on a free spot across the track
       const i = (car.idx - 2 + tr.N) % tr.N, p = tr.pts[i], hw = tr.width / 2 - 2; yaw = p.h;
@@ -276,7 +309,7 @@ export class DerbyGame {
     }
     car.body.setTranslation({ x, y: T.heightAt(x, z) + 0.7, z }, true);
     const q = new THREE.Quaternion().setFromAxisAngle(UP, -yaw); car.body.setRotation(q, true);
-    car.body.setLinvel({ x: Math.cos(yaw) * 5, y: 0, z: Math.sin(yaw) * 5 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    const v0 = tr.stunt ? 0 : 5; car.body.setLinvel({ x: Math.cos(yaw) * v0, y: 0, z: Math.sin(yaw) * v0 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     car.flipT = 0; car.stuckHintT = 0; car.wrongWayT = 0; if (car.ai) { car.ai.revT = 0; car.ai.stuckT = 0; }
     this.setGhost(car, 2.0);
     for (let i = 0; i < 4; i++) this.skids.break(car.num * 10 + i);
@@ -289,6 +322,14 @@ export class DerbyGame {
       this.keys[e.code] = true;
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Backspace'].includes(e.code)) e.preventDefault();
       if (this.state === 'replay') { if (e.code === 'Escape' || e.code === 'Enter') this.stopReplay(); return; }
+      if (this.state === 'photo') {
+        if (e.code === 'Escape' || e.code === 'KeyO') this.photoMode(false);
+        else if (e.code === 'Enter') this.photoShot();
+        else if (e.code === 'KeyH') this.hud.root.classList.toggle('photo-clean');
+        else if (e.code === 'KeyF') { const ks = Object.keys(FILTER_PRESETS); const cur = getSettings().gfxFilter || 'naturale'; const nx = ks[(ks.indexOf(cur) + 1) % ks.length]; setSettings({ gfxFilter: nx }); applyFilterSettings(); this.hud.photoF.textContent = FILTER_PRESETS[nx].label; }
+        return;
+      }
+      if (e.code === 'KeyO' && (this.state === 'race' || this.state === 'paused' || this.state === 'finished')) { this.photoMode(true); return; }
       if (e.code === 'KeyC') this.cycleCam();
       if (e.code === 'KeyF') { const ks = Object.keys(FILTER_PRESETS); const cur = getSettings().gfxFilter || 'naturale'; const nx = ks[(ks.indexOf(cur) + 1) % ks.length]; setSettings({ gfxFilter: nx }); applyFilterSettings(); this.message(`Filtro: ${FILTER_PRESETS[nx].label}`, 'info'); }
       if (e.code === 'KeyR' && this.state === 'race' && this.player.hp > 0 && !this.player.finished) this.requestRespawn(this.player, 'player');
@@ -298,6 +339,55 @@ export class DerbyGame {
     this._ku = (e) => { this.keys[e.code] = false; };
     window.addEventListener('keydown', this._kd); window.addEventListener('keyup', this._ku);
     this.camMode = 0;
+  }
+  // ---------------------------------------------------------------- photo mode: frozen world, free orbit camera
+  photoMode(on) {
+    if (on) {
+      if (this.state === 'photo') return;
+      this._prePhoto = this.state === 'paused' ? this._pausedFrom || 'race' : this.state; this.state = 'photo';
+      this.hud.pause.classList.remove('on'); this.hud.root.classList.add('photo'); this.snd?.pause(true);
+      const p = this.player.mesh.position, c = this.camera.position;
+      this.photo = { tx: p.x, ty: p.y + 0.8, tz: p.z, yaw: Math.atan2(c.z - p.z, c.x - p.x), pitch: 0.25, dist: Math.max(5, Math.hypot(c.x - p.x, c.z - p.z)), fov: 50, roll: 0 };
+      const el = this.renderer.domElement; let drag = null;
+      this._pd = (e) => { drag = [e.clientX, e.clientY, e.button]; el.setPointerCapture?.(e.pointerId); };
+      this._pm = (e) => { if (!drag) return; const dx = e.clientX - drag[0], dy = e.clientY - drag[1]; drag[0] = e.clientX; drag[1] = e.clientY; const P = this.photo;
+        if (drag[2] === 2 || e.shiftKey) { const s = P.dist * 0.002, sx = -Math.sin(P.yaw), sz = Math.cos(P.yaw); P.tx += (sx * -dx) * s; P.tz += (sz * -dx) * s; P.ty += dy * s; }
+        else { P.yaw += dx * 0.006; P.pitch = Math.max(-0.15, Math.min(1.4, P.pitch + dy * 0.005)); } };
+      this._pu = () => { drag = null; };
+      this._pw = (e) => { e.preventDefault(); this.photo.dist = Math.max(2.2, Math.min(60, this.photo.dist * (1 + Math.sign(e.deltaY) * 0.1))); };
+      this._pc = (e) => e.preventDefault();
+      el.addEventListener('pointerdown', this._pd); el.addEventListener('pointermove', this._pm); el.addEventListener('pointerup', this._pu); el.addEventListener('wheel', this._pw, { passive: false }); el.addEventListener('contextmenu', this._pc);
+      this.hud.photoF.textContent = FILTER_PRESETS[getSettings().gfxFilter || 'naturale']?.label || '';
+    } else {
+      if (this.state !== 'photo') return;
+      const el = this.renderer.domElement; el.removeEventListener('pointerdown', this._pd); el.removeEventListener('pointermove', this._pm); el.removeEventListener('pointerup', this._pu); el.removeEventListener('wheel', this._pw); el.removeEventListener('contextmenu', this._pc);
+      this.state = this._prePhoto || 'race'; this.hud.root.classList.remove('photo', 'photo-clean'); this.camPos = null; this.camera.fov = 64; this.snd?.pause(false);
+      if (this.state === 'race' || this.state === 'countdown') this.last = performance.now();
+    }
+  }
+  photoFrame(dt) {
+    const P = this.photo, k = this.keys, sp = dt * Math.max(4, P.dist);
+    if (k.KeyA || k.ArrowLeft) P.yaw -= dt * 1.2; if (k.KeyD || k.ArrowRight) P.yaw += dt * 1.2;
+    if (k.KeyW || k.ArrowUp) P.dist = Math.max(2.2, P.dist - sp * 0.6); if (k.KeyS || k.ArrowDown) P.dist = Math.min(60, P.dist + sp * 0.6);
+    if (k.KeyQ) P.ty -= dt * 2; if (k.KeyE) P.ty += dt * 2;
+    if (k.KeyZ) P.fov = Math.max(18, P.fov - dt * 20); if (k.KeyX) P.fov = Math.min(90, P.fov + dt * 20);
+    if (k.KeyR) P.roll += dt * 0.5; if (k.KeyT) P.roll -= dt * 0.5;
+    const cp = new THREE.Vector3(P.tx + Math.cos(P.yaw) * Math.cos(P.pitch) * P.dist, P.ty + Math.sin(P.pitch) * P.dist, P.tz + Math.sin(P.yaw) * Math.cos(P.pitch) * P.dist);
+    cp.y = Math.max(cp.y, this.terrain.heightAt(cp.x, cp.z) + 0.4);
+    this.camera.position.copy(cp); this.camera.up.set(Math.sin(P.roll), Math.cos(P.roll), 0).applyAxisAngle(UP, -P.yaw); this.camera.lookAt(P.tx, P.ty, P.tz); this.camera.up.set(0, 1, 0);
+    this.camera.fov = P.fov; this.camera.updateProjectionMatrix();
+    if (this.marker) this.marker.visible = false;
+    this.sun.position.set(P.tx, P.ty, P.tz).addScaledVector(this.sunDir, 150); this.sun.target.position.set(P.tx, P.ty, P.tz);
+    if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
+  }
+  photoShot() {
+    try {
+      if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
+      const url = this.renderer.domElement.toDataURL('image/png');
+      const a = document.createElement('a'); a.href = url; a.download = `scontro-totale-${this.venue.id}-${Date.now()}.png`; document.body.appendChild(a); a.click(); a.remove();
+      this.hud.photoMsg.textContent = 'Foto salvata!'; clearTimeout(this._phT); this._phT = setTimeout(() => { if (this.hud) this.hud.photoMsg.textContent = ''; }, 1600);
+      try { sfx.click(); } catch {}
+    } catch (e) { console.warn(e); }
   }
   cycleCam() { this.camMode = (this.camMode + 1) % 4; this.camPos = null; this.message(['Camera: inseguimento', 'Camera: lontana', 'Camera: cofano', 'Camera: paraurti'][this.camMode], 'info'); }
   restart() { const b = this.hud?.root.querySelector('[data-a="dz-restart"]'); if (b) b.click(); }
@@ -323,7 +413,7 @@ export class DerbyGame {
     const gp = this.pad; if (!gp?.vibrationActuator) return;
     try { gp.vibrationActuator.playEffect?.('dual-rumble', { startDelay: 0, duration: Math.round(ms), strongMagnitude: Math.min(1, strong), weakMagnitude: Math.min(1, weak) })?.catch?.(() => {}); } catch {}
   }
-  togglePause() { if (this.state === 'countdown') { this._pausedFrom = 'countdown'; } this.state = this.state === 'paused' ? (this._pausedFrom || 'race') : (this._pausedFrom = this.state, 'paused'); this.hud.pause.classList.toggle('on', this.state === 'paused'); }
+  togglePause() { if (this.state === 'countdown') { this._pausedFrom = 'countdown'; } this.state = this.state === 'paused' ? (this._pausedFrom || 'race') : (this._pausedFrom = this.state, 'paused'); this.hud.pause.classList.toggle('on', this.state === 'paused'); this.snd?.pause(this.state === 'paused'); }
   message(text, kind, sub) { message(this, text, kind, sub); }
 
   // ---------------------------------------------------------------- driving
@@ -382,7 +472,7 @@ export class DerbyGame {
         if (inp.brk > 0) { brake = inp.brk * 7; car.brakeF = inp.brk; }
       }
       car.boost = inp.nitro && car.nitro > 0 && inp.thr > 0.2;
-      if (car.boost) { force += 6200 * s.power; car.nitro = Math.max(0, car.nitro - dt * 22); }
+      if (car.boost) { force += 6200 * s.power * (s.nitroBoost || 1); car.nitro = Math.max(0, car.nitro - dt * 22 * (s.nitroDrain || 1)); }
       if (grounded < 2 && inp.thr > 0) rpmT = 0.95; // free revving in the air
     } else { brake = 8; rpmT = 0.05; }
     car.rpm += (rpmT - car.rpm) * Math.min(1, dt * (car.shiftT > 0 ? 18 : 7));
@@ -450,6 +540,7 @@ export class DerbyGame {
     if (vel.y < -5) b.setLinvel({ x: vel.x, y: vel.y * 0.55, z: vel.z }, true);
     const p = b.translation();
     for (let k = 0; k < Math.min(26, airT * 18); k++) { const a = Math.random() * 6.28; this.dust.emit(p.x + Math.cos(a) * 1.5, p.y - 0.3, p.z + Math.sin(a) * 1.5, Math.cos(a) * 3, 0.8 + Math.random(), Math.sin(a) * 3, 1.6 + Math.random(), 1.4, ...(this.surface.dust || [0.5, 0.5, 0.5]), 0.35); }
+    this.snd?.land(car, airT);
     if (airT > 0.7) { const bonus = Math.min(20, airT * 9); this.award(car, bonus, airT > 1.4 ? 'VOLO SPETTACOLARE!' : 'IN VOLO!', Math.round(airT * 60)); }
     if (car.isPlayer) { this.shake = Math.min(1, this.shake + airT * 0.35); this.rumble(airT * 0.5, airT * 0.6, 160); }
   }
@@ -467,7 +558,9 @@ export class DerbyGame {
         if (me.kind !== 'car') continue; const car = me.car; if (car.out && car.hp <= 0 && this.track.arena) continue;
         if (other.kind === 'car' && other.car === car) continue;
         const scale = other.kind === 'ground' ? 0.22 : other.kind === 'prop' ? 0.3 : other.kind === 'wall' ? 0.7 : 1;
-        const eff = J * scale; if (eff < 1500) continue;
+        const eff = J * scale;
+        if (car.isPlayer && other.kind !== 'ground' && eff > 300) this.snd?.scrape(Math.min(0.5, eff / 6000));
+        if (eff < 1500) continue;
         // one damage hit per pair every 0.15 s (locked-together cars would otherwise grind each other to death)
         if (other.kind === 'car') { const kk = car.num * 100 + other.car.num; this.pairDmg ||= new Map(); const pd = this.pairDmg.get(kk); if (pd && this.time - pd.t < 0.15 && eff < pd.eff * 1.6) continue; this.pairDmg.set(kk, { t: this.time, eff }); }
         const dmg = Math.min(42, (eff - 1500) / (400 * car.spec.armor)) * (this.track.arena ? 0.62 : 1);
@@ -527,7 +620,11 @@ export class DerbyGame {
     // the nose is the battering ram, flanks are soft, the boot is the derby driver's best shield
     const Lz = car.mesh.userData.dims.L;
     dmg *= local.x > Lz * 0.45 ? 0.9 : local.x < -Lz * 0.45 ? 0.75 : 1.2;
-    const before = car.hp; car.hp = Math.max(0, car.hp - dmg);
+    if (car.isPlayer) dmg *= this.diff.dmgTaken;
+    if (car.lepre && by?.isPlayer) dmg *= 1.5;
+    if (car.lepre && by?.isPlayer) { this.huntDmg = (this.huntDmg || 0) + dmg; if (dmg > 4) this.message(`Lepre colpita! ${Math.min(100, Math.round(this.huntDmg))}%`, 'bonus'); }
+    const before = car.hp; car.hp = Math.max(0, car.hp - dmg); if (car.isPlayer) car.minHp = Math.min(car.minHp ?? 100, car.hp);
+    this.snd?.impact(car, dmg, by);
     dent(car.mesh, local, dir, Math.min(0.32, dmg * 0.012));
     const ud = car.mesh.userData, L = ud.dims.L;
     const zone = local.x > L * 0.45 ? 'front' : local.x < -L * 0.45 ? 'rear' : local.z > 0 ? 'left' : 'right';
@@ -536,6 +633,7 @@ export class DerbyGame {
     // windscreens crack, then shatter into glass chips
     if ((zone === 'front' || zone === 'rear') && dmg > 6) {
       if (crackGlass(car.mesh, zone, dmg / 12)) {
+        this.snd?.glass(car.mesh.position);
         const q = car.mesh.quaternion, gp = new THREE.Vector3(zone === 'front' ? 0.9 : -1.2, ud.dims.beltY + 0.25, 0).applyQuaternion(q).add(car.mesh.position);
         for (let k = 0; k < 40; k++) this.chips.emit(gp.x, gp.y, gp.z, (Math.random() - 0.5) * 6, 1 + Math.random() * 4, (Math.random() - 0.5) * 6, 0.9 + Math.random() * 0.6, 0.12 + Math.random() * 0.1, 0.75, 0.86, 0.95, 0.9);
       }
@@ -573,12 +671,13 @@ export class DerbyGame {
     const ud = car.mesh.userData, w = ud.wheels[i];
     const clone = w.clone(true); w.parent.add(clone); clone.position.copy(w.position); clone.rotation.copy(w.rotation);
     w.visible = false; car.wheelLost[i] = true;
-    car.vc.setWheelRadius?.(i, ud.wr * 0.45);
+    car.vc.setWheelRadius?.(i, ud.wrs[i] * 0.45);
     this.toDebris(car, clone, 18);
+    this.snd?.wheelOff(car);
     if (car.isPlayer) this.message('HAI PERSO UNA RUOTA!', 'wreck');
     else if (car.lastHit?.by?.isPlayer) this.award(car.lastHit.by, 12, 'RUOTA VOLANTE!', 150);
   }
-  repairWheels(car) { const ud = car.mesh.userData; for (let i = 0; i < 4; i++) if (car.wheelLost[i]) { car.wheelLost[i] = false; ud.wheels[i].visible = true; car.vc.setWheelRadius?.(i, ud.wr); } }
+  repairWheels(car) { const ud = car.mesh.userData; for (let i = 0; i < 4; i++) if (car.wheelLost[i]) { car.wheelLost[i] = false; ud.wheels[i].visible = true; car.vc.setWheelRadius?.(i, ud.wrs[i]); } }
   wreck(car) {
     car.wrecks++; this.simStats.wrecks++; car.burnT = 12;
     const killer = car.lastHit && this.time - car.lastHit.t < 4 ? car.lastHit.by : null;
@@ -590,8 +689,11 @@ export class DerbyGame {
     const p = car.body.translation();
     for (let k = 0; k < 40; k++) this.fire.emit(p.x, p.y + 0.8, p.z, (Math.random() - 0.5) * 6, 2 + Math.random() * 5, (Math.random() - 0.5) * 6, 0.4 + Math.random() * 0.5, 1.1, 1, 0.35 + Math.random() * 0.3, 0.06, 0.9);
     for (let k = 0; k < 20; k++) this.smoke.emit(p.x, p.y + 1, p.z, (Math.random() - 0.5) * 3, 2 + Math.random() * 2, (Math.random() - 0.5) * 3, 3, 1.6, 0.08, 0.08, 0.08, 0.75);
+    try { buildScorch(this, p.x, p.z); } catch {}
+    this.snd?.explode(car);
+    if (car.lepre && this.state === 'race') { this.huntWreck = (this.huntDmg || 0) >= 30; car.out = true; car.outT = this.time; this.message('LEPRE DEMOLITA!', 'big'); this.finishOrder = this.standings(); this.finish(); return; }
     if (this.track.arena) { car.out = true; car.outT = this.time; }
-    else car.wreckT = 4.5; // respawn after a pause, with patched-up car
+    else if (this.mode !== 'stunt') car.wreckT = 4.5; // respawn after a pause, with patched-up car
   }
 
   // ---------------------------------------------------------------- crash replay
@@ -629,7 +731,7 @@ export class DerbyGame {
 
   // ---------------------------------------------------------------- race logic
   updateProgress(car) {
-    const tr = this.track; if (tr.arena) return;
+    const tr = this.track; if (tr.arena || tr.stunt) return;
     const p = car.body.translation(); let best = car.idx, bd = 1e9;
     for (let k = -30; k <= 60; k++) { const i = (car.idx + k + tr.N) % tr.N; const q = tr.pts[i]; const d = (q.x - p.x) ** 2 + (q.z - p.z) ** 2; if (d < bd) { bd = d; best = i; } }
     if (best < tr.N * 0.2 && car.idx > tr.N * 0.8) {
@@ -637,8 +739,9 @@ export class DerbyGame {
         car.lap++; car.half = false;
         if (car.lapStart != null && this.state === 'race') { const lt = this.time - car.lapStart; car.lastLap = lt; if (!car.bestLap || lt < car.bestLap) { car.bestLap = lt; if (car.isPlayer && car.lap > 1) this.message('Giro più veloce!', 'info'); } }
         car.lapStart = this.time;
-        if (car.isPlayer && car.lap < this.laps) this.message(car.lap === this.laps - 1 ? 'ULTIMO GIRO!' : `Giro ${car.lap + 1}`, 'info');
-        if (car.lap >= this.laps && !car.finished) { car.finished = true; car.time = this.time; this.finishOrder.push(car); if (car.isPlayer) this.finish(); }
+        if (car.isPlayer && car.lap < this.laps && this.mode !== 'elim') this.message(car.lap === this.laps - 1 ? 'ULTIMO GIRO!' : `Giro ${car.lap + 1}`, 'info');
+        if (this.mode === 'elim' && this.state === 'race' && car.lap > (this.elimLap || 0)) { this.elimLap = car.lap; this.eliminateLast(); }
+        else if (car.lap >= this.laps && !car.finished) { car.finished = true; car.time = this.time; this.finishOrder.push(car); if (car.isPlayer) this.finish(); }
       }
     }
     if (best > tr.N * 0.45 && best < tr.N * 0.6) car.half = true;
@@ -646,29 +749,158 @@ export class DerbyGame {
     car.prog = car.lap * tr.N + best + (car.finished ? 1e6 - car.time : 0);
   }
   standings() {
+    if (this.mode === 'elim') return this.cars.slice().sort((a, b) => (a.out - b.out) || (a.out ? (b.outT || 0) - (a.outT || 0) : (b.prog || 0) - (a.prog || 0)));
     if (this.track.arena) return this.cars.slice().sort((a, b) => (a.out - b.out) || (b.outT || 0) - (a.outT || 0) || b.hp - a.hp);
     return this.cars.slice().sort((a, b) => (b.prog || 0) - (a.prog || 0));
   }
+  // ---------------------------------------------------------------- event types
+  setupMode() {
+    this.laps = this.o.laps || this.venue.laps;
+    if (this.mode === 'elim') this.laps = this.cars.length + 1; // the race ends by elimination
+    if (this.mode === 'time') {
+      this.laps = this.o.laps || 2;
+      // reference lap from the racing-line speed profile at a strong AI pace, scaled by the player's car
+      let ref = 0; for (let i = 0; i < this.track.N; i++) ref += this.track.ds / Math.max(4, this.line.spd[i] * 0.958 * this.player.spec.top ** 0.5);
+      const total = ref * this.laps + 2.5; // standing start
+      this.targets = [total * 1.12, total * 1.04, total * 0.985].map((t) => Math.round(t * 10) / 10);
+    }
+    if (this.mode === 'time') this.loadGhost();
+    if (this.mode === 'stunt') { this.targets = this.o.targets || [60, 80, 95]; this.stunt = { att: 1, max: 3, phase: 'hold', t: 0, best: 0, dists: [], hold: 1.6 }; }
+    if (this.mode === 'caccia') { this.huntDmg = 0; this.laps = this.o.laps || Math.max(4, this.venue.laps); }
+  }
+  // ---- time-trial ghost: best run per venue and lap count, kept in its own localStorage key
+  ghostKey() { return `${this.venue.id}:${this.laps}`; }
+  loadGhost() {
+    this.ghostRec = []; this.ghostRecT = 0;
+    let all = {}; try { all = JSON.parse(localStorage.getItem('apexdynasty_derby_ghost') || '{}') || {}; } catch {}
+    const G = all[this.ghostKey()]; if (!G?.frames) return;
+    try {
+      const bin = atob(G.frames), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      const f = new Float32Array(u8.buffer); if (f.length < 16) return;
+      const mesh = buildBanger(G.car || 'berlina', G.color || '#8fd3ff', 0, 5, { livery: 'classica', clean: true, stickers: false });
+      mesh.traverse((o) => { if (o.isMesh) { o.material = (Array.isArray(o.material) ? o.material[0] : o.material).clone(); o.material.transparent = true; o.material.opacity = 0.32; o.material.depthWrite = false; o.material.emissive?.set?.(0x3a6aa0); o.castShadow = false; o.receiveShadow = false; } });
+      this.scene.add(mesh); this.ghost = { mesh, f, time: G.time, n: f.length / 8 };
+    } catch (e) { console.warn('ghost', e); }
+  }
+  recordGhost(dt) {
+    if (this.state !== 'race') return; this.ghostRecT -= dt; if (this.ghostRecT > 0) return; this.ghostRecT = 0.1;
+    const t = this.player.body.translation(), r = this.player.body.rotation(); this.ghostRec.push(this.time, t.x, t.y, t.z, r.x, r.y, r.z, r.w);
+  }
+  updateGhost() {
+    const G = this.ghost; if (!G) return; const t = this.state === 'countdown' ? 0 : this.time, f = G.f;
+    let lo = 0, hi = G.n - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (f[m * 8] <= t) lo = m; else hi = m; }
+    const a = lo * 8, b = hi * 8, u = Math.max(0, Math.min(1, (t - f[a]) / ((f[b] - f[a]) || 1)));
+    G.mesh.position.set(f[a + 1] + (f[b + 1] - f[a + 1]) * u, f[a + 2] + (f[b + 2] - f[a + 2]) * u, f[a + 3] + (f[b + 3] - f[a + 3]) * u);
+    tmpQ.set(f[a + 4], f[a + 5], f[a + 6], f[a + 7]).slerp(new THREE.Quaternion(f[b + 4], f[b + 5], f[b + 6], f[b + 7]), u); G.mesh.quaternion.copy(tmpQ);
+    G.mesh.visible = t < f[(G.n - 1) * 8] + 2 && G.mesh.position.distanceToSquared(this.player.mesh.position) > 9;
+  }
+  saveGhost(time) {
+    if (!this.ghostRec?.length || !time) return false;
+    let all = {}; try { all = JSON.parse(localStorage.getItem('apexdynasty_derby_ghost') || '{}') || {}; } catch {}
+    const k = this.ghostKey(); if (all[k]?.time && all[k].time <= time) return false;
+    const u8 = new Uint8Array(new Float32Array(this.ghostRec).buffer); let bin = ''; for (let i = 0; i < u8.length; i += 8192) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 8192));
+    all[k] = { time, car: this.player.spec.id, color: this.player.color, frames: btoa(bin) };
+    try { localStorage.setItem('apexdynasty_derby_ghost', JSON.stringify(all)); } catch { return false; }
+    return true;
+  }
+  eliminateLast() {
+    const act = this.cars.filter((c) => !c.out); if (act.length <= 1) return;
+    const last = act.reduce((a, b) => ((a.prog || 0) <= (b.prog || 0) ? a : b));
+    last.out = true; last.outT = this.time; last.elimLap = this.elimLap;
+    this.setGhost(last, 9999); if (!last.isPlayer) last.removeT = 1.4;
+    const left = act.length - 1;
+    this.message(last.isPlayer ? 'SEI STATO ELIMINATO!' : `${last.name} eliminato!`, last.isPlayer ? 'wreck' : 'info', last.isPlayer ? '' : `${left} in gara`);
+    this.snd?.horn();
+    if (last.isPlayer || left <= 1) { this.finishOrder = this.standings(); this.finish(); }
+  }
+  stuntTick(dt) {
+    const S = this.stunt, c = this.player, p = c.body.translation(), tr = this.track;
+    S.t += dt;
+    if (S.phase === 'hold') { if (S.t > S.hold) { S.phase = 'run'; S.t = 0; this.message(`Tentativo ${S.att}/${S.max}`, 'go', 'Gas a tavoletta!'); } return; }
+    const ground = c.dyn?.grounded || 0;
+    if (S.phase === 'run') {
+      if (p.x > tr.lipX + 0.5 && ground === 0) { S.phase = 'air'; S.t = 0; S.maxY = p.y; S.launchV = c.dyn.speed; S.rot = 0; }
+      else if (S.t > 45 || (S.t > 4 && c.dyn.speed < 1 && p.x < tr.lipX)) this.stuntEnd(0, 'Tentativo nullo');
+      return;
+    }
+    if (S.phase === 'air') {
+      S.maxY = Math.max(S.maxY, p.y); S.rot += Math.abs(c.body.angvel().x) * dt + Math.abs(c.body.angvel().z) * dt;
+      S.live = Math.max(0, p.x - tr.lipX);
+      if (ground >= 2 || (S.t > 0.3 && c.lastImpactT > this.time - 0.05)) {
+        const d = Math.round(Math.max(0, p.x - tr.lipX) * 10) / 10; S.air = S.t; S.phase = 'landed'; S.t = 0; S.cur = d;
+        const flips = Math.floor(S.rot / (Math.PI * 1.6));
+        const best = d > S.best; if (best) S.best = d;
+        this.message(`${d.toFixed(1).replace('.', ',')} m`, d >= this.targets[2] ? 'big' : 'bonus', `${best ? 'Nuovo record! ' : ''}${flips ? `${flips} capriol${flips > 1 ? 'e' : 'a'} · ` : ''}altezza ${Math.round(S.maxY - (tr.pts[tr.lipIdx]?.y || 0))} m`);
+        this.player.score += Math.round(d * 4 + flips * 250); if (flips) this.award(c, 0, null, 0);
+        this.crashCandidate(d, [c], `Salto di ${d.toFixed(1)} m`);
+        this.shake = Math.min(1.2, this.shake + 0.6); this.snd?.crowd(1);
+      }
+      return;
+    }
+    if (S.phase === 'landed' && (S.t > 4.5 || (S.t > 1.5 && c.dyn.speed < 2))) this.stuntEnd(S.cur);
+  }
+  stuntEnd(d, why) {
+    const S = this.stunt; S.dists.push(d); if (why) this.message(why, 'wreck');
+    if (S.att >= S.max) { this.finishOrder = [this.player]; this.finish(); return; }
+    S.att++; S.phase = 'hold'; S.t = 0; S.live = 0;
+    this.respawn(this.player); this.player.hp = Math.max(this.player.hp, 60); this.repairWheels(this.player);
+    for (let i = 0; i < 4; i++) this.skids.break(this.player.num * 10 + i);
+  }
   finish() {
+    if (this.state === 'finished') return;
     this.state = 'finished'; this.endT = this.time;
     if (this.bestCrash && !this.bestCrash.saved) { this.bestCrash.saved = true; this.replay = { frames: this.rec.filter((r) => r.t >= this.bestCrash.t - 3.2), focus: this.bestCrash.focus, desc: this.bestCrash.desc }; }
     setTimeout(() => this.endScreen(), this.track.arena ? 1500 : 300);
   }
   endScreen() {
     if (this.dead || this._ended) return; this._ended = true;
+    this.result = this.computeResult();
     if (this.o.championship) {
       const res = this.finishOrder.length ? [...this.finishOrder, ...this.standings().filter((c) => !this.finishOrder.includes(c))] : this.standings();
       const fastest = this.track.arena ? null : res.filter((c) => c.bestLap).sort((a, b) => a.bestLap - b.bestLap)[0];
       this.champResult = champRecord(this.venue.id, res.map((c, i) => ({ name: c.name, isPlayer: c.isPlayer, pos: i + 1, kills: c.kills || 0, fastest: c === fastest })));
     }
-    const r = showResults(this);
+    const r = showResults(this, this.result);
     this.onEnd(r);
+  }
+  computeResult() {
+    const res = this.finishOrder.length ? [...this.finishOrder, ...this.standings().filter((c) => !this.finishOrder.includes(c))] : this.standings();
+    const P = this.player, pos = res.indexOf(P) + 1;
+    const r = { mode: this.mode, pos, rows: res, venue: this.venue.id, kills: P.kills || 0, score: Math.round(P.score || 0), bestLap: P.bestLap || null, time: P.finished ? P.time : null, targets: this.targets || null };
+    if (this.mode === 'stunt') { r.distance = this.stunt.best; r.dists = this.stunt.dists.slice(); }
+    if (this.mode === 'time') { r.ghostPrev = this.ghost?.time || null; r.newGhost = this.saveGhost(r.time); }
+    if (this.mode === 'caccia') { r.huntDmg = Math.min(100, Math.round(this.huntDmg || 0)); r.huntWreck = !!this.huntWreck; }
+    r.medal = medalFor(this.mode, r);
+    const ev = this.o.event || null;
+    r.prize = payout(ev, r.medal, r, this.o.difficulty);
+    if (!ev && (this.mode === 'race' || this.mode === 'derby' || this.mode === 'elim')) r.prize = Math.round(([12000, 8000, 5500, 4000, 3000, 2200, 1500, 1000][pos - 1] || 500) * (this.diff.prize || 1));
+    r.bonus = (P.kills || 0) * 1500 + Math.round((P.score || 0) / 10) * 10;
+    if (this.o.championship) r.bonus = Math.round(r.bonus / 2);
+    let career = null;
+    if (ev) {
+      const prev = prog().career.res[ev.id]?.medal || 0;
+      if (r.medal <= prev && prev > 0) r.prize = Math.round(r.prize * 0.5 / 50) * 50; // replays pay half unless you improve
+      career = recordCareer(ev.id, r.medal);
+    }
+    r.career = career;
+    // credits, wins, records
+    const p = prog(); p.money += r.prize + r.bonus; p.races++; if (pos === 1 && !['time', 'stunt', 'caccia'].includes(this.mode)) p.wins++; if (r.medal === 3) p.golds = (p.golds || 0) + 1;
+    if (!['time', 'stunt', 'caccia'].includes(this.mode)) p.best[this.venue.id] = Math.min(p.best[this.venue.id] || 99, pos);
+    p.stats.wrecks = (p.stats.wrecks || 0) + (P.kills || 0);
+    if (this.mode === 'stunt') p.stats.jump = Math.max(p.stats.jump || 0, r.distance || 0);
+    if (this.mode === 'time' && r.time) { const k = this.venue.id + ':' + this.laps; p.stats.tt ||= {}; p.stats.tt[k] = Math.min(p.stats.tt[k] || 1e9, r.time); }
+    saveProg(p);
+    r.car = P.spec.id; r.minHp = Math.round(P.minHp ?? P.hp); r.props = this.playerProps || 0;
+    r.challenges = checkChallenges(r);
+    r.money = prog().money;
+    return r;
   }
 
   // ---------------------------------------------------------------- frame
   frame(dtReal) {
     if (!(dtReal > 0)) return; // timestamps can go backwards on the first frame
     if (this.state === 'replay') { this.replayFrame(dtReal); return; }
+    if (this.state === 'photo') { this.photoFrame(dtReal); return; }
     if (this.state === 'paused' || this.state === 'loading') { this.render(dtReal, true); return; }
     // slow motion on big impacts
     this.slowCool -= dtReal;
@@ -680,12 +912,15 @@ export class DerbyGame {
       if (n !== this._lastCount) { this._lastCount = n; try { n > 0 ? sfx.beep() : sfx.go(); } catch {} }
       if (this.countdown <= 0) { this.state = 'race'; this.time = 0; this.message('VIA!', 'go'); for (const c of this.cars) c.lapStart = 0; }
     }
-    this.laps = this.o.laps || this.venue.laps; this.finishOrder ||= [];
+    this.finishOrder ||= [];
     const racing = this.state === 'race' || this.state === 'finished';
     const pin = this.readInput();
     for (const car of this.cars) {
+      if (car.removed) continue;
+      if (car.removeT > 0) { car.removeT -= dt; if (car.removeT <= 0) { car.removed = true; car.mesh.visible = false; car.body.setEnabled?.(false); const q = car.body.translation(); for (let k = 0; k < 14; k++) this.smoke.emit(q.x, q.y + 0.6, q.z, (Math.random() - 0.5) * 3, 1 + Math.random() * 2, (Math.random() - 0.5) * 3, 1.6, 1.4, 0.75, 0.73, 0.7, 0.5); } }
       if (car.out) { car.dyn = this.drive(car, { thr: 0, brk: 0, st: 0, hb: 0, nitro: 0 }, dt); continue; }
-      let inp = !racing ? { thr: this.state === 'countdown' && car.isPlayer ? pin.thr : Math.random() < 0.02 ? 1 : 0, brk: 0, st: 0, hb: 0, nitro: 0, hold: 1 } : car.isPlayer && !(this.state === 'finished') ? pin : this.aiInput(car, dt);
+      const stuntHold = this.mode === 'stunt' && this.stunt.phase === 'hold';
+      let inp = !racing || stuntHold ? { thr: (this.state === 'countdown' || stuntHold) && car.isPlayer ? pin.thr : Math.random() < 0.02 ? 1 : 0, brk: 0, st: 0, hb: 0, nitro: 0, hold: 1 } : car.isPlayer && !(this.state === 'finished') ? pin : this.aiInput(car, dt);
       if (car.wreckT > 0) { car.wreckT -= dt; inp = { thr: 0, brk: 1, st: 0, hb: 0, nitro: 0 }; if (car.wreckT <= 0) { car.hp = 45; car.burnT = 0; this.repairWheels(car); this.respawn(car); } }
       car.dyn = this.drive(car, inp, dt);
       if (car.ghostT > 0) {
@@ -696,12 +931,14 @@ export class DerbyGame {
           if (busy) car.ghostT = 0.3; else { car.col.setCollisionGroups(GROUPS_CAR); car.cabCol.setCollisionGroups(GROUPS_CAR); }
         }
       }
-      if (car.flipT > (car.isPlayer ? 3.5 : 2.2) && this.state !== 'countdown') { this.requestRespawn(car, 'flip'); }
+      if (car.flipT > (car.isPlayer ? 3.5 : 2.2) && this.state !== 'countdown' && this.mode !== 'stunt') { this.requestRespawn(car, 'flip'); }
+      // fell into the sea (port quay) or below the world: back on the track
+      if (this.venue.port) { const cp = car.body.translation(); if (cp.y < this.terrain.heightAt(cp.x, cp.z) - 1.5 || cp.y < -2.6) { car.seaT = (car.seaT || 0) + dt; if (car.seaT > 1.2) { car.seaT = 0; this.requestRespawn(car, 'sea'); } } else car.seaT = 0; }
       // flipping a rival earns a bonus
       if (car.dyn.up.y < -0.2 && !car.flipCredited && car.lastHit && this.time - car.lastHit.t < 3) { car.flipCredited = true; this.award(car.lastHit.by, 18, car.lastHit.by.isPlayer ? 'RIBALTATO!' : null, 250); }
       if (car.dyn.up.y > 0.6) car.flipCredited = false;
       if (racing) this.updateProgress(car);
-      if (car.isPlayer && racing && !this.track.arena) {
+      if (car.isPlayer && racing && !this.track.arena && !this.track.stunt) {
         const tg = this.track.pts[car.idx].h, hd = Math.abs(wrap(Math.atan2(car.dyn.fwd.z, car.dyn.fwd.x) - tg));
         car.wrongWayT = hd > 2.3 && car.dyn.vF > 3 ? car.wrongWayT + dt : 0;
         car.stuckHintT = car.dyn.speed < 1 && pin.thr > 0.5 ? car.stuckHintT + dt : 0;
@@ -711,10 +948,13 @@ export class DerbyGame {
     const sub = Math.max(1, Math.ceil(dt / 0.01));
     for (let s = 0; s < sub; s++) { for (const car of this.cars) car.vc.updateVehicle(dt / sub); this.world.timestep = dt / sub; this.world.step(this.events); this.handleContacts(dt / sub); }
     // numerical safety net: a body that exploded (NaN / absurd speed) is put back on the track
-    for (const car of this.cars) { const v = car.body.linvel(), t = car.body.translation(); if (!Number.isFinite(v.x + v.y + v.z + t.x + t.y + t.z) || v.x * v.x + v.y * v.y + v.z * v.z > 150 * 150) { (this.simStats.nan ||= []).push([car.name, car.wheelLost.join(''), Math.round(car.hp), +this.time.toFixed(1), car.ghostT > 0, Math.round(v.y)]); car.body.setLinvel({ x: 0, y: 0, z: 0 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true); if (!Number.isFinite(t.x + t.y + t.z)) car.body.setTranslation({ x: this.track.pts[car.idx]?.x ?? this.terrain.cx, y: 50, z: this.track.pts[car.idx]?.z ?? this.terrain.cz }, true); car.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true); this.respawn(car); } }
+    for (const car of this.cars) { if (car.removed) continue; const v = car.body.linvel(), t = car.body.translation(); if (!Number.isFinite(v.x + v.y + v.z + t.x + t.y + t.z) || v.x * v.x + v.y * v.y + v.z * v.z > 150 * 150) { (this.simStats.nan ||= []).push([car.name, car.wheelLost.join(''), Math.round(car.hp), +this.time.toFixed(1), car.ghostT > 0, Math.round(v.y)]); car.body.setLinvel({ x: 0, y: 0, z: 0 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true); if (!Number.isFinite(t.x + t.y + t.z)) car.body.setTranslation({ x: this.track.pts[car.idx]?.x ?? this.terrain.cx, y: 50, z: this.track.pts[car.idx]?.z ?? this.terrain.cz }, true); car.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true); this.respawn(car); } }
     // derby end condition (time limit: 4 minutes, then the healthiest car wins)
     if (this.track.arena && this.state === 'race') { const alive = this.cars.filter((c) => !c.out); if (this.player.out || alive.length <= 1 || this.time > 240) { this.finishOrder = this.standings(); this.finish(); } }
     if (!this.track.arena && this.state === 'race' && this.player.finished) this.finish();
+    if (this.mode === 'stunt' && this.state === 'race') this.stuntTick(dt);
+    if (this.mode === 'time') this.recordGhost(dt);
+    if (this.mode === 'caccia' && this.state === 'race' && this.lepre?.finished) { this.message('La Lepre è scappata!', 'wreck'); this.finish(); }
     if (this.state === 'race') this.record();
     this.render(dt, false, pin, dtReal);
   }
@@ -725,7 +965,7 @@ export class DerbyGame {
     const vc = car.vc, ud = car.mesh.userData;
     for (let i = 0; i < 4; i++) {
       const w = ud.wheels[i]; const susp = vc.wheelSuspensionLength?.(i) ?? 0.3;
-      const [x, z] = ud.wheelPos[i]; w.position.set(x, ud.wr + 0.12 - susp, z);
+      const [x, z] = ud.wheelPos[i]; w.position.set(x, ud.wrs[i] + 0.12 - susp, z);
       w.rotation.y = i < 2 ? car.steer : 0;
       const rot = vc.wheelRotation?.(i); if (rot != null) w.userData.spin.rotation.z = -rot;
     }
@@ -780,16 +1020,19 @@ export class DerbyGame {
   }
 
   render(dt, frozen, pin, dtReal = dt) {
-    for (const car of this.cars) this.syncCar(car, frozen ? 0 : dt);
+    for (const car of this.cars) if (!car.removed) this.syncCar(car, frozen ? 0 : dt);
     for (const k of Object.keys(this.propTypes)) this.syncProps(k);
     for (const d of this.debris) { const t = d.body.translation(), r = d.body.rotation(); tmpQ.set(r.x, r.y, r.z, r.w); d.mesh.quaternion.copy(tmpQ).multiply(d.q0); d.mesh.position.copy(d.off).applyQuaternion(tmpQ).add(tmpV.set(t.x, t.y, t.z)); }
     if (!frozen) { this.dust.update(dt); this.smoke.update(dt); this.fire.update(dt); this.sparks.update(dt); this.chips.update(dt); this.splash.update(dt); }
     this.updateCamera(dtReal);
     if (this.marker) { const p = this.player.mesh.position; this.marker.position.set(p.x, p.y + 2.4 + Math.sin(this.time * 4) * 0.1, p.z); this.marker.quaternion.copy(this.camera.quaternion); this.marker.visible = this.camMode < 2 && !this.lookBack && this.state !== 'finished'; }
+    if (this.ghost) this.updateGhost();
+    if (this.lepreMark) { const p = this.lepre.mesh.position; this.lepreMark.position.set(p.x, p.y + 3.2 + Math.sin(this.time * 3) * 0.2, p.z); this.lepreMark.rotation.y = this.time * 2; this.lepreMark.visible = !this.lepre.out && this.camMode < 3; }
     // shadow camera follows the player
     const pp = this.player.mesh.position; this.sun.position.copy(pp).addScaledVector(this.sunDir, 150); this.sun.target.position.copy(pp);
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
     updateHud(this, dtReal);
+    this.snd?.update(dtReal);
     const P = this.player, eg = ENGINE_GEARS[P.spec.engine] || 7;
     try { engineSet(P.rpm < 0.09 && (pin?.thr || 0) < 0.05 ? 0 : Math.min(0.995, Math.max(0.02, P.rpm)) / eg, { crowd: 0.25 }); } catch {}
   }

@@ -18,8 +18,33 @@ export const BANGERS = [
     cls: 'Pick-up · integrale', drive: 'awd', steer: 0.52, steerRate: 2.6, gears: 5, engine: 'endurance', comY: -0.18, roll: 1.45, frontGrip: 0.97, rearGrip: 1.05, powerOver: 0.05, hbYaw: 0.8 },
   { id: 'utilitaria', name: 'Grillo GT', desc: 'Utilitaria leggera e agile, ma fragile.', mass: 1050, power: 0.9, top: 0.98, armor: 0.75, grip: 1.12, color: '#c99a12',
     cls: 'Utilitaria · trazione anteriore', drive: 'fwd', steer: 0.66, steerRate: 4.0, gears: 5, engine: 'rally', comY: -0.26, roll: 0.9, frontGrip: 1.0, rearGrip: 0.97, powerOver: 0, hbYaw: 1.35 },
+  { id: 'familiare', name: 'Carovana SW', desc: 'Station wagon da famiglia numerosa: lunga, pesante, una corazzata con il portapacchi.', mass: 1600, power: 0.98, top: 0.97, armor: 1.4, grip: 0.98, color: '#2c5a4a',
+    cls: 'Station wagon · posteriore', drive: 'rwd', steer: 0.55, steerRate: 2.8, gears: 4, engine: 'endurance', comY: -0.25, roll: 1.15, frontGrip: 1.0, rearGrip: 1.0, powerOver: 0.03, hbYaw: 0.95 },
+  { id: 'furgone', name: 'Bestione Van', desc: 'Furgone delle consegne: alto, lento a girare, ma è un muro che cammina.', mass: 1900, power: 1.06, top: 0.88, armor: 1.75, grip: 0.95, color: '#d9d4c5',
+    cls: 'Furgone · posteriore', drive: 'rwd', steer: 0.5, steerRate: 2.5, gears: 4, engine: 'endurance', comY: -0.08, roll: 1.6, frontGrip: 1.0, rearGrip: 1.02, powerOver: 0.03, hbYaw: 0.75 },
+  { id: 'rally', name: 'Saetta HF', desc: 'Compatta da rally a trazione integrale: incollata al fango, scatta come un fulmine.', mass: 1150, power: 1.12, top: 1.04, armor: 0.85, grip: 1.18, color: '#e8e4d8',
+    cls: 'Rally · integrale', drive: 'awd', steer: 0.64, steerRate: 3.8, gears: 5, engine: 'rally', comY: -0.3, roll: 0.9, frontGrip: 1.0, rearGrip: 1.0, powerOver: 0.02, hbYaw: 1.3 },
+  { id: 'hotrod', name: 'Diavolaccio', desc: 'Hot rod col motore all’aria e il compressore cromato: potenza brutale, telaio di carta velina.', mass: 1250, power: 1.42, top: 1.18, armor: 0.7, grip: 0.95, color: '#8a1010',
+    cls: 'Hot rod · V8 compressore', drive: 'rwd', steer: 0.58, steerRate: 3.4, gears: 4, engine: 'endurance', comY: -0.3, roll: 1.0, frontGrip: 1.05, rearGrip: 0.95, powerOver: 0.14, hbYaw: 1.25 },
 ];
 export const AI_COLORS = ['#9b2c2c', '#2c5d9b', '#3d7a3a', '#b8761c', '#6b3d8f', '#2b8a8a', '#8f8f8f', '#c7c2b0', '#3a3a3a', '#a33b6b', '#47602b'];
+
+// Garage upgrades: level 0..3 for each system. Applied to a copy of the spec (see tuneSpec).
+export const UPGRADES = [
+  { id: 'eng', name: 'Motore', desc: 'Più cavalli e velocità massima', icon: 'bolt' },
+  { id: 'arm', name: 'Corazza', desc: 'Lamiere rinforzate: incassi meglio (un po’ più pesante)', icon: 'shield' },
+  { id: 'tyr', name: 'Gomme', desc: 'Mescola tassellata: più aderenza su ogni fondo', icon: 'tyre' },
+  { id: 'nit', name: 'Nitro', desc: 'Bombola più grande e spinta più forte', icon: 'flame' },
+];
+export function tuneSpec(spec, tune = {}) {
+  const e = tune.eng || 0, a = tune.arm || 0, t = tune.tyr || 0, n = tune.nit || 0;
+  if (!e && !a && !t && !n) return spec;
+  return { ...spec, power: spec.power * (1 + 0.07 * e), top: spec.top * (1 + 0.035 * e), armor: spec.armor * (1 + 0.15 * a), mass: spec.mass * (1 + 0.03 * a), grip: spec.grip * (1 + 0.045 * t), nitroDrain: 1 - 0.12 * n, nitroBoost: 1 + 0.1 * n, nitroStart: 10 * n };
+}
+export const LIVERIES = [
+  { id: 'classica', name: 'Rottame' }, { id: 'strisce', name: 'Strisce' }, { id: 'fiamme', name: 'Fiamme' }, { id: 'scacchi', name: 'Scacchi' },
+  { id: 'saetta', name: 'Saetta' }, { id: 'mimetica', name: 'Mimetica' }, { id: 'tricolore', name: 'Tricolore' },
+];
 
 // ---------- materials ----------
 function canvasTex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.userData.ctx = g; return t; }
@@ -50,14 +75,46 @@ function dirtPatch(mat, uni) {
 }
 
 // u along the car (rear->front), v around (0 right side, .25 top, .5 left, .75 bottom)
-function bangerPaint(color, number, seed) {
+// Livery artwork. Side helper: local x = u * W (front at large x), local y = height on the side
+// panel in v units * H (up positive); drawn on both flanks so that it starts from the nose on both.
+function liveryArt(g, W, H, livery, accent, color, R) {
+  const sides = (fn) => { for (const right of [true, false]) { g.save(); if (right) { g.translate(0, H); g.scale(1, -1); } else g.translate(0, H * 0.5); fn(); g.restore(); } };
+  const top = (fn) => { g.save(); g.translate(0, H * 0.75); fn(); g.restore(); }; // y = 0 on the roof centre line
+  if (livery === 'strisce') {
+    top(() => { g.fillStyle = accent; g.fillRect(0, -H * 0.03, W, H * 0.017); g.fillRect(0, H * 0.013, W, H * 0.017); });
+    sides(() => { g.fillStyle = accent; g.fillRect(W * 0.04, H * 0.13, W * 0.92, H * 0.012); });
+  } else if (livery === 'tricolore') {
+    top(() => { [['#1f8a3a', -1.5], ['#f4f1e8', -0.5], ['#d0101e', 0.5]].forEach(([c, k]) => { g.fillStyle = c; g.fillRect(0, k * H * 0.022, W, H * 0.022); }); });
+    sides(() => { [['#1f8a3a', 0], ['#f4f1e8', 1], ['#d0101e', 2]].forEach(([c, k]) => { g.fillStyle = c; g.fillRect(W * 0.03, H * (0.125 + k * 0.012), W * 0.94, H * 0.012); }); });
+  } else if (livery === 'fiamme') {
+    const flame = (x0, len, y0, h) => {
+      const gr = g.createLinearGradient(x0, 0, x0 - len, 0); gr.addColorStop(0, '#fff2a0'); gr.addColorStop(0.25, '#ffc21a'); gr.addColorStop(0.6, '#ff6a00'); gr.addColorStop(1, '#c81000');
+      g.fillStyle = gr; g.strokeStyle = 'rgba(20,10,0,0.75)'; g.lineWidth = 3; g.beginPath(); g.moveTo(x0, y0 - h * 0.5);
+      const n = 6; for (let k = 0; k < n; k++) { const yy = y0 - h * 0.5 + (h * (k + 0.5)) / n, l = len * (0.55 + 0.45 * Math.sin(k * 1.7 + 1) ** 2); g.quadraticCurveTo(x0 - l * 0.6, yy - h / n * 0.9, x0 - l, yy); g.quadraticCurveTo(x0 - l * 0.55, yy + h / n * 0.2, x0 - len * 0.12, y0 - h * 0.5 + (h * (k + 1)) / n); }
+      g.lineTo(x0, y0 + h * 0.5); g.closePath(); g.fill(); g.stroke();
+    };
+    sides(() => flame(W * 0.995, W * 0.5, H * 0.075, H * 0.12));
+    top(() => flame(W * 0.995, W * 0.3, 0, H * 0.09));
+  } else if (livery === 'scacchi') {
+    sides(() => { const s = H * 0.022; for (let x = W * 0.03, i = 0; x < W * 0.97; x += s, i++) for (let r = 0; r < 2; r++) { g.fillStyle = (i + r) % 2 ? '#111' : '#f4f1e8'; g.fillRect(x, H * 0.115 + r * s, s, s); } });
+    top(() => { const s = H * 0.022; for (let x = W * 0.6, i = 0; x < W; x += s, i++) for (let r = -1; r < 1; r++) { g.fillStyle = (i + r + 8) % 2 ? '#111' : '#f4f1e8'; g.fillRect(x, r * s, s, s); } });
+  } else if (livery === 'saetta') {
+    sides(() => { g.fillStyle = accent; g.strokeStyle = 'rgba(0,0,0,0.6)'; g.lineWidth = 3; g.beginPath(); const P = [[0.98, 0.15], [0.62, 0.12], [0.66, 0.09], [0.24, 0.06], [0.5, 0.1], [0.46, 0.125], [0.98, 0.16]]; P.forEach(([u, v], i) => (i ? g.lineTo(u * W, v * H) : g.moveTo(u * W, v * H))); g.closePath(); g.fill(); g.stroke(); });
+  } else if (livery === 'mimetica') {
+    const c = new THREE.Color(color), shades = [c.clone().multiplyScalar(0.55), c.clone().lerp(new THREE.Color('#8a7a52'), 0.5), c.clone().lerp(new THREE.Color('#2a2f1e'), 0.6)];
+    for (let i = 0; i < 70; i++) { g.fillStyle = '#' + shades[i % 3].getHexString(); g.beginPath(); const x = R() * W, y = R() * H, r = 18 + R() * 40; for (let k = 0; k <= 8; k++) { const a = (k / 8) * Math.PI * 2, rr = r * (0.6 + R() * 0.6); k ? g.lineTo(x + Math.cos(a) * rr * 1.6, y + Math.sin(a) * rr) : g.moveTo(x + Math.cos(a) * rr * 1.6, y + Math.sin(a) * rr); } g.fill(); }
+  }
+}
+function bangerPaint(color, number, seed, look = {}) {
   const R = rand(seed * 977 + 13);
+  const livery = look.livery || 'classica', accent = look.accent || '#f2efe6', stickers = look.stickers !== false;
   return canvasTex(1024, 512, (g, W, H) => {
     g.fillStyle = color; g.fillRect(0, 0, W, H);
+    if (livery === 'mimetica') liveryArt(g, W, H, livery, accent, color, R);
     // faded / sun-bleached top
     const gr = g.createLinearGradient(0, H * 0.5, 0, H * 0.75); gr.addColorStop(0, 'rgba(255,255,255,0.08)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, H * 0.5, W, H * 0.25);
     // replacement panels from the scrapyard: primer grey or another car's colour (door / wing)
-    for (let i = 0; i < 1 + Math.floor(R() * 2); i++) {
+    for (let i = 0; i < (livery === 'classica' ? 1 + Math.floor(R() * 2) : R() < 0.5 ? 1 : 0); i++) {
       const side = R() < 0.5 ? 0 : 0.5, u0 = [0.12, 0.38, 0.66][Math.floor(R() * 3)], u1 = u0 + 0.2;
       g.fillStyle = R() < 0.65 ? PRIMERS[Math.floor(R() * PRIMERS.length)] : `hsl(${Math.floor(R() * 360)},45%,${30 + R() * 20}%)`;
       g.fillRect(u0 * W, H - (side + 0.2) * H, (u1 - u0) * W, 0.19 * H);
@@ -67,9 +124,10 @@ function bangerPaint(color, number, seed) {
     g.strokeStyle = 'rgba(0,0,0,0.45)'; g.lineWidth = 2;
     for (const vb of [0, 0.5]) for (const u of [0.36, 0.62]) { g.beginPath(); g.moveTo(u * W, H - vb * H); g.lineTo(u * W, H - (vb + 0.2) * H); g.stroke(); }
     // racing stripe over the top
-    if (R() < 0.6) { g.fillStyle = R() < 0.5 ? '#f2efe6' : '#141414'; g.fillRect(0, H * 0.72, W, H * 0.06); }
+    if (livery === 'classica') { if (R() < 0.6) { g.fillStyle = R() < 0.5 ? '#f2efe6' : '#141414'; g.fillRect(0, H * 0.72, W, H * 0.06); } }
+    else if (livery !== 'mimetica') liveryArt(g, W, H, livery, accent, color, R);
     // rust and primer patches
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < (look.clean ? 10 : 30); i++) {
       const x = R() * W, y = R() * H, r = 8 + R() * 46;
       const rg = g.createRadialGradient(x, y, 0, x, y, r);
       const rust = R() < 0.7; rg.addColorStop(0, rust ? 'rgba(122,58,22,0.95)' : 'rgba(120,124,128,0.9)'); rg.addColorStop(0.6, rust ? 'rgba(92,44,18,0.7)' : 'rgba(110,112,116,0.5)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
@@ -77,7 +135,7 @@ function bangerPaint(color, number, seed) {
     }
     // sponsor stickers on the rear wings
     g.font = '900 22px "Exo 2", Arial, sans-serif'; g.textBaseline = 'middle';
-    for (const [vc, flip] of [[0.1, false], [0.4, true]]) {
+    if (stickers) for (const [vc, flip] of [[0.1, false], [0.4, true]]) {
       const sp = SPONSORS[Math.floor(R() * SPONSORS.length)];
       g.save(); g.translate(W * 0.22, H - vc * H); if (flip) g.rotate(Math.PI);
       const tw = g.measureText(sp).width + 16; g.fillStyle = R() < 0.5 ? '#f3e14a' : '#f4f1e8'; g.fillRect(-tw / 2, -15, tw, 30); g.fillStyle = '#111'; g.textAlign = 'center'; g.fillText(sp, 0, 1); g.restore();
@@ -162,46 +220,62 @@ function wheel(r, w) {
 }
 export function makeWheel(r, w) { return wheel(r, w); }
 
-// returns THREE.Group with userData { wheels[], shell, body (deformable mesh), cab, parts[] (detachables), wheelPos[], dims, dirt, glass }
-export function buildBanger(type, color, number = 7, seed = 1) {
+// Body proportions per model (half length L, half width W, roof and belt heights, cabin span,
+// wheel radius/width; front wheels may differ: hot rods run skinny fronts and fat rears).
+const SHAPES = {
+  berlina: { L: 2.3, W: 0.92, roof: 1.42, belt: 0.92, cabR: 0.7, cabF: 0.85, wr: 0.34, ww: 0.24, boot: true },
+  muscle: { L: 2.3, W: 0.92, roof: 1.28, belt: 0.92, cabR: 0.7, cabF: 0.85, wr: 0.34, ww: 0.24, boot: true, scoop: true, spoiler: true, noseDrop: 0.02 },
+  pickup: { L: 2.45, W: 0.92, roof: 1.62, belt: 1.02, cabRAbs: -0.15, cabF: 1.0, wr: 0.4, ww: 0.3, bed: true, bullbar: true },
+  utilitaria: { L: 1.8, W: 0.82, roof: 1.45, belt: 0.92, cabR: 0.15, cabF: 0.75, wr: 0.34, ww: 0.24, boot: true, spoiler: true },
+  familiare: { L: 2.42, W: 0.92, roof: 1.46, belt: 0.92, cabR: 0.18, cabF: 0.85, wr: 0.34, ww: 0.25, square: true, rack: true, tailgate: true },
+  furgone: { L: 2.35, W: 0.97, roof: 2.08, belt: 1.05, cabR: 0.06, cabF: 1.32, wr: 0.36, ww: 0.26, square: true, van: true, tailgate: true },
+  rally: { L: 1.95, W: 0.86, roof: 1.4, belt: 0.9, cabR: 0.3, cabF: 0.72, wr: 0.33, ww: 0.25, wing: true, pod: true, scoopRoof: true, tailgate: true },
+  hotrod: { L: 2.2, W: 0.78, roof: 1.3, belt: 0.86, cabRAbs: -1.45, cabF: 0.0, wrF: 0.3, wwF: 0.18, wr: 0.43, ww: 0.36, boot: true, hotrod: true, wzF: 0.98, wzR: 0.86 },
+};
+export const SHAPE_OF = (type) => SHAPES[type] || SHAPES.berlina;
+
+// returns THREE.Group with userData { wheels[], shell, body (deformable mesh), cab, parts[] (detachables), wheelPos[], wrs[], dims, dirt, glass }
+// look: { livery, accent, stickers, clean }
+export function buildBanger(type, color, number = 7, seed = 1, look = {}) {
   const car = new THREE.Group(), shell = new THREE.Group(); car.add(shell);
   const R = rand(seed * 131 + 7);
   const dirt = { value: 0 };
-  const paintTex = bangerPaint(color, number, seed);
-  const paint = dirtPatch(new THREE.MeshPhysicalMaterial({ map: paintTex, roughness: 0.62, metalness: 0.25, clearcoat: 0.3, clearcoatRoughness: 0.45 }), dirt);
+  const S = SHAPE_OF(type);
+  const paintTex = bangerPaint(color, number, seed, look);
+  const paint = dirtPatch(new THREE.MeshPhysicalMaterial({ map: paintTex, roughness: look.clean ? 0.45 : 0.62, metalness: 0.25, clearcoat: look.clean ? 0.6 : 0.3, clearcoatRoughness: 0.45 }), dirt);
   const pm = dirtPatch(new THREE.MeshPhysicalMaterial({ color, roughness: 0.6, metalness: 0.25, clearcoat: 0.2 }), dirt);
-  const L = type === 'utilitaria' ? 1.8 : type === 'pickup' ? 2.45 : 2.3; // half length
-  const Wd = type === 'utilitaria' ? 0.82 : 0.92;
-  const roofY = type === 'utilitaria' ? 1.45 : type === 'muscle' ? 1.28 : type === 'pickup' ? 1.62 : 1.42;
-  const beltY = type === 'pickup' ? 1.02 : 0.92;
+  const L = S.L, Wd = S.W, roofY = S.roof, beltY = S.belt;
+  const nose = S.hotrod ? [{ x: L - 0.55, top: beltY - 0.04, bot: 0.3, belt: 0.5, w: Wd - 0.14, wt: Wd - 0.2, wb: Wd - 0.16, n: 6 }, { x: L, top: beltY - 0.12, bot: 0.38, belt: 0.55, w: Wd - 0.34, wt: Wd - 0.4, wb: Wd - 0.36, n: 5 }]
+    : [{ x: L - 0.55, top: beltY - (S.noseDrop ?? 0.06), bot: 0.28, belt: 0.48, w: Wd, wt: Wd - 0.06, wb: Wd - 0.06, n: 6 }, { x: L, top: beltY - (S.van ? 0.3 : 0.2), bot: 0.34, belt: 0.5, w: Wd - 0.1, wt: Wd - 0.16, wb: Wd - 0.12, n: 5 }];
   const lower = [
     { x: -L, top: beltY - 0.05, bot: 0.34, belt: 0.5, w: Wd - 0.06, wt: Wd - 0.1, wb: Wd - 0.1, n: 5 },
     { x: -L + 0.25, top: beltY, bot: 0.28, belt: 0.48, w: Wd, wt: Wd - 0.04, wb: Wd - 0.06, n: 6 },
     { x: 0, top: beltY + 0.02, bot: 0.27, belt: 0.48, w: Wd, wt: Wd - 0.04, wb: Wd - 0.06, n: 6 },
-    { x: L - 0.55, top: beltY - (type === 'muscle' ? 0.02 : 0.06), bot: 0.28, belt: 0.48, w: Wd, wt: Wd - 0.06, wb: Wd - 0.06, n: 6 },
-    { x: L, top: beltY - 0.2, bot: 0.34, belt: 0.5, w: Wd - 0.1, wt: Wd - 0.16, wb: Wd - 0.12, n: 5 },
+    ...nose,
   ];
   const body = mesh(hull(lower, { seg: 44, Q: 10 }), paint); shell.add(body);
   // greenhouse: cabin over the middle (pick-up: short cab, then bed). Side glass is removed
   // (derby rules): alpha holes show the interior, cage and driver; windscreens can crack.
-  const cabRear = type === 'pickup' ? -0.15 : type === 'utilitaria' ? -L + 0.15 : -L + 0.7, cabFront = type === 'utilitaria' ? 0.75 : type === 'pickup' ? 1.0 : 0.85;
-  const WIN = { side: [[0.1, 0.47], [0.53, 0.88]], sideV: [[0.015, 0.1], [0.4, 0.485]], front: [0.86, 0.995, 0.12, 0.38], rear: [0.005, 0.12, 0.12, 0.38] };
+  const cabRear = S.cabRAbs ?? -L + S.cabR, cabFront = S.cabF;
+  const WIN = { side: S.van ? [[0.8, 0.93]] : S.square ? [[0.06, 0.3], [0.36, 0.62], [0.68, 0.9]] : [[0.1, 0.47], [0.53, 0.88]], sideV: [[0.015, 0.1], [0.4, 0.485]], front: [0.86, 0.995, 0.12, 0.38], rear: S.van ? [0.005, 0.1, 0.16, 0.34] : [0.005, 0.12, 0.12, 0.38] };
   const winTex = canvasTex(512, 256, (g, W, H) => {
     g.fillStyle = color; g.fillRect(0, 0, W, H); g.fillStyle = 'rgba(60,44,30,0.35)'; g.fillRect(0, 0, W, H);
+    if (S.van) { g.fillStyle = 'rgba(0,0,0,0.35)'; for (const vb of [0.02, 0.52]) g.fillRect(0.42 * W, H - (vb + 0.2) * H, 3, 0.2 * H); if (look.stickers !== false) { g.font = 'italic 900 26px "Exo 2", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; for (const [vc, flip] of [[0.06, false], [0.44, true]]) { g.save(); g.translate(W * 0.4, H - vc * H); if (flip) g.rotate(Math.PI); g.fillStyle = '#111'; g.fillText('TRASLOCHI LAMPO', 0, 0); g.restore(); } } }
     const glass = (u0, u1, v0, v1) => { g.fillStyle = '#0d1218'; g.fillRect(u0 * W, H - v1 * H, (u1 - u0) * W, (v1 - v0) * H); g.strokeStyle = 'rgba(200,220,240,0.25)'; g.lineWidth = 3; g.beginPath(); g.moveTo(u0 * W + 20, H - v1 * H + 10); g.lineTo(u0 * W + 70, H - v0 * H - 10); g.stroke(); };
     for (const [a, b] of WIN.sideV) for (const [u0, u1] of WIN.side) g.clearRect(u0 * W, H - b * H, (u1 - u0) * W, (b - a) * H);
     glass(...WIN.front); glass(...WIN.rear);
   });
   const gm = dirtPatch(new THREE.MeshPhysicalMaterial({ map: winTex, roughness: 0.4, metalness: 0.2, clearcoat: 0.5, alphaTest: 0.5, side: THREE.DoubleSide }), dirt);
+  const backT = S.square ? roofY - 0.1 : beltY + 0.08, backX = S.square ? 0.1 : 0.3;
   const cab = mesh(hull([
-    { x: cabRear, top: beltY + 0.08, bot: beltY - 0.02, belt: beltY, w: Wd - 0.08, wt: Wd - 0.18, n: 5 },
-    { x: cabRear + 0.3, top: roofY, bot: beltY - 0.02, belt: beltY + 0.02, w: Wd - 0.1, wt: Wd - 0.24, n: 5 },
+    { x: cabRear, top: backT, bot: beltY - 0.02, belt: beltY, w: Wd - 0.08, wt: Wd - 0.18, n: 5 },
+    { x: cabRear + backX, top: roofY, bot: beltY - 0.02, belt: beltY + 0.02, w: Wd - 0.1, wt: Wd - 0.24, n: 5 },
     { x: cabFront - 0.45, top: roofY - 0.02, bot: beltY - 0.02, belt: beltY + 0.02, w: Wd - 0.1, wt: Wd - 0.26, n: 5 },
     { x: cabFront, top: beltY + 0.06, bot: beltY - 0.04, belt: beltY, w: Wd - 0.1, wt: Wd - 0.2, n: 5 },
   ], { seg: 18, Q: 7 }), gm); shell.add(cab);
   // interior: floor, seat, driver with helmet, roll cage, window nets
-  const midX = (cabRear + cabFront) / 2, cw = Wd - 0.2;
-  shell.add(box(cabFront - cabRear - 0.2, 0.04, cw * 2, M.interior, midX, beltY - 0.25, 0));
+  const midX = S.van ? cabFront - 0.75 : (cabRear + cabFront) / 2, cw = Wd - 0.2;
+  shell.add(box(cabFront - cabRear - 0.2, 0.04, cw * 2, M.interior, (cabRear + cabFront) / 2, beltY - 0.25, 0));
   const dX = midX - 0.05, dZ = -0.33;
   shell.add(box(0.12, 0.62, 0.46, M.seat, dX - 0.32, beltY + 0.05, dZ));
   shell.add(box(0.4, 0.14, 0.46, M.seat, dX - 0.1, beltY - 0.18, dZ));
@@ -211,66 +285,98 @@ export function buildBanger(type, color, number = 7, seed = 1) {
   const visor = mesh(new THREE.SphereGeometry(0.152, 12, 6, -0.9, 1.8, 1.2, 0.6), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.8 })); visor.position.copy(helmet.position); shell.add(visor);
   shell.add(tube(new THREE.Vector3(dX + 0.35, beltY + 0.12, dZ - 0.05), new THREE.Vector3(dX + 0.35, beltY + 0.28, dZ + 0.05), 0.17, M.dark)); // wheel rim stand-in
   const cy0 = beltY - 0.2, cy1 = roofY - 0.08, cr = 0.025;
+  const cr0 = S.van ? cabFront - 1.3 : cabRear;
   for (const z of [cw - 0.04, -cw + 0.04]) {
     const zt = z * 0.78;
-    shell.add(tube(new THREE.Vector3(cabRear + 0.32, cy0, z), new THREE.Vector3(cabRear + 0.38, cy1, zt), cr, M.cage));
+    shell.add(tube(new THREE.Vector3(cr0 + 0.32, cy0, z), new THREE.Vector3(cr0 + 0.38, cy1, zt), cr, M.cage));
     shell.add(tube(new THREE.Vector3(cabFront - 0.35, cy0, z), new THREE.Vector3(cabFront - 0.5, cy1, zt), cr, M.cage));
-    shell.add(tube(new THREE.Vector3(cabRear + 0.38, cy1, zt), new THREE.Vector3(cabFront - 0.5, cy1, zt), cr, M.cage));
-    shell.add(tube(new THREE.Vector3(cabRear + 0.32, beltY + 0.05, z), new THREE.Vector3(cabFront - 0.35, beltY + 0.05, z), cr, M.cage)); // door bar
+    shell.add(tube(new THREE.Vector3(cr0 + 0.38, cy1, zt), new THREE.Vector3(cabFront - 0.5, cy1, zt), cr, M.cage));
+    shell.add(tube(new THREE.Vector3(cr0 + 0.32, beltY + 0.05, z), new THREE.Vector3(cabFront - 0.35, beltY + 0.05, z), cr, M.cage)); // door bar
   }
-  shell.add(tube(new THREE.Vector3(cabRear + 0.38, cy1, -cw * 0.78), new THREE.Vector3(cabRear + 0.38, cy1, cw * 0.78), cr, M.cage));
-  shell.add(tube(new THREE.Vector3(cabRear + 0.32, cy0, cw - 0.04), new THREE.Vector3(cabRear + 0.38, cy1, -cw * 0.78), cr, M.cage)); // diagonal
-  const net = new THREE.Mesh(new THREE.PlaneGeometry((cabFront - cabRear) * 0.42, (roofY - beltY) * 0.7), M.net); net.position.set(midX - 0.12, (beltY + roofY) / 2, -Wd + 0.1); shell.add(net);
+  shell.add(tube(new THREE.Vector3(cr0 + 0.38, cy1, -cw * 0.78), new THREE.Vector3(cr0 + 0.38, cy1, cw * 0.78), cr, M.cage));
+  shell.add(tube(new THREE.Vector3(cr0 + 0.32, cy0, cw - 0.04), new THREE.Vector3(cr0 + 0.38, cy1, -cw * 0.78), cr, M.cage)); // diagonal
+  const net = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(1.2, (cabFront - cabRear) * 0.42), (roofY - beltY) * 0.6), M.net); net.position.set(midX - 0.12, beltY + (roofY - beltY) * 0.42, -Wd + 0.1); shell.add(net);
   // roof sign with the race number (both faces)
   const signTex = canvasTex(256, 128, (g, W, H) => { g.fillStyle = '#f4f1e8'; g.fillRect(0, 0, W, H); g.lineWidth = 10; g.strokeStyle = '#111'; g.strokeRect(5, 5, W - 10, H - 10); g.fillStyle = '#111'; g.font = '900 96px "Exo 2", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(number), W / 2, H / 2 + 6); });
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.36), new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.7, side: THREE.DoubleSide })); sign.position.set(midX - 0.05, roofY + 0.22, 0); sign.castShadow = true; shell.add(sign);
-  shell.add(box(0.05, 0.06, 0.6, M.steel, midX - 0.05, roofY + 0.02, 0));
+  const signX = S.van ? cabFront - 0.8 : midX - 0.05;
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.36), new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.7, side: THREE.DoubleSide })); sign.position.set(signX, roofY + 0.22, 0); sign.castShadow = true; shell.add(sign);
+  shell.add(box(0.05, 0.06, 0.6, M.steel, signX, roofY + 0.02, 0));
   const parts = [];
   const part = (o, zone, hp) => { o.userData.zone = zone; o.userData.hp = hp; shell.add(o); parts.push(o); return o; };
   // chrome trim: side mouldings at the belt line, window drip rails
   for (const z of [1, -1]) {
     shell.add(box(L * 2 - 0.7, 0.035, 0.03, M.chrome, 0.05, 0.62, z * (Wd + 0.003)));
-    shell.add(box(cabFront - cabRear - 0.2, 0.03, 0.03, M.chrome, midX, beltY + 0.06, z * (Wd - 0.08)));
+    shell.add(box(cabFront - cabRear - 0.2, 0.03, 0.03, M.chrome, (cabRear + cabFront) / 2, beltY + 0.06, z * (Wd - 0.08)));
   }
   // bumpers (chrome, dented), bonnet, boot, spoiler, mirrors, grille, bull bar
-  part(box(0.16, 0.18, Wd * 2 - 0.05, M.chrome, L + 0.04, 0.42, 0), 'front', 26);
+  if (!S.hotrod) part(box(0.16, 0.18, Wd * 2 - 0.05, M.chrome, L + 0.04, 0.42, 0), 'front', 26);
+  else part(box(0.1, 0.1, Wd * 2 + 0.3, M.chrome, L + 0.06, 0.42, 0), 'front', 20);
   part(box(0.16, 0.18, Wd * 2 - 0.05, M.chrome, -L - 0.04, 0.42, 0), 'rear', 26);
-  const grille = box(0.03, 0.2, Wd * 1.1, M.dark, L - 0.005, 0.6, 0); shell.add(grille);
-  for (let k = -2; k <= 2; k++) shell.add(box(0.035, 0.18, 0.02, M.chrome, L, 0.6, k * Wd * 0.2));
-  const bonnet = part(mesh(hull([{ x: cabFront + 0.05, top: beltY + 0.035, bot: beltY - 0.01, w: Wd - 0.12, n: 6 }, { x: L - 0.12, top: beltY - 0.12, bot: beltY - 0.17, w: Wd - 0.18, n: 6 }], { seg: 6, Q: 5, u0: 0.62, u1: 0.95 }), paint), 'front', 34);
-  bonnet.userData.hinge = cabFront + 0.05; bonnet.userData.bonnet = true;
-  if (type === 'muscle') { const sc = box(0.5, 0.12, 0.4, M.dark, 1.15, beltY + 0.08, 0); bonnet.add(sc); }
-  if (type !== 'pickup') part(mesh(hull([{ x: -L + 0.12, top: beltY - 0.03, bot: beltY - 0.08, w: Wd - 0.16, n: 6 }, { x: cabRear + 0.02, top: beltY + 0.04, bot: beltY - 0.01, w: Wd - 0.12, n: 6 }], { seg: 6, Q: 5, u0: 0.05, u1: 0.3 }), paint), 'rear', 30);
-  else {
+  if (!S.hotrod) {
+    const grille = box(0.03, 0.2, Wd * 1.1, M.dark, L - 0.005, 0.6, 0); shell.add(grille);
+    for (let k = -2; k <= 2; k++) shell.add(box(0.035, 0.18, 0.02, M.chrome, L, 0.6, k * Wd * 0.2));
+    const bonnet = part(mesh(hull([{ x: cabFront + 0.05, top: beltY + 0.035, bot: beltY - 0.01, w: Wd - 0.12, n: 6 }, { x: L - 0.12, top: beltY - (S.van ? 0.22 : 0.12), bot: beltY - (S.van ? 0.27 : 0.17), w: Wd - 0.18, n: 6 }], { seg: 6, Q: 5, u0: 0.62, u1: 0.95 }), paint), 'front', 34);
+    bonnet.userData.hinge = cabFront + 0.05; bonnet.userData.bonnet = true;
+    if (S.scoop) { const sc = box(0.5, 0.12, 0.4, M.dark, 1.15, beltY + 0.08, 0); bonnet.add(sc); }
+    if (S.pod) { const pod = new THREE.Group(); pod.add(box(0.14, 0.22, 1.1, M.dark, L - 0.2, beltY + 0.06, 0)); for (let k = 0; k < 4; k++) { const z = -0.42 + k * 0.28; const lm = mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.06, 14), M.head); lm.rotation.z = Math.PI / 2; lm.position.set(L - 0.12, beltY + 0.07, z); pod.add(lm); } part(pod, 'front', 10); }
+  } else {
+    // exposed V8 with a chrome supercharger, velocity stacks and headers: the hot rod's face
+    const eng = new THREE.Group();
+    eng.add(box(0.9, 0.42, 0.62, M.dark, L - 0.75, beltY - 0.1, 0));
+    eng.add(box(0.7, 0.2, 0.36, M.chrome, L - 0.75, beltY + 0.2, 0));
+    for (let k = 0; k < 2; k++) { const st = mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.22, 12), M.chrome); st.position.set(L - 0.9 + k * 0.3, beltY + 0.4, 0); eng.add(st); }
+    for (const z of [0.36, -0.36]) for (let k = 0; k < 4; k++) eng.add(tube(new THREE.Vector3(L - 1.05 + k * 0.2, beltY - 0.05, z * 0.8), new THREE.Vector3(L - 1.15 + k * 0.2, 0.36, z * 1.25), 0.03, M.chrome));
+    eng.add(box(0.08, 0.5, 0.7, M.chrome, L - 0.12, beltY - 0.12, 0)); eng.add(box(0.09, 0.42, 0.6, M.dark, L - 0.11, beltY - 0.12, 0));
+    eng.traverse((o) => { if (o.isMesh) o.castShadow = true; }); part(eng, 'front', 40);
+    // cycle wings over the skinny front wheels
+    for (const z of [1, -1]) { const fd = mesh(new THREE.CylinderGeometry(S.wrF + 0.06, S.wrF + 0.06, 0.24, 18, 1, true, -Math.PI / 2, Math.PI), pm); fd.rotation.x = Math.PI / 2; fd.position.set(L - 0.72, S.wrF, z * S.wzF); shell.add(fd); }
+  }
+  if (S.boot) part(mesh(hull([{ x: -L + 0.12, top: beltY - 0.03, bot: beltY - 0.08, w: Wd - 0.16, n: 6 }, { x: cabRear + 0.02, top: beltY + 0.04, bot: beltY - 0.01, w: Wd - 0.12, n: 6 }], { seg: 6, Q: 5, u0: 0.05, u1: 0.3 }), paint), 'rear', 30);
+  if (S.tailgate) { const tt = S.square ? roofY - 0.12 : beltY + 0.3; part(box(0.05, tt - beltY + 0.1, Wd * 2 - 0.3, pm, cabRear - 0.02, (beltY - 0.1 + tt) / 2, 0), 'rear', 28); }
+  if (S.bed) {
     shell.add(box(1.7, 0.05, Wd * 2 - 0.2, M.dark, -1.25, beltY - 0.02, 0));
     part(box(0.06, 0.38, Wd * 2 - 0.1, pm, -L + 0.03, beltY - 0.18, 0), 'rear', 30);
     const spare = wheel(0.36, 0.24); spare.rotation.x = Math.PI / 2; spare.position.set(-1.2, beltY + 0.12, 0.2); shell.add(spare);
-    // bull bar
+  }
+  if (S.bullbar) {
     const bb = new THREE.Group(); bb.add(tube(new THREE.Vector3(L + 0.18, 0.35, -0.55), new THREE.Vector3(L + 0.18, 0.95, -0.4), 0.04, M.steel)); bb.add(tube(new THREE.Vector3(L + 0.18, 0.35, 0.55), new THREE.Vector3(L + 0.18, 0.95, 0.4), 0.04, M.steel)); bb.add(tube(new THREE.Vector3(L + 0.18, 0.95, -0.4), new THREE.Vector3(L + 0.18, 0.95, 0.4), 0.04, M.steel)); bb.add(tube(new THREE.Vector3(L + 0.18, 0.62, -0.62), new THREE.Vector3(L + 0.18, 0.62, 0.62), 0.04, M.steel));
     bb.traverse((o) => { if (o.isMesh) o.castShadow = true; }); part(bb, 'front', 60);
   }
-  if (type === 'muscle' || type === 'utilitaria') part(box(0.32, 0.04, Wd * 2 - 0.25, M.dark, -L + 0.2, beltY + 0.18, 0), 'rear', 14);
+  if (S.van) { // push bar and a ladder on the roof
+    const pb = new THREE.Group(); for (const z of [-0.6, 0.6]) pb.add(tube(new THREE.Vector3(L + 0.15, 0.3, z), new THREE.Vector3(L + 0.15, 0.85, z * 0.9), 0.045, M.dark)); pb.add(tube(new THREE.Vector3(L + 0.15, 0.6, -0.75), new THREE.Vector3(L + 0.15, 0.6, 0.75), 0.05, M.dark));
+    pb.traverse((o) => { if (o.isMesh) o.castShadow = true; }); part(pb, 'front', 55);
+    const lad = new THREE.Group(); for (const z of [0.28, -0.28]) lad.add(box(2.4, 0.04, 0.04, M.steel, cabRear + 1.5, roofY + 0.08, z)); for (let k = 0; k < 8; k++) lad.add(box(0.04, 0.03, 0.56, M.steel, cabRear + 0.4 + k * 0.32, roofY + 0.08, 0)); part(lad, 'rear', 12);
+  }
+  if (S.rack) {
+    for (const z of [0.6, -0.6]) shell.add(box(L * 1.1, 0.04, 0.04, M.chrome, cabRear + L * 0.6, roofY + 0.07, z));
+    const lug = new THREE.Group(); lug.add(box(0.9, 0.3, 0.7, new THREE.MeshStandardMaterial({ color: 0x3a2a1c, roughness: 0.9 }), cabRear + 0.9, roofY + 0.25, 0.1)); const sp = wheel(0.32, 0.2); sp.rotation.x = Math.PI / 2; sp.position.set(cabRear + 1.75, roofY + 0.2, 0); lug.add(sp); part(lug, 'rear', 10);
+  }
+  if (S.spoiler) part(box(0.32, 0.04, Wd * 2 - 0.25, M.dark, -L + 0.2, beltY + 0.18, 0), 'rear', 14);
+  if (S.wing) { const wg = new THREE.Group(); wg.add(box(0.36, 0.04, Wd * 2 - 0.1, M.dark, cabRear - 0.05, roofY + 0.02, 0)); for (const z of [0.55, -0.55]) wg.add(box(0.1, 0.12, 0.03, M.dark, cabRear - 0.02, roofY - 0.05, z)); part(wg, 'rear', 14); }
+  if (S.scoopRoof) shell.add(box(0.36, 0.1, 0.3, M.dark, cabFront - 0.6, roofY + 0.04, 0));
   for (const z of [Wd + 0.05, -Wd - 0.05]) part(box(0.12, 0.09, 0.08, M.chrome, cabFront - 0.15, beltY + 0.15, z), z > 0 ? 'left' : 'right', 8);
   for (const z of [0.55, -0.55]) {
-    const hl = mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 14), M.head); hl.rotation.z = Math.PI / 2; hl.position.set(L - 0.01, 0.66, z); shell.add(hl);
-    const ring = mesh(new THREE.TorusGeometry(0.105, 0.018, 6, 16), M.chrome); ring.rotation.y = Math.PI / 2; ring.position.set(L + 0.005, 0.66, z); shell.add(ring);
-    shell.add(box(0.04, 0.1, 0.24, M.tail, -L + 0.01, 0.7, z));
+    const hx = S.hotrod ? L - 0.3 : L - 0.01, hy = S.hotrod ? beltY + 0.05 : S.van ? 0.75 : 0.66, hz = S.hotrod ? z * 0.9 : z;
+    const hl = mesh(new THREE.CylinderGeometry(S.hotrod ? 0.13 : 0.1, S.hotrod ? 0.13 : 0.1, 0.05, 14), M.head); hl.rotation.z = Math.PI / 2; hl.position.set(hx, hy, hz); shell.add(hl);
+    const ring = mesh(new THREE.TorusGeometry(S.hotrod ? 0.135 : 0.105, 0.018, 6, 16), M.chrome); ring.rotation.y = Math.PI / 2; ring.position.set(hx + 0.015, hy, hz); shell.add(ring);
+    shell.add(box(0.04, 0.1, 0.24, M.tail, -L + 0.01, S.square ? 0.95 : 0.7, z));
   }
   // mud flaps
-  for (const z of [Wd - 0.12, -Wd + 0.12]) shell.add(box(0.02, 0.22, 0.24, M.rubber, -L + 0.62, 0.3, z));
-  const ex = mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.3, 10), M.chrome); ex.rotation.z = Math.PI / 2; ex.position.set(-L - 0.1, 0.32, -0.5); shell.add(ex);
+  const flapM = S.pod ? (M.flapRed ||= new THREE.MeshStandardMaterial({ color: 0xd01010, roughness: 0.8 })) : M.rubber;
+  for (const z of [Wd - 0.12, -Wd + 0.12]) shell.add(box(0.02, 0.22, 0.24, flapM, -L + 0.62, 0.3, z));
+  const ex = mesh(new THREE.CylinderGeometry(S.hotrod ? 0.07 : 0.05, S.hotrod ? 0.07 : 0.05, 0.3, 10), M.chrome); ex.rotation.z = Math.PI / 2; ex.position.set(-L - 0.1, 0.32, -0.5); shell.add(ex);
   // underbody shadow plate
   shell.add(box(L * 2 - 0.4, 0.04, Wd * 2 - 0.3, M.dark, 0, 0.27, 0));
   // wheels (on the root, not the shell)
-  const wr = type === 'pickup' ? 0.4 : 0.34, ww = type === 'pickup' ? 0.3 : 0.24, wx = L - 0.72, wz = Wd - 0.12;
-  const wheels = [], wheelPos = [];
-  for (const [x, z] of [[wx, wz], [wx, -wz], [-wx + 0.05, wz], [-wx + 0.05, -wz]]) { const w = wheel(wr, ww); w.position.set(x, wr, z); car.add(w); wheels.push(w); wheelPos.push([x, z]); }
+  const wrF = S.wrF ?? S.wr, wwF = S.wwF ?? S.ww, wx = L - 0.72, wzF = S.wzF ?? Wd - 0.12, wzR = S.wzR ?? Wd - 0.12;
+  const wheels = [], wheelPos = [], wrs = [];
+  for (const [x, z, r, w] of [[wx, wzF, wrF, wwF], [wx, -wzF, wrF, wwF], [-wx + 0.05, wzR, S.wr, S.ww], [-wx + 0.05, -wzR, S.wr, S.ww]]) { const wl = wheel(r, w); wl.position.set(x, r, z); car.add(wl); wheels.push(wl); wheelPos.push([x, z]); wrs.push(r); }
   // keep the original body vertices for deformation
   body.geometry.userData.orig = Float32Array.from(body.geometry.attributes.position.array);
   cab.geometry.userData.orig = Float32Array.from(cab.geometry.attributes.position.array);
   // one mesh per material for everything that never moves on its own (cage, trims, interior, lights...)
   mergeStatic(shell, new Set([body, cab, ...parts]));
-  car.userData = { wheels, wheelPos, wr, ww, shell, body, cab, parts, dims: { L, W: Wd, H: roofY, beltY }, paint, dirt, glass: { tex: winTex, WIN, cracked: {} }, sign };
+  car.userData = { wheels, wheelPos, wr: S.wr, wrs, ww: S.ww, shell, body, cab, parts, dims: { L, W: Wd, H: roofY, beltY }, paint, dirt, glass: { tex: winTex, WIN, cracked: {} }, sign };
   return car;
 }
 
