@@ -1033,7 +1033,7 @@ export class CircuitSim {
   }
 
   // ---------- SAFETY CAR RESTART: positions shuffle when the pack is released ----------
-  restartScramble() {
+  restartScramble(start = false) {
     const order = this.cars.filter((c) => c.status === 'running' && c.inPit <= 0).sort((a, b) => b.dist - a.dist);
     const moved = new Set(); const gains = [];
     for (let i = 1; i < order.length; i++) {
@@ -1048,8 +1048,8 @@ export class CircuitSim {
       gains.push([b, a, i]);
       if (b.restart === 'attack' && chance(0.06)) { a.damage += rand(0.2, 0.6); this.log(`⚠ Contatto alla ripartenza tra ${db.name} e ${da.name}!`, 'warn', b.key, a.isPlayer || b.isPlayer); this.investigate(b, a, false); }
     }
-    for (const [b, a, i] of gains) if (i <= 8 || a.isPlayer || b.isPlayer) { this.log(`⇄ Ripartenza: ${this.driver(b).name} infila ${this.driver(a).name} per la P${i}!`, 'overtake', b.key, a.isPlayer || b.isPlayer); this.onOvertake?.(b, a); }
-    if (gains.length) this.pushTV({ kind: 'restart', title: 'Ripartenza', text: `${gains.length} ${gains.length === 1 ? 'sorpasso' : 'sorpassi'} al via lanciato` });
+    for (const [b, a, i] of gains) if (i <= 8 || a.isPlayer || b.isPlayer) { this.log(`⇄ ${start ? 'Partenza' : 'Ripartenza'}: ${this.driver(b).name} ${start ? 'scatta meglio di' : 'infila'} ${this.driver(a).name} per la P${i}!`, 'overtake', b.key, a.isPlayer || b.isPlayer); this.onOvertake?.(b, a); }
+    if (gains.length) this.pushTV({ kind: 'restart', title: start ? 'Partenza' : 'Ripartenza', text: `${gains.length} ${gains.length === 1 ? 'posizione guadagnata' : 'posizioni guadagnate'} ${start ? 'allo spegnimento dei semafori' : 'al via lanciato'}` });
     for (const c of this.cars) { c.restart = null; c.lapTarget = this.computeLap(c); }
   }
   restartMoment() {
@@ -1240,6 +1240,7 @@ export class CircuitSim {
     if (rain < 0.1 && this._lastRain >= 0.1) this.log('☀ La pioggia smette, pista in asciugatura.', 'weather', null, true);
     { const lapNow = Math.floor(this.progress * this.laps); if (lapNow !== this._wxLap) { this._wxLap = lapNow; if (this.weather.isRain) this.frontMoment(); if (this.endurance && this.track.night) this.nightCheck(); } }
     this._lastRain = rain;
+    if (!this._started && this.time > 2.5) { this._started = true; this.restartScramble(true); }
     if (this.investigations.length) this.resolveInvestigations();
     if (this.radioQ.length) for (const r of this.radioQ.filter((x) => this.time > x.until)) this.answerRadio(r.id, r.type === 'ers' || r.type === 'pit');
     if (this.vsc && this.time > this.vsc.until) { this.vsc = null; this.log('🟢 Fine Virtual Safety Car', 'sc', null, true); for (const c of this.cars) c.lapTarget = this.computeLap(c); }
