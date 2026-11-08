@@ -62,7 +62,7 @@ function crowdPatch(mat) {
     sh.uniforms.uTime = TIME;
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uTime;\nfloat chash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }')
       .replace('#include <map_fragment>', `
-        vec2 cuv = vMapUv; vec2 cell = floor(cuv * vec2(73.0, 16.0)); float hh = chash(cell);
+        vec2 cuv = vMapUv; vec2 cell = floor(cuv * vec2(28.0, 16.0)); float hh = chash(cell);
         float act = step(0.8, hh) * max(0.0, sin(uTime * (3.0 + hh * 5.0) + hh * 40.0));
         float wave = step(0.5, sin(uTime * 0.9 - cell.x * 0.35 + cell.y * 0.2)) * step(0.93, chash(vec2(floor(cell.x / 9.0), 3.0)));
         cuv.y -= (act * 0.22 + wave * 0.3) / 16.0 * step(0.5, fract(cuv.y * 16.0));
@@ -817,21 +817,140 @@ export class Race3D {
     this.scene.add(this.forest);
   }
 
-  // stepped grandstand in local frame: x along the track, track side towards +z
-  makeStand(L, D, H, crowdMat, roofMat) {
+  // grandstand materials (shared by every stand; the stands are merged into ~6 draw calls)
+  standMats(crowdMat) {
+    if (this._sm) return this._sm;
+    const brands = ['APEX DYNASTY', 'PIRELLO', 'ROLEXA', 'DHX', 'PETRONIX', 'HEINEKAN 0.0', 'LAVAZZO', 'ARAMCORE'];
+    const cols = [['#e10600', '#fff'], ['#ffd400', '#111'], ['#0b5d3b', '#e8c55a'], ['#ffd400', '#d40511'], ['#0a2a66', '#fff'], ['#0b7a3a', '#fff'], ['#111', '#fff'], ['#00594f', '#fff']];
+    const ad = canvasTex(2048, 128, (c, w, h) => {
+      const bw = w / brands.length;
+      brands.forEach((b, k) => {
+        const [bg, fg] = cols[k]; c.fillStyle = bg; c.fillRect(k * bw, 0, bw, h);
+        c.fillStyle = 'rgba(255,255,255,0.1)'; c.fillRect(k * bw, 0, bw, h * 0.45);
+        c.fillStyle = fg; let size = 78; c.font = `italic 900 ${size}px "Exo 2", sans-serif`;
+        while (c.measureText(b).width > bw * 0.82 && size > 24) { size -= 4; c.font = `italic 900 ${size}px "Exo 2", sans-serif`; }
+        c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(b, k * bw + bw / 2, h / 2 + 4);
+        c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(k * bw, 0, 2, h);
+      });
+    });
+    ad.wrapS = ad.wrapT = THREE.ClampToEdgeWrapping; ad.anisotropy = 8;
+    const conc = this.low ? new THREE.MeshStandardMaterial({ color: 0xb9bcbf, roughness: 0.9 }) : pbr('concrete_floor_worn_001', { color: 0xd4d6d8, repeat: [0.22, 0.22], roughness: 0.95 });
+    this._sm = {
+      crowd: crowdMat, conc,
+      steel: new THREE.MeshStandardMaterial({ color: 0x8e979f, roughness: 0.45, metalness: 0.6 }),
+      dark: new THREE.MeshStandardMaterial({ color: 0x3a3e45, roughness: 0.8, metalness: 0.2 }),
+      roof: new THREE.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.42, metalness: 0.35 }),
+      ad: new THREE.MeshStandardMaterial({ map: ad, roughness: 0.5, emissive: 0xffffff, emissiveMap: ad, emissiveIntensity: this.night ? 0.5 : 0.06 }),
+      nBrands: brands.length,
+    };
+    return this._sm;
+  }
+
+  // grandstand in local frame: x along the track, track side towards +z. Stepped concrete
+  // side walls, raked seating with the animated crowd, steel raker structure underneath,
+  // advertising front wall, cantilever roof on cable-stayed masts with a sponsor fascia.
+  // Built as plain meshes; collectMerge() bakes every stand into shared per-material meshes.
+  makeStand(L, D, H, crowdMat) {
+    const M = this.standMats(crowdMat);
     const g = new THREE.Group();
-    const frame = this._standFrame ||= new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.6, metalness: 0.4 });
-    const back = new THREE.Mesh(new THREE.BoxGeometry(L, H, 0.6), frame); back.position.set(0, H / 2, -D / 2); back.castShadow = true; g.add(back);
-    for (const sx of [-1, 1]) { const side = new THREE.Mesh(new THREE.BoxGeometry(0.6, H, D), frame); side.position.set(sx * L / 2, H / 2, 0); g.add(side); }
-    const slopeLen = Math.hypot(D, H - 1.6);
-    const sl = new THREE.Mesh(new THREE.PlaneGeometry(L, slopeLen), crowdPatch(crowdMat.clone()));
-    sl.material.map = crowdMat.map.clone(); sl.material.map.repeat.set(L / 14, 1); sl.material.map.offset.x = Math.random(); sl.material.map.needsUpdate = true;
-    if (crowdMat.userData.tints) sl.material.color.set(crowdMat.userData.tints[Math.floor(Math.random() * crowdMat.userData.tints.length)]);
-    sl.position.set(0, (H + 1.6) / 2, 0); sl.rotation.x = -Math.atan2(D, H - 1.6); sl.receiveShadow = true; g.add(sl);
-    const front = new THREE.Mesh(new THREE.BoxGeometry(L, 1.6, 0.4), frame); front.position.set(0, 0.8, D / 2); g.add(front);
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(L + 2, 0.4, D + 3), roofMat); roof.position.set(0, H + 3.2, -0.5); roof.rotation.x = 0.06; roof.castShadow = true; g.add(roof);
-    for (let px = -L / 2; px <= L / 2 + 0.1; px += L / 4) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 3.4, 6), frame); post.position.set(px, H + 1.5, -D / 2 + 0.4); g.add(post); }
+    const add = (geo, mat, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
+    const yF = 1.6, rise = H - yF, slopeLen = Math.hypot(D, rise), ang = Math.atan2(rise, D);
+    // crowd on the rake (uv in metres / 14 so every stand shows people at the same scale)
+    {
+      const p = new THREE.PlaneGeometry(L - 0.9, slopeLen); p.rotateX(-Math.PI / 2 + ang);
+      const uv = p.attributes.uv, off = Math.random();
+      for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * (L - 0.9) / 14 + off);
+      const tints = crowdMat.userData.tints || ['#ffffff'];
+      const tint = new THREE.Color(tints[Math.floor(Math.random() * tints.length)]);
+      const n = p.attributes.position.count, col = new Float32Array(n * 3); for (let i = 0; i < n; i++) col.set([tint.r, tint.g, tint.b], i * 3);
+      p.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      add(p, M.crowd, 0, (H + yF) / 2 + 0.05, 0);
+      // seating slab (its underside shows from behind)
+      const sl = new THREE.BoxGeometry(L - 0.9, 0.45, slopeLen); sl.rotateX(ang); add(sl, M.conc, 0, (H + yF) / 2 - 0.25, 0);
+    }
+    // stepped side walls
+    {
+      const n = Math.max(4, Math.round(rise / 1.1)); const s = new THREE.Shape();
+      s.moveTo(D / 2 + 0.3, 0); s.lineTo(D / 2 + 0.3, yF + 0.45);
+      for (let k = 0; k < n; k++) { const z1 = D / 2 - (k + 1) * D / n, y0 = yF + k * rise / n + 0.45, y1 = yF + (k + 1) * rise / n + 0.45; s.lineTo(z1, y0); s.lineTo(z1, y1); }
+      s.lineTo(-D / 2 - 0.3, H + 0.45); s.lineTo(-D / 2 - 0.3, 0); s.lineTo(D / 2 + 0.3, 0);
+      for (const sx of [-1, 1]) {
+        const e = new THREE.ExtrudeGeometry(s, { depth: 0.45, bevelEnabled: false, curveSegments: 1 }); e.rotateY(-Math.PI / 2);
+        e.translate(sx < 0 ? -L / 2 + 0.45 : L / 2, 0, 0); add(e, M.conc);
+      }
+    }
+    // structure under the seats: columns on three lines, cross-bracing on the back
+    {
+      const nb = Math.max(2, Math.round(L / 7.5));
+      for (let k = 0; k <= nb; k++) {
+        const x = -L / 2 + 0.7 + (L - 1.4) * k / nb;
+        for (const [z, h] of [[-D / 2 + 0.3, H - 0.4], [0, (H + yF) / 2 - 0.4], [D / 2 - 0.6, yF]]) add(new THREE.BoxGeometry(0.35, h, 0.35), M.steel, x, h / 2, z);
+        if (k < nb) {
+          const x2 = -L / 2 + 0.7 + (L - 1.4) * (k + 1) / nb, bwid = x2 - x, bh = H - 0.9, len = Math.hypot(bwid, bh), a = Math.atan2(bh, bwid);
+          for (const sg of [1, -1]) { const b = new THREE.BoxGeometry(len, 0.14, 0.14); b.rotateZ(sg * a); add(b, M.steel, (x + x2) / 2, bh / 2 + 0.2, -D / 2 + 0.3); }
+          add(new THREE.BoxGeometry(bwid, 0.25, 0.25), M.steel, (x + x2) / 2, 2.4, -D / 2 + 0.3);
+        }
+      }
+    }
+    // front wall with advertising and a rail
+    add(new THREE.BoxGeometry(L, yF, 0.3), M.conc, 0, yF / 2, D / 2 + 0.15);
+    {
+      const segs = Math.max(1, Math.round(L / 12)), pos = [], uv = [], idx = [], b0 = Math.floor(Math.random() * M.nBrands);
+      for (let k = 0; k < segs; k++) {
+        const x0 = -L / 2 + 0.2 + (L - 0.4) * k / segs, x1 = -L / 2 + 0.2 + (L - 0.4) * (k + 1) / segs, u0 = ((b0 + k) % M.nBrands) / M.nBrands, u1 = u0 + 1 / M.nBrands, q = pos.length / 3;
+        pos.push(x0, 0.25, 0, x1, 0.25, 0, x1, 1.35, 0, x0, 1.35, 0); uv.push(u0, 0, u1, 0, u1, 1, u0, 1); idx.push(q, q + 1, q + 2, q, q + 2, q + 3);
+      }
+      const ag = new THREE.BufferGeometry(); ag.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ag.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); ag.setIndex(idx); ag.computeVertexNormals();
+      add(ag, M.ad, 0, 0, D / 2 + 0.31);
+      add(new THREE.BoxGeometry(L, 0.06, 0.06), M.steel, 0, yF + 1.0, D / 2 + 0.05);
+      // roof fascia: the same sponsor strip, larger
+      const fg = ag.clone(); fg.translate(0, -0.8, 0); fg.scale(1.03, 1.0, 1);
+      add(fg, M.ad, 0, H + 3.55 + 0.25, (D + 3.2) / 2 + 0.75);
+    }
+    // cantilever roof: thin slab rising towards the track, masts with stays at the back
+    {
+      const rd = D + 3.2, ry = H + 3.6;
+      const r = new THREE.BoxGeometry(L + 1.2, 0.28, rd); r.rotateX(-0.06); add(r, M.roof, 0, ry + 0.2, 0.4);
+      add(new THREE.BoxGeometry(L + 1.2, 1.25, 0.18), M.dark, 0, ry + 0.25, rd / 2 + 0.6);
+      const nm = Math.max(2, Math.round(L / 10));
+      for (let k = 0; k <= nm; k++) {
+        const x = -L / 2 + 0.7 + (L - 1.4) * k / nm;
+        add(new THREE.CylinderGeometry(0.16, 0.2, ry + 2.6 - H, 8), M.steel, x, (H + ry + 2.6) / 2, -D / 2 + 0.3);
+        const a = new THREE.Vector3(x, ry + 2.5, -D / 2 + 0.3), b = new THREE.Vector3(x, ry + 0.5, rd / 2 + 0.2);
+        const st = new THREE.CylinderGeometry(0.045, 0.045, a.distanceTo(b), 5);
+        st.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize()));
+        add(st, M.steel, (a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+      }
+    }
     return g;
+  }
+
+  // bake the meshes of a placed group into world-space buckets per material; flushMerge()
+  // adds one mesh per material (dozens of stands / buildings -> a handful of draw calls)
+  collectMerge(group, shadow = true) {
+    group.updateMatrixWorld(true);
+    this._mb ||= new Map();
+    group.traverse((o) => {
+      if (!o.isMesh) return;
+      const gg = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      for (const k of Object.keys(gg.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(k)) gg.deleteAttribute(k);
+      if (!gg.attributes.normal) gg.computeVertexNormals();
+      if (!gg.attributes.uv) gg.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(gg.attributes.position.count * 2), 2));
+      gg.applyMatrix4(o.matrixWorld);
+      const key = o.material.uuid + (shadow ? 's' : '');
+      if (!this._mb.has(key)) this._mb.set(key, { mat: o.material, list: [], shadow });
+      this._mb.get(key).list.push(gg);
+    });
+  }
+  flushMerge() {
+    for (const { mat, list, shadow } of this._mb?.values() || []) {
+      const withC = list.some((g) => g.attributes.color);
+      if (withC) { for (const g of list) if (!g.attributes.color) g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 3).fill(1), 3)); mat.vertexColors = true; }
+      const geo = mergeGeometries(list); if (!geo) continue;
+      geo.computeBoundingSphere();
+      const m = new THREE.Mesh(geo, mat); m.castShadow = shadow; m.receiveShadow = true; this.scene.add(m);
+    }
+    this._mb = null;
   }
 
   // checks the footprint (half-length along local x, half-depth along local z) of a placed object
@@ -975,37 +1094,61 @@ export class Race3D {
     // gantry
     this.buildGantry(W);
     // grandstands + pit building along start straight
+    // one tile = 14 m of stand: 16 rows of seats, ~0.5 m per spectator, an aisle with steps
     const crowd = canvasTex(512, 256, (c, w, h) => {
-      const rows = 16; const rh = h / rows;
+      const rows = 16; const rh = h / rows, aisle = 30;
+      const seat = ['#1d3f8f', '#20488f', '#9a1d22', '#1f2a36'][Math.floor(Math.random() * 4)];
+      const shirt = () => {
+        const r = Math.random();
+        if (r < 0.26) return `hsl(0,0%,${82 + Math.random() * 16}%)`;
+        if (r < 0.46) return `hsl(220,${8 + Math.random() * 20}%,${12 + Math.random() * 16}%)`;
+        if (r < 0.62) return ['#d8141b', '#c8102e', '#e10600', '#ff8000', '#00a19c', '#1e41ff', '#f5c400'][Math.floor(Math.random() * 7)];
+        if (r < 0.74) return `hsl(210,${30 + Math.random() * 25}%,${38 + Math.random() * 20}%)`;
+        return `hsl(${Math.random() * 360},${18 + Math.random() * 30}%,${35 + Math.random() * 30}%)`;
+      };
       for (let r = 0; r < rows; r++) {
-        c.fillStyle = r % 2 ? '#2b3140' : '#343b4d'; c.fillRect(0, r * rh, w, rh);
-        c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, r * rh + rh - 2, w, 2);
-        for (let x = 2; x < w; x += 6 + Math.random() * 3) {
-          if (Math.random() < 0.12) continue;
-          const rr = Math.random(); const hue = rr < 0.3 ? [0, 355, 210, 45, 25][Math.floor(Math.random() * 5)] : Math.random() * 360;
-          // mostly whites, darks and denim with some team colours
-          c.fillStyle = rr < 0.3 ? `hsl(${hue},${60 + Math.random() * 30}%,${40 + Math.random() * 20}%)` : rr < 0.55 ? `hsl(0,0%,${80 + Math.random() * 18}%)` : rr < 0.75 ? `hsl(220,${10 + Math.random() * 25}%,${14 + Math.random() * 20}%)` : `hsl(${hue},${15 + Math.random() * 25}%,${35 + Math.random() * 30}%)`;
-          c.fillRect(x, r * rh + rh * 0.35, 4.2, rh * 0.6);
-          c.fillStyle = `hsl(25,${30 + Math.random() * 30}%,${45 + Math.random() * 35}%)`; c.fillRect(x + 0.7, r * rh + rh * 0.08, 2.8, rh * 0.32);
+        const y0 = r * rh;
+        c.fillStyle = '#6f737a'; c.fillRect(0, y0, w, rh);
+        c.fillStyle = seat; c.fillRect(aisle, y0 + rh * 0.2, w - aisle, rh * 0.55);
+        c.fillStyle = 'rgba(0,0,0,0.4)'; c.fillRect(0, y0 + rh - 2, w, 2);
+        c.fillStyle = 'rgba(255,255,255,0.12)'; c.fillRect(0, y0, w, 1);
+        // aisle steps
+        c.fillStyle = '#8b8f95'; c.fillRect(0, y0, aisle, rh); c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, y0 + rh / 2 - 1, aisle, 1.5); c.fillRect(0, y0 + rh - 2, aisle, 2);
+        c.fillStyle = '#d9b22a'; c.fillRect(0, y0 + rh - 3, aisle, 1);
+        for (let x = aisle + 3; x < w - 14; x += 17 + Math.random() * 3) {
+          if (Math.random() < 0.08) continue; // empty seat
+          const sx = x + (Math.random() - 0.5) * 2, tw = 11 + Math.random() * 3;
+          c.fillStyle = shirt();
+          c.beginPath(); c.roundRect ? c.roundRect(sx, y0 + rh * 0.42, tw, rh * 0.62, 3) : c.rect(sx, y0 + rh * 0.42, tw, rh * 0.62); c.fill();
+          c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(sx + tw * 0.5 - 0.5, y0 + rh * 0.45, 1, rh * 0.5);
+          // head (skin), hair or cap
+          const hx = sx + tw / 2; c.fillStyle = `hsl(${20 + Math.random() * 12},${30 + Math.random() * 30}%,${30 + Math.random() * 45}%)`;
+          c.beginPath(); c.ellipse(hx, y0 + rh * 0.3, 3.1, 3.5, 0, 0, 7); c.fill();
+          const cap = Math.random();
+          c.fillStyle = cap < 0.3 ? ['#e10600', '#111', '#fff', '#f5c400', '#1e41ff'][Math.floor(Math.random() * 5)] : `hsl(30,${20 + Math.random() * 30}%,${8 + Math.random() * 30}%)`;
+          c.beginPath(); c.ellipse(hx, y0 + rh * 0.2, 3.3, cap < 0.3 ? 2.0 : 1.6, 0, 0, 7); c.fill();
+          // the odd raised arm or flag
+          if (Math.random() < 0.05) { c.fillStyle = shirt(); c.fillRect(sx + tw - 2, y0 - rh * 0.1, 2.5, rh * 0.55); }
         }
       }
-    }, [3, 1]);
-    const standMat = new THREE.MeshStandardMaterial({ map: crowd, roughness: 0.95 });
+    });
+    crowd.repeat.set(1, 1);
+    const standMat = crowdPatch(new THREE.MeshStandardMaterial({ map: crowd, roughness: 0.95 }));
     standMat.userData.tints = ['#ffffff', '#ffffff', '#fff0e6', '#ffe2c4', '#e6ecff', '#ffd2c8'];
-    const roofMat = new THREE.MeshStandardMaterial({ color: 0xdedede, roughness: 0.5, metalness: 0.3 });
     this.obstacles = [];
     for (let k = -3; k <= 3; k++) {
-      const st = this.makeStand(38, 14, 12, standMat, roofMat);
+      const st = this.makeStand(38, 14, 12, standMat);
       this.placeAt(st, k * 9, -(this.wallOff(k * 9, -1) + 10), 0);
-      if (this.boxClear(st, 19, 7, W / 2 + 3, k * 9)) { this.scene.add(st); this.obstacles.push({ x: st.position.x, z: st.position.z, r: 22, h: 16, hl: 20, hd: 8.5, rot: st.rotation.y }); }
+      if (this.boxClear(st, 19, 7, W / 2 + 3, k * 9)) { this.collectMerge(st); this.obstacles.push({ x: st.position.x, z: st.position.z, r: 22, h: 16, hl: 20, hd: 8.5, rot: st.rotation.y }); }
     }
     const big = this.geo.corners.slice().sort((a, b) => a.r - b.r).slice(0, 5);
     for (const cn of big) {
       const side = -cn.dir;
-      const st = this.makeStand(30, 10, 9, standMat, roofMat);
+      const st = this.makeStand(30, 10, 9, standMat);
       this.placeAt(st, cn.i, side * (this.wallOff(cn.i, side) + 8), 0, side > 0 ? Math.PI : 0);
-      if (this.boxClear(st, 15, 5, W / 2 + 3, cn.i)) { this.scene.add(st); this.obstacles.push({ x: st.position.x, z: st.position.z, r: 18, h: 13, hl: 16, hd: 6.5, rot: st.rotation.y }); }
+      if (this.boxClear(st, 15, 5, W / 2 + 3, cn.i)) { this.collectMerge(st); this.obstacles.push({ x: st.position.x, z: st.position.z, r: 18, h: 13, hl: 16, hd: 6.5, rot: st.rotation.y }); }
     }
+    this.flushMerge();
     this.buildPitLane(street);
     // trees / buildings instanced
     const count = street > 0.7 ? Math.round(260 * (this.low ? 0.35 : 1)) : 0;
@@ -1851,7 +1994,10 @@ export class Race3D {
     if (this.sunDisc) { this.sunDisc.position.copy(this.camera.position).addScaledVector(this._sunDiscDir, 4200); this.sunDisc.material.opacity = (1 - (this._night || 0)) * (1 - 0.95 * (this.wet || 0)); this.sunDisc.visible = this.sunDisc.material.opacity > 0.02; }
     if (this.composer?.rays) updateGodRays(this.composer, this.camera, this.hdr && hdriSun(this.skyKind), (this.tod?.rays ?? 0) * (1 - (this._night || 0)) * (1 - 0.9 * (this.wet || 0)));
     if (this.composer?.flare) updateSunFlare(this.composer, this.camera, this.hdr && hdriSun(this.skyKind), (1 - (this._night || 0)) * (1 - 0.9 * (this.wet || 0)) * (this.camMode === 'cockpit' ? 1.2 : 1));
+    // per-frame draw statistics (renderer.info resets per pass inside the composer)
+    const info = this.renderer.info; info.autoReset = false; info.reset();
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
+    this._stats = { calls: info.render.calls, tris: info.render.triangles }; info.autoReset = true;
     this.updateLabels();
   }
 
