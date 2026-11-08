@@ -182,3 +182,5 @@
   .press-teaser { grid-template-columns: 120px minmax(0, 1fr); }
 }
 .pr-art .pr-flag svg { width: 54px !important; height: 36px !important; display: block; }
+.press-teaser .pr-flag svg, .paper .story .pr-flag svg { width: 30px !important; height: 20px !important; }
+.press-teaser .pr-flag, .paper .story .pr-flag { left: 8px; top: 8px; }

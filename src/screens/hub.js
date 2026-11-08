@@ -125,6 +125,7 @@ registerScreen({
               <div class="col" style="gap:12px">${parts}</div>
               ${t.projects.length ? `<div class="row wrap mt16 gap6">${t.projects.map((p) => `<span class="chip info">${icon('rd')} ${partName(st, p.part)} · ${RD_TIERS[p.tier].name} · ${p.racesLeft} ${p.racesLeft === 1 ? 'evento' : 'eventi'}</span>`).join('')}</div>` : ''}
             </div>
+            ${pressPanel(st)}
           </div>
           <div class="col gap16">
             ${goalsPanel(st)}
@@ -137,7 +138,6 @@ registerScreen({
               <div style="margin:-6px -20px -20px">${st.inbox.slice(0, 4).map((m) => `<div class="mail ${m.read ? '' : 'unread'} ${m.type}" data-a="nav" data-to="inbox" data-mail="${m.id}"><div class="ic">${icon(m.icon || 'mail')}</div><div class="grow" style="min-width:0"><div class="subj" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject)}</div><div class="tiny muted">${esc(m.from)}</div></div></div>`).join('') || '<div class="muted small" style="padding:14px 20px">Nessun messaggio</div>'}</div>
             </div>
             ${rivalPanel(st)}
-            ${pressPanel(st)}
           </div>
         </div>
       </div>`;
