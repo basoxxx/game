@@ -153,8 +153,39 @@ function liveryTexture(L, { number, sponsor, pattern = L.pattern ?? 1, kind, dir
     }
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = hq ? 16 : 8;
     const lm = new THREE.MeshPhysicalMaterial({ map: t, roughness: dirt > 0 ? 0.32 + dirt * 0.35 : 0.3, metalness: 0.12, clearcoat: 1 - dirt * 0.6, clearcoatRoughness: 0.03 + dirt * 0.4, normalMap: flakeTex(), normalScale: new THREE.Vector2(0.06, 0.06), envMapIntensity: 1.25, specularIntensity: 0.8 });
-    lm.userData.keepFar = true; return lm;
+    lm.userData.keepFar = true; dirtPatch(lm); return lm;
   });
+}
+
+// dirt that builds up during a race / stage: dust and mud kicked up by the wheels, heaviest on
+// the sills, behind the wheels and on the tail, broken up by noise; it dulls the clear coat.
+// Driven per material by userData.dirtU (0..1) and userData.dirtCol (the race view sets them).
+function dirtPatch(m) {
+  const U = { value: 0 }, C = { value: new THREE.Color(0.42, 0.33, 0.22) };
+  m.userData.dirtU = U; m.userData.dirtCol = C;
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uDirt = U; sh.uniforms.uDirtCol = C;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vDirtP;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvDirtP = position;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      uniform float uDirt; uniform vec3 uDirtCol; varying vec3 vDirtP;
+      float dHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+      float dNoise(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(mix(dHash(i), dHash(i + vec3(1, 0, 0)), f.x), mix(dHash(i + vec3(0, 1, 0)), dHash(i + vec3(1, 1, 0)), f.x), f.y),
+                   mix(mix(dHash(i + vec3(0, 0, 1)), dHash(i + vec3(1, 0, 1)), f.x), mix(dHash(i + vec3(0, 1, 1)), dHash(i + vec3(1, 1, 1)), f.x), f.y), f.z); }`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        float dMask = 0.0;
+        if (uDirt > 0.001) {
+          float dN = dNoise(vDirtP * vec3(2.3, 5.5, 2.3)) * 0.55 + dNoise(vDirtP * vec3(11.0, 17.0, 11.0)) * 0.3 + dNoise(vDirtP * vec3(37.0, 41.0, 37.0)) * 0.15;
+          float dLow = 1.0 - smoothstep(0.16, 0.95, vDirtP.y);
+          float dRear = smoothstep(-0.9, -2.3, vDirtP.x) * 0.75;
+          float dAmt = uDirt * (dLow * 1.2 + dRear + 0.22);
+          dMask = clamp(smoothstep(0.0, 0.3, dAmt - (1.0 - dN) * 0.85), 0.0, 0.94);
+          diffuseColor.rgb = mix(diffuseColor.rgb, uDirtCol * (0.7 + 0.6 * dN), dMask);
+        }`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.9, dMask);')
+      .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\nmaterial.clearcoat *= 1.0 - dMask;\n#endif');
+  };
+  m.customProgramCacheKey = () => 'livdirt';
 }
 
 // ---------------- geometry: loft along x ----------------
@@ -432,6 +463,22 @@ function coverMat(base, ring) {
     return new THREE.MeshPhysicalMaterial({ map: t, roughness: 0.35, metalness: 0.2, clearcoat: 0.8, clearcoatRoughness: 0.08 });
   });
 }
+// spoke blur disc: the spokes averaged around the wheel (rim colour at partial coverage over the
+// dark barrel), chrome hub and the bright rim lip; translucent so the brake glow shows through
+function blurMat(rim, kind) {
+  return cached('blur' + rim + kind, () => {
+    const S = 128, R = S / 2, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d');
+    const col = new THREE.Color(rim), hex = (k) => `rgb(${Math.round(col.r * 255 * k)},${Math.round(col.g * 255 * k)},${Math.round(col.b * 255 * k)})`;
+    const cov = kind === 'rally' ? 0.5 : 0.42;
+    const gr = g.createRadialGradient(R, R, 0, R, R, R);
+    gr.addColorStop(0, '#d8dadf'); gr.addColorStop(0.18, '#9a9ca2'); gr.addColorStop(0.24, hex(0.95)); gr.addColorStop(0.6, hex(0.6 + cov * 0.4)); gr.addColorStop(0.86, hex(0.75)); gr.addColorStop(0.9, hex(1.05)); gr.addColorStop(0.97, hex(0.9)); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, S, S);
+    // faint concentric streaks (machining / dirt smeared by the rotation)
+    for (let k = 0; k < 22; k++) { const r = R * (0.25 + Math.random() * 0.62); g.strokeStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '0,0,0'},${0.05 + Math.random() * 0.08})`; g.lineWidth = 1 + Math.random() * 2; g.beginPath(); g.arc(R, R, r, 0, 7); g.stroke(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    return new THREE.MeshStandardMaterial({ map: t, transparent: true, opacity: 0.86, depthWrite: false, roughness: 0.35, metalness: 0.6, polygonOffset: true, polygonOffsetFactor: -1 });
+  });
+}
 function sidewallMat(color) { return cached('swm' + color, () => new THREE.MeshStandardMaterial({ map: sidewallTex(color), transparent: true, roughness: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 })); }
 
 // kind: 'f1' (wheel covers), 'gt' (centre-lock 5 spoke), 'rally' (white multi-spoke)
@@ -474,6 +521,13 @@ function wheel(r, w, tyreColor, { rim = '#1c1f24', kind = 'gt', rimFrac = 0.66, 
     spin.add(face);
   }
   if (kind !== 'f1') { const cal = mesh(new THREE.BoxGeometry(rimR * 0.5, rimR * 0.35, 0.06), MAT.paint('#c8102e')); cal.position.set(rimR * 0.45, rimR * 0.45, 0); grp.add(cal); }
+  // motion blur: at speed the spokes smear into a translucent disc (shown by the race view)
+  const blur = [];
+  if (kind !== 'f1') for (const sgn of [1, -1]) {
+    const b = new THREE.Mesh(new THREE.CircleGeometry(rimR * 1.0, 32), blurMat(rim, kind)); b.position.z = sgn * (w * 0.36 + 0.03); if (sgn < 0) b.rotation.y = Math.PI;
+    b.visible = false; b.renderOrder = 1; b.userData.blur = true; grp.add(b); blur.push(b);
+  }
+  grp.userData.blur = blur;
   grp.userData.spin = [spin]; grp.userData.spinAxis = 'z';
   grp.userData.rimR = rimR; grp.userData.w = w; grp.userData.kind = kind; grp.userData.r = r;
   return grp;
@@ -589,6 +643,8 @@ function formula(L, opts) {
     if (front) { const wl = sweptWing(spanSamples(0.13, 4, () => ({ x: x + 0.2, y: r * 2 + 0.05, c: 0.32, a: 0.05, t: 0.03 })), cf); wl.position.z = z; car.add(wl); }
   }
   car.userData.wheels = wheels;
+  // lamp positions (car-local) for the race view's glow / beam effects
+  car.userData.lamps = { head: [], tail: [[-2.33, 0.33, 0]], rain: true };
   return car;
 }
 
@@ -658,6 +714,7 @@ function endurance(L, opts) {
   const wheels = [];
   for (const [x, z] of [[XF, 0.8], [XF, -0.8], [XR, 0.8], [XR, -0.8]]) { const wh = wheel(R, 0.31, opts.tyre, { kind: 'gt', rim: '#22252b', rimFrac: 0.7 }); wh.position.set(x, R, z); car.add(wh); wheels.push(wh); }
   car.userData.wheels = wheels;
+  car.userData.lamps = { head: [[2.27, 0.55, 0.79], [2.27, 0.55, -0.79]], tail: [[-2.53, 0.78, 0.82], [-2.53, 0.78, -0.82], [-2.53, 0.78, 0.3], [-2.53, 0.78, -0.3]] };
   return car;
 }
 
@@ -739,6 +796,7 @@ function rally(L, opts) {
   const wheels = [];
   for (const [x, z] of [[XF, TZ], [XF, -TZ], [XR, TZ], [XR, -TZ]]) { const wh = wheel(R, gt ? 0.3 : 0.24, gt ? '#ffd400' : '#9a9a9a', { kind: gt ? 'gt' : 'rally', rim: gt ? '#2a2d33' : '#eef0f2', rimFrac: gt ? 0.72 : 0.62, decal: gt }); wh.position.set(x, R, z); car.add(wh); wheels.push(wh); }
   car.userData.wheels = wheels;
+  car.userData.lamps = { head: [[2.05, 0.7 + lift, 0.6], [2.05, 0.7 + lift, -0.6]], tail: [[-2.1, 0.8 + lift, 0.63], [-2.1, 0.8 + lift, -0.63]] };
   return car;
 }
 
@@ -749,6 +807,7 @@ export function buildCar(category, livery, opts = {}) {
   car.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   if (opts.merge !== false) mergeStatic(car);
   if (opts.lod && opts.merge !== false) buildFarLOD(car, opts);
+  car.traverse((o) => { if (!car.userData.dirtMat && o.isMesh && o.material?.userData?.dirtU) car.userData.dirtMat = o.material; });
   return car;
 }
 

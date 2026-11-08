@@ -197,6 +197,34 @@ export function applyHDRI(renderer, scene, kind = 'day', { background = true, in
   });
 }
 
+// depth of field (HDR, right after the scene render): circle of confusion from the linear depth
+// (logarithmic depth buffer decoded), 24-tap disc gather; samples nearer than the pixel only
+// count when they are blurred themselves, so sharp foreground edges do not bleed outwards.
+// uFocus = focus distance (m), uRange = in-focus depth band (m), uMax = max radius (px).
+const DofShader = {
+  uniforms: { tDiffuse: { value: null }, tDepth: { value: null }, uTexel: { value: new THREE.Vector2(1 / 1280, 1 / 720) }, uFocus: { value: 10 }, uRange: { value: 4 }, uMax: { value: 6 }, uLogF: { value: Math.log2(6001) }, uNear: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: /* glsl */`uniform sampler2D tDiffuse, tDepth; uniform vec2 uTexel; uniform float uFocus, uRange, uMax, uLogF, uNear; varying vec2 vUv;
+    float linZ(vec2 uv) { float d = texture2D(tDepth, uv).x; return exp2(d * uLogF) - 1.0; }
+    float coc(float z) { float c = (z - uFocus) / uRange; return clamp(c > 0.0 ? c * 0.5 : -c * uNear, 0.0, 1.0); }
+    void main() {
+      vec4 base = texture2D(tDiffuse, vUv);
+      float z = linZ(vUv), c = coc(z);
+      vec3 acc = base.rgb; float wsum = 1.0;
+      for (int i = 0; i < 24; i++) {
+        float fi = float(i);
+        float r = sqrt((fi + 0.5) / 24.0), a = fi * 2.39996;
+        vec2 o = vec2(cos(a), sin(a)) * r * uMax * uTexel;
+        vec2 suv = vUv + o * max(c, 0.0);
+        float sz = linZ(suv), sc = coc(sz);
+        float w = sz < z - 0.5 ? sc : 1.0;
+        w *= step(r * 0.98, max(c, sc) + 0.02);
+        acc += texture2D(tDiffuse, suv).rgb * w; wsum += w;
+      }
+      gl_FragColor = vec4(acc / wsum, base.a);
+    }`,
+};
+
 // final colour grade in display space: gentle S-curve contrast, saturation, warm highlights /
 // cool shadows split-toning and a soft vignette
 const GradeShader = {
@@ -481,15 +509,27 @@ export function updateSunFlare(composer, camera, sunDir, amount = 1) {
   f.uniforms.uSun.value.set(u, v); f.uniforms.uAmt.value = amt; f.uniforms.uAspect.value = camera.aspect;
 }
 
-export function makeComposer(renderer, scene, camera, { bloom = 0.22, low = false, ao = false, grade = true, filter = true, flare = false, rays = false } = {}) {
+export function makeComposer(renderer, scene, camera, { bloom = 0.22, low = false, ao = false, grade = true, filter = true, flare = false, rays = false, dof = false } = {}) {
   if (low) { if (filter) applyFilterSettings(renderer.domElement); return null; }
   try {
     const size0 = renderer.getSize(new THREE.Vector2());
     const rt = new THREE.WebGLRenderTarget(size0.x * renderer.getPixelRatio(), size0.y * renderer.getPixelRatio(), { type: THREE.HalfFloatType, depthBuffer: true, samples: 0 });
     rt.depthTexture = new THREE.DepthTexture(size0.x, size0.y, THREE.FloatType);
     const comp = new EffectComposer(renderer, rt);
-    comp.addPass(new RenderPass(scene, camera));
+    // the clone shares the depth texture's GPU source: give the second buffer its own so the depth
+    // of field can read one while writing the other
+    if (dof) comp.renderTarget2.depthTexture = new THREE.DepthTexture(rt.width, rt.height, THREE.FloatType);
+    const rpass = new RenderPass(scene, camera);
+    comp.addPass(rpass);
     const size = renderer.getSize(new THREE.Vector2());
+    if (dof) {
+      // reads the colour + depth of the target the scene was just drawn into, writes the other one
+      const dp = new ShaderPass(DofShader); dp.enabled = false;
+      const r0 = dp.render.bind(dp);
+      dp.render = (rd, wb, rb, ...a) => { dp.uniforms.tDepth.value = rb.depthTexture; dp.uniforms.uLogF.value = Math.log2(camera.far + 1); r0(rd, wb, rb, ...a); };
+      dp.setSize = (w, h) => dp.uniforms.uTexel.value.set(1 / Math.max(1, w), 1 / Math.max(1, h));
+      comp.addPass(dp); comp.dof = dp;
+    }
     if (ao) {
       try {
         const g = new GTAOPass(scene, camera, size.x, size.y);
