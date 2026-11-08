@@ -233,6 +233,7 @@ function buildSceneryInner(game, R) {
   const v = game.venue, tr = game.track, T = game.terrain, scene = game.scene;
   const place = (obj, x, z, yaw, info) => { const y = T.heightAt(x, z); obj.position.set(x, y - 0.05, z); obj.rotation.y = yaw; game.S.add(obj); game.blockers.push([x, z, Math.max(...info.half) + 2]); if (info.half) solid(game, x, y, z, yaw, info.half[0], (info.h || 4) / 2, info.half[1], info.round || 0); };
   if (tr.arena) { buildArena(game, R); return; }
+  if (tr.stunt) buildStunt(game, R);
   const hw = tr.width / 2;
   // start / finish gantry
   const p0 = tr.pts[0], nx = -Math.sin(p0.h), nz = Math.cos(p0.h);
@@ -244,7 +245,7 @@ function buildSceneryInner(game, R) {
   const chk = new THREE.Mesh(new THREE.PlaneGeometry(1.6, tr.width), new THREE.MeshStandardMaterial({ map: bannerTex, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2 }));
   chk.rotation.x = -Math.PI / 2; chk.rotation.z = -p0.h; chk.position.set(p0.x, T.heightAt(p0.x, p0.z) + 0.04, p0.z); game.S.add(chk);
   // grandstands
-  const stands = v.stadium ? [] : [0.03, 0.5, ...(v.farm ? [] : [0.27])];
+  const stands = v.stadium || tr.stunt ? [] : [0.03, 0.5, ...(v.farm ? [] : [0.27])];
   for (const fr of stands) {
     const i = Math.floor(fr * tr.N), p = tr.pts[i], k = p.k, sd = k > 0 ? 1 : -1, ox = -Math.sin(p.h) * sd, oz = Math.cos(p.h) * sd, off = hw + 15;
     const x = p.x + ox * off, z = p.z + oz * off; if (!clearOf(game, x, z, 8)) continue;
@@ -270,7 +271,7 @@ function buildSceneryInner(game, R) {
     game.lamps = lampI;
   }
   // buildings
-  const kinds = v.farm ? ['barn', 'silo', 'barn', 'silo', 'shed', 'container', 'cabin'] : v.quarry ? ['shed', 'container', 'cabin', 'container', 'shed', 'silo'] : v.stadium ? ['cabin', 'container'] : ['shed', 'cabin', 'container', 'shed'];
+  const kinds = v.port ? ['shed', 'container', 'cabin', 'shed', 'container'] : tr.stunt ? ['cabin', 'container', 'shed'] : v.farm ? ['barn', 'silo', 'barn', 'silo', 'shed', 'container', 'cabin'] : v.quarry ? ['shed', 'container', 'cabin', 'container', 'shed', 'silo'] : v.stadium ? ['cabin', 'container'] : ['shed', 'cabin', 'container', 'shed'];
   let placed = 0;
   for (let a = 0; a < 80 && placed < kinds.length; a++) {
     const i = Math.floor(R() * tr.N), p = tr.pts[i], sd = R() < 0.5 ? 1 : -1, off = hw + 26 + R() * 30;
@@ -282,6 +283,7 @@ function buildSceneryInner(game, R) {
   if (v.quarry) buildQuarry(game, R);
   if (v.stadium) buildStadium(game, R);
   if (v.farm) buildFarm(game, R);
+  if (v.port) buildPort(game, R);
 }
 
 function buildQuarry(game, R) {
@@ -370,7 +372,137 @@ function buildArena(game, R) {
     const a = (k / 6) * Math.PI * 2; const x = T.cx + Math.cos(a) * (tr.R + 16), z = T.cz + Math.sin(a) * (tr.R + 16);
     const m = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 26, 8), M.steel); m.position.set(x, T.heightAt(x, z) + 13, z); m.castShadow = true; game.S.add(m);
     const lamp = new THREE.Mesh(new THREE.BoxGeometry(3, 1.4, 0.6), M.lamp); lamp.position.set(x, m.position.y + 13.5, z); lamp.lookAt(T.cx, 0, T.cz); game.S.add(lamp);
+    if (game.venue.sky === 'night' && k % 2 === 0) { const sp = new THREE.SpotLight(0xfff1dc, 900, 220, 0.75, 0.6, 1.3); sp.position.copy(lamp.position); sp.target.position.set(T.cx - Math.cos(a) * 12, 0, T.cz - Math.sin(a) * 12); game.S.add(sp); game.S.add(sp.target); }
   }
+  // heap of scrapped cars on the central mound
+  if (tr.island) {
+    const cols = ['#5b2a1e', '#2b3a4a', '#4a4a3a', '#3a2a2a'];
+    for (let k = 0; k < 7; k++) { const a = (k / 7) * 6.28 + 0.3, r = k < 6 ? 1.6 : 0; const c = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.1, 1.7), M.corr(cols[k % 4])); const x = T.cx + Math.cos(a) * r, z = T.cz + Math.sin(a) * r; c.position.set(x, T.heightAt(x, z) + 0.5 + (k === 6 ? 1.1 : 0), z); c.rotation.set((R() - 0.5) * 0.4, a, (R() - 0.5) * 0.5); c.castShadow = true; game.S.add(c); }
+    solid(game, T.cx, T.heightAt(T.cx, T.cz) - 0.3, T.cz, 0, 0, 1.4, 0, 3.2);
+  }
+}
+
+// ------------------------------------------------------------------ scorch marks (persistent)
+let _scorchMat = null;
+export function buildScorch(game, x, z, r = 3.2) {
+  const T = game.terrain;
+  if (!_scorchMat) {
+    const t = canvasTex(128, 128, (g) => { const gr = g.createRadialGradient(64, 64, 4, 64, 64, 62); gr.addColorStop(0, 'rgba(8,6,5,0.95)'); gr.addColorStop(0.45, 'rgba(14,11,9,0.8)'); gr.addColorStop(1, 'rgba(20,16,12,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); for (let i = 0; i < 26; i++) { const a = Math.random() * 6.28, l = 30 + Math.random() * 30; g.strokeStyle = 'rgba(10,8,6,0.5)'; g.lineWidth = 2 + Math.random() * 4; g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + Math.cos(a) * l, 64 + Math.sin(a) * l); g.stroke(); } });
+    _scorchMat = new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 1, polygonOffset: true, polygonOffsetFactor: -5 });
+  }
+  const g = new THREE.CircleGeometry(r, 16); g.rotateX(-Math.PI / 2); g.rotateY(Math.random() * 6.28);
+  const P = g.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, T.heightAt(P.getX(i) + x, P.getZ(i) + z) + 0.05);
+  const m = new THREE.Mesh(g, _scorchMat); m.position.set(x, 0, z); m.receiveShadow = true; m.renderOrder = 1; game.scene.add(m);
+  (game.scorches ||= []).push(m); if (game.scorches.length > 24) { const o = game.scorches.shift(); game.scene.remove(o); o.geometry.dispose(); }
+}
+
+// ------------------------------------------------------------------ port
+const CONT_COLS = ['#a33a2a', '#1f5f99', '#2e7d4f', '#c97f16', '#6b6f73', '#b8b2a0'];
+function buildPort(game, R) {
+  const tr = game.track, T = game.terrain, M = mats(), hw = tr.width / 2, [x0, , x1, z1] = tr.bbox;
+  const quayZ = z1 + 34;
+  // container walls lining the quays: instanced per colour, one fixed collider per stack
+  const lists = CONT_COLS.map(() => []);
+  const near = (x, z, minD, iSkip) => { for (let k = 0; k < tr.N; k += 2) { if (Math.min(Math.abs(k - iSkip), tr.N - Math.abs(k - iSkip)) < 14) continue; const q = tr.pts[k]; if ((q.x - x) ** 2 + (q.z - z) ** 2 < minD * minD) return true; } return false; };
+  for (let i = 0; i < tr.N; i += 3) {
+    const p = tr.pts[i]; if (Math.abs(p.k) > 1 / 110) continue;
+    if (game.near(tr.jumps, i, 45) || i < 14 || i > tr.N - 10) continue;
+    if (game.water.streams.some((s) => Math.hypot(s.x - p.x, s.z - p.z) < 30)) continue;
+    if (Math.floor(i / 21) % 3 === 2) continue; // gaps between the blocks
+    for (const sd of [1, -1]) {
+      if (R() < 0.18) continue;
+      const off = hw + 4.8 + R() * 0.6, x = p.x - Math.sin(p.h) * sd * off, z = p.z + Math.cos(p.h) * sd * off;
+      if (z > quayZ - 6 || near(x, z, hw + 6, i)) continue;
+      const n = 1 + Math.floor(R() * 3), y = T.heightAt(x, z), yaw = -p.h;
+      for (let k = 0; k < n; k++) lists[Math.floor(R() * CONT_COLS.length)].push([x + (R() - 0.5) * 0.3, y + 1.3 + k * 2.6, z, yaw + (R() - 0.5) * 0.06]);
+      solid(game, x, y, z, yaw, 3.05, 1.3 * n, 1.22);
+      game.blockers.push([x, z, 5]);
+    }
+  }
+  const cg = new THREE.BoxGeometry(6.1, 2.6, 2.44), d = new THREE.Object3D();
+  lists.forEach((L, ci) => { if (!L.length) return; const inst = new THREE.InstancedMesh(cg, M.corr(CONT_COLS[ci]), L.length); L.forEach(([x, y, z, yaw], i) => { d.position.set(x, y, z); d.rotation.set(0, yaw, 0); d.updateMatrix(); inst.setMatrixAt(i, d.matrix); }); inst.castShadow = inst.receiveShadow = true; game.scene.add(inst); });
+  // the sea beyond the quay, a concrete edge with bollards and a low kerb
+  const sea = new THREE.Mesh(new THREE.PlaneGeometry(2600, 900).rotateX(-Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: 0x11262c, roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 0.9 }));
+  sea.position.set(T.cx, -1.6, quayZ + 450); sea.receiveShadow = true; game.scene.add(sea);
+  const qlen = T.sx;
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(qlen, 4.4, 1.2), M.concrete); edge.position.set(T.cx, -2.0, quayZ + 0.4); edge.receiveShadow = true; game.S.add(edge);
+  const kerb = new THREE.Mesh(new THREE.BoxGeometry(qlen, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: 0xd8c23a, roughness: 0.7 })); kerb.position.set(T.cx, T.heightAt(T.cx, quayZ - 1) + 0.25, quayZ - 0.6); game.S.add(kerb);
+  solid(game, T.cx, T.heightAt(T.cx, quayZ - 1) - 0.5, quayZ - 0.6, 0, qlen / 2, 1.0, 0.3);
+  for (let x = T.cx - qlen / 2 + 6; x < T.cx + qlen / 2; x += 14) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.35, 0.7, 10), M.dark); b.position.set(x, T.heightAt(x, quayZ - 1.6) + 0.35, quayZ - 1.6); b.castShadow = true; game.S.add(b); }
+  // moored cargo ship
+  const ship = new THREE.Group(), hullM = new THREE.MeshStandardMaterial({ color: 0x2a2f36, roughness: 0.6, metalness: 0.4 }), redM = new THREE.MeshStandardMaterial({ color: 0x8e2418, roughness: 0.7 });
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(150, 9, 24), hullM); hull.position.y = 2.5; ship.add(hull);
+  const bottom = new THREE.Mesh(new THREE.BoxGeometry(150, 3, 23.6), redM); bottom.position.y = -2.4; ship.add(bottom);
+  const bow = new THREE.Mesh(new THREE.CylinderGeometry(12, 12, 9, 3, 1, false, 0, Math.PI).rotateY(-Math.PI / 2), hullM); bow.scale.set(1.8, 1, 1); bow.position.set(75, 2.5, 0); ship.add(bow);
+  const bridge = new THREE.Mesh(new THREE.BoxGeometry(14, 14, 20), M.white); bridge.position.set(-60, 14, 0); ship.add(bridge);
+  const stack = new THREE.Mesh(new THREE.BoxGeometry(5, 8, 5), redM); stack.position.set(-68, 25, 0); ship.add(stack);
+  for (let k = 0; k < 9; k++) for (let j = 0; j < 3; j++) for (let l = 0; l < 1 + ((k * 7 + j) % 3); l++) { const c = new THREE.Mesh(new THREE.BoxGeometry(12.2, 2.6, 2.44), M.corr(CONT_COLS[(k * 3 + j + l) % CONT_COLS.length])); c.position.set(-40 + k * 12.6, 8.3 + l * 2.6, -7 + j * 7); ship.add(c); }
+  shadowy(ship); ship.position.set(T.cx + 40, -1.2, quayZ + 26); game.S.add(ship);
+  // portal cranes along the quay
+  const craneM = new THREE.MeshStandardMaterial({ color: 0xc8361e, roughness: 0.55, metalness: 0.35 }), whiteM = M.white;
+  for (let n = 0; n < 3; n++) {
+    const x = x0 + (x1 - x0) * (0.2 + n * 0.3), z = quayZ - 9, y = T.heightAt(x, z);
+    const c = new THREE.Group();
+    for (const [lx, lz] of [[-7, -5], [7, -5], [-7, 5], [7, 5]]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(1.1, 26, 1.1), (lx + lz) % 2 ? craneM : craneM); leg.position.set(lx, 13, lz); c.add(leg); }
+    for (const lx of [-7, 7]) { const br = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 11), whiteM); br.position.set(lx, 12, 0); c.add(br); }
+    const boom = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.4, 78), craneM); boom.position.set(0, 27.5, 18); c.add(boom);
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.6, 3.4), whiteM); cab.position.set(0, 25, 6 + n * 7); c.add(cab);
+    const mast = new THREE.Mesh(new THREE.BoxGeometry(1.4, 12, 1.4), craneM); mast.position.set(0, 34, -4); c.add(mast);
+    for (const s of [-1, 1]) { const st = tube2(new THREE.Vector3(0, 40, -4), new THREE.Vector3(0, 28.5, s > 0 ? 50 : -18), 0.12, M.steel); c.add(st); }
+    shadowy(c); c.position.set(x, y, z); game.S.add(c);
+    for (const [lx, lz] of [[-7, -5], [7, -5], [-7, 5], [7, 5]]) solid(game, x + lx, y, z + lz, 0, 0.6, 3, 0.6);
+    game.blockers.push([x, z, 12]);
+  }
+}
+function tube2(a, b, r, m) { const d = new THREE.Vector3().subVectors(b, a); const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), 6), m); o.position.copy(a).addScaledVector(d, 0.5); o.quaternion.setFromUnitVectors(UP, d.normalize()); return o; }
+
+// ------------------------------------------------------------------ stunt ramp
+function buildStunt(game, R) {
+  const tr = game.track, T = game.terrain, M = mats(), lip = tr.lipX;
+  // kicker: circular arc ending at 24 deg, built from convex segments (physics) and a skinned mesh
+  const K = 17, A = 24 * Math.PI / 180, Rr = K / Math.sin(A), halfW = 7, seg = 10;
+  const prof = []; for (let i = 0; i <= seg; i++) { const a = (A * i) / seg; prof.push([lip - K + Rr * Math.sin(a), Rr * (1 - Math.cos(a))]); }
+  game.kickerH = prof[seg][1];
+  for (let i = 0; i < seg; i++) {
+    const [xa, ya] = prof[i], [xb, yb] = prof[i + 1], pts = [];
+    for (const z of [-halfW, halfW]) pts.push(xa, ya, z, xb, yb, z, xa, -1.6, z, xb, -1.6, z);
+    const body = game.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    const col = game.world.createCollider(RAPIER.ColliderDesc.convexHull(new Float32Array(pts)).setFriction(1.0), body);
+    if (col) game.handles.set(col.handle, { kind: 'ground' });
+  }
+  const chevron = canvasTex(256, 256, (g, W, H) => { g.fillStyle = '#1a1a1a'; g.fillRect(0, 0, W, H); g.fillStyle = '#ffd400'; for (let k = -2; k < 6; k++) { g.beginPath(); g.moveTo(0, k * 64); g.lineTo(W / 2, k * 64 + 64); g.lineTo(W, k * 64); g.lineTo(W, k * 64 + 28); g.lineTo(W / 2, k * 64 + 92); g.lineTo(0, k * 64 + 28); g.closePath(); g.fill(); } }, [3, 2]);
+  const topM = new THREE.MeshStandardMaterial({ map: chevron, roughness: 0.75, metalness: 0.2 });
+  const pos = [], uv = [], idx = [];
+  prof.forEach(([x, y], i) => { for (const z of [-halfW, halfW]) { pos.push(x, y + 0.02, z); uv.push(z / (2 * halfW) + 0.5, i / seg); } if (i) { const b = (i - 1) * 2; idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); } });
+  const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); tg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); tg.setIndex(idx); tg.computeVertexNormals();
+  if (tg.attributes.normal.getY(0) < 0) { tg.index.array.reverse(); tg.computeVertexNormals(); }
+  const top = new THREE.Mesh(tg, topM); top.receiveShadow = true; top.castShadow = true; game.scene.add(top);
+  // side cheeks and the front face (steel)
+  for (const z of [-halfW, halfW]) { const sh = new THREE.Shape(); sh.moveTo(prof[0][0], -1.6); prof.forEach(([x, y]) => sh.lineTo(x, y)); sh.lineTo(lip, -1.6); sh.closePath(); const g = new THREE.ShapeGeometry(sh); const m = new THREE.Mesh(g, M.corr('#7d8a8f')); m.material.side = THREE.DoubleSide; m.position.z = z; m.castShadow = true; game.S.add(m); }
+  const face = new THREE.Mesh(new THREE.BoxGeometry(0.3, game.kickerH + 1.6, halfW * 2), M.corr('#6a6f72')); face.position.set(lip + 0.15, (game.kickerH - 1.6) / 2, 0); game.S.add(face);
+  // distance lines across the landing slope, medal lines and signboards
+  const tg2 = game.o.targets || [35, 50, 65], medalC = ['#c9803f', '#d9dee6', '#ffcf3a'];
+  const lineM = new THREE.MeshBasicMaterial({ color: 0xf4f1e8, transparent: true, opacity: 0.85, polygonOffset: true, polygonOffsetFactor: -4, depthWrite: false });
+  const strip = (x, w, mat) => { const g = new THREE.PlaneGeometry(w, 28, 1, 8); g.rotateX(-Math.PI / 2); const P = g.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, T.heightAt(x + P.getX(i), P.getZ(i)) + 0.06); const m = new THREE.Mesh(g, mat); m.position.x = x; game.scene.add(m); };
+  const nums = canvasTex(1024, 256, (g, W, H) => { g.fillStyle = '#111'; g.fillRect(0, 0, W, H); g.font = 'italic 900 58px "Exo 2", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; for (let i = 0; i < 16; i++) { const cx = (i % 8) * 128 + 64, cy = Math.floor(i / 8) * 128 + 64; g.fillStyle = '#ffd400'; g.fillText(String((i + 1) * 10), cx, cy); } });
+  for (let d = 10; d <= 160; d += 10) {
+    const x = lip + d; strip(x, 0.35, lineM);
+    for (const z of [-17.5, 17.5]) {
+      const i = d / 10 - 1, g = new THREE.PlaneGeometry(2.6, 1.3); const u0 = (i % 8) / 8, v0 = 1 - (Math.floor(i / 8) + 1) / 2; const uvA = g.attributes.uv; for (let k = 0; k < uvA.count; k++) uvA.setXY(k, u0 + uvA.getX(k) / 8, v0 + uvA.getY(k) / 2);
+      const b = new THREE.Mesh(g, (M.numM ||= new THREE.MeshStandardMaterial({ map: nums, roughness: 0.6, side: THREE.DoubleSide }))); b.position.set(x, T.heightAt(x, z) + 1.6, z); b.rotation.y = z > 0 ? Math.PI : 0; game.S.add(b);
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2, 0.12), M.steel); post.position.set(x, T.heightAt(x, z) + 0.5, z); game.S.add(post);
+    }
+  }
+  tg2.forEach((d, k) => {
+    strip(lip + d, 0.8, new THREE.MeshBasicMaterial({ color: medalC[k], transparent: true, opacity: 0.9, polygonOffset: true, polygonOffsetFactor: -4, depthWrite: false }));
+    for (const z of [-15.5, 15.5]) { const x = lip + d, y = T.heightAt(x, z); const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 4, 6), M.steel); pole.position.set(x, y + 2, z); game.S.add(pole); const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.9), new THREE.MeshStandardMaterial({ color: medalC[k], roughness: 0.6, side: THREE.DoubleSide, emissive: medalC[k], emissiveIntensity: 0.15 })); flag.position.set(x + 0.7, y + 3.5, z); game.S.add(flag); }
+  });
+  // stands along the landing slope and banners along the run-in
+  for (const [x, z] of [[lip + 40, -36], [lip + 95, -36], [lip + 40, 36], [lip + 95, 36], [lip - 30, -34]]) { const g = grandstand(36, 9); g.position.set(x, T.heightAt(x, z) - 0.3, z); g.rotation.y = z > 0 ? Math.PI : 0; game.S.add(g); game.blockers.push([x, z, 24]); }
+  for (let x = tr.bbox[0] + 30, i = 0; x < lip - 20; x += 24, i++) for (const z of [-18, 18]) { const b = banner((i + (z > 0 ? 3 : 0)) % 8); b.position.set(x, T.heightAt(x, z) - 0.1, z); b.rotation.y = z > 0 ? Math.PI : 0; game.S.add(b); }
+  // a big inflatable-style arch over the lip
+  const archM = new THREE.MeshStandardMaterial({ color: 0xe10600, roughness: 0.5 });
+  const arch = new THREE.Mesh(new THREE.TorusGeometry(10, 0.7, 10, 32, Math.PI), archM); arch.position.set(lip - K - 4, 0, 0); arch.rotation.y = Math.PI / 2; arch.castShadow = true; game.S.add(arch);
 }
 
 // ------------------------------------------------------------------ trees

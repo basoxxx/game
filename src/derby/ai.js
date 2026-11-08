@@ -42,7 +42,7 @@ export function aiInput(game, car, dt) {
   A.stuckClock += dt; if (A.stuckClock > 15) { A.stuckClock = 0; A.stuckN = 0; }
   // reversing out of trouble
   if (A.revT > 0) { A.revT -= dt; return { thr: 0, brk: 1, st: A.revSt, hb: 0, nitro: 0 }; }
-  const out = game.track.arena ? derbyAI(game, car, A, k, dt) : raceAI(game, car, A, k, dt);
+  const out = game.track.arena ? derbyAI(game, car, A, k, dt) : game.track.stunt ? stuntAI(game, car, A, k, dt) : raceAI(game, car, A, k, dt);
   // stuck detection: wants to go but does not move
   if (game.state === 'race' && out.thr > 0.3 && k.speed < 1.4 && car.dyn?.grounded >= 2) {
     A.stuckT += dt;
@@ -59,7 +59,7 @@ function raceAI(game, car, A, k, dt) {
   const tr = game.track, line = game.line, N = tr.N, i = car.idx, hw = tr.width / 2;
   const P = A.P;
   // ---- pace: personality, skill, class, subtle rubber band against the player
-  let pace = P.pace * (0.94 + car.skill * 0.07);
+  let pace = P.pace * (0.94 + car.skill * 0.07) * (car.paceMul || 1);
   const pl = game.player;
   if (pl && pl !== car && !pl.finished) {
     const gap = ((car.prog || 0) - (pl.prog || 0)) * tr.ds; // metres ahead of the player
@@ -110,6 +110,9 @@ function raceAI(game, car, A, k, dt) {
       else laneT -= Math.sign(lat) * (1.3 - P.lean) * 1.6;
     }
   }
+  // autopilot hunting the Lepre (used when the player's car is AI-driven)
+  const lp = game.lepre;
+  if (car.isPlayer && lp && !lp.out && A.ramCool <= 0) { const op = lp.body.translation(), ax = (op.x - k.p.x) * k.fwd.x + (op.z - k.p.z) * k.fwd.z; if (ax > -2 && ax < 45) { A.ram = { o: lp, kind: 'hunt' }; A.ramT = 0.6; } }
   if (A.passT > 0 && A.passSide != null) laneT = A.passSide - line.off[(i + 6) % N];
   else if (A.passT <= 0) A.passSide = null;
   A.lane += (laneT - A.lane) * Math.min(1, dt * 1.6);
@@ -203,4 +206,11 @@ function derbyAI(game, car, A, k, dt) {
   let thr = k.speed < vT ? 1 : 0.2, brk = k.speed > vT + 4 ? 0.6 : 0;
   if (k.vF < -1 && thr > 0) { thr = 1; brk = 0; }
   return { thr, brk, st, hb, nitro };
+}
+
+// Ramp jump: straight down the runway, flat out, nitro from the bottom of the hill
+function stuntAI(game, car, A, k) {
+  const ahead = k.p.x + 25, { st } = steerTo(k, ahead, 0, 2.0);
+  const nitro = k.p.x > -150 && k.p.x < game.track.lipX && car.nitro > 0 ? 1 : 0;
+  return { thr: k.p.x < game.track.lipX + 2 ? 1 : 0, brk: 0, st: k.p.x < game.track.lipX + 2 ? st : 0, hb: 0, nitro };
 }

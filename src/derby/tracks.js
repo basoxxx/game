@@ -21,11 +21,29 @@ export const VENUES = [
   { id: 'fattoria', name: 'Fattoria Pantano', desc: 'Circuito di campagna nel fango: pozzanghere, fienili, balle di paglia e un guado davanti alla stalla.', kind: 'race', surface: 'mud', surfaceName: 'fango', laps: 3, seed: 53, R: 150, wob: 0.38, elev: 4, jumps: [0.36, 0.83], width: 14, sky: 'day', ground: 'grass', farm: true, puddles: 22, water: [{ s: 0.6, w: 7, ang: 0.15, depth: 0.4 }] },
   { id: 'stadio', name: 'Stadio Ferrovecchio', desc: 'Otto in notturna sotto i riflettori: rampe sui rettilinei e incrocio a raso davanti alle tribune.', kind: 'race', surface: 'dirt', surfaceName: 'terra battuta', laps: 5, eight: true, A: 118, elev: 0, jumps: [0.13, 0.63], jumpH: 2.2, width: 14, sky: 'night', ground: 'rock', stadium: true },
   { id: 'arena', name: 'Arena Rottami', desc: 'Demolition derby: l’ultima auto che si muove vince.', kind: 'derby', surface: 'dirt', surfaceName: 'sterrato', laps: 0, width: 0, arenaR: 62, sky: 'dusk', ground: 'rock' },
+  { id: 'porto', name: 'Porto Vecchio', desc: 'Banchine di cemento tra muri di container e gru giganti, con un salto sopra la darsena.', kind: 'race', surface: 'asphalt', surfaceName: 'cemento', laps: 3, seed: 71, R: 160, wob: 0.3, elev: 1.5, jumps: [0.52], jumpH: 2.4, width: 15, sky: 'dusk', ground: 'rock', port: true, flat: true, water: [{ s: 0.536, w: 7, ang: 0, depth: 0.5, canal: true }] },
+  { id: 'fossa', name: 'Fossa dei Leoni', desc: 'Derby notturno in una buca di fango sotto i fari, con un’isola di rottami in mezzo.', kind: 'derby', surface: 'mud', surfaceName: 'fango', laps: 0, width: 0, arenaR: 54, sky: 'night', ground: 'rock', island: 5 },
+  { id: 'rampa', name: 'Rampa del Diavolo', desc: 'Una discesa, un trampolino e il vuoto: salto in lungo con tre tentativi.', kind: 'stunt', surface: 'asphalt', surfaceName: 'asfalto', laps: 0, width: 30, sky: 'day', ground: 'grass' },
 ];
+export const STUNT = { x0: -300, x1: 260, lip: 0, lipH: 5.2, kick: 17, startY: 22, slope: 0.13 };
+function stuntY(x) {
+  const S = STUNT;
+  if (x < -70) { const t = (x - S.x0) / (-70 - S.x0); return S.startY * (1 - t) ** 1.6; } // run-in down the hill
+  if (x <= 0) return 0;
+  if (x <= 6) return -1.2 * (x / 6);
+  const d = Math.min(x, 150) - 6, sl = S.slope; // landing slope, eased in so short jumps land softly
+  return -1.2 - (d < 20 ? sl * d * d / 40 : sl * (d - 10));
+}
 
 // returns { pts:[{x,y,z,h,k}], N, ds, width, len, bbox, jumps, crossings }
 export function buildTrack(v) {
-  if (v.kind === 'derby') return { arena: true, R: v.arenaR, pts: [], N: 0, width: 0, len: 0, bbox: [-v.arenaR, -v.arenaR, v.arenaR, v.arenaR] };
+  if (v.kind === 'derby') return { arena: true, R: v.arenaR, island: v.island || 0, pts: [], N: 0, width: 0, len: 0, bbox: [-v.arenaR, -v.arenaR, v.arenaR, v.arenaR] };
+  if (v.kind === 'stunt') {
+    // open, straight runway along +x: run-in down a hill, a kicker at x = 0, a long landing slope
+    const ds = 2.5, pts = [];
+    for (let x = STUNT.x0; x <= STUNT.x1; x += ds) pts.push({ x, z: 0, y: stuntY(x), h: 0, k: 0 });
+    return { stunt: true, pts, N: pts.length, ds, width: v.width, len: STUNT.x1 - STUNT.x0, bbox: [STUNT.x0, -40, STUNT.x1, 40], jumps: [], crossings: [], lipX: STUNT.lip, lipIdx: Math.round((STUNT.lip - STUNT.x0) / ds) };
+  }
   const M = 2400; const raw = [];
   const n1 = noise1(v.seed || 5), n2 = noise1((v.seed || 5) * 7 + 3);
   for (let k = 0; k < M; k++) {
@@ -146,6 +164,7 @@ export function buildTerrain(v, tr, water = { streams: [], puddles: [] }) {
     if (tr.arena) {
       const d = Math.hypot(x - cx, z - cz);
       h = d < tr.R ? 0 : d < tr.R + 10 ? ((d - tr.R) / 10) ** 2 * 7 : 7 + (d - tr.R - 10) * 0.25 + hills * 0.4;
+      if (tr.island && d < tr.island * 1.8) h += 2.3 * Math.cos(Math.min(1, d / (tr.island * 1.8)) * Math.PI / 2) ** 2; // central mud mound
       B[c * (nr + 1) + r] = d < tr.R + 1 ? 1 : 0;
     }
     if (v.stadium) {
@@ -155,7 +174,8 @@ export function buildTerrain(v, tr, water = { streams: [], puddles: [] }) {
     }
     // valley rim: hills rise towards the edges so the world never ends in a flat plain
     const de = Math.min(c, nc - c, r, nr - r) * cell;
-    if (de < 140) h += ((140 - de) / 140) ** 2 * 38;
+    if (v.port) { const sea = z - (z1 + 34); if (sea > 0) { H[c * (nr + 1) + r] = -4.5; continue; } h = h * 0.25 + 0.4; if (Math.min(c, nc - c, r) * cell < 140) h += ((140 - Math.min(c, nc - c, r) * cell) / 140) ** 2 * 30; }
+    else if (de < 140) h += ((140 - de) / 140) ** 2 * 38;
     H[c * (nr + 1) + r] = h;
   }
   if (!tr.arena) {
@@ -170,11 +190,12 @@ export function buildTerrain(v, tr, water = { streams: [], puddles: [] }) {
     const hw = tr.width / 2, Rb = tr.width / 2 + 26;
     for (let k = 0; k < n; k++) {
       const d = best[k]; if (d > R) continue;
+      if (v.port && H[k] <= -4.4) continue;
       const p = tr.pts[bi[k]], c = Math.floor(k / (nr + 1)), r = k % (nr + 1);
       D[k] = (X(c) - p.x) * -Math.sin(p.h) + (Z(r) - p.z) * Math.cos(p.h);
       if (d <= Rb) {
         // flat track, then a raised berm, then blend back into the hills
-        const berm = d > hw + 2 && d < hw + 11 ? Math.sin(((d - hw - 2) / 9) * Math.PI) * (v.stadium ? 1.1 : 1.9) : 0;
+        const berm = d > hw + 2 && d < hw + 11 ? Math.sin(((d - hw - 2) / 9) * Math.PI) * (v.flat ? 0.3 : v.stadium ? 1.1 : 1.9) : 0;
         const w = d <= hw + 2 ? 1 : d >= Rb ? 0 : 1 - ((d - hw - 2) / (Rb - hw - 2)) ** 1.5;
         H[k] = ty[k] * w + H[k] * (1 - w) + berm * Math.min(1, w * 1.4);
         B[k] = d <= hw ? 1 : d <= hw + 3 ? 1 - (d - hw) / 3 : 0;
