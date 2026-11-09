@@ -1,0 +1,66 @@
+/* ============================ 3D STAGE (garage3d.js) ============================ */
+.stage-host { position: relative; overflow: hidden; }
+.stage-host .stage-canvas { opacity: 0; transition: opacity .6s ease; }
+.stage-host.stage-on .stage-canvas { opacity: 1; }
+.stage-fade { position: absolute; inset: 0; background: #05060a; opacity: 0; pointer-events: none; z-index: 1; }
+.stage-layer { position: absolute; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; }
+.reduce-motion .stage-host .stage-canvas { transition: none; }
+
+/* part hotspots projected on the car */
+.hs { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transition: opacity .25s; }
+.stage-on .hs { opacity: .8; }
+.hs span { opacity: 0; transition: opacity .2s; }
+.hs.on span { opacity: 1; }
+.hs i { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(0,0,0,.45), 0 0 14px rgba(255,255,255,.6); }
+.hs i::after { content: ''; position: absolute; inset: -9px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.55); }
+.hs span { position: absolute; left: 20px; top: -16px; display: flex; align-items: center; gap: 8px; white-space: nowrap; padding: 5px 10px 5px 12px; background: rgba(8,10,14,.82); border-left: 3px solid var(--team, var(--accent)); font-family: var(--display); font-weight: 700; font-size: 13.5px; letter-spacing: .08em; text-transform: uppercase; color: #fff; backdrop-filter: blur(6px); }
+.hs span::before { content: ''; position: absolute; left: -17px; top: 50%; width: 14px; height: 1.5px; background: rgba(255,255,255,.6); }
+.hs.flip span { left: auto; right: 20px; border-left: 0; border-right: 3px solid var(--team, var(--accent)); padding: 5px 12px 5px 10px; }
+.hs.flip span::before { left: auto; right: -17px; }
+.hs em { font-style: normal; font-weight: 700; color: var(--text2); }
+.hs.good em { color: var(--good); } .hs.bad em { color: var(--bad); } .hs.warn em { color: var(--warn); }
+.stage-layer.has-focus .hs { opacity: .28; }
+.stage-layer.has-focus .hs.on { opacity: 1; }
+.hs.on i { background: var(--team, var(--accent)); animation: hs-pulse 1.4s ease-out infinite; }
+@keyframes hs-pulse { from { box-shadow: 0 0 0 0 rgba(255,255,255,.7), 0 0 0 3px rgba(0,0,0,.45); } to { box-shadow: 0 0 0 16px rgba(255,255,255,0), 0 0 0 3px rgba(0,0,0,.45); } }
+.reduce-motion .hs.on i { animation: none; }
+
+/* ---- main menu: full-bleed garage ---- */
+.menu-stage { position: absolute; inset: 0; z-index: 0; }
+.menu-scrim { position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(5,6,9,.94) 0%, rgba(5,6,9,.82) 20%, rgba(5,6,9,.38) 38%, rgba(5,6,9,0) 54%),
+    linear-gradient(0deg, rgba(5,6,9,.9) 0%, rgba(5,6,9,0) 24%),
+    linear-gradient(180deg, rgba(5,6,9,.55) 0%, rgba(5,6,9,0) 16%); }
+.menu-screen:has(.menu-stage)::before { display: none; }
+
+/* ---- career hub: the garage is the hero backdrop ---- */
+.hub-hero.live { min-height: 340px; background: #07080b; }
+.hub-hero.live::before, .hub-hero.live::after { display: none; }
+.hub-hero.live > .hh-stage { position: absolute; inset: 0; z-index: 0; }
+.hub-hero.live > .hh-scrim { position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: linear-gradient(90deg, rgba(7,8,11,.95) 0%, rgba(7,8,11,.86) 26%, rgba(7,8,11,.4) 46%, rgba(7,8,11,0) 62%), linear-gradient(0deg, rgba(7,8,11,.55), rgba(7,8,11,0) 30%); }
+.hub-hero.live .hh-stage .stage-canvas { pointer-events: none; }
+.hub-hero.live .hh-visual { pointer-events: none; }
+.hh-map { position: absolute; right: 18px; top: 16px; width: 200px; padding: 10px 12px 8px; background: rgba(8,10,14,.72); border: 1px solid rgba(255,255,255,.1); border-top: 2px solid var(--team); backdrop-filter: blur(8px); pointer-events: auto; cursor: pointer; transition: background var(--t-med), transform var(--t-med); }
+.hh-map:hover { background: rgba(14,17,23,.9); transform: translateY(-2px); }
+.hh-map .hm-k { font-family: var(--display); font-weight: 600; font-size: 11.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.hh-map svg { display: block; width: 100%; height: auto; }
+.hh-plate { position: absolute; right: 18px; bottom: 16px; display: flex; align-items: baseline; gap: 12px; font-family: var(--display); text-transform: uppercase; text-shadow: 0 2px 12px rgba(0,0,0,.8); }
+.hh-plate span { font-weight: 700; font-style: italic; font-size: 20px; letter-spacing: .04em; color: rgba(255,255,255,.9); }
+.hh-plate b { font-weight: 800; font-style: italic; font-size: 34px; line-height: 1; color: var(--team); -webkit-text-stroke: 1px rgba(255,255,255,.25); }
+
+/* ---- technical centre: interactive car ---- */
+.car-stage.live { background: #07080b; min-height: 380px !important; }
+.car-stage.live::before, .car-stage.live::after, .car-stage.live .grid-floor { display: none; }
+.car-stage.live::before { display: block; left: 0; right: 0; top: 0; width: auto; height: 96px; bottom: auto; transform: none; z-index: 2; pointer-events: none; background: linear-gradient(180deg, rgba(7,8,11,.82), rgba(7,8,11,0)); }
+.car-stage.live .cs-score, .car-stage.live .cs-hint { text-shadow: 0 1px 8px rgba(0,0,0,.9); }
+.cmp-row { position: relative; padding: 8px 10px; margin: -8px -10px; transition: background var(--t-med); cursor: default; }
+.cmp-row::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; background: var(--team); transform: scaleY(0); transition: transform var(--t-med); }
+.cmp-row:hover, .cmp-row.hot { background: rgba(255,255,255,.045); }
+.cmp-row:hover::before, .cmp-row.hot::before { transform: scaleY(1); }
+
+/* ---- new career: live team preview ---- */
+.team-preview .tp-stage { height: clamp(220px, 40vh, 560px); min-height: 0; margin: 14px 0 0; background: #07080b; }
+.team-preview .tp-stage::before { display: none; }
+.car-stage.tp-stage { height: clamp(200px, 26vh, 320px); min-height: 0 !important; }

@@ -1,3 +1,4 @@
+import { helmet3D } from '../ui/garage3d.js';
 // Shared visual fragments for the career/dynasty layer (portraits, press art, charts, status)
 import '../styles/career.css';
 import { icon } from '../ui/icons.js';
@@ -69,7 +70,7 @@ export function pressArt(st, img, w = 420, h = 236) {
   if (img.k === 'driver') {
     const d = st.drivers[img.id]; const t = d ? st.teams[d.teamId] || st.teams[d.academy] : null;
     const c = t ? teamCol(t) : '#e5141b';
-    return `<div class="pr-art driver" style="aspect-ratio:${w}/${h};--c1:${c}"><i class="s1"></i><div class="pr-helmet">${helmetSVG(d?.helmet, Math.round(h * 0.7))}</div><div class="pr-num">${d?.number || ''}</div><div class="pr-cap">${esc(d?.name || '')}</div></div>`;
+    return `<div class="pr-art driver" style="aspect-ratio:${w}/${h};--c1:${c}"><i class="s1"></i><div class="pr-helmet">${helmet3D(d?.helmet, Math.round(h * 0.7))}</div><div class="pr-num">${d?.number || ''}</div><div class="pr-cap">${esc(d?.name || '')}</div></div>`;
   }
   return `<div class="pr-art trophy" style="aspect-ratio:${w}/${h}">${icon('trophy', 'ico', `style="width:${Math.round(h * 0.42)}px;height:${Math.round(h * 0.42)}px"`)}<div class="pr-cap">Campionato</div></div>`;
 }

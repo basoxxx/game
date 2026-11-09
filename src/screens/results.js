@@ -1,4 +1,4 @@
-import { carImg } from '../ui/garage3d.js';
+import { carImg, helmet3D } from '../ui/garage3d.js';
 import { App, registerScreen, trackName, teamColor } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { helmetSVG, flagSVG, teamBadge, carSVG } from '../ui/art.js';
@@ -46,7 +46,7 @@ registerScreen({
     const rally = st.category === 'rally';
     const pod = (r, cls) => {
       const d = st.drivers[r.driverIds[0]]; const tm = st.teams[r.teamId];
-      return `<div class="pd ${cls}"><div>${helmetSVG(d.helmet, 46)}</div><div class="pd-name">${esc(r.driverIds.map((id) => st.drivers[id].name.split(' ').slice(-1)[0]).join(' / '))}</div><div class="pd-team">${esc(tm.name)}</div><div class="block">${r.pos}</div></div>`;
+      return `<div class="pd ${cls}"><div>${helmet3D(d.helmet, 46)}</div><div class="pd-name">${esc(r.driverIds.map((id) => st.drivers[id].name.split(' ').slice(-1)[0]).join(' / '))}</div><div class="pd-team">${esc(tm.name)}</div><div class="block">${r.pos}</div></div>`;
     };
     const mine = res.classification.filter((r) => r.teamId === pt.id);
     const w0 = top3[0]; const wd = st.drivers[w0.driverIds[0]]; const wt = st.teams[w0.teamId];
@@ -68,7 +68,7 @@ registerScreen({
         </tbody></table></div>
         <div class="col gap16">
           ${weekendReport(st, ev)}
-          <div class="panel"><div class="panel-head"><h3>La tua squadra</h3><span class="row" style="gap:8px">${teamBadge(pt, 24)}<span class="small muted">${esc(pt.name)}</span></span></div>${mine.map((r) => { const d = st.drivers[r.driverIds[0]]; return `<div class="res-mine">${helmetSVG(d.helmet, 44)}<div class="grow"><div class="drv-name">${esc(r.driverIds.map((id) => st.drivers[id].name).join(' / '))}</div><div class="drv-meta">${r.status === 'dnf' ? `Ritirato (${esc(r.reason || '')})` : `Arrivato ${r.pos}°${rally ? '' : ` · partito ${r.grid}°`}${r.pts ? ` · +${r.pts} punti` : ''}`}</div></div><div class="rm-pos pos p${r.pos}">${r.status === 'dnf' ? '—' : 'P' + r.pos}</div></div>`; }).join('')}</div>
+          <div class="panel"><div class="panel-head"><h3>La tua squadra</h3><span class="row" style="gap:8px">${teamBadge(pt, 24)}<span class="small muted">${esc(pt.name)}</span></span></div>${mine.map((r) => { const d = st.drivers[r.driverIds[0]]; return `<div class="res-mine">${helmet3D(d.helmet, 44)}<div class="grow"><div class="drv-name">${esc(r.driverIds.map((id) => st.drivers[id].name).join(' / '))}</div><div class="drv-meta">${r.status === 'dnf' ? `Ritirato (${esc(r.reason || '')})` : `Arrivato ${r.pos}°${rally ? '' : ` · partito ${r.grid}°`}${r.pts ? ` · +${r.pts} punti` : ''}`}</div></div><div class="rm-pos pos p${r.pos}">${r.status === 'dnf' ? '—' : 'P' + r.pos}</div></div>`; }).join('')}</div>
           ${(res.penalties || []).length ? `<div class="panel"><div class="panel-head"><h3>${icon('scales')} Decisioni dei commissari</h3></div><table class="tbl small"><tbody>${res.penalties.map((p) => `<tr class="${p.teamId === pt.id ? 'me' : ''}"><td class="muted tiny">G${p.lap || '-'}</td><td>${esc(st.drivers[p.driverId]?.name || '')}</td><td class="small">${esc(p.text)}</td><td class="right mono tiny ${p.pts ? 'bad' : 'dim'}">${p.pts ? '+' + p.pts + ' pt' : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}
           ${res.sprint ? `<div class="panel"><div class="panel-head"><h3>${icon('bolt')} Sprint</h3></div><table class="tbl small"><tbody>${res.sprint.filter((r) => r.pts > 0).map((r) => `<tr class="${r.teamId === pt.id ? 'me' : ''}"><td class="pos p${r.pos}">${r.pos}</td><td>${esc(st.drivers[r.driverIds[0]]?.name || '')}</td><td class="right mono"><b>+${r.pts}</b></td></tr>`).join('')}</tbody></table></div>` : ''}
           ${rally && res.stages ? `<div class="panel"><div class="panel-head"><h3>Prove speciali</h3></div><table class="tbl small"><tbody>${res.stages.map((sg, i) => { const w = res.classification.find((c) => c.key === sg.winner); return `<tr><td class="muted">PS${i + 1}</td><td>${esc(sg.name)}${sg.power ? ' <span class="chip warn tiny">Power</span>' : ''}</td><td>${w ? esc(st.drivers[w.driverIds[0]].name) : '-'}</td><td class="right mono">${sg.best ? fmtLong(sg.best) : ''}</td></tr>`; }).join('')}</tbody></table></div>` : ''}

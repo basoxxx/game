@@ -1,3 +1,4 @@
+import { helmet3D } from '../ui/garage3d.js';
 // Shared UI fragments
 import { helmetSVG, flagSVG, teamBadge } from '../ui/art.js';
 import { esc, ratingClass, bar } from '../ui/dom.js';
@@ -6,7 +7,7 @@ import { COMPOUNDS, RALLY_TYRES } from '../data/categories.js';
 
 export function driverChip(st, d, opts = {}) {
   const t = d.teamId ? st.teams[d.teamId] : null;
-  return `<div class="row" style="gap:8px;min-width:0">${opts.helmet !== false ? helmetSVG(d.helmet, opts.size || 28) : ''}${flagSVG(d.nat)}<span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.name)}</span>${opts.team && t ? `<span class="tiny muted">${t.short}</span>` : ''}</div>`;
+  return `<div class="row" style="gap:8px;min-width:0">${opts.helmet !== false ? helmet3D(d.helmet, opts.size || 28) : ''}${flagSVG(d.nat)}<span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.name)}</span>${opts.team && t ? `<span class="tiny muted">${t.short}</span>` : ''}</div>`;
 }
 export function ovr(st, d) { return driverOverall(d, st.category); }
 export function ratingBox(v, sm = true) { return `<div class="rating ${sm ? 'sm' : ''} ${ratingClass(v)}">${Math.round(v)}</div>`; }

@@ -1,3 +1,4 @@
+import { helmet3D } from '../ui/garage3d.js';
 // Drivers, Market, Staff & Facilities, Finance & Sponsors
 import { App, registerScreen } from '../app.js';
 import { icon } from '../ui/icons.js';
@@ -31,7 +32,7 @@ registerScreen({
       const pos = s.drivers.findIndex((x) => x.id === d.id) + 1;
       const pts = s.drivers.find((x) => x.id === d.id)?.pts || 0;
       return `<div class="panel drv-card"><div class="drv-bignum">${d.number}</div>
-        <div class="row" style="gap:18px;align-items:flex-start">${helmetSVG(d.helmet, 92)}
+        <div class="row" style="gap:18px;align-items:flex-start">${helmet3D(d.helmet, 92)}
           <div class="grow"><div class="row">${flagSVG(d.nat, 26, 17)}<h2 style="font-size:32px;font-style:italic;font-weight:800">${esc(d.name)}</h2></div>
             <div class="row wrap mt8 gap6"><span class="chip">#${d.number}</span><span class="chip">${d.age} anni</span>${C.driversPerCar > 1 ? `<span class="chip info">Auto ${Math.floor(i / C.driversPerCar) + 1}</span>` : ''}${moraleChip(d.morale)}</div>
             <div class="row wrap mt8 gap6 small"><span class="muted">Contratto:</span><b>${d.contract} ${d.contract === 1 ? 'stagione' : 'stagioni'}</b><span class="muted">· Stipendio:</span><b>${fmtM(d.salary)}/anno</b></div>
@@ -105,7 +106,7 @@ export function openContract(driverId, replaceId = null, renew = false) {
     const replList = mode === 'pre' ? ros.staying : mine;
     const verdict = score >= 1.12 ? ['good', 'Entusiasta'] : score >= 1 ? ['warn', 'Disponibile'] : score >= 0.9 ? ['warn', 'Ci sta pensando'] : ['bad', 'Non interessato'];
     const pat = ev.patience;
-    return `<div class="row" style="gap:14px">${helmetSVG(d.helmet, 64)}<div class="grow"><div class="row">${flagSVG(d.nat)}<h2 style="margin:0">${esc(d.name)}</h2></div><div class="small muted">${d.age} anni · ${d.teamId ? esc(st.teams[d.teamId].name) + ` (contratto: ${d.contract} ${d.contract === 1 ? 'stagione' : 'stagioni'})` : 'Svincolato'} · OVR ${ovr(st, d)}</div>
+    return `<div class="row" style="gap:14px">${helmet3D(d.helmet, 64)}<div class="grow"><div class="row">${flagSVG(d.nat)}<h2 style="margin:0">${esc(d.name)}</h2></div><div class="small muted">${d.age} anni · ${d.teamId ? esc(st.teams[d.teamId].name) + ` (contratto: ${d.contract} ${d.contract === 1 ? 'stagione' : 'stagioni'})` : 'Svincolato'} · OVR ${ovr(st, d)}</div>
       <div class="row gap6 mt8 wrap"><span class="chip info" title="${esc(dem.persona.desc)}">${esc(dem.persona.name)}</span><span class="chip">Agente: ${esc(dem.agent)}</span><span class="chip ${pat <= 1 ? 'bad' : ''}">Pazienza ${'●'.repeat(Math.max(0, pat))}${'○'.repeat(Math.max(0, 4 - pat))}</span></div></div></div>
     <div class="small muted mt8">${esc(dem.persona.desc)}</div>
     ${dem.notes.length ? `<div class="row gap6 mt8 wrap">${dem.notes.map((n) => `<span class="chip warn">${esc(n)}</span>`).join('')}</div>` : ''}
@@ -395,10 +396,10 @@ function academyPanel(st, t) {
   const feeder = (d) => (d.feeder || []).length ? `<div class="feeder">${d.feeder.slice(-5).map((f) => `<span class="${f.pos === 1 ? 'p1' : f.pos <= 3 ? 'pod' : ''}" data-tip="Serie minori ${f.season}">${f.season % 100}: ${f.pos}°</span>`).join('')}</div>` : '<div class="tiny muted mt8">Debutto nelle serie minori a fine stagione.</div>';
   return `<div class="panel mt16 anim-in"><div class="panel-head"><h3>${icon('star')} Accademia giovani</h3><div class="row gap6"><span class="chip">Posti ${juniors.length}/${slots}</span><span class="chip">Accademia Lv${t.facilities.academy}</span>${teamTrait(st, t, 'engineer', 'coach') ? '<span class="trait">Talent coach</span>' : ''}</div></div>
     <div class="small muted mb16">I junior corrono nelle serie minori e crescono ogni inverno (più in fretta con un’Accademia di livello alto). Quando sono pronti, promuovili in prima squadra: costano poco e sono fedelissimi.</div>
-    ${juniors.length ? `<div class="acad-grid mb16">${juniors.map((d) => `<div class="acad-card"><div class="row" style="gap:12px">${helmetSVG(d.helmet, 54)}<div class="grow" style="min-width:0"><div class="row gap6">${flagSVG(d.nat)}<span class="nm">${esc(d.name)}</span></div><div class="tiny muted">${d.age} anni · in accademia dal ${d.joinedAge ? st.season - (d.age - d.joinedAge) : st.season}</div></div>${ratingBox(ovr(st, d), false)}</div>${potBar(d)}${feeder(d)}
+    ${juniors.length ? `<div class="acad-grid mb16">${juniors.map((d) => `<div class="acad-card"><div class="row" style="gap:12px">${helmet3D(d.helmet, 54)}<div class="grow" style="min-width:0"><div class="row gap6">${flagSVG(d.nat)}<span class="nm">${esc(d.name)}</span></div><div class="tiny muted">${d.age} anni · in accademia dal ${d.joinedAge ? st.season - (d.age - d.joinedAge) : st.season}</div></div>${ratingBox(ovr(st, d), false)}</div>${potBar(d)}${feeder(d)}
       <div class="row gap6 mt16"><button class="btn sm team" data-a="acad-promote" data-id="${d.id}">${icon('right')} Promuovi</button><button class="btn sm ghost" data-a="acad-release" data-id="${d.id}">${icon('x')} Libera</button></div></div>`).join('')}</div>` : ''}
     <div class="tiny upper muted mb8">Prospetti osservati dagli scout · stagione ${st.season}</div>
-    ${pros.length ? `<div class="acad-grid">${pros.map((d) => `<div class="acad-card" style="opacity:${juniors.length >= slots ? 0.55 : 1}"><div class="row" style="gap:12px">${helmetSVG(d.helmet, 44)}<div class="grow" style="min-width:0"><div class="row gap6">${flagSVG(d.nat)}<span class="nm" style="font-size:17px">${esc(d.name)}</span></div><div class="tiny muted">${d.age} anni · scuola kart</div></div></div>${potBar(d)}
+    ${pros.length ? `<div class="acad-grid">${pros.map((d) => `<div class="acad-card" style="opacity:${juniors.length >= slots ? 0.55 : 1}"><div class="row" style="gap:12px">${helmet3D(d.helmet, 44)}<div class="grow" style="min-width:0"><div class="row gap6">${flagSVG(d.nat)}<span class="nm" style="font-size:17px">${esc(d.name)}</span></div><div class="tiny muted">${d.age} anni · scuola kart</div></div></div>${potBar(d)}
       <div class="row between mt16"><span class="small">Borsa di studio <b>${fmtM(prospectFee(st, d))}</b></span><button class="btn sm ${juniors.length < slots ? 'primary' : ''}" data-a="acad-sign" data-id="${d.id}" ${juniors.length >= slots || t.money < prospectFee(st, d) ? 'disabled' : ''}>Ingaggia</button></div></div>`).join('')}</div>` : '<div class="small muted">Gli scout torneranno con nuovi nomi la prossima stagione.</div>'}
   </div>`;
 }
@@ -408,7 +409,7 @@ function promoteModal(id) {
   const mine = teamDrivers(st, t);
   const free = seatsPerTeam(st) - mine.length;
   let repl = null;
-  const render = () => `<div class="row" style="gap:16px">${helmetSVG(d.helmet, 72)}<div><div class="tiny upper" style="color:var(--team)">Promozione dall’accademia</div><h2 style="margin:4px 0 0">${esc(d.name)}</h2><div class="small muted">${d.age} anni · OVR ${ovr(st, d)} · contratto triennale a ${fmtM(+(salaryFor(d, st.category) * 0.65).toFixed(2))}/anno</div></div></div>
+  const render = () => `<div class="row" style="gap:16px">${helmet3D(d.helmet, 72)}<div><div class="tiny upper" style="color:var(--team)">Promozione dall’accademia</div><h2 style="margin:4px 0 0">${esc(d.name)}</h2><div class="small muted">${d.age} anni · OVR ${ovr(st, d)} · contratto triennale a ${fmtM(+(salaryFor(d, st.category) * 0.65).toFixed(2))}/anno</div></div></div>
     <p class="muted mt16">Un pilota cresciuto in casa parte motivatissimo e, se vincerà il titolo, entrerà nella leggenda della tua dinastia.</p>
     ${free > 0 ? '<div class="card good">C’è un sedile libero: debutterà al prossimo evento.</div>' : `<label class="lbl">Chi lascia il posto?</label><div class="row gap6 mt8 wrap">${mine.map((m) => `<button class="btn sm ${repl === m.id ? 'active' : ''}" data-a="repl" data-id="${m.id}">${esc(m.name)} · OVR ${ovr(st, m)}</button>`).join('')}</div><div class="tiny muted mt8">Il titolare liberato riceve una penale pari al 50% del contratto residuo.</div>`}
     <div class="row mt24" style="justify-content:flex-end"><button class="btn ghost" data-a="close-modal">Annulla</button><button class="btn primary" data-a="go" ${free <= 0 && !repl ? 'disabled' : ''}>Promuovi in prima squadra</button></div>`;

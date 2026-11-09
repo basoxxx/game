@@ -11,8 +11,7 @@ import '../styles/career.css';
 import { ENGINE_SUPPLIERS } from '../data/teams.js';
 import { avgPart } from '../engine/world.js';
 import { sfx } from '../ui/audio.js';
-import { Garage3D } from '../ui/garage3d.js';
-import { webglAvailable } from '../ui/race3d.js';
+import { mountStage, stageEnabled, partPositions } from '../ui/garage3d.js';
 import { teamColor } from '../app.js';
 let garage = null, show3d = true;
 
@@ -34,17 +33,17 @@ registerScreen({
     const rank = overallCarRanking(st).indexOf(t.id) + 1;
     return `<div class="screen-title"><div><div class="sub">${esc(t.name)} · Vettura ${st.season}</div><h1>Centro Tecnico</h1></div><div class="tabs">${tabs.map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="tab" data-t="${k}">${n}</div>`).join('')}</div></div>
     <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px" class="anim-in">
-      <div class="car-stage" style="min-height:300px"><div class="grid-floor"></div>
-        <div style="position:absolute;left:20px;top:16px;z-index:2"><div class="tiny upper muted">Valore complessivo</div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:46px;line-height:1">${avgPart(t).toFixed(1)}</div><div class="small ${rank <= 3 ? 'good' : rank > 6 ? 'bad' : 'warn'}">${rank}ª vettura del gruppo</div></div>
-        <div style="position:absolute;right:20px;top:16px;z-index:2" class="chip">Concetto: <b>${C.concepts.find((c) => c.id === t.car.concept)?.name}</b></div>
+      <div class="car-stage ${show3d && stageEnabled() ? 'live' : ''}" style="min-height:300px"><div class="grid-floor"></div>
+        <div class="cs-score" style="position:absolute;left:20px;top:16px;z-index:3"><div class="tiny upper muted">Valore complessivo</div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:46px;line-height:1">${avgPart(t).toFixed(1)}</div><div class="small ${rank <= 3 ? 'good' : rank > 6 ? 'bad' : 'warn'}">${rank}ª vettura del gruppo</div></div>
+        <div style="position:absolute;right:20px;top:16px;z-index:3" class="chip">Concetto: <b>${C.concepts.find((c) => c.id === t.car.concept)?.name}</b></div>
         <div style="position:absolute;right:20px;bottom:14px;z-index:3" class="row gap4"><button class="btn sm ${show3d ? 'active' : ''}" data-a="v3d">3D</button><button class="btn sm ${show3d ? '' : 'active'}" data-a="v2d">2D</button></div>
         <div id="garage3d" style="position:absolute;inset:0;z-index:1"></div>
-        ${show3d && webglAvailable() ? '<div class="tiny muted" style="position:absolute;left:20px;bottom:14px;z-index:3">Trascina per ruotare · rotella per lo zoom</div>' : carSVG(st.category, t.car.livery, { number: ds[0]?.number, sponsor: t.sponsors[0]?.name || t.short, helmet: ds[0]?.helmet.c1 })}
+        ${show3d && stageEnabled() ? '<div class="tiny muted cs-hint" style="position:absolute;left:20px;bottom:14px;z-index:3">Trascina per ruotare · rotella per lo zoom · passa sui componenti per evidenziarli</div>' : carSVG(st.category, t.car.livery, { number: ds[0]?.number, sponsor: t.sponsors[0]?.name || t.short, helmet: ds[0]?.helmet.c1 })}
       </div>
       <div class="panel"><div class="panel-head"><h3>Componenti</h3><span class="small muted">Classifica tra i ${Object.keys(st.teams).length} team</span></div>
         <div class="col gap16">${C.parts.map((p) => {
           const r = partRanking(st, p.id); const pos = r.indexOf(t.id) + 1; const best = st.teams[r[0]].car.parts[p.id];
-          return `<div><div class="row between small"><b>${p.name}</b><span class="muted">${p.desc}</span></div><div class="stat mt8" style="grid-template-columns:1fr 46px 40px">${bar(t.car.parts[p.id], '', best)}<b class="right mono">${t.car.parts[p.id].toFixed(1)}</b><span class="rank ${pos <= 3 ? 'good' : pos > 6 ? 'bad' : 'warn'}">${pos}°</span></div></div>`;
+          return `<div class="cmp-row" data-part="${p.id}"><div class="row between small"><b>${p.name}</b><span class="muted">${p.desc}</span></div><div class="stat mt8" style="grid-template-columns:1fr 46px 40px">${bar(t.car.parts[p.id], '', best)}<b class="right mono">${t.car.parts[p.id].toFixed(1)}</b><span class="rank ${pos <= 3 ? 'good' : pos > 6 ? 'bad' : 'warn'}">${pos}°</span></div></div>`;
         }).join('')}</div>
         <div class="tiny muted mt16">La barra chiara indica il miglior valore in griglia.</div>
       </div>
@@ -53,12 +52,22 @@ registerScreen({
   },
   mount() {
     coach('car', 'Centro Tecnico', 'Avvia progetti R&D sui componenti chiave dei prossimi circuiti. Più un componente è sviluppato, minore è il guadagno: a volte conviene migliorare i punti deboli.');
-    garage?.destroy(); garage = null;
     const el = document.getElementById('garage3d');
-    if (el && show3d && webglAvailable()) {
-      const st = S(); const t = playerTeam(st); const ds = teamDrivers(st, t);
-      try { garage = new Garage3D(el, st.category, t.car.livery, { helmet: ds[0]?.helmet.c1, accent: teamColor(t.car.livery), number: ds[0]?.number, sponsor: t.sponsors[0]?.name || t.short }); } catch (e) { console.warn(e); }
-    }
+    if (el && show3d && stageEnabled()) {
+      const st = S(); const t = playerTeam(st); const ds = teamDrivers(st, t); const C = cat(st);
+      garage = mountStage(el, { id: 'car', mode: 'orbit', angle: 0.78, pitch: 0.1, dist: st.category === 'rally' ? 8.2 : 9.2, fov: 27, target: [0, 0.6, 0], category: st.category, livery: t.car.livery, helmet: ds[0]?.helmet.c1, number: ds[0]?.number, sponsor: t.sponsors[0]?.name || t.short, team: { name: t.name, short: t.short }, series: C.full, box: ds[0]?.number || 1 });
+      if (garage) {
+        const pos = partPositions(st.category);
+        garage.setHotspots(C.parts.filter((p) => pos[p.id]).map((p) => { const rk = partRanking(st, p.id).indexOf(t.id) + 1; return { id: p.id, pos: pos[p.id], label: p.name, value: t.car.parts[p.id].toFixed(1), cls: rk <= 3 ? 'good' : rk > 6 ? 'bad' : 'warn' }; }));
+        // hovering (or focusing) anything tied to a component swings the camera onto it
+        const main = document.querySelector('.main');
+        let cur = null, timer = 0;
+        const set = (id) => { if (id === cur) return; cur = id; clearTimeout(timer); timer = setTimeout(() => { garage?.focus(id); document.querySelectorAll('.cmp-row').forEach((r) => r.classList.toggle('hot', r.dataset.part === id)); }, id ? 90 : 420); };
+        main?.addEventListener('mouseover', (e) => { const p = e.target.closest?.('[data-part]'); if (p) set(p.dataset.part); else if (!e.target.closest?.('.car-stage')) set(null); });
+        main?.addEventListener('focusin', (e) => { const p = e.target.closest?.('[data-part]'); if (p) set(p.dataset.part); });
+        main?.addEventListener('mouseleave', () => set(null));
+      }
+    } else { garage?.destroy(); garage = null; }
   },
   unmount() { garage?.destroy(); garage = null; },
   actions: {
