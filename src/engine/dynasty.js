@@ -13,6 +13,7 @@ import { cat, playerTeam, teamDrivers, addMail, addNews, addFinance, fmtM, stand
 import { getTrack, generateRookie, salaryFor, driverOverall, avgPart } from './world.js';
 import { gainXP } from './progress.js';
 import { physicsLap } from './trackphys.js';
+import { ensureDepth, depthMaybeDecision, depthDecisionView, depthResolveDecision } from './depth.js';
 
 const hash = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; return h; };
 const scale = (st) => cat(st).budgetScale;
@@ -59,6 +60,7 @@ export function ensureDynasty(st, opts = {}) {
     else syncRaceGoals(st);
   }
   if (!D.prospects || D.prospects.season !== st.season) makeProspects(st);
+  try { ensureDepth(st); } catch (e) { console.warn('depth', e); }
   return D;
 }
 
@@ -552,6 +554,8 @@ export function maybeDynDecision(st, opts = {}) {
     st.pendingDyn = { kind: 'tycoon', amount: +(pt.baseBudget * 0.15).toFixed(1), who: pick(['Sir Reginald Ashcombe', 'Lorenzo Valmonte', 'Ingrid Halvorsen', 'Kenji Moriyama', 'Amira Al-Faris']) };
     return;
   }
+  // regulation era, Commission votes, team-mate feuds (depth.js)
+  if (!st.pendingTech && !st.pendingEvent) { depthMaybeDecision(st); if (st.pendingDyn) return; }
   if (st.round === 0 || opts.roll === false) return;
   // principals
   if (!chance(st.pendingTech ? 0.08 : st.pendingEvent ? 0.2 : 0.34)) return;
@@ -590,6 +594,7 @@ function principalDecision(st) {
 export function dynDecisionView(st) {
   const pd = st.pendingDyn; if (!pd) return null;
   const pt = playerTeam(st);
+  if (pd.kind === 'era' || pd.kind === 'vote' || pd.kind === 'feud') return depthDecisionView(st, pd);
   const t = pd.team ? st.teams[pd.team] : null;
   const p = pd.team ? principal(st, pd.team) : null;
   if (pd.team && (!t || !p || t.isPlayer)) return null;
@@ -639,6 +644,13 @@ export function dynDecisionView(st) {
 export function resolveDynDecision(st, i) {
   const pd = st.pendingDyn; if (!pd) return '';
   if (!dynDecisionView(st)) { st.pendingDyn = null; return ''; }
+  if (pd.kind === 'era' || pd.kind === 'vote' || pd.kind === 'feud') {
+    const view0 = dynDecisionView(st);
+    const out0 = depthResolveDecision(st, pd, i);
+    addMail(st, { from: view0?.from || 'Paddock', icon: pd.kind === 'feud' ? 'driver' : 'rules', type: 'info', subject: view0?.title || 'Decisione', body: `${view0?.text || ''}\n\nDecisione: ${view0?.a[i]?.t || ''}. ${out0}` });
+    st.pendingDyn = null;
+    return out0;
+  }
   const D = st.dyn; const pt = playerTeam(st); const sc = scale(st);
   const t = pd.team ? st.teams[pd.team] : null;
   const p = pd.team ? principal(st, pd.team) : null;

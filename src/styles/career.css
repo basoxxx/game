@@ -277,3 +277,19 @@
 .inv-res .inv-ic .ico { width: 20px; height: 20px; }
 .inv-res-v { display: block; font-family: var(--display); font-size: 22px; font-weight: 900; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .inv-res .tiny.muted { overflow-wrap: anywhere; }
+
+/* ---- depth layer (regulation eras, tokens, world) ---- */
+.era-line{display:flex;gap:6px;align-items:stretch}
+.era-seg{flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--line2);background:rgba(255,255,255,.03);display:flex;flex-direction:column;gap:2px;min-width:0}
+.era-seg b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.era-seg span{font-size:11px;color:var(--muted)}
+.era-seg.past{opacity:.55}
+.era-seg.now{flex:2;border-color:var(--team,#e10600);background:linear-gradient(90deg,rgba(255,255,255,.07),rgba(255,255,255,.02))}
+.era-seg.next{border-style:dashed}
+.tok{width:18px;height:18px;border-radius:50%;border:2px solid var(--info,#3aa0ff);background:var(--info,#3aa0ff);display:inline-block}
+.tok.used{background:transparent;opacity:.4}
+.vote-row{display:grid;grid-template-columns:1fr auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;align-items:center}
+.world-item{padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;display:flex;gap:10px;align-items:baseline}
+.world-item .yr{font-family:var(--display);font-weight:800;color:var(--muted);min-width:42px}
+.form-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:var(--muted)}
+.form-dot.good{background:var(--good)}.form-dot.warn{background:var(--warn)}.form-dot.bad{background:var(--bad)}

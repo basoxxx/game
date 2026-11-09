@@ -3,6 +3,7 @@
 // a worn PU loses a little power and is much more likely to fail. Fitting an extra element over
 // the allocation costs grid places (10 for the first extra PU, 5 for each further element).
 import { clamp, rand, chance } from './rng.js';
+import { puWearMult } from './depth.js';
 
 export const COMP_TYPES = {
   ice: { name: 'Power Unit', short: 'PU', basePool: 4, pen1: 10, penN: 5, perf: true },
@@ -83,7 +84,7 @@ export function weekendWear(state, team, track, sprint) {
   const parts = team.car.parts;
   const rel = parts.reliability ?? 75;
   const engW = track?.w?.engine ?? 1;
-  return { ice: (0.85 + engW * 0.15) * (1.32 - rel / 250) * rand(0.88, 1.12) * (sprint ? 1.22 : 1), gb: (1.3 - rel / 280) * rand(0.85, 1.15) * (sprint ? 1.15 : 1) };
+  return { ice: (0.85 + engW * 0.15) * (1.32 - rel / 250) * rand(0.88, 1.12) * (sprint ? 1.22 : 1) * puWearMult(state, team), gb: (1.3 - rel / 280) * rand(0.85, 1.15) * (sprint ? 1.15 : 1) };
 }
 
 // Before qualifying: AI teams (and the player's team when simulated) decide whether to fit new parts.
