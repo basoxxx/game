@@ -152,13 +152,51 @@ export function liveStandingsHTML(st, sim) {
 }
 
 // ---------------- POST-RACE / LIVE ANALYSIS ----------------
-const AN_TABS = [['lap', 'Lap chart'], ['gap', 'Distacchi'], ['strat', 'Strategie'], ['pace', 'Passo gara'], ['story', 'Momenti']];
+const AN_TABS = [['lap', 'Lap chart'], ['gap', 'Distacchi'], ['strat', 'Strategie'], ['pace', 'Passo gara'], ['story', 'Momenti'], ['why', 'Bilancio tempi'], ['dec', 'Decisioni']];
+// decision log: what was asked, who answered (you, the engineer, a standing order), what happened next
+const BY_LBL = { player: 'Tu', engineer: 'Ingegnere', policy: 'Ordine perm.', expired: 'Ritirata' };
+function decisionsHTML(sim) {
+  const list = sim.decisions || [];
+  if (!list.length) return '<div class="muted" style="padding:30px">Nessuna decisione registrata finora.</div>';
+  const name = (k) => { const c = sim.cars.find((x) => x.key === k); return c ? esc(lastName(sim.driver(c).name)) : ''; };
+  const outTxt = (d) => {
+    const o = d.out; if (!o) return '<span class="muted">in corso…</span>';
+    if (o.end === 'dnf') return `<span class="bad">Ritiro${o.reason ? ': ' + esc(o.reason) : ''}</span>`;
+    if (o.pos == null || d.pos0 == null) return '';
+    const dl = d.pos0 - o.pos;
+    return `P${d.pos0} → <b class="${dl > 0 ? 'good' : dl < 0 ? 'bad' : ''}">P${o.pos}</b> <span class="muted">${o.end === 'flag' ? 'all’arrivo' : 'dopo 3 giri'}</span>`;
+  };
+  const n = { player: 0, engineer: 0, policy: 0, expired: 0 }; for (const d of list) n[d.by] = (n[d.by] || 0) + 1;
+  return `<div class="tiny muted mb8">${list.length} decisioni · ${n.player} prese da te · ${n.engineer} dall’ingegnere (tempo scaduto o modalità automatica) · ${n.policy} da ordini permanenti · ${n.expired} ritirate perché non più attuali</div>
+    <div class="an-dec">${list.slice().reverse().map((d) => `<div class="an-dec-row ${d.by}"><span class="an-ev-lap">G${d.lap}</span><span><span class="chip tiny ${d.by === 'player' ? 'good' : d.by === 'expired' ? '' : 'warn'}">${BY_LBL[d.by] || d.by}</span></span><div><b>${esc(d.title)}</b>${d.keys?.length ? ` <span class="muted tiny">${d.keys.map(name).join(', ')}</span>` : ''}<div class="q">${esc(d.asked || '')}</div><div class="mt8">${d.choice ? `→ <b>${esc(d.choice)}</b>${d.by !== 'player' && d.def && d.def !== d.choice ? ` <span class="muted tiny">(consiglio: ${esc(d.def)})</span>` : ''}` : `<span class="muted">Ritirata: ${esc(d.why || '')}</span>`}</div></div><div class="out">${outTxt(d)}</div></div>`).join('')}</div>`;
+}
+// time ledger: where each of your cars spent (or gained) its seconds, and the comparison with the car that finished ahead
+const LEDGER = [['pit', 'Soste ai box'], ['deg', 'Degrado gomme'], ['dirty', 'Aria sporca'], ['traffic', 'Doppiaggi e traffico'], ['temp', 'Gomme fuori finestra'], ['tyre', 'Graining / spiattellate'], ['damage', 'Danni e guasti'], ['err', 'Errori del pilota'], ['pen', 'Penalità'], ['lift', 'Lift & coast'], ['mode', 'Ritmo (attacco/gestione)'], ['ers', 'Uso batteria'], ['eng', 'Mappa motore'], ['drs', 'DRS']];
+function ledgerHTML(sim, cls) {
+  const mine = cls.filter((c) => c.isPlayer && c.ledger);
+  if (!mine.length) return '<div class="muted" style="padding:30px">Nessun dato.</div>';
+  const fin = cls.filter((c) => c.status !== 'dnf');
+  return `<div class="tiny muted mb8">Secondi persi (rosso) o guadagnati (verde) da inizio gara per ogni voce, esclusi i giri dietro la safety car. Il confronto in basso spiega il distacco da chi ti precede.</div><div class="an-led">${mine.map((c) => {
+    const L = c.ledger; const d = sim.driver(c);
+    const max = Math.max(5, ...LEDGER.map(([k]) => Math.abs(L[k] || 0)));
+    const rows = LEDGER.filter(([k]) => Math.abs(L[k] || 0) >= 0.3).sort((a, b) => Math.abs(L[b[0]]) - Math.abs(L[a[0]])).map(([k, n]) => { const v = L[k]; return `<div class="an-led-row"><span>${n}${k === 'pit' ? ` (${L.stops})` : ''}</span><div class="an-led-bar"><i class="${v < 0 ? 'gain' : ''}" style="left:0;width:${(Math.abs(v) / max * 100).toFixed(1)}%"></i></div><b class="mono right ${v < 0 ? 'good' : ''}">${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}s</b></div>`; }).join('');
+    const i = fin.indexOf(c); const r = i > 0 ? fin[i - 1] : fin[1];
+    let cmp = '';
+    if (r && r.ledger && c.status !== 'dnf') {
+      const diffs = LEDGER.map(([k, n]) => ({ n, v: (L[k] || 0) - (r.ledger[k] || 0) })).filter((x) => Math.abs(x.v) >= 0.8).sort((a, b) => Math.abs(b.v) - Math.abs(a.v)).slice(0, 4);
+      const g = sim.gapToLeader(c, cls[0]), gr = sim.gapToLeader(r, cls[0]);
+      const gap = typeof g === 'number' && typeof gr === 'number' ? Math.abs(g - gr) : null;
+      cmp = `<div class="an-led-cmp">Rispetto a <b>${esc(sim.driver(r).name)}</b> (P${r.pos}${gap != null ? `, ${i > 0 ? 'davanti' : 'dietro'} di ${gap.toFixed(1)}s` : ''}): ${diffs.length ? diffs.map((x) => `<span class="${x.v > 0 ? 'bad' : 'good'}">${x.v > 0 ? 'hai perso' : 'hai guadagnato'} ${Math.abs(x.v).toFixed(1)}s in ${x.n.toLowerCase()}</span>`).join(' · ') : 'gara molto simile: la differenza l’hanno fatta passo puro e posizione in pista'}.</div>`;
+    } else if (c.status === 'dnf') cmp = `<div class="an-led-cmp bad">Ritirato: ${esc(c.reason || '')}</div>`;
+    return `<div class="an-led-card"><div class="row between"><b>${esc(d.name)}</b><span class="muted small">${c.status === 'dnf' ? 'RIT' : 'P' + c.pos} · partito P${c.grid}</span></div><div class="mt8">${rows || '<span class="muted small">Ancora nessuna voce significativa.</span>'}</div>${cmp}</div>`;
+  }).join('')}</div>`;
+}
 export function analysisHTML(sim, st, tab = 'lap', sel = null) {
   const cls = sim.classification();
   const keys = sel || defaultSel(sim);
-  const body = tab === 'lap' ? lapChart(sim, cls, keys) : tab === 'gap' ? gapChart(sim, cls, keys) : tab === 'strat' ? `<div class="an-strat">${stintChartSVG(sim, cls, { w: 980, rowH: 21, labW: 96 })}</div>${pitTable(sim)}` : tab === 'story' ? storyHTML(sim) : paceChart(sim, cls, keys);
+  const body = tab === 'lap' ? lapChart(sim, cls, keys) : tab === 'gap' ? gapChart(sim, cls, keys) : tab === 'strat' ? `<div class="an-strat">${stintChartSVG(sim, cls, { w: 980, rowH: 21, labW: 96 })}</div>${pitTable(sim)}` : tab === 'story' ? storyHTML(sim) : tab === 'dec' ? decisionsHTML(sim) : tab === 'why' ? ledgerHTML(sim, cls) : paceChart(sim, cls, keys);
   const lsAll = lineStyles(sim, keys);
-  const picker = tab === 'strat' || tab === 'story' ? '' : `<div class="an-pick">${cls.map((c) => `<button class="an-chip ${keys.includes(c.key) ? 'on' : ''}" data-a="an-sel" data-key="${c.key}" style="--tc:${lsAll[c.key]?.col || c.team.car.livery.primary}">${esc(short3(sim.driver(c).name))}${lsAll[c.key] ? `<svg class="an-swatch" viewBox="0 0 22 6"><line x1="1" x2="21" y1="3" y2="3" stroke="${lsAll[c.key].col}" stroke-width="2.5"${dashAttr(lsAll[c.key])}/></svg>` : ''}</button>`).join('')}</div>`;
+  const picker = tab === 'strat' || tab === 'story' || tab === 'dec' || tab === 'why' ? '' : `<div class="an-pick">${cls.map((c) => `<button class="an-chip ${keys.includes(c.key) ? 'on' : ''}" data-a="an-sel" data-key="${c.key}" style="--tc:${lsAll[c.key]?.col || c.team.car.livery.primary}">${esc(short3(sim.driver(c).name))}${lsAll[c.key] ? `<svg class="an-swatch" viewBox="0 0 22 6"><line x1="1" x2="21" y1="3" y2="3" stroke="${lsAll[c.key].col}" stroke-width="2.5"${dashAttr(lsAll[c.key])}/></svg>` : ''}</button>`).join('')}</div>`;
   return `<div class="an-panel"><div class="an-head"><div><div class="an-eyebrow">${sim.finished ? 'Analisi post-gara' : `Analisi live · giro ${Math.min(sim.laps, Math.floor(sim.progress * sim.laps) + 1)}/${sim.laps}`}</div><div class="an-title">${esc(sim.track.name)}</div></div>
     <div class="tabs">${AN_TABS.map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="an-tab" data-t="${k}">${n}</div>`).join('')}</div><button class="btn icon-btn" data-a="an-close" aria-label="Chiudi analisi">${icon('x')}</button></div>
     ${picker}<div class="an-body">${body}</div>${summary(sim, cls)}</div>`;
@@ -278,16 +316,16 @@ function paceChart(sim, cls, keys) {
   return s + labelsSVG(labels) + '</svg><div class="an-note">Tempi sul giro esclusi giri di sosta e safety car · il colore del punto indica la mescola · più in alto = più veloce</div>';
 }
 function pitTable(sim) {
-  const stops = sim.stopsLog.slice().sort((a, b) => a.stat - b.stat).slice(0, 6);
+  const stops = sim.stopsLog.filter((s) => !s.red).sort((a, b) => a.stat - b.stat).slice(0, 6);
   if (!stops.length) return '';
   return `<div class="an-pits"><div class="an-eyebrow">Pit stop più rapidi</div>${stops.map((s, i) => { const c = sim.cars.find((x) => x.key === s.key); return `<div class="an-pitrow ${c.isPlayer ? 'me' : ''}"><span>${i + 1}</span>${teamStripe(c.team)}<b>${esc(sim.driver(c).name)}</b><span class="muted">giro ${s.lap}</span>${tyreBadge(s.from)}<span class="muted">›</span>${s.to ? tyreBadge(s.to) : '<span class="muted tiny">benzina</span>'}<b class="mono">${s.stat.toFixed(2)}s</b></div>`; }).join('')}</div>`;
 }
 function summary(sim, cls) {
   const mover = cls.filter((c) => c.status !== 'dnf').map((c) => ({ c, g: c.grid - c.pos })).sort((a, b) => b.g - a.g)[0];
   const fl = sim.fastest.key && sim.cars.find((c) => c.key === sim.fastest.key);
-  const bestStop = sim.stopsLog.slice().sort((a, b) => a.stat - b.stat)[0];
+  const bestStop = sim.stopsLog.filter((s) => !s.red).sort((a, b) => a.stat - b.stat)[0];
   const tile = (v, l, sub = '') => `<div class="an-tile"><b>${v}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ''}</div>`;
-  return `<div class="an-tiles">${tile(mover && mover.g > 0 ? '+' + mover.g : '—', 'Rimonta migliore', mover && mover.g > 0 ? esc(sim.driver(mover.c).name) : '')}${tile(fl ? fmtTime(sim.fastest.time) : '—', 'Giro più veloce', fl ? esc(sim.driver(fl).name) : '')}${tile(bestStop ? bestStop.stat.toFixed(2) + 's' : '—', 'Pit stop migliore', bestStop ? esc(sim.driver(sim.cars.find((c) => c.key === bestStop.key)).name) : '')}${tile(sim.stopsLog.length, 'Pit stop totali')}${tile(sim.scCount, 'Safety car')}${tile(cls.filter((c) => c.status === 'dnf').length, 'Ritiri')}</div>`;
+  return `<div class="an-tiles">${tile(mover && mover.g > 0 ? '+' + mover.g : '—', 'Rimonta migliore', mover && mover.g > 0 ? esc(sim.driver(mover.c).name) : '')}${tile(fl ? fmtTime(sim.fastest.time) : '—', 'Giro più veloce', fl ? esc(sim.driver(fl).name) : '')}${tile(bestStop ? bestStop.stat.toFixed(2) + 's' : '—', 'Pit stop migliore', bestStop ? esc(sim.driver(sim.cars.find((c) => c.key === bestStop.key)).name) : '')}${tile(sim.stopsLog.filter((s) => !s.red).length, 'Pit stop totali')}${tile(sim.scCount, 'Safety car')}${tile(cls.filter((c) => c.status === 'dnf').length, 'Ritiri')}</div>`;
 }
 
 // race story: the key moments of the race as a lap-by-lap timeline
