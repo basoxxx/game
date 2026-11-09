@@ -9,7 +9,7 @@ import { applyHDRI, makeComposer, hdriSun, hdriHorizon, applyFilterSettings, FIL
 import { engineStart, engineSet, engineStop, sfx } from '../ui/audio.js';
 import { getSettings, setSettings } from '../engine/state.js';
 import { buildTrack, buildTerrain, buildRacingLine, buildWater, SURFACES } from './tracks.js';
-import { buildBanger, dent, crackGlass, BANGERS, AI_COLORS, LIVERIES, tuneSpec } from './cars.js';
+import { buildBanger, dent, crackGlass, updateParts, scrape, BANGERS, AI_COLORS, LIVERIES, tuneSpec } from './cars.js';
 import { DIFFICULTY, medalFor, payout, recordCareer, prog, saveProg, checkChallenges } from './career.js';
 import { DerbySound } from './sound.js';
 import { Particles, SkidMarks } from './fx.js';
@@ -257,6 +257,7 @@ export class DerbyGame {
 
   makeCar({ spec, color, num, name, isPlayer, pos, skill, look = {} }) {
     const mesh = buildBanger(spec.id, color, num, num * 31 + 7, look); this.scene.add(mesh);
+    mesh.userData.shell.position.y = -0.12; // the suspension settles: sit the body down over the wheels
     // low setting: ~35 meshes per car each casting a shadow doubled the draw calls; only the shell and the cab cast
     if (this.low) { const keep = new Set([mesh.userData.body, mesh.userData.cab]); mesh.traverse((o) => { if (o.isMesh && !keep.has(o)) o.castShadow = false; }); }
     const { L, W } = mesh.userData.dims; const T = this.terrain;
@@ -705,8 +706,7 @@ export class DerbyGame {
       if (dmg > 12) this.hitStop = Math.min(0.09, 0.03 + dmg * 0.002);
     } else if (by?.isPlayer && dmg > 10) this.hitStop = Math.min(0.07, 0.02 + dmg * 0.0015);
     if (wp && dmg > 14 && this.smoke) for (let k = 0; k < (this.low ? 4 : 8); k++) this.smoke.emit(wp.x, wp.y, wp.z, (Math.random() - 0.5) * 4, 0.5 + Math.random() * 2, (Math.random() - 0.5) * 4, 1.2 + Math.random(), 1.1, 0.35, 0.33, 0.3, 0.45);
-    // bonnet pops up when the nose is smashed
-    if (zone === 'front') { const bn = ud.parts.find((p) => p.userData.bonnet); if (bn && !bn.userData.popped && car.hp < 60) { bn.userData.popped = true; bn.rotation.z = 0.18 + Math.random() * 0.15; bn.position.y += 0.05; } }
+    // panels in the hit zone work loose first (bonnet flutters, doors swing, bumpers hang), then fly off
     // windscreens crack, then shatter into glass chips
     if ((zone === 'front' || zone === 'rear') && dmg > 6) {
       if (crackGlass(car.mesh, zone, dmg / 12)) {
@@ -717,12 +717,13 @@ export class DerbyGame {
     }
     if (wp && dmg > 5) for (let k = 0; k < Math.min(22, dmg * 0.8); k++) this.chips.emit(wp.x, wp.y, wp.z, (Math.random() - 0.5) * 5, 1 + Math.random() * 3, (Math.random() - 0.5) * 5, 1 + Math.random(), 0.16, ...this.paintRGB(car), 1);
     // parts in the hit zone lose hit points and may fly off
-    for (const pt of [...ud.parts]) if (pt.userData.zone === zone) { pt.userData.hp -= dmg * (dmg > 16 ? 1.4 : 1); if (pt.userData.hp <= 0) this.detach(car, pt); }
+    for (const pt of [...ud.parts]) if (pt.userData.zone === zone) { const u = pt.userData; u.hp -= dmg * (dmg > 16 ? 1.4 : 1); if (u.hp <= 0) this.detach(car, pt); else if (!u.loose && u.hp < u.hp0 * 0.6) { u.loose = true; if (car.isPlayer && (u.kind === 'bonnet' || u.kind === 'door')) this.snd?.prop?.('fence', car.mesh.position); } }
     // a huge hit near a wheel can tear it off
     if ((dmg > 22 || (dmg > 14 && car.hp < 45)) && Math.abs(local.z) > ud.dims.W * 0.45 && Math.random() < 0.55) {
       let wi = -1, wd = 1.3; ud.wheelPos.forEach(([x, z], i) => { const d = Math.hypot(local.x - x, local.z - z); if (d < wd && !car.wheelLost[i]) { wd = d; wi = i; } });
       if (wi >= 0 && car.wheelLost.filter(Boolean).length < 2) this.detachWheel(car, wi);
     }
+    if (dmg > 9 && Math.abs(local.z) > ud.dims.W * 0.4) { let wi = -1, wd = 1.2; ud.wheelPos.forEach(([x, z], i) => { const d = Math.hypot(local.x - x, local.z - z); if (d < wd) { wd = d; wi = i; } }); if (wi >= 0) { const w = ud.wheels[wi].userData, sg = ud.wheelPos[wi][1] > 0 ? 1 : -1; w.bent = Math.max(-0.3, Math.min(0.3, w.bent + sg * (0.03 + dmg * 0.004) * (Math.random() < 0.8 ? 1 : -1))); w.toe = Math.max(-0.12, Math.min(0.12, w.toe + (Math.random() - 0.5) * dmg * 0.006)); } }
     if (by && by !== car) { car.lastHit = { by, t: this.time }; by.score += Math.round(dmg * 3); }
     if (before > 0 && car.hp <= 0) this.wreck(car);
   }
@@ -1112,6 +1113,9 @@ export class DerbyGame {
     const s = car.spec, roll = s.roll || 1;
     const pitchT = Math.max(-0.09, Math.min(0.09, car.accF * 0.0055 * roll)), rollT = Math.max(-0.1, Math.min(0.1, -car.accL * 0.0072 * roll));
     ud.shell.rotation.z += (pitchT - ud.shell.rotation.z) * Math.min(1, dt * 10); ud.shell.rotation.x += (rollT - ud.shell.rotation.x) * Math.min(1, dt * 10);
+    for (let i = 0; i < 4; i++) { const w = ud.wheels[i], b = w.userData.bent; if (b) { w.rotation.x = b; w.rotation.y += w.userData.toe; } }
+    if (dt) updateParts(car.mesh, dt, { speed: car.dyn?.speed || 0, accF: car.accF, accL: car.accL, t: this.time });
+    ud.lights.tail.emissiveIntensity = car.brakeF > 0.1 ? 2.6 : car.gearLabel === 'R' ? 1.2 : this.night ? 0.9 : 0.45;
     if (car.ghostT > 0 && car.isPlayer) car.mesh.visible = Math.floor(this.time * 10) % 2 === 0; else car.mesh.visible = true;
     if (!dt) return;
     const lv = car.body.linvel(); const speed = Math.hypot(lv.x, lv.z);

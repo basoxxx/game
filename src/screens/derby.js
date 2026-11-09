@@ -54,6 +54,7 @@ function padReady() {
 function achToast() { for (const c of checkChallenges({})) { App.toast?.(`Sfida completata: ${c.name}`, `+${money(c.prize)}`); try { sfx.levelup?.(); } catch {} } }
 // ---------------------------------------------------------------- garage turntable preview
 const PV = { r: null, raf: 0, key: '' };
+if (typeof window !== 'undefined') window.__dzpv = PV;
 async function mountPreview(el, P) {
   const THREE = await import('three');
   const { buildBanger } = await import('../derby/cars.js');
@@ -88,7 +89,7 @@ async function mountPreview(el, P) {
   el.onpointerup = () => { drag = null; };
   const loop = (t) => {
     if (!el.isConnected) return; PV.raf = requestAnimationFrame(loop);
-    const dt = Math.min(0.05, (t - last) / 1000); last = t; if (drag == null) PV.turn.rotation.y += dt * 0.35;
+    const dt = Math.min(0.05, (t - last) / 1000); last = t; if (drag == null && !PV.hold) PV.turn.rotation.y += dt * 0.35;
     if (el.clientWidth && Math.abs(el.clientWidth - PV.r.domElement.width / PV.r.getPixelRatio()) > 2) fit();
     PV.r.render(PV.scene, PV.cam);
   };
