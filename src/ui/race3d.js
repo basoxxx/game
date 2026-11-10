@@ -261,7 +261,7 @@ export class Race3D {
     // setting (no post-processing) keeps ACES, which needs no grade.
     this._agx = !!this.composer;
     if (!this._agx) this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this._expK = this._agx ? 1.5 : 1; this._gSat = this._agx ? 1.22 : 1; this._gCon = this._agx ? 1.2 : 1.08;
+    this._expK = this._agx ? (this.skyKind === 'afternoon' || this.skyKind === 'dusk' ? 1.38 : 1.5) : 1; this._gSat = this._agx ? 1.22 : 1; this._gCon = this._agx ? 1.2 : 1.08;
     this.renderer.toneMappingExposure *= this._expK;
     if (this.composer?.grade) { const gu = this.composer.grade.uniforms; gu.uCon.value = this._gCon; gu.uSat.value = (this.tod?.sat ?? 1.08) * this._gSat; if (this.tod) gu.uWarm.value = this.tod.warm; }
     if (this.composer?.rays && this.tod) this.composer.rays.uniforms.uTint.value.setHex(this.tod.disc);
