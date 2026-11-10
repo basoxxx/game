@@ -6,6 +6,7 @@
 // Derby: picks targets intelligently (spreads out, prefers weakened cars), circles to build speed,
 // charges at flanks with nitro, backs off after impacts and keeps away from the walls.
 import * as THREE from 'three';
+import { canTarget, arenaGoal } from './modes.js';
 
 const _q = new THREE.Quaternion();
 const wrap = (d) => { while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
@@ -16,10 +17,12 @@ export const PERSONALITIES = {
   aggressivo: { aggr: 0.85, pace: 0.956, brakeTraffic: 0, ram: 1, lean: 1 },
   // the rival: quick, hard but not reckless, and it has it in for one driver (see grudge below)
   rivale: { aggr: 0.6, pace: 0.964, brakeTraffic: 0.2, ram: 0.6, lean: 0.85 },
+  // the coward: quick when alone, lifts for any car alongside, never rams; in the arena it runs and picks off wrecks
+  codardo: { aggr: 0, pace: 0.96, brakeTraffic: 1.3, ram: 0, lean: 0, coward: true },
 };
 
 export function initAI(car, idx) {
-  const kinds = ['aggressivo', 'prudente', 'equilibrato', 'aggressivo', 'equilibrato', 'prudente', 'aggressivo', 'equilibrato', 'prudente', 'equilibrato', 'aggressivo'];
+  const kinds = ['aggressivo', 'prudente', 'equilibrato', 'aggressivo', 'codardo', 'prudente', 'aggressivo', 'equilibrato', 'codardo', 'equilibrato', 'aggressivo'];
   const pers = kinds[idx % kinds.length];
   car.ai = { pers, P: PERSONALITIES[pers], lane: 0, laneT: 0, passT: 0, ramT: 0, ramCool: 2 + Math.random() * 4, ram: null, revT: 0, stuckT: 0, stuckN: 0, stuckClock: 0, offT: 0, wrongT: 0, mode: 'circle', modeT: 1 + Math.random(), target: null, retarget: 0, laneNoise: (Math.random() - 0.5) * 2 };
 }
@@ -61,18 +64,23 @@ export function aiInput(game, car, dt) {
 
 function raceAI(game, car, A, k, dt) {
   const tr = game.track, line = game.line, N = tr.N, i = car.idx, hw = tr.width / 2;
-  const P = car.isPlayer && game.lepre ? { ...A.P, ram: 0, lean: 0, brakeTraffic: 0 } : A.P; // autopilot hunter: only the Lepre matters
+  let P = car.isPlayer && game.lepre ? { ...A.P, ram: 0, lean: 0, brakeTraffic: 0 } : A.P; // autopilot hunter: only the Lepre matters
+  // the first seconds: nobody rams or leans, everybody leaves room (no pile-up at the first corner)
+  const calm = game.time < 9 && game.state === 'race';
+  if (calm) P = { ...P, ram: 0, lean: 0, brakeTraffic: Math.max(0.7, P.brakeTraffic) };
   // ---- pace: personality, skill, class, subtle rubber band against the player
   let pace = P.pace * (0.94 + car.skill * 0.07) * (car.paceMul || 1) * (car.stunT > 0 ? 0.72 : 1); // a rammed Lepre is dazed for a moment
   const pl = game.player;
   if (pl && pl !== car && !pl.finished && !pl.out) {
     const gap = ((car.prog || 0) - (pl.prog || 0)) * tr.ds; // metres ahead of the player
-    const rb = car.lepre ? (gap > 0 ? -Math.min(0.3, Math.max(0, gap - 15) / 200) : 0.03) : gap > 0 ? -Math.min(0.05, Math.max(0, gap - 80) / 3000) : Math.min(0.05, Math.max(0, -gap - 120) / 3000);
+    // rubber band: subtle, scaled by difficulty (Facile helps more, Spietato almost none) and switchable in the options
+    const rk = (game.dopts?.rubber === false ? 0 : 1) * (game.diff?.rubber ?? 1);
+    const rb = car.lepre ? (gap > 0 ? -Math.min(0.3, Math.max(0, gap - 15) / 200) : 0.03) : rk * (gap > 0 ? -Math.min(0.05, Math.max(0, gap - 80) / 3000) : Math.min(0.05, Math.max(0, -gap - 120) / 3000));
     pace *= 1 + rb; car.rubber = 1 + rb * 1.2;
   } else car.rubber = 1;
   // pack compression: runaway leaders ease off a little, stragglers push (keeps the field together)
   const med = game.packMedian?.() ?? car.prog ?? 0, pg = ((car.prog || 0) - med) * tr.ds;
-  pace *= pg > 40 ? 1 - Math.min(0.035, (pg - 40) / 3000) : pg < -60 ? 1 + Math.min(0.03, (-pg - 60) / 3000) : 1;
+  if (game.dopts?.rubber !== false) pace *= pg > 40 ? 1 - Math.min(0.035, (pg - 40) / 3000) : pg < -60 ? 1 + Math.min(0.03, (-pg - 60) / 3000) : 1;
   // ---- lane management: racing line + personal offset (+ overtaking / avoidance)
   A.passT -= dt; A.ramCool -= dt; A.ramT -= dt;
   let laneT = A.laneNoise * 0.8;
@@ -122,6 +130,9 @@ function raceAI(game, car, A, k, dt) {
   let flee = false;
   if (car.lepre && pl && !pl.out) { const op = pl.body.translation(), ax = (op.x - k.p.x) * k.fwd.x + (op.z - k.p.z) * k.fwd.z, lat = (op.x - k.p.x) * k.side.x + (op.z - k.p.z) * k.side.z; if (ax < -2 && ax > -16) { laneT = -Math.sign(lat || 1) * 3.2; flee = true; } }
   if (A.passT > 0 && A.passSide != null) laneT = A.passSide - line.off[(i + 6) % N];
+  // damaged: dive into the pit lane (drive-through repair) when it comes up
+  const pit = game.pit; let pitting = false;
+  if (pit && !car.isPlayer && (car.hp < 42 || car.wheelLost.some(Boolean) || car.fireT > 0)) { const rel = (i - pit.i0 + N) % N, toGo = (pit.i0 - i + N) % N; if (toGo < 45 || rel <= pit.L) { pitting = true; laneT = pit.lat - line.off[(i + 4) % N]; A.passT = 0; } }
   else if (A.passT <= 0) A.passSide = null;
   A.lane += (laneT - A.lane) * Math.min(1, dt * 1.6);
   // ---- target point on the line ahead
@@ -132,6 +143,7 @@ function raceAI(game, car, A, k, dt) {
   // ---- speed: profile at a point slightly ahead (braking points are baked into the profile)
   let vT = Math.min(line.spd[(i + 2) % N], line.spd[(i + 4) % N]) * pace * car.spec.top ** 0.5;
   vT = Math.min(vT, vCap);
+  if (pitting) { const toGo = (game.pit.i0 - i + N) % N; vT = Math.min(vT, toGo < 45 && toGo > 0 ? 12 + toGo * 0.35 : 11); }
   if (car.hp < 30) vT *= 0.94;
   // ---- ramming overrides the line while it lasts and the victim is still close
   if (A.ramT > 0 && A.ram) {
@@ -174,12 +186,32 @@ function derbyAI(game, car, A, k, dt) {
     if (A.modeT <= 0) { A.mode = 'circle'; A.modeT = 1.2 + Math.random() * 1.6; }
     return { thr: 0, brk: 1, st: A.backSt, hb: 0, nitro: 0 };
   }
+  // v5 arena goals: king of the hill (go to the ring, or knock the king out of it), survival waves (everybody hunts you)
+  const goal = arenaGoal(game, car);
+  if (goal && !goal.target) {
+    let gx = goal.x, gz = goal.z, gv = 15;
+    if (goal.orbit) {
+      // holding the crown: circle inside the ring and ram whoever comes in
+      let intr = null, idd = 14; for (const o of game.cars) { if (o === car || o.out) continue; const op = o.body.translation(), d = Math.hypot(op.x - gx, op.z - gz); if (d < idd) { idd = d; intr = o; } }
+      if (intr) { const op = intr.body.translation(); gx = op.x; gz = op.z; gv = 16; } else { const a = Math.atan2(k.p.z - gz, k.p.x - gx) + 0.6; gx += Math.cos(a) * goal.orbit; gz += Math.sin(a) * goal.orbit; gv = 7; }
+    }
+    const { st } = steerTo(k, gx, gz, 2.4); let thr = k.speed < gv ? 1 : 0.15, brk = k.speed > gv + 4 ? 0.7 : 0; if (k.vF < -1 && thr > 0) { thr = 1; brk = 0; }
+    return { thr, brk, st, hb: 0, nitro: 0 };
+  }
+  if (goal?.target && !goal.target.out) { A.target = goal.target; if (A.mode === 'circle') A.modeT = Math.min(A.modeT, 0.5); }
+  // the coward keeps its distance, orbiting wide, and only picks on cars that are nearly wrecked
+  const P = A.P || {};
+  if (P.coward && !goal) {
+    let prey = null; for (const o of game.cars) { if (o === car || o.out || o.hp > 35 || !canTarget(game, car, o)) continue; prey = o; break; }
+    if (prey) { A.target = prey; if (A.mode === 'circle') A.mode = 'hunt'; }
+    else { A.target = null; A.mode = 'circle'; A.modeT = 1; }
+  }
   // choose a target: near, not already mobbed, preferably weakened
-  if (A.retarget <= 0 || !A.target || A.target.out) {
+  if (!goal?.target && !(P.coward && A.target) && (A.retarget <= 0 || !A.target || A.target.out)) {
     A.retarget = 1.5 + Math.random();
     let best = null, bs = 1e9;
     for (const o of game.cars) {
-      if (o === car || o.out) continue;
+      if (o === car || o.out || !canTarget(game, car, o)) continue;
       const op = o.body.translation(); let s = Math.hypot(op.x - k.p.x, op.z - k.p.z);
       const mob = game.cars.filter((c) => c !== car && c.ai?.target === o && !c.out).length;
       s += mob * 16 - (100 - o.hp) * 0.18 + (o === A.target ? -6 : 0) + Math.random() * 8 - (o === A.grudge ? 28 : 0);
@@ -203,7 +235,10 @@ function derbyAI(game, car, A, k, dt) {
     // aim for the flank of the target (T-bone), not its armoured nose
     if (o.dyn?.fwd) { const sx = -o.dyn.fwd.z, sz = o.dyn.fwd.x, sd = Math.sign((k.p.x - op.x) * sx + (k.p.z - op.z) * sz) || 1; tx += sx * sd * 0.5; tz += sz * sd * 0.5; }
     const al = steerTo(k, tx, tz).d;
-    if (A.mode === 'hunt') { vT = d > 30 ? 22 : 16; if (d < 26 && Math.abs(al) < 0.35) { A.mode = 'charge'; A.modeT = 2.5; } }
+    // no suicide runs: a weaker car does not charge into a nose that is pointing at it; it circles for the flank
+    const facing = o.dyn?.fwd ? (o.dyn.fwd.x * (k.p.x - op.x) + o.dyn.fwd.z * (k.p.z - op.z)) / Math.max(1, d) : 0;
+    const suicidal = facing > 0.75 && (o.dyn?.speed || 0) > 5 && car.hp < o.hp - 10 && game.mode !== 'ondate';
+    if (A.mode === 'hunt') { vT = d > 30 ? 22 : 16; if (d < 26 && Math.abs(al) < 0.35 && !suicidal) { A.mode = 'charge'; A.modeT = 2.5; } else if (suicidal && d < 20) { A.mode = 'circle'; A.modeT = 0.9; A.orbit = -(A.orbit || 1); } }
     if (A.mode === 'charge') { vT = 40; nitro = car.nitro > 15 && Math.abs(al) < 0.2 ? 1 : 0; if (A.modeT <= 0 || Math.abs(al) > 1.4) { A.mode = 'circle'; A.modeT = 1 + Math.random(); } }
     if (Math.abs(al) > 1.6 && k.speed > 9) hb = 1;
   }

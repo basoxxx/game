@@ -12,6 +12,9 @@ import { FILTER_PRESETS, applyFilterSettings } from '../ui/gfx.js';
 import { getSettings, setSettings } from '../engine/state.js';
 import { WEATHERS } from '../derby/atmos.js';
 import '../derby/menu.css';
+import '../derby/v5.css';
+import { PRESETS, driveOpts, setDriveOpts } from '../derby/handling.js';
+import { RIVALS, portrait, cupStory } from '../derby/rivals.js';
 
 const D = { tab: 'carriera', venue: 'cava', mode: 'race', car: 'berlina', opponents: 7, weather: 'auto', ev: null, playing: false, game: null };
 const COLORS = ['#7a1f1f', '#b3261e', '#1f3f7a', '#2c7a74', '#5b6b2b', '#2c5a4a', '#c99a12', '#e8e4d8', '#d9d4c5', '#2b2b2b', '#b5501c', '#6b2c7a', '#8a1010', '#ffcf3a'];
@@ -43,6 +46,7 @@ function trackSVG(v, big = false) {
   if (svgCache[key]) return svgCache[key];
   const sw = big ? 3 : 4;
   if (v.kind === 'derby') return (svgCache[key] = `<svg viewBox="0 0 120 80" class="dz-svg"><circle cx="60" cy="40" r="32" fill="rgba(255,120,40,.08)" stroke="currentColor" stroke-width="${sw}"/><circle cx="60" cy="40" r="24" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" opacity=".6"/>${v.island ? '<circle cx="60" cy="40" r="7" fill="currentColor" opacity=".55"/>' : `<g transform="translate(48 28)" fill="currentColor"><path d="M12 2l1.8 5.2L19 4.5l-2.2 5.3L22 12l-5.2 1.8L19 19.5l-5.2-2.2L12 22l-1.8-4.7L5 19.5l2.2-5.7L2 12l5.2-2.2L5 4.5l5.2 2.7z"/></g>`}</svg>`);
+  if (v.kind === 'park') return (svgCache[key] = `<svg viewBox="0 0 120 80" class="dz-svg"><circle cx="60" cy="40" r="34" fill="rgba(61,220,132,.08)" stroke="currentColor" stroke-width="${sw}"/><circle cx="78" cy="30" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M34 52 L48 46" stroke="currentColor" stroke-width="3"/><path d="M60 62 L74 56" stroke="currentColor" stroke-width="3"/></svg>`);
   if (v.kind === 'stunt') return (svgCache[key] = `<svg viewBox="0 0 120 80" class="dz-svg"><path d="M6 22 Q40 52 58 54 L66 54 L70 44" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linejoin="round"/><path d="M74 58 L116 72" stroke="currentColor" stroke-width="${sw}"/><path d="M70 44 Q88 22 104 52" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 4"/>${[80, 90, 100, 110].map((x) => `<path d="M${x} ${60 + (x - 74) * 0.33}v-5" stroke="currentColor" stroke-width="1.5"/>`).join('')}</svg>`);
   const t = buildTrack(v); const [x0, z0, x1, z1] = t.bbox; const s = Math.min(110 / (x1 - x0), 70 / (z1 - z0));
   const d = t.pts.filter((_, i) => i % 6 === 0).map((p, i) => `${i ? 'L' : 'M'}${(60 + (p.x - (x0 + x1) / 2) * s).toFixed(1)},${(40 + (p.z - (z0 + z1) / 2) * s).toFixed(1)}`).join('') + 'Z';
@@ -52,7 +56,7 @@ const pc = (x) => Math.round(Math.min(1, x) * 100);
 const bar = (v, base = null) => `<div class="dz-stat">${base != null && v > base + 0.005 ? `<b style="width:${pc(v)}%"></b>` : ''}<i style="width:${pc(base ?? v)}%"></i></div>`;
 const medalDot = (m) => `<span class="dz-md m${m}" title="${MEDALS[m]}"></span>`;
 const money = (n) => `€ ${Math.round(n).toLocaleString('it-IT')}`;
-const modesFor = (v) => (v.kind === 'derby' ? ['derby'] : v.kind === 'stunt' ? ['stunt'] : ['race', 'elim', 'time', 'caccia']);
+const modesFor = (v) => (v.kind === 'derby' ? ['derby', 'squadre', 're', 'ondate'] : v.kind === 'stunt' ? ['stunt'] : v.kind === 'park' ? ['parco'] : ['race', 'elim', 'time', 'caccia', 'distruzione']);
 function carStats(spec, base = null) {
   const r = (k, n) => [spec[k] / n, base ? base[k] / n : null];
   return `<div class="dz-stats"><span>Potenza</span>${bar(...r('power', 1.6))}<span>Velocità</span>${bar(...r('top', 1.3))}<span>Resistenza</span>${bar(...r('armor', 2.3))}<span>Tenuta</span>${bar(...r('grip', 1.4))}</div>`;
@@ -143,7 +147,7 @@ function careerTab(P) {
   return `<div class="dz-cups">${CUPS.map((c) => {
     const open = cupUnlocked(c, P), cs = cupStars(c, P);
     return `<section class="dz-cup ${open ? '' : 'locked'}" style="--cc:${c.color}">
-      <div class="dz-cup-h"><div><div class="hh-eyebrow">${open ? `${cs}/${c.events.length * 3} stelle` : `${icon('lock')} Servono ${c.stars} stelle (ne hai ${stars})`}</div><div class="dz-cup-n">${esc(c.name)}</div><div class="small" style="color:var(--text2)">${esc(c.sub)}</div></div><div class="dz-cup-bar"><i style="width:${Math.round((cs / (c.events.length * 3)) * 100)}%"></i></div></div>
+      <div class="dz-cup-h"><div><div class="hh-eyebrow">${open ? `${cs}/${c.events.length * 3} stelle` : `${icon('lock')} Servono ${c.stars} stelle (ne hai ${stars})`}</div><div class="dz-cup-n">${esc(c.name)}</div><div class="small" style="color:var(--text2)">${esc(c.sub)}</div>${cupStory(c.id, P)}</div><div class="dz-cup-bar"><i style="width:${Math.round((cs / (c.events.length * 3)) * 100)}%"></i></div></div>
       <div class="dz-evs">${c.events.map((e, i) => { const v = VENUES.find((x) => x.id === e.venue); const r = P.career.res[e.id]; const m = r?.medal || 0; return `<div class="dz-ev ${D.ev === e.id ? 'sel' : ''} ${open ? '' : 'locked'}" ${open ? `data-a="dz-ev" data-id="${e.id}"` : ''}>
         <div class="row between"><span class="dz-ev-mode">${icon(MODES[e.mode].icon)} ${esc(MODES[e.mode].name)}</span><span class="dz-ev-md">${[1, 2, 3].map((k) => `<i class="${m >= k ? 'on m' + k : ''}"></i>`).join('')}</span></div>
         <b>${i + 1}. ${esc(e.name)}</b><div class="tiny">${esc(v?.name || e.venue)}${e.opponents ? ` · ${e.opponents} avversari` : ''}</div><div class="dz-ev-map">${v ? trackSVG(v) : ''}</div><div class="tiny dz-ev-prize">Oro: ${money(e.prize)}</div></div>`; }).join('')}</div>
@@ -157,23 +161,23 @@ function freeTab(P) {
   const v = VENUES.find((x) => x.id === D.venue) || VENUES[0];
   const modes = modesFor(v); if (!modes.includes(D.mode)) D.mode = modes[0];
   const fact = (val, l) => `<div><b>${val}</b><span>${l}</span></div>`;
-  const vFacts = v.kind === 'derby' ? fact('Arena', 'Formato') + fact('1', 'Sopravvive') + fact(D.opponents, 'Avversari') : v.kind === 'stunt' ? fact('3', 'Tentativi') + fact('24°', 'Trampolino') + fact('160 m', 'Pista di atterraggio') : fact(v.laps, 'Giri') + fact(v.surfaceName || 'sterrato', 'Fondo') + fact(v.jumps?.length || 0, 'Salti');
+  const vFacts = v.kind === 'park' ? fact('∞', 'Tempo') + fact('1', 'Giro della morte') + fact('6', 'Trampolini') : v.kind === 'derby' ? fact('Arena', 'Formato') + fact('1', 'Sopravvive') + fact(D.opponents, 'Avversari') : v.kind === 'stunt' ? fact('3', 'Tentativi') + fact('24°', 'Trampolino') + fact('160 m', 'Pista di atterraggio') : fact(v.laps, 'Giri') + fact(v.surfaceName || 'sterrato', 'Fondo') + fact(v.jumps?.length || 0, 'Salti');
   return `<div class="dz-grid anim-in"><div>
       <div class="dz-section">Arena</div>
       <section class="dz-hero"><div class="dh-info"><div class="hh-eyebrow">${esc(MODES[D.mode].name)}</div><div class="dh-name">${esc(v.name)}</div><div class="small mt8" style="color:var(--text2);line-height:1.5">${esc(v.desc)}</div><div class="dz-facts">${vFacts}</div>${P.best[v.id] ? `<div class="mt16"><span class="tag">${icon('trophy')} Record: ${P.best[v.id]}°</span></div>` : ''}</div><div class="dh-map">${thumbDiv(v, 'big')}</div></section>
-      <div class="dz-venues">${VENUES.map((x) => { const ok = venueUnlocked(x.id, P); return `<div class="dz-venue ${x.id === D.venue ? 'sel' : ''} ${ok ? '' : 'locked'}" ${ok ? `data-a="dz-venue" data-id="${x.id}"` : ''}>${thumbDiv(x)}<b>${esc(x.name)}</b><div class="tiny">${ok ? (x.kind === 'derby' ? 'Ultimo in piedi' : x.kind === 'stunt' ? 'Salto in lungo' : `${x.laps} giri · ${(x.surfaceName || 'sterrato').toLowerCase()}`) : `${icon('lock')} ${VENUE_STARS[x.id]} stelle`}</div></div>`; }).join('')}</div>
+      <div class="dz-venues">${VENUES.map((x) => { const ok = venueUnlocked(x.id, P); return `<div class="dz-venue ${x.id === D.venue ? 'sel' : ''} ${ok ? '' : 'locked'}" ${ok ? `data-a="dz-venue" data-id="${x.id}"` : ''}>${thumbDiv(x)}<b>${esc(x.name)}</b><div class="tiny">${ok ? (x.kind === 'derby' ? 'Ultimo in piedi' : x.kind === 'park' ? 'Giro libero' : x.kind === 'stunt' ? 'Salto in lungo' : `${x.laps} giri · ${(x.surfaceName || 'sterrato').toLowerCase()}`) : `${icon('lock')} ${VENUE_STARS[x.id]} stelle`}</div></div>`; }).join('')}</div>
     </div><div>
       <div class="dz-section">Tipo di evento</div>
       <div class="dz-modes">${modes.map((m) => `<div class="dz-mode ${D.mode === m ? 'sel' : ''}" data-a="dz-mode" data-id="${m}">${icon(MODES[m].icon)}<b>${esc(MODES[m].name)}</b><span>${esc(MODES[m].desc)}</span></div>`).join('')}</div>
       <div class="dz-opts">
-        ${['time', 'stunt'].includes(D.mode) ? '' : `<span class="lbl">Avversari</span><div class="row gap4">${[3, 5, 7].map((n) => `<button class="btn sm ${D.opponents === n ? 'active' : ''}" data-a="dz-opp" data-v="${n}">${n}</button>`).join('')}</div>`}
+        ${['time', 'stunt', 'ondate', 'distruzione', 'parco'].includes(D.mode) ? '' : `<span class="lbl">Avversari</span><div class="row gap4">${[3, 5, 7].map((n) => `<button class="btn sm ${D.opponents === n ? 'active' : ''}" data-a="dz-opp" data-v="${n}">${n}</button>`).join('')}</div>`}
         <span class="lbl">Meteo</span><div class="row gap4 wrap">${Object.entries(WEATHERS).map(([k, w]) => `<button class="btn sm ${D.weather === k ? 'active' : ''}" data-a="dz-weather" data-v="${k}" data-tip="${esc(w.desc)}">${esc(w.name)}</button>`).join('')}</div>
         ${optsRows()}
       </div>
       <div class="dz-section mt24">La tua auto</div>
       ${carPicker(P, true)}
     </div></div>
-    <div class="qr-go mt24"><div class="qg-sum"><b>${esc(v.name)}</b><span>${esc(MODES[D.mode].name)} · ${esc(BANGERS.find((b) => b.id === D.car)?.name || '')}${['time', 'stunt'].includes(D.mode) ? '' : ` · ${D.opponents} avversari`}</span></div><button class="btn primary xl" style="min-width:320px" data-a="dz-go">${icon('flag')} Si parte!</button></div>`;
+    <div class="qr-go mt24"><div class="qg-sum"><b>${esc(v.name)}</b><span>${esc(MODES[D.mode].name)} · ${esc(BANGERS.find((b) => b.id === D.car)?.name || '')}${['time', 'stunt', 'ondate', 'distruzione', 'parco'].includes(D.mode) ? '' : ` · ${D.opponents} avversari`}</span></div><button class="btn primary xl" style="min-width:320px" data-a="dz-go">${icon('flag')} Si parte!</button></div>`;
 }
 function optsRows() {
   const P = prog();
@@ -209,6 +213,29 @@ function garageTab(P) {
       <div class="tiny mt16" style="color:var(--muted)">Trascina l’anteprima per girare l’auto. Le modifiche valgono per carriera, eventi liberi e campionato.</div>
     </div></div>`;
 }
+function driveTab() {
+  const o = driveOpts(); const pr = PRESETS[o.preset] || PRESETS.normale; const drift = Math.round((o.drift ?? pr.drift) * 100);
+  const tog = (k, label) => `<button class="btn sm ${o[k] ? 'active' : ''}" data-a="dz-dopt" data-k="${k}" data-v="${o[k] ? '0' : '1'}">${label}</button>`;
+  return `<div class="dz-grid anim-in"><div>
+    <div class="dz-section">Modello di guida</div>
+    <div class="dz-modes">${Object.entries(PRESETS).map(([k, p]) => `<div class="dz-mode ${o.preset === k ? 'sel' : ''}" data-a="dz-preset" data-id="${k}">${icon(k === 'arcade' ? 'speed' : k === 'normale' ? 'car' : 'wrench')}<b>${esc(p.name)}</b><span>${esc(p.desc)}</span></div>`).join('')}</div>
+    <div class="dz-section mt24">Sterzo e comandi</div>
+    <div class="dz-opts5">
+      <span class="lbl">Sensibilità sterzo</span><div><input type="range" min="50" max="150" step="5" value="${Math.round(o.sens * 100)}" data-k="sens" class="dz-range"> <b>${Math.round(o.sens * 100)}%</b></div>
+      <span class="lbl">Zona morta stick</span><div><input type="range" min="0" max="30" step="1" value="${Math.round(o.dead * 100)}" data-k="dead" class="dz-range"> <b>${Math.round(o.dead * 100)}%</b></div>
+      <span class="lbl">Aiuto derapata</span><div><input type="range" min="0" max="100" step="5" value="${drift}" data-k="drift" class="dz-range"> <b>${drift}%</b> ${o.drift != null ? '<button class="btn sm" data-a="dz-dopt" data-k="drift" data-v="null">Come il modello</button>' : '<span class="tiny muted">(dal modello)</span>'}</div>
+      <span class="lbl">Tastiera</span><div>${tog('kbSmooth', 'Sterzo progressivo')}</div>
+      <span class="lbl">Controller</span><div>${tog('rumble', 'Vibrazione')}</div>
+    </div></div><div>
+    <div class="dz-section">Gara</div>
+    <div class="dz-opts5">
+      <span class="lbl">Avversari</span><div>${tog('rubber', 'Elastico IA (gruppo compatto)')}</div>
+      <span class="lbl">Gare lunghe</span><div>${tog('pit', 'Corsia box per riparare (4+ giri)')}</div>
+      ${optsRows().replace(/<span class="lbl">/g, '<span class="lbl">')}
+    </div>
+    <div class="small mt16" style="color:var(--text2);line-height:1.6">Arcade perdona tutto e atterra sempre in piedi; Simulazione toglie quasi tutti gli aiuti: il fondo (asfalto, sterrato, ghiaia, fango, erba, bagnato), la trazione (anteriore, posteriore, integrale) e il peso di ogni auto si sentono davvero.</div>
+  </div></div>`;
+}
 function champTab() {
   const c = champGet(); const nx = champNext(); const nv = nx && VENUES.find((x) => x.id === nx); const me = c ? Object.entries(c.points).sort((a, b) => b[1] - a[1]) : []; const myPts = c ? (Object.entries(c.points).find(([n]) => n === 'Tu')?.[1] || 0) : 0;
   return `<div class="panel dz-champ"><div class="row between"><div><div class="hh-eyebrow">${esc(CHAMPIONSHIP.name)} · ${CHAMPIONSHIP.events.length} eventi</div><div class="small" style="color:var(--text2)">${c ? (c.done ? `Campionato concluso · ${myPts} punti · ${me.findIndex(([n]) => n === 'Tu') + 1}° in classifica` : `Round ${c.round + 1}/${CHAMPIONSHIP.events.length} · prossimo: <b>${esc(nv?.name || '')}</b> · ${myPts} punti`) : 'Sei eventi di fila, punti per posizione, demolizioni e giro veloce. Si corre con la stessa auto.'}</div></div><div class="row gap6">${c && !c.done ? `<button class="btn" data-a="dz-champ-reset">Ricomincia</button><button class="btn primary" data-a="dz-champ">${icon('flag')} Corri il round ${c.round + 1}</button>` : `<button class="btn primary" data-a="dz-champ-new">${icon('trophy')} ${c ? 'Nuovo campionato' : 'Inizia il campionato'}</button>`}</div></div>
@@ -224,8 +251,8 @@ registerScreen({
     if (!P.owned.includes(D.car)) D.car = 'berlina';
     const stars = starsOf(P), maxStars = CUPS.reduce((s, c) => s + c.events.length * 3, 0);
     const right = `<div class="dz-wallet"><div class="w-k">Crediti</div><b>${money(P.money)}</b><div class="w-s"><span class="dz-star">★</span> ${stars}/${maxStars} stelle · ${P.wins} vittorie · ${P.races} eventi</div></div>`;
-    const tabs = [['carriera', 'Carriera', 'star'], ['libero', 'Evento libero', 'flag'], ['garage', 'Garage', 'wrench'], ['campionato', 'Campionato', 'trophy']];
-    const body = D.tab === 'libero' ? freeTab(P) : D.tab === 'garage' ? garageTab(P) : D.tab === 'campionato' ? champTab() : careerTab(P);
+    const tabs = [['carriera', 'Carriera', 'star'], ['libero', 'Evento libero', 'flag'], ['garage', 'Garage', 'wrench'], ['campionato', 'Campionato', 'trophy'], ['guida', 'Guida', 'gamepad']];
+    const body = D.tab === 'guida' ? driveTab() : D.tab === 'libero' ? freeTab(P) : D.tab === 'garage' ? garageTab(P) : D.tab === 'campionato' ? champTab() : careerTab(P);
     return `<div class="full-screen dz-menu">
       ${pageHead({ eyebrow: 'Modalità di guida · Guidi tu', title: 'Scontro Totale', sub: 'Corse a contatto, salti, lamiere che volano e il derby della distruzione.', right })}
       <div class="dz-tabs">${tabs.map(([id, n, ic]) => `<div class="dz-tab ${D.tab === id ? 'on' : ''}" data-a="dz-tab" data-id="${id}">${icon(ic)} ${n}</div>`).join('')}<div class="dz-tabcar">${icon('car')} ${esc(BANGERS.find((b) => b.id === D.car)?.name || '')}</div></div>
@@ -237,6 +264,7 @@ registerScreen({
     if (!D.playing) {
       try { music.setMood('race'); } catch {}
       padReady();
+      for (const r of document.querySelectorAll('.dz-range')) r.addEventListener('change', () => { const k = r.dataset.k; setDriveOpts({ [k]: +r.value / 100 }); App.refresh(); });
       const pv = document.getElementById('dz-pv'); if (pv) mountPreview(pv, prog()).catch((e) => console.warn(e));
       if (D.tab === 'libero') setTimeout(makeThumbs, 400);
       return;
@@ -292,6 +320,8 @@ registerScreen({
     },
     'dz-look'(el) { const id = D.gcar || D.car; const P = prog(); const k = el.dataset.k; let v = el.dataset.v; if (k === 'stickers') v = v === '1'; P.looks[id] = { ...lookOf(id, P), [k]: v }; saveProg(P); App.refresh(); },
     'dz-num'(el) { const id = D.gcar || D.car; const P = prog(); const l = lookOf(id, P); l.num = ((l.num - 1 + +el.dataset.v + 99) % 99) + 1; P.looks[id] = l; saveProg(P); App.refresh(); },
+    'dz-preset'(el) { setDriveOpts({ preset: el.dataset.id, drift: null }); sfx.click(); App.refresh(); },
+    'dz-dopt'(el) { const v = el.dataset.v; setDriveOpts({ [el.dataset.k]: v === 'null' ? null : v === '1' }); App.refresh(); },
     'dz-diff'(el) { const P = prog(); P.diff = el.dataset.v; saveProg(P); App.refresh(); },
     'dz-filter'(el) { setSettings({ gfxFilter: el.dataset.v }); applyFilterSettings(); App.refresh(); },
     'dz-marker'() { setSettings({ dzMarker: getSettings().dzMarker === false }); App.refresh(); },
