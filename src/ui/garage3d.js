@@ -207,7 +207,14 @@ function ensureRenderer() {
   r.domElement.className = 'stage-canvas';
   r.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); cancelAnimationFrame(ST.raf); ST.raf = 0; });
   ST.r = r;
+  ST.soft = softGL(r);
   return r;
+}
+// Software rasterisers (SwiftShader / llvmpipe: no GPU, or a blocklisted one) link every shader
+// program in ~1 s and pay for every extra full-screen pass: the stage then skips the
+// post-processing chain and the mirror floor (the soft blob shadow and the lights stay).
+function softGL(r) {
+  try { const gl = r.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); return /swiftshader|llvmpipe|softpipe|software/i.test(String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER))); } catch { return false; }
 }
 
 function box(w, h, d, mat, x, y, z) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); return m; }
@@ -294,13 +301,17 @@ function buildSet() {
   const fill = new THREE.DirectionalLight(0x9fb8ff, 0.3); fill.position.set(5, 2.2, -6); scene.add(fill);
   const wash = new THREE.PointLight(0xff2222, 9, 10, 1.7); wash.position.set(R.x0 + 1.0, 1.0, 0); scene.add(wash);
   const washW = new THREE.PointLight(0xdfe8ff, 70, 16, 1.6); washW.position.set(R.x0 + 2.4, 4.2, 0); scene.add(washW);
-  for (const z of [-5.6, 5.6]) { const w = new THREE.PointLight(0xdfe8ff, 34, 14, 1.6); w.position.set(1.5, 3.9, z); scene.add(w); }
-  { const w = new THREE.PointLight(0xdfe8ff, 40, 14, 1.6); w.position.set(R.x1 - 2, 4.0, 0); scene.add(w); }
+  const extra = [top, fill, washW];
+  for (const z of [-5.6, 5.6]) { const w = new THREE.PointLight(0xdfe8ff, 34, 14, 1.6); w.position.set(1.5, 3.9, z); scene.add(w); extra.push(w); }
+  { const w = new THREE.PointLight(0xdfe8ff, 40, 14, 1.6); w.position.set(R.x1 - 2, 4.0, 0); scene.add(w); extra.push(w); }
+  // software GL: every light is unrolled into every lit shader (and the JIT time grows with it);
+  // keep the key, rim and wash and fold the room fill into the hemisphere + one point light
+  if (ST.soft) { for (const l of extra) l.visible = false; scene.children.find((o) => o.isHemisphereLight).intensity = 0.75; key.intensity = 200; const room = new THREE.PointLight(0xdfe8ff, 90, 22, 1.4); room.position.set(1.2, 4.2, 0); scene.add(room); }
   scene.fog = new THREE.FogExp2(0x06070a, 0.012);
   ST.scene = scene; ST.set = set;
   ST.mats = { backM, sideLM, sideRM, decalM, led, paintM, chestM, screens, rim, wash, blob };
   // reflective floor overlay
-  if (!ST.low) {
+  if (!ST.low && !ST.soft) {
     try {
       const mirror = new Reflector(new THREE.CircleGeometry(5.4, 48), { textureWidth: 1024, textureHeight: 512, color: 0x8a8f99, multisample: 0, shader: FadedReflector });
       mirror.material.transparent = true; mirror.material.depthWrite = false;
@@ -325,17 +336,28 @@ function applyTheme(th) {
   M.rim.color.copy(ledC); M.wash.color.copy(ledC);
   M.paintM.color.copy(a); M.chestM.color.copy(a);
   swap(M.chestM, drawerTex('#' + a.getHexString()));
-  // environment from the set itself: the car reflects its own garage
+  // reflection probe: a light-weight stand-in of the garage (the same softboxes, wall washes and
+  // livery LED lines, flat walls and floor) rendered into a PMREM. Unlit materials only, so it
+  // links one or two tiny programs instead of re-rendering (and compiling) the whole lit set.
   try {
-    const sc = ST.scene, car = ST.car, fog = sc.fog;
-    if (car) car.visible = false; if (ST.mirror) ST.mirror.visible = false; M.blob.visible = false; sc.fog = null;
-    const env0 = sc.environment; sc.environment = null;
-    sc.position.y = -0.9; sc.updateMatrixWorld(true);
+    const sc = ST.scene, R = ROOM, cx = (R.x0 + R.x1) / 2, lx = R.x1 - R.x0;
+    const probe = new THREE.Scene(), mats = [], geos = [];
+    const bm = (c, k = 1) => { const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(k), side: THREE.DoubleSide }); mats.push(m); return m; };
+    const quad = (w, h, m, x, y, z, rx, ry) => { const g = new THREE.PlaneGeometry(w, h); geos.push(g); const o = new THREE.Mesh(g, m); o.position.set(x, y - 0.9, z); o.rotation.set(rx || 0, ry || 0, 0); probe.add(o); };
+    const wallM = bm(0x1b1e24), floorM = bm(0x34373d), ceilM = bm(0x0b0c0f), soft = bm(0xffffff, 5.5), dim = bm(0xd9ebff, 2.2), ledM = bm(M.led.color.clone().multiplyScalar(1 / 2.6), 2.4), key = bm(0xfff4e6, 3.2), fillM = bm(0x9fb8ff, 0.9), accW = bm(th.accent, 0.55), scr = bm(0xbfd2ff, 0.8);
+    quad(R.z * 2, R.h, wallM, R.x0, R.h / 2, 0, 0, Math.PI / 2); quad(R.z * 2, R.h, wallM, R.x1, R.h / 2, 0, 0, -Math.PI / 2);
+    quad(lx, R.h, wallM, cx, R.h / 2, -R.z, 0, 0); quad(lx, R.h, wallM, cx, R.h / 2, R.z, 0, Math.PI);
+    quad(lx, R.z * 2, floorM, cx, 0, 0, -Math.PI / 2); quad(lx, R.z * 2, ceilM, cx, R.h, 0, Math.PI / 2);
+    for (const z of [-2.1, 0, 2.1]) quad(7.6, 0.62, soft, 0.2, 4.34, z, Math.PI / 2);
+    for (const s of [-1, 1]) { quad(lx - 2, 0.12, dim, cx, 4.2, s * (R.z - 0.05), 0, s > 0 ? Math.PI : 0); quad(lx, 0.06, ledM, cx, 0.52, s * (R.z - 0.05), 0, s > 0 ? Math.PI : 0); }
+    for (const z of [-5.12, -2.56, 2.56, 5.12]) quad(0.08, R.h * 0.82, ledM, R.x0 + 0.05, R.h / 2, z, 0, Math.PI / 2);
+    quad(R.z * 1.24, 1.2, accW, R.x0 + 0.04, 2.35, 0, 0, Math.PI / 2);
+    for (let i = 0; i < 3; i++) quad(1.5, 0.84, scr, R.x0 + 0.06, 3.72, -5.3 + i * 1.62, 0, Math.PI / 2);
+    quad(2.6, 1.6, key, 4.2, 4.6, 4.4, -0.9, 0.75); quad(3.0, 1.4, fillM, 5, 2.2, -6, 0, -0.7);
     const pm = new THREE.PMREMGenerator(ST.r);
-    const env = pm.fromScene(sc, 0.025, 0.1, 60).texture; pm.dispose();
-    sc.position.y = 0; sc.updateMatrixWorld(true);
-    env0?.dispose(); sc.environment = env; sc.environmentIntensity = 1.15; sc.fog = fog;
-    if (car) car.visible = true; if (ST.mirror) ST.mirror.visible = true; M.blob.visible = true;
+    const env = pm.fromScene(probe, 0.03, 0.1, 60).texture; pm.dispose();
+    for (const m of mats) m.dispose(); for (const g of geos) g.dispose();
+    const env0 = sc.environment; env0?.dispose(); sc.environment = env; sc.environmentIntensity = 1.15;
   } catch (e) { console.warn('env', e); }
 }
 
@@ -496,7 +518,7 @@ function resizeStage() {
   if (!W || !H) return [0, 0];
   if (W !== ST.W || H !== ST.H || ST.snapDirty) {
     ST.W = W; ST.H = H; ST.snapDirty = false;
-    ST.r.setPixelRatio(ST.low ? 1 : Math.min(W * H > 2600000 ? 1.25 : 2, window.devicePixelRatio || 1));
+    ST.r.setPixelRatio(ST.low || ST.soft ? 1 : Math.min(W * H > 2600000 ? 1.25 : 2, window.devicePixelRatio || 1));
     ST.r.setSize(W, H, false);
     if (ST.comp) { ST.comp.setPixelRatio(ST.r.getPixelRatio()); ST.comp.setSize(W, H); }
   }
@@ -505,7 +527,7 @@ function resizeStage() {
 function frame(now) {
   ST.raf = requestAnimationFrame(frame);
   const view = ST.view; if (!view || !ST.host?.isConnected) return;
-  if (document.hidden || ST.frozen) return;
+  if (document.hidden || ST.frozen || !ST.ready) return;
   // automated browsers render in software: a few frames per second keep the page responsive
   if (AUTOMATED && now - (ST.last || 0) < 450) return;
   // the hub hero idles at half rate: it is a backdrop, not the main act
@@ -516,7 +538,41 @@ function frame(now) {
   view.update(dt, W, H);
   if (ST.car?.userData.wheels && view.mode === 'orbit' && view.vel) for (const w of ST.car.userData.wheels) for (const sp of w.userData.spin || []) sp.rotation.z -= 0.012;
   try { if (ST.comp) ST.comp.render(dt); else ST.r.render(ST.scene, ST.cam); } catch (e) { console.warn('stage render', e); cancelAnimationFrame(ST.raf); ST.raf = 0; }
-  if (!view.shown) { view.shown = true; view.host.classList.add('stage-on'); }
+  if (!view.shown) { view.shown = true; view.host.classList.add('stage-on'); ST.tFirst = Math.round(performance.now()); ST.firstMs = Math.round(performance.now() - now); }
+}
+
+// First bring-up of the stage, spread over several tasks so the menu around it paints and
+// stays responsive: every material of the set and of the car is compiled on its own (one
+// program link per task), then the reflection probe, the post chain and the first frame.
+// Until then frame() draws nothing (the canvas stays transparent and fades in on the first frame).
+function warmUp(host) {
+  if (ST.warming) return; ST.warming = true; ST.tMount = Math.round(performance.now());
+  const r = ST.r, scene = ST.scene, gen = (ST.gen = (ST.gen || 0) + 1);
+  const t0 = performance.now();
+  const seen = new Set(), list = [];
+  scene.traverse((o) => { if (!o.isMesh || !o.material) return; const k = [].concat(o.material).map((m) => m.uuid).join(); if (!seen.has(k)) { seen.add(k); list.push(o); } });
+  const tick = () => new Promise((res) => setTimeout(res, 0));
+  (async () => {
+    try {
+      ST.cam.aspect = Math.max(1, host.clientWidth) / Math.max(1, host.clientHeight); ST.cam.updateProjectionMatrix();
+      // theme first: the reflection probe sets scene.environment, which is part of every program
+      applyTheme(ST.theme); await tick();
+      for (const o of list) {
+        if (ST.gen !== gen || !ST.r) return;
+        try { r.compile(o, ST.cam, scene); for (const m of [].concat(o.material)) for (const k of ['map', 'normalMap', 'roughnessMap', 'bumpMap']) if (m[k]?.isTexture && !m[k].userData.up) { r.initTexture(m[k]); m[k].userData.up = 1; } } catch {}
+        await tick();
+      }
+      if (ST.gen !== gen || !ST.r) return;
+      if (!ST.comp && !ST.low && !ST.soft) {
+        const h = ST.host || host;
+        r.setSize(Math.max(2, h.clientWidth), Math.max(2, h.clientHeight), false);
+        ST.comp = makeComposer(r, ST.scene, ST.cam, { bloom: 0.12, low: false, ao: false, grade: true, filter: true, dof: true });
+      }
+      if (!ST.comp) applyFilterSettings(r.domElement); else applyFilterSettings(ST.comp);
+      ST.ready = true; ST.warmMs = Math.round(performance.now() - t0); ST.tReady = Math.round(performance.now());
+    } catch (e) { console.warn('stage warm-up', e); ST.ready = true; }
+    finally { ST.warming = false; }
+  })();
 }
 
 // Mount (or re-attach) the garage stage in `host`. Returns a handle:
@@ -533,13 +589,10 @@ export function mountStage(host, opts = {}) {
     const team = opts.team || {};
     const th = { accent: opts.accent || accentOf([L.primary, L.secondary, L.accent]), second: lum(L.secondary) > 0.04 ? L.secondary : '#ffffff', name: team.name || 'Apex Dynasty', short: team.short || 'APX', box: opts.box || opts.number || 1, series: opts.series || '' };
     setCar(opts.category || 'formula', L, opts);
-    applyTheme(th);
-    if (document.fonts?.status !== 'loaded') document.fonts?.ready.then(() => { if (ST.scene && ST.host) { applyTheme(th); } });
-    if (!ST.comp && !ST.low) {
-      r.setSize(Math.max(2, host.clientWidth), Math.max(2, host.clientHeight), false);
-      ST.comp = makeComposer(r, ST.scene, ST.cam, { bloom: 0.12, low: false, ao: false, grade: true, filter: true, dof: true });
-    }
-    if (!ST.comp) applyFilterSettings(r.domElement); else applyFilterSettings(ST.comp);
+    ST.theme = th;
+    if (ST.ready) applyTheme(th); else warmUp(host);
+    if (document.fonts?.status !== 'loaded') document.fonts?.ready.then(() => { if (ST.scene && ST.host && ST.ready) applyTheme(ST.theme); });
+    if (ST.ready) { if (!ST.comp) applyFilterSettings(r.domElement); else applyFilterSettings(ST.comp); }
     // same host kind + same mode: keep the camera where the player left it
     const prev = ST.view;
     const sameKind = prev && prev.o.id === opts.id && prev.mode === (opts.mode || 'orbit');
@@ -576,9 +629,9 @@ export function disposeStage() {
     snapScene?.environment?.dispose(); snapScene = null; snapCam = null; helmetRig = null;
     ST.r.domElement.remove(); ST.r.dispose(); ST.r.forceContextLoss();
   } catch (e) { console.warn(e); }
-  Object.assign(ST, { r: null, comp: null, scene: null, cam: null, set: null, car: null, carKey: '', themeKey: '', mirror: null, mats: null, W: 0, H: 0 });
+  Object.assign(ST, { r: null, comp: null, scene: null, cam: null, set: null, car: null, carKey: '', themeKey: '', mirror: null, mats: null, W: 0, H: 0, ready: false, warming: false, gen: (ST.gen || 0) + 1 });
 }
-export function stageInfo() { return { live: !!ST.r, view: ST.view?.mode || null }; }
+export function stageInfo() { return { live: !!ST.r, view: ST.view?.mode || null, ready: !!ST.ready, soft: !!ST.soft, warmMs: ST.warmMs, tMount: ST.tMount, tReady: ST.tReady, tFirst: ST.tFirst, firstMs: ST.firstMs }; }
 // test / capture hook: freeze(true) stops the render loop after the current frame
 if (typeof window !== 'undefined') window.__stage = { freeze: (v = true) => { ST.frozen = v; }, info: stageInfo, state: ST };
 
