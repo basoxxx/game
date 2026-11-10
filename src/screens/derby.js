@@ -10,12 +10,34 @@ import { CHAMPIONSHIP, champGet, champStart, champNext, champReset } from '../de
 import { CHALLENGES, checkChallenges, prog, saveProg, PRICES, CAR_STARS, DIFFICULTY, MODES, MEDALS, MEDAL_COLORS, CUPS, eventById, starsOf, cupUnlocked, cupStars, venueUnlocked, VENUE_STARS, carBuyable, upgradePrice, tuneOf, lookOf } from '../derby/career.js';
 import { FILTER_PRESETS, applyFilterSettings } from '../ui/gfx.js';
 import { getSettings, setSettings } from '../engine/state.js';
+import { WEATHERS } from '../derby/atmos.js';
 import '../derby/menu.css';
 
-const D = { tab: 'carriera', venue: 'cava', mode: 'race', car: 'berlina', opponents: 7, ev: null, playing: false, game: null };
+const D = { tab: 'carriera', venue: 'cava', mode: 'race', car: 'berlina', opponents: 7, weather: 'auto', ev: null, playing: false, game: null };
 const COLORS = ['#7a1f1f', '#b3261e', '#1f3f7a', '#2c7a74', '#5b6b2b', '#2c5a4a', '#c99a12', '#e8e4d8', '#d9d4c5', '#2b2b2b', '#b5501c', '#6b2c7a', '#8a1010', '#ffcf3a'];
 const ACCENTS = ['#f2efe6', '#111111', '#ffd400', '#e10600', '#1e90ff', '#3ddc84'];
 const svgCache = {};
+// venue cards rendered from the real 3D scene: built one at a time while the menu is idle, cached as small JPEGs
+const THUMB_KEY = 'apexdynasty_derby_thumbs', THUMB_VER = 3;
+let thumbs = null, thumbBusy = false;
+function thumbStore() { if (!thumbs) { try { thumbs = JSON.parse(localStorage.getItem(THUMB_KEY) || '{}') || {}; } catch { thumbs = {}; } if (thumbs.v !== THUMB_VER) thumbs = { v: THUMB_VER }; } return thumbs; }
+const thumbOf = (id) => thumbStore()[id + ':' + (getSettings().gfx === 'low' ? 'l' : 'h')] || null;
+async function makeThumbs() {
+  if (thumbBusy || D.playing) return; thumbBusy = true;
+  try {
+    const { DerbyGame } = await import('../derby/game.js');
+    for (const v of VENUES) {
+      if (D.playing || D.tab !== 'libero' || !document.querySelector('.dz-venues')) break;
+      if (thumbOf(v.id)) continue;
+      await new Promise((r) => (window.requestIdleCallback ? requestIdleCallback(r, { timeout: 600 }) : setTimeout(r, 200)));
+      if (D.playing || D.tab !== 'libero') break;
+      const url = await DerbyGame.thumbnail(v); if (!url || url.length < 2000) continue;
+      thumbStore()[v.id + ':' + (getSettings().gfx === 'low' ? 'l' : 'h')] = url; try { localStorage.setItem(THUMB_KEY, JSON.stringify(thumbs)); } catch {}
+      for (const el of document.querySelectorAll(`[data-thumb="${v.id}"]`)) { el.style.backgroundImage = `url(${url})`; el.classList.add('has'); }
+    }
+  } catch (e) { console.warn('thumbs', e); } finally { thumbBusy = false; }
+}
+const thumbDiv = (v, cls = '') => { const u = thumbOf(v.id); return `<div class="dz-thumb ${cls} ${u ? 'has' : ''}" data-thumb="${v.id}" ${u ? `style="background-image:url(${u})"` : ''}>${trackSVG(v, !!cls)}</div>`; };
 function trackSVG(v, big = false) {
   const key = v.id + (big ? ':big' : '');
   if (svgCache[key]) return svgCache[key];
@@ -54,6 +76,7 @@ function padReady() {
 function achToast() { for (const c of checkChallenges({})) { App.toast?.(`Sfida completata: ${c.name}`, `+${money(c.prize)}`); try { sfx.levelup?.(); } catch {} } }
 // ---------------------------------------------------------------- garage turntable preview
 const PV = { r: null, raf: 0, key: '' };
+if (typeof window !== 'undefined') window.__dzpv = PV;
 async function mountPreview(el, P) {
   const THREE = await import('three');
   const { buildBanger } = await import('../derby/cars.js');
@@ -61,22 +84,40 @@ async function mountPreview(el, P) {
   if (!el.isConnected) return;
   if (!PV.r) {
     const r = PV.r = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    r.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1)); r.shadowMap.enabled = true; r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace;
-    const s = PV.scene = new THREE.Scene(); PV.cam = new THREE.PerspectiveCamera(32, 16 / 9, 0.1, 100);
-    s.add(new THREE.HemisphereLight(0xffeedd, 0x2a1a10, 0.7));
-    const key = new THREE.DirectionalLight(0xfff0dc, 2.6); key.position.set(4, 7, 3); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4 }); s.add(key);
-    const rim = new THREE.DirectionalLight(0xff8a3d, 1.6); rim.position.set(-5, 3, -4); s.add(rim);
-    const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); const gr = g.createRadialGradient(128, 128, 10, 128, 128, 128); gr.addColorStop(0, 'rgba(60,40,28,1)'); gr.addColorStop(0.6, 'rgba(26,18,12,0.9)'); gr.addColorStop(1, 'rgba(10,8,6,0)'); g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(5, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(c), transparent: true, roughness: 0.9 })); floor.receiveShadow = true; s.add(floor);
+    r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05; r.outputColorSpace = THREE.SRGBColorSpace;
+    const s = PV.scene = new THREE.Scene(); PV.cam = new THREE.PerspectiveCamera(30, 16 / 9, 0.1, 100);
+    s.fog = new THREE.Fog(0x0b0807, 14, 30);
+    s.add(new THREE.HemisphereLight(0xffeedd, 0x2a1a10, 0.35));
+    // workshop lighting: a soft-shadowed key from above, a warm rim from behind, a cool fill
+    const key = new THREE.SpotLight(0xfff0dc, 260, 30, 0.6, 0.7, 1.6); key.position.set(3.5, 8.5, 4.5); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0005; key.shadow.radius = 4; s.add(key); s.add(key.target);
+    const rim = new THREE.SpotLight(0xff8a3d, 300, 30, 0.7, 0.8, 1.6); rim.position.set(-6, 4, -6); s.add(rim); s.add(rim.target);
+    const fill = new THREE.DirectionalLight(0x9fc0ff, 0.5); fill.position.set(-4, 3, 6); s.add(fill);
+    const tex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
+    // polished concrete floor: semi-transparent over a mirrored copy of the car = cheap planar reflection
+    const ft = tex(512, 512, (g, W) => { g.fillStyle = '#2b2623'; g.fillRect(0, 0, W, W); for (let i = 0; i < 2600; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '255,240,220' : '0,0,0'},${Math.random() * 0.05})`; g.fillRect(Math.random() * W, Math.random() * W, 1 + Math.random() * 3, 1 + Math.random() * 3); } g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 3; for (let k = 0; k <= 4; k++) { g.beginPath(); g.moveTo(k * W / 4, 0); g.lineTo(k * W / 4, W); g.moveTo(0, k * W / 4); g.lineTo(W, k * W / 4); g.stroke(); } for (let i = 0; i < 7; i++) { const x = Math.random() * W, y = Math.random() * W, rr = 12 + Math.random() * 40; const gr = g.createRadialGradient(x, y, 0, x, y, rr); gr.addColorStop(0, 'rgba(8,6,5,0.6)'); gr.addColorStop(1, 'rgba(8,6,5,0)'); g.fillStyle = gr; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); } });
+    ft.wrapS = ft.wrapT = THREE.RepeatWrapping; ft.repeat.set(3, 3);
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(16, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: ft, transparent: true, opacity: 0.8, roughness: 0.22, metalness: 0.1 })); floor.receiveShadow = true; floor.renderOrder = 2; s.add(floor);
+    // turntable ring with hazard stripes, back wall with a roller door, shelves of tyres, a tool chest
+    const ring = new THREE.Mesh(new THREE.RingGeometry(3.25, 3.5, 64).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: tex(512, 16, (g, W, H) => { for (let i = 0; i < 32; i++) { g.fillStyle = i % 2 ? '#e8b400' : '#151515'; g.fillRect(i * 16, 0, 16, H); } }), roughness: 0.6 })); ring.position.y = 0.004; ring.renderOrder = 3; s.add(ring);
+    { const uv = ring.geometry.attributes.uv, pos = ring.geometry.attributes.position; for (let i = 0; i < uv.count; i++) uv.setXY(i, Math.atan2(pos.getZ(i), pos.getX(i)) / (Math.PI * 2) * 3 + 0.5, 0.5); ring.material.map.wrapS = THREE.RepeatWrapping; }
+    const wt = tex(1024, 512, (g, W, H) => { g.fillStyle = '#3a3531'; g.fillRect(0, 0, W, H); for (let y = 0; y < H; y += 32) for (let x = (y / 32) % 2 ? 0 : 40; x < W; x += 80) { g.fillStyle = `rgba(${90 + Math.random() * 30},${70 + Math.random() * 20},${58 + Math.random() * 16},1)`; g.fillRect(x + 2, y + 2, 76, 28); } g.fillStyle = '#5d6165'; g.fillRect(W * 0.3, H * 0.12, W * 0.4, H * 0.88); for (let y = H * 0.12; y < H; y += 18) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(W * 0.3, y, W * 0.4, 4); g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(W * 0.3, y + 4, W * 0.4, 4); } g.fillStyle = '#e8b400'; g.fillRect(W * 0.3, H * 0.08, W * 0.4, H * 0.045); g.fillStyle = '#111'; g.font = 'italic 900 22px Arial'; g.textAlign = 'center'; g.fillText('OFFICINA SCONTRO TOTALE', W / 2, H * 0.118); g.font = 'italic 900 40px Arial'; g.fillStyle = 'rgba(240,235,220,0.8)'; g.fillText('RICAMBI RUGGINE', W * 0.15, H * 0.3); g.fillStyle = '#c8102e'; g.fillRect(W * 0.76, H * 0.2, W * 0.18, H * 0.14); g.fillStyle = '#fff'; g.font = 'italic 900 26px Arial'; g.fillText('BIRRA SCHIUMA', W * 0.85, H * 0.29, W * 0.17); });
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(28, 9), new THREE.MeshStandardMaterial({ map: wt, roughness: 0.85 })); wall.position.set(-5.5, 4.5, -5.5); wall.rotation.y = Math.PI / 4; wall.receiveShadow = true; s.add(wall);
+    const dm = new THREE.MeshStandardMaterial({ color: 0x18181a, roughness: 0.9 }), red = new THREE.MeshStandardMaterial({ color: 0xa81818, roughness: 0.45, metalness: 0.4 });
+    const stack = (x, z, n) => { for (let k = 0; k < n; k++) { const t = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.14, 8, 18).rotateX(Math.PI / 2), dm); t.position.set(x + (Math.random() - 0.5) * 0.06, 0.14 + k * 0.28, z + (Math.random() - 0.5) * 0.06); t.castShadow = true; s.add(t); } };
+    stack(-6.2, -1.2, 5); stack(-6.6, -0.3, 3); stack(-1.4, -6.3, 4); stack(-0.5, -6.6, 6);
+    const chest = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.0, 0.6), red); chest.position.set(-4.6, 0.5, -4.2); chest.rotation.y = Math.PI / 4; chest.castShadow = true; s.add(chest);
+    for (let k = 0; k < 3; k++) { const d = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.9, 16), new THREE.MeshStandardMaterial({ color: [0x2a6fb0, 0xb3261e, 0x3d7a3a][k], roughness: 0.5, metalness: 0.5 })); d.position.set(-3.0 + k * 0.7, 0.45, -5.6 + k * 0.5); d.castShadow = true; s.add(d); }
+    for (const x of [-2, 2]) { const tube = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 3.2), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4e0, emissiveIntensity: 4 })); tube.position.set(x, 5.2, 0); s.add(tube); }
     PV.turn = new THREE.Group(); s.add(PV.turn);
-    applyHDRI(r, s, 'dusk', { background: false, intensity: 0.8 }).catch(() => {});
+    applyHDRI(r, s, 'dusk', { background: false, intensity: 0.55 }).catch(() => {});
   }
   const id = D.gcar || D.car, look = lookOf(id, P);
   const key = JSON.stringify([id, look]);
   if (PV.key !== key) {
     PV.key = key; while (PV.turn.children.length) PV.turn.remove(PV.turn.children[0]);
     const car = buildBanger(id, look.color, look.num, look.num * 31 + 7, { ...look, clean: true }); PV.turn.add(car);
-    const L = car.userData.dims.L; PV.cam.position.set(L * 1.6 + 2.4, 2.2, L * 1.6 + 2.6); PV.cam.lookAt(0, 0.7, 0);
+    const mir = car.clone(true); mir.scale.y = -1; mir.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } }); PV.turn.add(mir);
+    const L = car.userData.dims.L; PV.cam.position.set(L * 1.15 + 2.3, 1.75, L * 1.15 + 2.5); PV.cam.lookAt(0, 0.62, 0);
   }
   el.innerHTML = ''; el.appendChild(PV.r.domElement);
   const fit = () => { const w = el.clientWidth || 640, h = el.clientHeight || 360; PV.r.setSize(w, h, false); PV.r.domElement.style.width = '100%'; PV.r.domElement.style.height = '100%'; PV.cam.aspect = w / h; PV.cam.updateProjectionMatrix(); };
@@ -88,7 +129,7 @@ async function mountPreview(el, P) {
   el.onpointerup = () => { drag = null; };
   const loop = (t) => {
     if (!el.isConnected) return; PV.raf = requestAnimationFrame(loop);
-    const dt = Math.min(0.05, (t - last) / 1000); last = t; if (drag == null) PV.turn.rotation.y += dt * 0.35;
+    const dt = Math.min(0.05, (t - last) / 1000); last = t; if (drag == null && !PV.hold) PV.turn.rotation.y += dt * 0.35;
     if (el.clientWidth && Math.abs(el.clientWidth - PV.r.domElement.width / PV.r.getPixelRatio()) > 2) fit();
     PV.r.render(PV.scene, PV.cam);
   };
@@ -119,13 +160,14 @@ function freeTab(P) {
   const vFacts = v.kind === 'derby' ? fact('Arena', 'Formato') + fact('1', 'Sopravvive') + fact(D.opponents, 'Avversari') : v.kind === 'stunt' ? fact('3', 'Tentativi') + fact('24°', 'Trampolino') + fact('160 m', 'Pista di atterraggio') : fact(v.laps, 'Giri') + fact(v.surfaceName || 'sterrato', 'Fondo') + fact(v.jumps?.length || 0, 'Salti');
   return `<div class="dz-grid anim-in"><div>
       <div class="dz-section">Arena</div>
-      <section class="dz-hero"><div class="dh-info"><div class="hh-eyebrow">${esc(MODES[D.mode].name)}</div><div class="dh-name">${esc(v.name)}</div><div class="small mt8" style="color:var(--text2);line-height:1.5">${esc(v.desc)}</div><div class="dz-facts">${vFacts}</div>${P.best[v.id] ? `<div class="mt16"><span class="tag">${icon('trophy')} Record: ${P.best[v.id]}°</span></div>` : ''}</div><div class="dh-map">${trackSVG(v, true)}</div></section>
-      <div class="dz-venues">${VENUES.map((x) => { const ok = venueUnlocked(x.id, P); return `<div class="dz-venue ${x.id === D.venue ? 'sel' : ''} ${ok ? '' : 'locked'}" ${ok ? `data-a="dz-venue" data-id="${x.id}"` : ''}>${trackSVG(x)}<b>${esc(x.name)}</b><div class="tiny">${ok ? (x.kind === 'derby' ? 'Ultimo in piedi' : x.kind === 'stunt' ? 'Salto in lungo' : `${x.laps} giri · ${(x.surfaceName || 'sterrato').toLowerCase()}`) : `${icon('lock')} ${VENUE_STARS[x.id]} stelle`}</div></div>`; }).join('')}</div>
+      <section class="dz-hero"><div class="dh-info"><div class="hh-eyebrow">${esc(MODES[D.mode].name)}</div><div class="dh-name">${esc(v.name)}</div><div class="small mt8" style="color:var(--text2);line-height:1.5">${esc(v.desc)}</div><div class="dz-facts">${vFacts}</div>${P.best[v.id] ? `<div class="mt16"><span class="tag">${icon('trophy')} Record: ${P.best[v.id]}°</span></div>` : ''}</div><div class="dh-map">${thumbDiv(v, 'big')}</div></section>
+      <div class="dz-venues">${VENUES.map((x) => { const ok = venueUnlocked(x.id, P); return `<div class="dz-venue ${x.id === D.venue ? 'sel' : ''} ${ok ? '' : 'locked'}" ${ok ? `data-a="dz-venue" data-id="${x.id}"` : ''}>${thumbDiv(x)}<b>${esc(x.name)}</b><div class="tiny">${ok ? (x.kind === 'derby' ? 'Ultimo in piedi' : x.kind === 'stunt' ? 'Salto in lungo' : `${x.laps} giri · ${(x.surfaceName || 'sterrato').toLowerCase()}`) : `${icon('lock')} ${VENUE_STARS[x.id]} stelle`}</div></div>`; }).join('')}</div>
     </div><div>
       <div class="dz-section">Tipo di evento</div>
       <div class="dz-modes">${modes.map((m) => `<div class="dz-mode ${D.mode === m ? 'sel' : ''}" data-a="dz-mode" data-id="${m}">${icon(MODES[m].icon)}<b>${esc(MODES[m].name)}</b><span>${esc(MODES[m].desc)}</span></div>`).join('')}</div>
       <div class="dz-opts">
         ${['time', 'stunt'].includes(D.mode) ? '' : `<span class="lbl">Avversari</span><div class="row gap4">${[3, 5, 7].map((n) => `<button class="btn sm ${D.opponents === n ? 'active' : ''}" data-a="dz-opp" data-v="${n}">${n}</button>`).join('')}</div>`}
+        <span class="lbl">Meteo</span><div class="row gap4 wrap">${Object.entries(WEATHERS).map(([k, w]) => `<button class="btn sm ${D.weather === k ? 'active' : ''}" data-a="dz-weather" data-v="${k}" data-tip="${esc(w.desc)}">${esc(w.name)}</button>`).join('')}</div>
         ${optsRows()}
       </div>
       <div class="dz-section mt24">La tua auto</div>
@@ -196,6 +238,7 @@ registerScreen({
       try { music.setMood('race'); } catch {}
       padReady();
       const pv = document.getElementById('dz-pv'); if (pv) mountPreview(pv, prog()).catch((e) => console.warn(e));
+      if (D.tab === 'libero') setTimeout(makeThumbs, 400);
       return;
     }
     cancelAnimationFrame(PV.raf);
@@ -209,7 +252,7 @@ registerScreen({
     const car = D.run?.car || D.car, look = lookOf(car, P);
     const g = D.game = new DerbyGame(root, {
       venue: v, car, color: look.color, look, tune: tuneOf(car, P), opponents: ev?.opponents ?? D.run?.opponents ?? D.opponents, mode: ev?.mode || D.run?.mode || 'race', difficulty: P.diff,
-      event: ev, laps: ev?.laps, targets: ev?.targets, aiBoost: ev?.aiBoost, championship: !!D.champ,
+      weather: ev?.weather || D.run?.weather || 'auto', event: ev, laps: ev?.laps, targets: ev?.targets, aiBoost: ev?.aiBoost, championship: !!D.champ,
       onEnd: (r) => { try { r.medal === 3 || r.pos === 1 ? sfx.win() : sfx.ok(); } catch {} },
     });
     window.__derby = g;
@@ -253,7 +296,8 @@ registerScreen({
     'dz-filter'(el) { setSettings({ gfxFilter: el.dataset.v }); applyFilterSettings(); App.refresh(); },
     'dz-marker'() { setSettings({ dzMarker: getSettings().dzMarker === false }); App.refresh(); },
     'dz-opp'(el) { D.opponents = +el.dataset.v; App.refresh(); },
-    'dz-go'() { D.champ = false; D.run = { venue: D.venue, mode: D.mode, car: D.car, opponents: D.opponents }; D.playing = true; sfx.ok(); App.refresh(); },
+    'dz-weather'(el) { D.weather = el.dataset.v; App.refresh(); },
+    'dz-go'() { D.champ = false; D.run = { venue: D.venue, mode: D.mode, car: D.car, opponents: D.opponents, weather: D.weather }; D.playing = true; sfx.ok(); App.refresh(); },
     'dz-go-ev'() { const ev = eventById(D.ev); if (!ev) return; const P = prog(); if (!P.owned.includes(D.car)) D.car = 'berlina'; D.champ = false; D.run = { event: ev, car: D.car }; D.playing = true; sfx.ok(); App.refresh(); },
     'dz-champ-new'() { const P = prog(); if (!P.owned.includes(D.car)) D.car = 'berlina'; champStart(D.car, null); App.refresh(); },
     'dz-champ-reset'() { App.confirm('Ricominciare il campionato?', 'I punti raccolti andranno persi.', () => { champReset(); App.refresh(); }); },

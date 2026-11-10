@@ -106,11 +106,11 @@ export function buildGround(game) {
   const tint = v.surface === 'asphalt' ? '0.6,0.6,0.62' : v.surface === 'mud' ? '0.42,0.31,0.21' : v.stadium ? '0.85,0.66,0.48' : '0.95,0.82,0.62';
   const mud = v.surface === 'mud' ? 1 : 0;
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.mapB = { value: surf.map }; sh.uniforms.mapR = { value: rock.map }; sh.uniforms.hw = { value: (tr.width || 10) / 2 };
+    sh.uniforms.mapB = { value: surf.map }; sh.uniforms.mapR = { value: rock.map }; sh.uniforms.hw = { value: (tr.width || 10) / 2 }; sh.uniforms.uWetG = { value: game.wet || 0 };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float blend; attribute float lat; attribute float wet; varying float vBlend; varying float vLat; varying float vWet; varying vec3 vWP; varying vec3 vWN;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBlend = blend; vLat = lat; vWet = wet; vWP = position; vWN = normal;');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      uniform sampler2D mapB; uniform sampler2D mapR; uniform float hw; varying float vBlend; varying float vLat; varying float vWet; varying vec3 vWP; varying vec3 vWN;
+      uniform sampler2D mapB; uniform sampler2D mapR; uniform float hw; uniform float uWetG; varying float vBlend; varying float vLat; varying float vWet; varying vec3 vWP; varying vec3 vWN;
       float th(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
       float tn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(th(i), th(i+vec2(1,0)), f.x), mix(th(i+vec2(0,1)), th(i+vec2(1,1)), f.x), f.y); }`)
       .replace('#include <map_fragment>', `#include <map_fragment>
@@ -128,14 +128,27 @@ export function buildGround(game) {
         float rut = 0.0;
         for (int q = 0; q < 2; q++) { float c = (q == 0 ? -0.32 : 0.3) * hw; float d = abs(abs(l - c) - 0.8); rut += exp(-d * d * 7.0); }
         float loose = smoothstep(0.75, 1.0, abs(vLat) / max(hw, 1.0));
-        vec3 cT = cB * (1.0 - rut * ${v.surface === 'asphalt' ? '0.32' : '0.26'}) * (1.0 + loose * 0.1);
+        vec3 cT = cB * (1.0 - rut * ${v.surface === 'asphalt' ? '0.32' : '0.3'}) * (1.0 + loose * 0.12);
         float tb = smoothstep(0.05, 0.95, vBlend);
         diffuseColor.rgb = mix(diffuseColor.rgb, cT, tb);
+        cT *= 1.0 + (1.0 - rut) * 0.06 * tn(vWP.xz * 1.7);
+        diffuseColor.rgb = mix(diffuseColor.rgb, cT, tb);
         float wetA = clamp(vWet * 1.4, 0.0, 1.0);
+        float pud = smoothstep(0.52, 0.7, tn(vWP.xz * 0.075 + 3.1) * 0.75 + rut * 0.2 + tn(vWP.xz * 0.31) * 0.12);
+        wetA = max(wetA, uWetG * mix(0.22, 0.4 + 0.6 * pud, tb));
         wetA = max(wetA, ${mud ? '1.0' : '0.0'} * tb * smoothstep(0.6, 0.75, tn(vWP.xz * 0.09 + 3.1)) * 0.6);
         wetA = max(wetA, ${mud ? '0.45' : '0.0'} * tb * rut);
         diffuseColor.rgb *= 1.0 - wetA * 0.5;`)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.38, wetA);');
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.36, wetA); roughnessFactor = mix(roughnessFactor, 0.07, smoothstep(0.62, 0.98, wetA));')
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        { // relief of the racing surface: stones / tarmac grain and the wheel ruts; puddles lie flat
+          float hB = dot(texture2D(mapB, vWP.xz * 0.16).rgb, vec3(0.333));
+          float hgt = (hB * ${v.surface === 'asphalt' ? '0.02' : '0.06'} - rut * ${v.surface === 'asphalt' ? '0.0' : '0.05'}) * tb * (1.0 - smoothstep(0.5, 0.95, wetA));
+          vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition); vec3 r1 = cross(sy, normal), r2 = cross(normal, sx); float det = dot(sx, r1);
+          vec3 grad = sign(det) * (dFdx(hgt) * r1 + dFdy(hgt) * r2);
+          normal = normalize(abs(det) * normal - grad);
+          normal = normalize(mix(normal, normalize(vNormal), smoothstep(0.55, 0.98, wetA) * 0.9));
+        }`);
   };
   mat.customProgramCacheKey = () => 'dzground' + v.id;
   const ground = new THREE.Mesh(g, mat); ground.receiveShadow = true; scene.add(ground);
@@ -230,6 +243,7 @@ function grandstand(len, rows = 8, roofed = true) {
     const roof = new THREE.Mesh(new THREE.BoxGeometry(len + 1, 0.3, rows * step + 3), M.roofRed); roof.position.set(0, top, -rows * step / 2 + 0.6); roof.rotation.x = -0.08; grp.add(roof);
     for (let x = -len / 2; x <= len / 2 + 0.1; x += len / Math.max(1, Math.round(len / 12))) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, top, 8), M.steel); p.position.set(x, top / 2, -rows * step - 0.2); grp.add(p); }
   }
+  grp.userData.stand = { len, rows };
   return shadowy(grp);
 }
 function banner(i, w = 7.5, h = 1.5) {
@@ -254,6 +268,7 @@ export function buildScenery(game) {
   game.blockers = []; // [x, z, r] for tree placement
   game.S = new THREE.Group(); scene.add(game.S);
   buildSceneryInner(game, R);
+  game.standsInfo = game.S.children.filter((c) => c.userData.stand).map((c) => ({ x: c.position.x, y: c.position.y, z: c.position.z, yaw: c.rotation.y, ...c.userData.stand }));
   // static dressing: one mesh per material
   mergeStatic(game.S);
 }
@@ -296,7 +311,7 @@ function buildSceneryInner(game, R) {
     const d = new THREE.Object3D();
     poles.forEach(([x, y, z, yaw], i) => { d.position.set(x, y - 0.2, z); d.rotation.y = yaw; d.updateMatrix(); poleI.setMatrixAt(i, d.matrix); lampI.setMatrixAt(i, d.matrix); armI.setMatrixAt(i, d.matrix); });
     for (const m of [poleI, armI]) { m.castShadow = true; game.S.add(m); } game.S.add(lampI);
-    game.lamps = lampI;
+    game.lamps = lampI; game.lampPos = poles;
   }
   // buildings
   const kinds = v.port ? ['shed', 'container', 'cabin', 'shed', 'container'] : tr.stunt ? ['cabin', 'container', 'shed'] : v.farm ? ['barn', 'silo', 'barn', 'silo', 'shed', 'container', 'cabin'] : v.quarry ? ['shed', 'container', 'cabin', 'container', 'shed', 'silo'] : v.stadium ? ['cabin', 'container'] : ['shed', 'cabin', 'container', 'shed'];
@@ -420,8 +435,8 @@ function buildArena(game, R) {
 }
 
 // ------------------------------------------------------------------ scorch marks (persistent)
-let _scorchMat = null;
-export function buildScorch(game, x, z, r = 3.2) {
+let _scorchMat = null, _oilMat = null;
+export function buildScorch(game, x, z, r = 3.2, kind = 'scorch') {
   const T = game.terrain;
   if (!_scorchMat) {
     const t = canvasTex(128, 128, (g) => { const gr = g.createRadialGradient(64, 64, 4, 64, 64, 62); gr.addColorStop(0, 'rgba(8,6,5,0.95)'); gr.addColorStop(0.45, 'rgba(14,11,9,0.8)'); gr.addColorStop(1, 'rgba(20,16,12,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); for (let i = 0; i < 26; i++) { const a = Math.random() * 6.28, l = 30 + Math.random() * 30; g.strokeStyle = 'rgba(10,8,6,0.5)'; g.lineWidth = 2 + Math.random() * 4; g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + Math.cos(a) * l, 64 + Math.sin(a) * l); g.stroke(); } });
@@ -429,7 +444,11 @@ export function buildScorch(game, x, z, r = 3.2) {
   }
   const g = new THREE.CircleGeometry(r, 16); g.rotateX(-Math.PI / 2); g.rotateY(Math.random() * 6.28);
   const P = g.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, T.heightAt(P.getX(i) + x, P.getZ(i) + z) + 0.05);
-  const m = new THREE.Mesh(g, _scorchMat); m.position.set(x, 0, z); m.receiveShadow = true; m.renderOrder = 1; game.scene.add(m);
+  if (kind === 'oil' && !_oilMat) {
+    const t = canvasTex(128, 128, (g) => { for (let i = 0; i < 9; i++) { const x = 64 + (Math.random() - 0.5) * 60, y = 64 + (Math.random() - 0.5) * 60, r = 10 + Math.random() * 26; const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(6,5,6,0.95)'); gr.addColorStop(0.8, 'rgba(10,8,8,0.85)'); gr.addColorStop(1, 'rgba(10,8,8,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } });
+    _oilMat = new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.12, metalness: 0.3, polygonOffset: true, polygonOffsetFactor: -6 });
+  }
+  const m = new THREE.Mesh(g, kind === 'oil' ? _oilMat : _scorchMat); m.position.set(x, 0, z); m.receiveShadow = true; m.renderOrder = 1; game.scene.add(m);
   (game.scorches ||= []).push(m); if (game.scorches.length > 24) { const o = game.scorches.shift(); game.scene.remove(o); o.geometry.dispose(); }
 }
 
