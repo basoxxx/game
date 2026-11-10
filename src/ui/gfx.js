@@ -87,7 +87,8 @@ const NOISE_GLSL = /* glsl */`
   float dh21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
   float dvn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     return mix(mix(dh21(i), dh21(i + vec2(1.0, 0.0)), f.x), mix(dh21(i + vec2(0.0, 1.0)), dh21(i + vec2(1.0, 1.0)), f.x), f.y); }
-  float dfbm(vec2 p) { return dvn(p) * 0.5 + dvn(p * 2.03 + 17.1) * 0.3 + dvn(p * 4.07 + 3.7) * 0.2; }
+  // octaves on rotated lattices: no visible grid of blobs when seen from high up
+  float dfbm(vec2 p) { return dvn(p) * 0.5 + dvn(mat2(0.8, -0.6, 0.6, 0.8) * p * 2.03 + 17.1) * 0.3 + dvn(mat2(0.28, 0.96, -0.96, 0.28) * p * 4.07 + 3.7) * 0.2; }
 `;
 // track: { halfW, uScale } turns on the racing-surface model. The mesh then carries an
 // attribute aTrk = (lateral offset m, racing-line offset m, cornerness 0..1) and uv.y * uScale
