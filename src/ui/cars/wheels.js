@@ -4,7 +4,7 @@
 // vertex-coloured mesh, shared between every wheel of the same type.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { cached, memo, canvas, canvasTex, rng, FONT, MAT, mesh } from './core.js';
+import { cached, memo, canvas, canvasTex, rng, FONT, MAT, mesh, coat } from './core.js';
 
 function sidewallTex(color, brand = 'PIRELLO  P ZERO') {
   return cached('sw' + color + brand, () => {
@@ -103,7 +103,7 @@ function coverMat(base, ring) {
     g.strokeStyle = ring; g.lineWidth = R * 0.07; g.beginPath(); g.arc(0, 0, R * 0.85, 0, 7); g.stroke();
     g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = 1.5; g.beginPath(); g.arc(0, 0, R * 0.9, 0, 7); g.stroke();
     g.strokeStyle = 'rgba(0,0,0,0.6)'; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, R * 0.22, 0, 7); g.stroke();
-    return new THREE.MeshPhysicalMaterial({ map: canvasTex(c), roughness: 0.35, metalness: 0.2, clearcoat: 0.8, clearcoatRoughness: 0.08 });
+    return coat({ map: canvasTex(c), roughness: 0.35, metalness: 0.2, clearcoat: 0.8, clearcoatRoughness: 0.08 });
   });
 }
 // spoke blur disc: the spokes averaged around the wheel (rim colour at partial coverage over the
@@ -187,8 +187,8 @@ export function wheel(r, w, tyreColor, { rim = '#1c1f24', kind = 'gt', rimFrac =
   }
   const hw = mesh(hardwareGeo(kind, +rimR.toFixed(4), w, rim), metalMat()); if (flip) hw.rotation.y = Math.PI; spin.add(hw);
   if (kind === 'f1') {
-    const cg = memo('cover', [rimR, w], () => { const g = new THREE.LatheGeometry([new THREE.Vector2(0.001, w * 0.36 + 0.02), new THREE.Vector2(rimR * 0.5, w * 0.36 + 0.016), new THREE.Vector2(rimR * 0.96, w * 0.36 + 0.004)], 40); g.rotateX(Math.PI / 2); const P = g.attributes.position, uv = g.attributes.uv; for (let i = 0; i < P.count; i++) uv.setXY(i, 0.5 + P.getX(i) / (2 * rimR * 0.96), 0.5 + P.getY(i) / (2 * rimR * 0.96)); g.computeVertexNormals(); return g; });
-    const cv = mesh(cg, coverMat(cover || '#16181c', rim)); cv.material.side = THREE.DoubleSide; if (flip) cv.rotation.y = Math.PI; spin.add(cv);
+    const cg = memo('cover', [rimR, w], () => { const g = new THREE.LatheGeometry([new THREE.Vector2(0.001, w * 0.36 + 0.02), new THREE.Vector2(rimR * 0.5, w * 0.36 + 0.016), new THREE.Vector2(rimR * 0.96, w * 0.36 + 0.004)], 40); g.rotateX(Math.PI / 2); const P = g.attributes.position, uv = g.attributes.uv; for (let i = 0; i < P.count; i++) uv.setXY(i, 0.5 + P.getX(i) / (2 * rimR * 0.96), 0.5 + P.getY(i) / (2 * rimR * 0.96)); const ix = g.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } g.computeVertexNormals(); return g; });
+    const cv = mesh(cg, coverMat(cover || "#16181c", rim)); if (flip) cv.rotation.y = Math.PI; spin.add(cv);
   } else {
     // caliper: static, hugging the disc at the rear of the wheel
     const cal = mesh(memo('caliper', [rimR], () => { const sh = new THREE.Shape(); sh.absarc(0, 0, rimR * 0.9, -0.5, 0.5, false); sh.absarc(0, 0, rimR * 0.56, 0.5, -0.5, true); sh.closePath(); const g = new THREE.ExtrudeGeometry(sh, { depth: 0.07, bevelEnabled: true, bevelSize: 0.006, bevelThickness: 0.006, bevelSegments: 1, curveSegments: 8 }); g.translate(0, 0, -0.035); return g; }), MAT.paint(caliper));

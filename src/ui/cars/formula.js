@@ -1,7 +1,7 @@
 // Formula single-seaters: the 2022+ ground-effect car (wheel covers, wake deflectors,
 // multi-element wings) and the simpler junior-formula car (opts.jr).
 import * as THREE from 'three';
-import { MAT, mesh, far, at, box, cyl, sph, rod, blade, tube, plate, slab, decalPlate, hull, shell, mouth, sweptWing, spanSamples, memo, canvas, canvasTex, cached } from './core.js';
+import { MAT, mesh, far, at, box, cyl, sph, rod, blade, finishOf, tube, plate, slab, decalPlate, hull, shell, mouth, sweptWing, spanSamples, memo, canvas, canvasTex, cached } from './core.js';
 import { liveryTexture, endplateMat, finMat, helmetMat } from './livery.js';
 import { wheel } from './wheels.js';
 
@@ -46,7 +46,7 @@ export function formula(L, opts) {
       },
     },
   });
-  const pri = MAT.paint(L.primary), sec = MAT.paint(L.secondary), acc = MAT.paint(L.accent), cf = MAT.carbon(), cg = MAT.carbonGloss(), blk = MAT.rubber(), dark = MAT.dark();
+  const pri = MAT.paint(L.primary, finishOf(L)), sec = MAT.paint(L.secondary, finishOf(L)), acc = MAT.paint(L.accent, finishOf(L)), cf = MAT.carbon(), cg = MAT.carbonGloss(), blk = MAT.rubber(), dark = MAT.dark();
   const XF = 1.8, XR = -1.8;
   // survival cell + nose
   car.add(shell([

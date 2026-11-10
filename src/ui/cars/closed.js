@@ -2,8 +2,8 @@
 // Each has one continuous body shell with real wheel-arch openings (see hull() arches), a
 // glasshouse painted on the cabin shell, arch flares, aero kit, lamps and running gear.
 import * as THREE from 'three';
-import { MAT, mesh, far, at, box, cyl, sph, rod, blade, plate, slab, decalPlate, hull, shell, mouth, archFlare, sweptWing, spanSamples } from './core.js';
-import { liveryTexture, endplateMat, finMat, greenhouseMat } from './livery.js';
+import { MAT, mesh, far, at, box, cyl, sph, rod, blade, finishOf, endPanel, plate, slab, decalPlate, hull, shell, mouth, archFlare, sweptWing, spanSamples } from './core.js';
+import { liveryTexture, endplateMat, finMat, greenhouseMat, panelMat } from './livery.js';
 import { wheel } from './wheels.js';
 
 const HEAD = () => MAT.light('#f4fbff', 3), TAIL = () => MAT.light('#ff2020', 3);
@@ -43,10 +43,10 @@ export function hypercar(L, opts) {
       },
     },
   });
-  const pri = MAT.paint(L.primary), acc = MAT.paint(L.accent), cf = MAT.carbon(), cg = MAT.carbonGloss(), blk = MAT.rubber(), dark = MAT.dark();
+  const pri = MAT.paint(L.primary, finishOf(L)), acc = MAT.paint(L.accent, finishOf(L)), cf = MAT.carbon(), cg = MAT.carbonGloss(), blk = MAT.rubber(), dark = MAT.dark();
   const XF = 1.55, XR = -1.6, R = 0.355, TZ = 0.825;
   // main body: low nose between the fenders, side pods, rising tail deck
-  car.add(shell([
+  const body = [
     { x: -2.45, top: 0.74, bot: 0.17, belt: 0.22, w: 0.94, wt: 0.88, wb: 0.9, n: 4.5 },
     { x: -2.2, top: 0.77, bot: 0.1, belt: 0.14, w: 0.985, wt: 0.9, wb: 0.94, n: 4.5 },
     { x: -1.6, top: 0.75, bot: 0.08, belt: 0.11, w: 0.995, wt: 0.88, wb: 0.96, n: 4.5 },
@@ -56,7 +56,10 @@ export function hypercar(L, opts) {
     { x: 1.55, top: 0.45, bot: 0.07, belt: 0.1, w: 0.995, wt: 0.62, wb: 0.97, n: 4 },
     { x: 2.3, top: 0.3, bot: 0.08, belt: 0.11, w: 0.95, wt: 0.66, wb: 0.93, n: 3.4 },
     { x: 2.55, top: 0.19, bot: 0.1, belt: 0.13, w: 0.8, wt: 0.6, wb: 0.8, n: 3 },
-  ], { u0: 0, u1: 1, seg: 64, around: 48, arches: [{ x: XF, y: R, r: 0.425, zin: 0.62 }, { x: XR, y: R, r: 0.425, zin: 0.62 }] }, paint));
+  ], bodyO = { u0: 0, u1: 1, seg: 64, around: 48, capRear: false, arches: [{ x: XF, y: R, r: 0.425, zin: 0.62 }, { x: XR, y: R, r: 0.425, zin: 0.62 }] };
+  car.add(shell(body, bodyO, paint));
+  // tail: full-width light bar over the open diffuser exit, sponsor between
+  car.add(endPanel(body, bodyO, false, panelMat(L, { lamps: [[0.03, 0.83, 0.97, 0.9, 3]], grille: [[0.09, 0.0, 0.91, 0.6, 18]], text: [0.5, 0.72, 46], seams: [[0, 0.8, 1, 0.8]] }, opts.sponsor), 0.035));
   // fenders standing proud of the body: pontoons over the wheels with open arches
   const ff = [
     { x: 0.6, top: 0.5, bot: 0.3, w: 0.1, wt: 0.06, wb: 0.1, n: 3 },
@@ -80,7 +83,7 @@ export function hypercar(L, opts) {
     for (let k = 0; k < 6; k++) car.add(at(box(0.035, 0.012, 0.26, dark), 1.28 + k * 0.085, 0.826 - Math.abs(k - 3) * 0.008 - (k > 3 ? (k - 3) * 0.012 : 0), z, 0, 0, -0.1 + (k > 3 ? -0.12 : 0)));
     mirror(car, 0.95, 0.83, s * 0.84, s, pri, cg);
     lens(car, 2.3, 0.53, z, 0.16, 0.03, 0.13, HEAD(), 0, -0.98, 3);
-    car.add(at(box(0.012, 0.3, 0.02, TAIL()), -2.455, 0.6, s * 0.93)); car.add(far(at(box(0.012, 0.035, 0.7, TAIL()), -2.455, 0.72, s * 0.5)));
+    car.add(at(box(0.014, 0.16, 0.022, TAIL()), -2.49, 0.6, s * 0.905)); car.add(far(at(box(0.014, 0.018, 0.86, TAIL()), -2.49, 0.665, s * 0.45)));
     // dive planes
     for (const [y, a] of [[0.3, 0.28], [0.42, 0.34]]) { const d = plate([[0.2, 0], [-0.12, 0.01], [-0.14, 0.03], [0.18, 0.018]], 0.1, cg, 0, 0.002); d.position.set(2.2, y, s * 1.0); d.rotation.set(0, s * 0.2, a); car.add(d); }
   }
@@ -114,8 +117,7 @@ export function hypercar(L, opts) {
   for (const s of [1, -1]) { car.add(plate([[2.52, 0.06], [2.05, 0.06], [2.05, 0.2], [2.4, 0.14]], 0.012, cg, s * 1.0)); car.add(at(box(2.1, 0.03, 0.05, cf), -0.05, 0.075, s * 0.975)); }
   car.add(far(plate([[-1.95, 0.06], [-2.5, 0.3], [-2.5, 0.33], [-1.95, 0.085]], 1.5, cf, 0, 0)));
   for (const z of [-0.74, -0.45, -0.15, 0.15, 0.45, 0.74]) car.add(plate([[-1.95, 0.06], [-2.5, 0.08], [-2.5, 0.3], [-2.05, 0.1]], 0.012, cg, z, 0.002));
-  car.add(far(at(box(0.02, 0.4, 1.94, dark), -2.452, 0.49, 0)));
-  for (const s of [1, -1]) { car.add(at(cyl(0.05, 0.05, 0.1, MAT.metal('#6a625a', 0.4), { seg: 12, axis: 'x', open: true }), -2.44, 0.5, s * 0.2)); car.add(at(cyl(0.044, 0.044, 0.02, dark, { seg: 12, axis: 'x' }), -2.44, 0.5, s * 0.2)); }
+  for (const s of [1, -1]) { car.add(at(cyl(0.05, 0.05, 0.1, MAT.exhaust(), { seg: 12, axis: 'x', open: true }), -2.44, 0.5, s * 0.2)); car.add(at(cyl(0.044, 0.044, 0.02, dark, { seg: 12, axis: 'x' }), -2.44, 0.5, s * 0.2)); }
   car.add(at(box(0.03, 0.05, 0.1, TAIL()), -2.5, 0.36, 0)); // rain light
   // wheels (hidden deep in the arches: dark liners behind them)
   const wheels = [];
@@ -125,7 +127,7 @@ export function hypercar(L, opts) {
     car.add(at(box(0.6, 0.4, 0.02, dark), x, R + 0.06, s * 0.6));
   }
   car.userData.wheels = wheels;
-  car.userData.lamps = { head: [[2.4, 0.48, 0.775], [2.4, 0.48, -0.775]], tail: [[-2.5, 0.72, 0.8], [-2.5, 0.72, -0.8], [-2.5, 0.72, 0.3], [-2.5, 0.72, -0.3]] };
+  car.userData.lamps = { head: [[2.4, 0.48, 0.775], [2.4, 0.48, -0.775]], tail: [[-2.5, 0.665, 0.8], [-2.5, 0.665, -0.8], [-2.5, 0.665, 0.3], [-2.5, 0.665, -0.3]] };
   return car;
 }
 
@@ -159,9 +161,9 @@ export function gt(L, opts) {
       },
     },
   });
-  const pri = MAT.paint(L.primary), cf = MAT.carbon(), cg = MAT.carbonGloss(), blk = MAT.rubber(), dark = MAT.dark();
+  const pri = MAT.paint(L.primary, finishOf(L)), cf = MAT.carbon(), cg = MAT.carbonGloss(), blk = MAT.rubber(), dark = MAT.dark();
   const XF = 1.42, XR = -1.28, R = 0.345, TZ = 0.83;
-  car.add(shell([
+  const body = [
     { x: -2.25, top: 0.87, bot: 0.32, belt: 0.4, w: 0.88, wt: 0.8, wb: 0.8, n: 4 },
     { x: -2.0, top: 0.91, bot: 0.22, belt: 0.34, w: 0.95, wt: 0.84, wb: 0.86, n: 4.5 },
     { x: -1.28, top: 0.91, bot: 0.16, belt: 0.3, w: 0.985, wt: 0.84, wb: 0.9, n: 5.5 },
@@ -170,7 +172,11 @@ export function gt(L, opts) {
     { x: 1.42, top: 0.8, bot: 0.15, belt: 0.29, w: 0.97, wt: 0.82, wb: 0.9, n: 5.5 },
     { x: 2.1, top: 0.64, bot: 0.16, belt: 0.3, w: 0.9, wt: 0.72, wb: 0.88, n: 4 },
     { x: 2.35, top: 0.5, bot: 0.2, belt: 0.31, w: 0.78, wt: 0.6, wb: 0.76, n: 3.6 },
-  ], { u0: 0, u1: 1, seg: 64, around: 48, arches: [{ x: XF, y: R, r: 0.39, zin: 0.6 }, { x: XR, y: R, r: 0.395, zin: 0.6 }] }, paint));
+  ], bodyO = { u0: 0, u1: 1, seg: 64, around: 48, capRear: false, capFront: false, arches: [{ x: XF, y: R, r: 0.39, zin: 0.6 }, { x: XR, y: R, r: 0.395, zin: 0.6 }] };
+  car.add(shell(body, bodyO, paint));
+  // tail: lamp clusters joined by a light bar, diffuser opening; nose: honeycomb grille, side intakes
+  car.add(endPanel(body, bodyO, false, panelMat(L, { lamps: [[0.03, 0.7, 0.36, 0.88, 6], [0.64, 0.7, 0.97, 0.88, 6], [0.36, 0.77, 0.64, 0.81, 2]], grille: [[0.1, 0.0, 0.9, 0.34, 14]], text: [0.5, 0.56, 50], hooks: [[0.84, 0.42]], seams: [[0.02, 0.4, 0.98, 0.4]] }, opts.sponsor), 0.03));
+  car.add(endPanel(body, bodyO, true, panelMat(L, { grille: [[0.2, 0.12, 0.8, 0.72, 34], [0.02, 0.1, 0.15, 0.5, 16], [0.85, 0.1, 0.98, 0.5, 16]], dark: [[0.0, 0.0, 1.0, 0.07, 0]], hooks: [[0.12, 0.62]] }), 0.07));
   // glasshouse
   car.add(shell([
     { x: -1.75, top: 0.93, bot: 0.85, belt: 0.88, w: 0.72, wt: 0.6, wb: 0.76, n: 4 },
@@ -185,17 +191,15 @@ export function gt(L, opts) {
     car.add(far(at(box(1.75, 0.09, 0.07, cf), 0.07, 0.19, s * 0.94))); // side skirt
     // lamps: slim LED headlamps on the wings, strip tail lamps
     lens(car, 2.06, 0.645, s * 0.66, 0.17, 0.03, 0.12, HEAD(), s * 0.45, -0.3);
-    car.add(far(at(box(0.02, 0.05, 0.42, TAIL()), -2.255, 0.76, s * 0.55)));
+    car.add(far(at(box(0.02, 0.05, 0.42, TAIL()), -2.288, 0.76, s * 0.55)));
     // dive planes and splitter fences
     for (const [y, a] of [[0.33, 0.26], [0.45, 0.34]]) { const d = plate([[0.18, 0], [-0.1, 0.012], [-0.12, 0.03], [0.16, 0.018]], 0.1, cg, 0, 0.002); d.position.set(2.12, y, s * 0.93); d.rotation.set(0, s * 0.3, a); car.add(d); }
-    car.add(at(cyl(0.045, 0.045, 0.1, MAT.metal('#6a625a', 0.4), { seg: 12, open: true }), -0.55, 0.2, s * 0.95)); // side exhaust
+    car.add(at(cyl(0.045, 0.045, 0.1, MAT.exhaust(), { seg: 12, open: true }), -0.55, 0.2, s * 0.95)); // side exhaust
     car.add(at(box(0.05, 0.06, 0.012, MAT.band('#e10600')), s > 0 ? 2.36 : -2.26, 0.34, s * 0.3)); // tow strap
   }
   // front intake, splitter, bonnet pins, rear panel, diffuser
-  car.add(at(box(0.03, 0.2, 1.2, dark), 2.345, 0.36, 0)); for (const z of [-0.3, 0, 0.3]) car.add(at(box(0.035, 0.2, 0.02, cf), 2.35, 0.36, z)); for (const y of [0.31, 0.38]) car.add(at(box(0.035, 0.012, 1.2, cf), 2.35, y, 0));
   const sp = [[2.52, 0.5], [2.46, 0.84], [2.3, 0.95], [1.85, 0.95]];
   car.add(far(slab([...sp, ...sp.slice().reverse().map(([x, z]) => [x, -z])], 0.022, cf, 0.13)));
-  car.add(at(box(0.03, 0.15, 1.36, dark), -2.243, 0.5, 0)); for (const z of [-0.34, 0, 0.34]) car.add(at(box(0.035, 0.15, 0.02, cf), -2.245, 0.5, z));
   car.add(far(plate([[-1.75, 0.14], [-2.32, 0.34], [-2.32, 0.37], [-1.75, 0.165]], 1.5, cf, 0, 0)));
   for (const z of [-0.6, -0.2, 0.2, 0.6]) car.add(plate([[-1.75, 0.13], [-2.3, 0.15], [-2.3, 0.33], [-1.85, 0.17]], 0.012, cg, z, 0.002));
   // rear wing on swan necks
@@ -209,7 +213,7 @@ export function gt(L, opts) {
   car.add(rod([-0.7, 1.22, 0.25], [-0.78, 1.38, 0.25], 0.005, blk)); car.add(at(sph(0.04, blk, { ws: 8, hs: 6, sy: 0.45 }), -0.2, 1.23, 0));
   car.add(blade([0.84, 0.86, 0.05], [0.4, 1.06, 0.3], 0.025, 0.012, blk));
   addWheels(car, [[XF, TZ], [XF, -TZ], [XR, TZ], [XR, -TZ]], R, 0.3, opts.gtTyre || '#ffd400', { kind: 'gt', rim: '#23262b', rimFrac: 0.71, caliper: L.accent }, [0.6, 0.36]);
-  car.userData.lamps = { head: [[2.14, 0.6, 0.66], [2.14, 0.6, -0.66]], tail: [[-2.28, 0.76, 0.55], [-2.28, 0.76, -0.55]] };
+  car.userData.lamps = { head: [[2.14, 0.6, 0.66], [2.14, 0.6, -0.66]], tail: [[-2.3, 0.76, 0.55], [-2.3, 0.76, -0.55]] };
   return car;
 }
 
@@ -232,9 +236,9 @@ export function rally(L, opts) {
     },
   });
   function g2(fill, u, y) { fill([[u - 0.008, y - 0.07], [u + 0.008, y - 0.07], [u + 0.008, y + 0.07], [u - 0.008, y + 0.07]], 'rgba(10,10,12,0.8)'); } // fuel flap
-  const pri = MAT.paint(L.primary), acc = MAT.paint(L.accent), cf = MAT.carbon(), cg = MAT.carbonGloss(), blk = MAT.rubber(), dark = MAT.dark();
+  const pri = MAT.paint(L.primary, finishOf(L)), acc = MAT.paint(L.accent, finishOf(L)), cf = MAT.carbon(), cg = MAT.carbonGloss(), blk = MAT.rubber(), dark = MAT.dark();
   const XF = 1.35, XR = -1.25, R = 0.335, TZ = 0.8;
-  car.add(shell([
+  const body = [
     { x: -1.9, top: 1.0, bot: 0.42, belt: 0.52, w: 0.84, wt: 0.77, wb: 0.78, n: 4.5 },
     { x: -1.75, top: 1.03, bot: 0.33, belt: 0.47, w: 0.9, wt: 0.8, wb: 0.83, n: 4.5 },
     { x: -1.25, top: 1.03, bot: 0.27, belt: 0.42, w: 0.92, wt: 0.82, wb: 0.86, n: 4.5 },
@@ -243,7 +247,11 @@ export function rally(L, opts) {
     { x: 1.35, top: 0.92, bot: 0.26, belt: 0.4, w: 0.91, wt: 0.78, wb: 0.86, n: 4.5 },
     { x: 1.95, top: 0.79, bot: 0.28, belt: 0.41, w: 0.85, wt: 0.7, wb: 0.82, n: 4 },
     { x: 2.15, top: 0.69, bot: 0.34, belt: 0.44, w: 0.74, wt: 0.6, wb: 0.72, n: 3.6 },
-  ], { u0: 0, u1: 1, seg: 64, around: 48, arches: [{ x: XF, y: R, r: 0.425, zin: 0.58 }, { x: XR, y: R, r: 0.425, zin: 0.58 }] }, paint));
+  ], bodyO = { u0: 0, u1: 1, seg: 64, around: 48, capRear: false, capFront: false, arches: [{ x: XF, y: R, r: 0.425, zin: 0.58 }, { x: XR, y: R, r: 0.425, zin: 0.58 }] };
+  car.add(shell(body, bodyO, paint));
+  // tailgate: tall lamp clusters, rally plate, diffuser; nose: big grille with the front plate
+  car.add(endPanel(body, bodyO, false, panelMat(L, { lamps: [[0.02, 0.58, 0.15, 0.98, 6], [0.85, 0.58, 0.98, 0.98, 6]], grille: [[0.14, 0.0, 0.86, 0.3, 12]], plate: [0.5, 0.5, 0.34], text: [0.5, 0.8, 44], hooks: [[0.1, 0.4]], seams: [[0.16, 0.66, 0.84, 0.66]] }, opts.sponsor, opts.number), 0.05));
+  car.add(endPanel(body, bodyO, true, panelMat(L, { grille: [[0.14, 0.32, 0.86, 0.8, 26], [0.05, 0.05, 0.3, 0.26, 10], [0.7, 0.05, 0.95, 0.26, 10]], plate: [0.5, 0.15, 0.3], hooks: [[0.86, 0.5]] }, '', opts.number), 0.06));
   const crew = [String(opts.driver || 'M. ROSSI').toUpperCase().slice(0, 12), String(opts.codriver || 'L. BIANCHI').toUpperCase().slice(0, 12)];
   car.add(shell([
     { x: -1.84, top: 1.27, bot: 0.99, belt: 1.02, w: 0.73, wt: 0.6, wb: 0.77, n: 4.5 },
@@ -259,19 +267,17 @@ export function rally(L, opts) {
     for (const x of [XF - 0.47, XR - 0.47]) car.add(at(box(0.012, 0.26, 0.3, MAT.matte('#17181b')), x, 0.21, s * 0.8, 0, 0, 0.14));
     mirror(car, 0.72, 1.06, s * 0.9, s, pri, cg);
     lens(car, 1.96, 0.775, s * 0.6, 0.13, 0.035, 0.15, MAT.light('#f6fbff', 2.4), s * 0.45, -0.3);
-    car.add(far(at(box(0.02, 0.24, 0.08, TAIL()), -1.905, 0.88, s * 0.74)));
+    car.add(far(at(box(0.02, 0.24, 0.08, TAIL()), -1.925, 0.88, s * 0.74)));
     // hybrid cooling scoops on the rear doors
     const sc = [{ x: -1.3, top: 1.18, bot: 1.06, w: 0.02, n: 3 }, { x: -1.08, top: 1.23, bot: 1.06, w: 0.05, n: 3.4 }, { x: -0.86, top: 1.24, bot: 1.07, w: 0.055, n: 3.6 }], scO = { seg: 8, around: 16, capFront: false };
     car.add(at(mesh(hull(sc, scO), cg), 0, 0, s * 0.8)); car.add(at(mouth(sc, scO, true, dark, 0.015), 0, 0, s * 0.8));
     car.add(at(box(0.012, 0.16, 0.05, cf), 2.0, 0.44, s * 0.8)); // bumper canard fence
   }
   // bumper intakes, splitter, sump guard, rear bumper cut-out, exhaust
-  car.add(at(box(0.03, 0.14, 1.0, dark), 2.145, 0.5, 0)); for (const z of [-0.25, 0.25]) car.add(at(box(0.035, 0.14, 0.02, cf), 2.15, 0.5, z));
   const sp = [[2.3, 0.4], [2.25, 0.76], [2.12, 0.86], [1.8, 0.86]];
   car.add(far(slab([...sp, ...sp.slice().reverse().map(([x, z]) => [x, -z])], 0.03, cf, 0.3)));
   car.add(at(box(0.9, 0.012, 1.2, MAT.metal('#8b8e94', 0.5)), 1.5, 0.245, 0));
-  car.add(at(box(0.03, 0.13, 1.2, dark), -1.893, 0.56, 0)); for (const z of [-0.3, 0.3]) car.add(at(box(0.035, 0.13, 0.02, cf), -1.895, 0.56, z));
-  car.add(at(cyl(0.055, 0.055, 0.16, MAT.metal('#6a625a', 0.4), { seg: 12, axis: 'x', open: true }), -1.92, 0.56, 0)); car.add(at(cyl(0.048, 0.048, 0.02, dark, { seg: 12, axis: 'x' }), -1.92, 0.56, 0));
+  car.add(at(cyl(0.055, 0.055, 0.16, MAT.exhaust(), { seg: 12, axis: 'x', open: true }), -1.92, 0.56, 0)); car.add(at(cyl(0.048, 0.048, 0.02, dark, { seg: 12, axis: 'x' }), -1.92, 0.56, 0));
   // roof: scoop, antennas
   const rs = [{ x: -0.5, top: 1.5, bot: 1.4, w: 0.1, n: 3 }, { x: -0.1, top: 1.53, bot: 1.4, w: 0.16, n: 3.4 }, { x: 0.2, top: 1.5, bot: 1.36, w: 0.17, n: 3.6 }], rsO = { seg: 10, around: 20, capFront: false };
   car.add(far(mesh(hull(rs, rsO), acc))); car.add(mouth(rs, rsO, true, dark, 0.015));

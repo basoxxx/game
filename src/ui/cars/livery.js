@@ -2,7 +2,7 @@
 // vents and lamps drawn straight on the body texture, plus the small printed parts
 // (wing end plates, fins, helmets, glasshouses).
 import * as THREE from 'three';
-import { cached, canvas, canvasTex, luma, hashStr, rng, FONT, MAT, paintProps } from './core.js';
+import { cached, canvas, canvasTex, luma, hashStr, rng, FONT, MAT, paintProps, coat, finishOf } from './core.js';
 
 export const SPONSORS = ['PETRONIX', 'ROLEXA', 'DHX', 'ORACLO', 'BREMBI', 'LAVAZZO', 'PUMO', 'LENOVA', 'MONSTRO', 'SANTANDOR', 'CRYPTO.CAM', 'ARAMCORE', 'TAG HEUERR', 'VELOXA', 'KAPPA-ONE', 'NORDLINK'];
 const inkOn = (hex) => (luma(hex) > 0.6 ? '#0b0b0d' : '#ffffff');
@@ -89,7 +89,7 @@ const SPEC = {
 };
 
 export function liveryTexture(L, { number, sponsor, pattern = L.pattern ?? 1, kind = 'formula', dirt = 0, hq = false, details = null }) {
-  const key = ['liv', kind, L.primary, L.secondary, L.accent, pattern, number, sponsor, dirt, hq].join('|');
+  const key = ['liv', kind, L.primary, L.secondary, L.accent, pattern, number, sponsor, dirt, hq, L.finish].join('|');
   return cached(key, () => {
     const SC = hq ? 1 : 0.5, [c, g] = canvas(W * SC, H * SC); g.scale(SC, SC);
     const sp = SPEC[kind] || SPEC.formula, p = ((pattern | 0) % 10 + 10) % 10, seed = hashStr(L.primary + L.secondary + (sponsor || ''));
@@ -156,45 +156,52 @@ export function liveryTexture(L, { number, sponsor, pattern = L.pattern ?? 1, ki
       g.fillStyle = `rgba(150,128,100,${0.12 * dirt})`; g.fillRect(0, 0, W, H);
     }
     const t = canvasTex(c, { aniso: hq ? 16 : 8 });
-    const lm = new THREE.MeshPhysicalMaterial({ map: t, ...paintProps(), roughness: dirt > 0 ? 0.32 + dirt * 0.35 : 0.28, clearcoat: 1 - dirt * 0.6, clearcoatRoughness: 0.03 + dirt * 0.4 });
-    lm.userData.livery = true; dirtPatch(lm); return lm;
+    const fin = finishOf(L), pp = paintProps(fin);
+    const lm = coat({ map: t, ...pp, roughness: pp.roughness + (dirt > 0 ? 0.04 + dirt * 0.35 : 0), clearcoat: pp.clearcoat * (1 - dirt * 0.6), clearcoatRoughness: pp.clearcoatRoughness + dirt * 0.4 });
+    lm.userData.livery = true; lm.userData.finish = fin; return lm;
   });
 }
 
-// dirt that builds up during a race / stage: dust and mud kicked up by the wheels, heaviest on
-// the sills, behind the wheels and on the tail, broken up by noise; it dulls the clear coat.
-// Driven per material by userData.dirtU (0..1) and userData.dirtCol (the race view sets them).
-function dirtPatch(m) {
-  const U = { value: 0 }, C = { value: new THREE.Color(0.42, 0.33, 0.22) };
-  m.userData.dirtU = U; m.userData.dirtCol = C;
-  m.onBeforeCompile = (sh) => {
-    sh.uniforms.uDirt = U; sh.uniforms.uDirtCol = C;
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vDirtP;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvDirtP = position;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      uniform float uDirt; uniform vec3 uDirtCol; varying vec3 vDirtP;
-      float dHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
-      float dNoise(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
-        return mix(mix(mix(dHash(i), dHash(i + vec3(1, 0, 0)), f.x), mix(dHash(i + vec3(0, 1, 0)), dHash(i + vec3(1, 1, 0)), f.x), f.y),
-                   mix(mix(dHash(i + vec3(0, 0, 1)), dHash(i + vec3(1, 0, 1)), f.x), mix(dHash(i + vec3(0, 1, 1)), dHash(i + vec3(1, 1, 1)), f.x), f.y), f.z); }`)
-      .replace('#include <map_fragment>', `#include <map_fragment>
-        float dMask = 0.0;
-        if (uDirt > 0.001) {
-          float dN = dNoise(vDirtP * vec3(2.3, 5.5, 2.3)) * 0.55 + dNoise(vDirtP * vec3(11.0, 17.0, 11.0)) * 0.3 + dNoise(vDirtP * vec3(37.0, 41.0, 37.0)) * 0.15;
-          float dLow = 1.0 - smoothstep(0.16, 0.95, vDirtP.y);
-          float dRear = smoothstep(-0.9, -2.3, vDirtP.x) * 0.75;
-          float dAmt = uDirt * (dLow * 1.2 + dRear + 0.22);
-          dMask = clamp(smoothstep(0.0, 0.3, dAmt - (1.0 - dN) * 0.85), 0.0, 0.94);
-          diffuseColor.rgb = mix(diffuseColor.rgb, uDirtCol * (0.7 + 0.6 * dN), dMask);
-        }`)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.9, dMask);')
-      .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\nmaterial.clearcoat *= 1.0 - dMask;\n#endif');
-  };
-  m.customProgramCacheKey = () => 'livdirt';
+// Printed end panel (tail / nose of the closed cars, see endPanel() in core.js). Panel space:
+// u 0..1 left -> right as seen from that end, v 0..1 bottom -> top. spec:
+//   band: [v0, v1] secondary-colour band (+ accent pin line), grille / dark: [[u0, v0, u1, v1, r]]
+//   honeycomb openings, lamps: [[u0, v0, u1, v1]] smoked lamp housings, text: [u, v, size],
+//   plate: [u, v, w] number plate, hooks: [[u, v]] tow-hook loops, seams: [[u0, v0, u1, v1]]
+export function panelMat(L, spec, sponsor = '', number = null) {
+  const fin = finishOf(L);
+  const m = MAT.decal(['pan', L.primary, L.secondary, L.accent, JSON.stringify(spec), sponsor, number].join('|'), (g, w, h) => {
+    const X = (u) => u * w, Y = (v) => (1 - v) * h;
+    const R = (q, col, r = 0) => { g.fillStyle = col; rr(g, X(q[0]), Y(q[3]), X(q[2]) - X(q[0]), Y(q[1]) - Y(q[3]), r ?? 0); g.fill(); };
+    g.fillStyle = L.primary; g.fillRect(0, 0, w, h);
+    if (spec.band) { R([0, spec.band[0], 1, spec.band[1]], L.secondary); g.fillStyle = L.accent; g.fillRect(0, Y(spec.band[1]) - 4, w, 4); }
+    // honeycomb mesh behind the openings
+    const honey = (q, r) => {
+      g.save(); rr(g, X(q[0]), Y(q[3]), X(q[2]) - X(q[0]), Y(q[1]) - Y(q[3]), r); g.clip();
+      g.fillStyle = '#060607'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = 'rgba(70,72,78,0.85)'; g.lineWidth = 2; const s = 9;
+      for (let y = Y(q[3]) - s; y < Y(q[1]) + s; y += s * 1.5) for (let x = X(q[0]) - s, k = 0; x < X(q[2]) + s; x += s * 1.732, k++) { const cx = x + ((Math.round(y / (s * 1.5)) % 2) ? s * 0.866 : 0); g.beginPath(); for (let a = 0; a < 6; a++) { const an = Math.PI / 6 + a * Math.PI / 3; g.lineTo(cx + Math.cos(an) * s * 0.62, y + Math.sin(an) * s * 0.62); } g.closePath(); g.stroke(); }
+      const sh = g.createLinearGradient(0, Y(q[3]), 0, Y(q[1])); sh.addColorStop(0, 'rgba(0,0,0,0.65)'); sh.addColorStop(0.5, 'rgba(0,0,0,0.1)'); sh.addColorStop(1, 'rgba(0,0,0,0.5)'); g.fillStyle = sh; g.fillRect(0, 0, w, h);
+      g.restore();
+      g.strokeStyle = 'rgba(0,0,0,0.75)'; g.lineWidth = 5; rr(g, X(q[0]), Y(q[3]), X(q[2]) - X(q[0]), Y(q[1]) - Y(q[3]), r); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,0.16)'; g.lineWidth = 1.5; rr(g, X(q[0]) - 3, Y(q[3]) - 3, X(q[2]) - X(q[0]) + 6, Y(q[1]) - Y(q[3]) + 6, r + 3); g.stroke();
+    };
+    for (const q of spec.dark || []) R(q, '#0a0a0c', q[4] || 6);
+    for (const q of spec.grille || []) honey(q, q[4] ?? 10);
+    for (const q of spec.lamps || []) { R(q, '#1a0406', q[4] ?? 4); const gr = g.createLinearGradient(0, Y(q[3]), 0, Y(q[1])); gr.addColorStop(0, 'rgba(255,90,90,0.35)'); gr.addColorStop(0.5, 'rgba(120,0,0,0.1)'); gr.addColorStop(1, 'rgba(255,60,60,0.25)'); g.fillStyle = gr; g.fill(); g.strokeStyle = '#050505'; g.lineWidth = 3; g.stroke(); }
+    for (const s of spec.seams || []) { g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(X(s[0]), Y(s[1])); g.lineTo(X(s[2]), Y(s[3])); g.stroke(); }
+    if (spec.text && sponsor) { const [u, v, size] = spec.text, txt = String(sponsor).toUpperCase(); fitText(g, txt, w * 0.36, size); g.fillStyle = inkOn(spec.band && v >= spec.band[0] && v <= spec.band[1] ? L.secondary : L.primary); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, X(u), Y(v)); }
+    if (spec.plate) { const [u, v, pw] = spec.plate, x0 = X(u - pw / 2), ww = pw * w, hh = ww * 0.24; g.fillStyle = '#f2f2f2'; rr(g, x0, Y(v) - hh / 2, ww, hh, 6); g.fill(); g.fillStyle = '#123a9a'; g.fillRect(x0, Y(v) - hh / 2, ww * 0.1, hh); g.fillStyle = '#0b0b0d'; g.font = `900 ${hh * 0.62}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(number != null ? `AP ${String(number).padStart(3, '0')} RX` : 'APEX', x0 + ww * 0.55, Y(v) + 2); }
+    for (const [u, v] of spec.hooks || []) { g.strokeStyle = '#e10600'; g.lineWidth = 7; g.beginPath(); g.arc(X(u), Y(v), 11, 0, 7); g.stroke(); }
+    // soft occlusion towards the panel outline
+    const vg = g.createRadialGradient(w / 2, h * 0.5, Math.min(w, h) * 0.35, w / 2, h * 0.5, w * 0.62); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.38)'); g.fillStyle = vg; g.fillRect(0, 0, w, h);
+  }, 1024, 384, false, fin);
+  m.userData.farColor = L.primary; return m;
 }
 
+const tagFar = (L, m) => { m.userData.farColor ||= L.primary; return m; };
 // end-plate artwork: team colour field, big sponsor name, small partner logos and stripes
 export function endplateMat(L, sponsor) {
-  return MAT.decal(['ep', L.primary, L.secondary, L.accent, sponsor].join('|'), (g, w, h) => {
+  return tagFar(L, MAT.decal(['ep', L.primary, L.secondary, L.accent, sponsor].join('|'), (g, w, h) => {
     g.fillStyle = L.primary; g.fillRect(0, 0, w, h);
     g.fillStyle = L.secondary; g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * 0.78); g.lineTo(w, h * 0.62); g.lineTo(w, h); g.closePath(); g.fill();
     g.strokeStyle = L.accent; g.lineWidth = h * 0.025; g.beginPath(); g.moveTo(0, h * 0.76); g.lineTo(w, h * 0.6); g.stroke();
@@ -203,18 +210,18 @@ export function endplateMat(L, sponsor) {
     const h0 = hashStr(L.primary + txt);
     g.font = `italic 900 24px ${FONT}`; g.fillStyle = inkOn(L.secondary);
     g.fillText(SPONSORS[h0 % SPONSORS.length], w * 0.72, h * 0.88);
-  });
+  }, 512, 256, false, finishOf(L)));
 }
 // shark fin / engine cover fin: big race number and the driver's three-letter code
 export function finMat(L, number, driver, flip) {
   const code = String(driver || '').replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase();
-  return MAT.decal(['fin', L.primary, L.secondary, L.accent, number, code].join('|'), (g, w, h) => {
+  return tagFar(L, MAT.decal(['fin', L.primary, L.secondary, L.accent, number, code].join('|'), (g, w, h) => {
     g.fillStyle = L.primary; g.fillRect(0, 0, w, h);
     g.fillStyle = L.accent; g.fillRect(0, h * 0.9, w, h * 0.1);
     g.fillStyle = inkOn(L.primary); g.textAlign = 'center'; g.textBaseline = 'middle';
-    if (number != null) { g.font = `italic 900 ${h * 0.5}px ${FONT}`; g.fillText(String(number), w * (code ? 0.34 : 0.5), h * 0.52); }
-    if (code) { g.font = `italic 900 ${h * 0.3}px ${FONT}`; g.fillText(code, w * 0.68, h * 0.55); }
-  }, 512, 256, flip);
+    if (number != null) { g.font = `italic 900 ${h * 0.5}px ${FONT}`; g.fillText(String(number), w * (code ? 0.3 : 0.42), h * 0.5); }
+    if (code) { g.font = `italic 900 ${h * 0.2}px ${FONT}`; g.fillText(code, w * 0.56, h * 0.4); }
+  }, 512, 256, flip, finishOf(L)));
 }
 // helmet livery on the sphere UVs (u = around, u .5 faces forward; v = 0 bottom .. 1 top):
 // base colour, crown design, side stripes in the team colours, number on the back
@@ -233,7 +240,7 @@ export function helmetMat(base, L, number) {
     }
     g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(0, h * 0.82, w, h * 0.18);
     if (number != null) { g.fillStyle = inkOn(base); g.font = `italic 900 46px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(number), 1, h * 0.36); g.fillText(String(number), w, h * 0.36); }
-    return new THREE.MeshPhysicalMaterial({ map: canvasTex(c), roughness: 0.25, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.3 });
+    return coat({ map: canvasTex(c), roughness: 0.25, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.3 });
   });
 }
 
@@ -281,7 +288,7 @@ export function greenhouseMat(L, spec, banner = '', pattern = L.pattern ?? 1) {
     if (banner) { g.save(); g.translate((ws + st * 0.55) * W, 0); g.rotate(-Math.PI / 2); g.scale(spec.basp ?? 2, 1); fitText(g, banner.toUpperCase(), (TH * wrap * 1.1) / (spec.basp ?? 2), st * W * 0.7); g.fillStyle = inkOn(L.secondary); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(banner.toUpperCase(), 0, 0); g.restore(); }
     if (rw > 0.02) { const rwr = spec.rwrap ?? 0.36; glass([[0.012, -rwr], [rw - 0.03, -rwr], [rw, -rwr * 0.5], [rw, rwr * 0.5], [rw - 0.03, rwr], [0.012, rwr]]); sheen(0.01, rw, -rwr, rwr); }
     g.restore();
-    const m = new THREE.MeshPhysicalMaterial({ map: canvasTex(c, { aniso: 8 }), roughness: 0.2, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.5 });
+    const m = coat({ map: canvasTex(c, { aniso: 8 }), roughness: 0.2, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.5 });
     m.userData.livery = true; return m;
   });
 }

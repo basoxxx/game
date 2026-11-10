@@ -4,7 +4,7 @@
 // wheels.js, formula.js (Formula / junior), closed.js (hypercar, GT, Rally1).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { MAT, cached, memo } from './cars/core.js';
+import { MAT, cached, memo, whiteTex } from './cars/core.js';
 import { sidewallMat, tyreMat, treadFor } from './cars/wheels.js';
 import { formula } from './cars/formula.js';
 import { hypercar, gt, rally } from './cars/closed.js';
@@ -22,7 +22,7 @@ export function buildCar(category, livery, opts = {}) {
   const farSpec = opts.lod && merge ? collectFar(car, opts) : null;
   if (merge) mergeStatic(car);
   if (farSpec) attachFar(car, farSpec);
-  car.traverse((o) => { if (!car.userData.dirtMat && o.isMesh && o.material?.userData?.dirtU) car.userData.dirtMat = o.material; });
+  car.traverse((o) => { if (!car.userData.dirtMat && o.isMesh && o.material?.userData?.livery && o.material.userData.dirtU) car.userData.dirtMat = o.material; });
   return car;
 }
 
@@ -105,7 +105,7 @@ function colorOf(m) {
   if (m === MAT.carbon() || m === MAT.carbonGloss()) return new THREE.Color(0x1d1e22);
   if (m.userData.farColor) return new THREE.Color(m.userData.farColor);
   const c = m.color ? m.color.clone() : new THREE.Color(0x777777);
-  if (m.map) c.multiplyScalar(0.35);
+  if (m.map && m.map !== whiteTex()) c.multiplyScalar(0.35);
   return c;
 }
 function collectFar(car, opts) {
