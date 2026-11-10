@@ -614,6 +614,7 @@ function stateChips(sim, c) {
   if (c.blisters) ch.push(`<span class="chip bad" data-tip="Blistering: vita utile del set ridotta">Blistering ×${c.blisters}</span>`);
   if (c.train) ch.push('<span class="chip" data-tip="Trenino DRS: anche l’auto davanti ha l’ala aperta, il DRS serve a poco">Trenino DRS</span>');
   if (c.issue) ch.push(`<span class="chip warn">${esc(c.issue.name)}</span>`);
+  { const md = sim.mood?.(c); if (md?.label) ch.push(`<span class="chip ${md.conf > 0.3 ? 'good' : 'warn'}" data-tip="Stato del pilota: la fiducia sale con i sorpassi e cala con errori e testacoda; la pressione cresce con un’auto entro 1s per più giri. Rischio d’errore in battaglia ×${md.nerves.toFixed(2)}. In Gestione il pilota si calma prima">${md.label}</span>`); }
   { const rl = sim.reliability?.(c); if (rl && rl.risk > 0.08) ch.push(`<span class="chip ${rl.risk > 0.15 ? 'bad' : 'warn'}" data-tip="Rischio di ritiro per guasto da qui al traguardo (mappa, ritmo, usura componenti). Con la mappa Risparmio: ${(rl.nurse * 100).toFixed(0)}%">Affidabilità ${Math.round(rl.risk * 100)}%</span>`); }
   if (c.tl >= 2 && !sim.endurance) ch.push(`<span class="chip ${c.tl >= 3 ? 'bad' : 'warn'}" data-tip="Limiti della pista: alla quarta infrazione scatta la penalità di 5s">Track limits ${c.tl}/4</span>`);
   if (c.penalty > 0) ch.push(`<span class="chip bad" data-tip="Penalità in tempo aggiunta all’arrivo">Penalità +${c.penalty}s</span>`);

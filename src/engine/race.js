@@ -343,7 +343,7 @@ export class CircuitSim {
         auto: !e.isPlayer, smart: e.isPlayer ? 0.9 : clamp(smart + rand(-0.12, 0.08), 0.3, 1), aiRainReact: rand(0, 0.15), gapAhead: 9, drs: false, dirty: false,
         stintLap: 0, plan: null, planIdx: 0, ers: 100, ersMode: 'balanced',
         fuelSave: false, crew: 'normal', planAuto: true, endPlan: null, tankMax: this.endurance ? this.stintLaps * effEff : 1,
-        eng: 'std', grain: 0, flat: 0, hot: 0, dmgFloor: 0, launch: 'normal', so: defaultOrders(), driveLaps: {},
+        eng: 'std', grain: 0, flat: 0, hot: 0, dmgFloor: 0, launch: 'normal', so: defaultOrders(), driveLaps: {}, conf: 0, press: 0,
         ledger: { pit: 0, deg: 0, dirty: 0, drs: 0, damage: 0, temp: 0, lift: 0, tyre: 0, mode: 0, ers: 0, eng: 0, err: 0, traffic: 0, pen: 0, stops: 0 },
       };
       if (!this.endurance) car.fuel = car.fuelMax = e.isPlayer ? 1.01 : 1.004 + rand(0, 0.012);
@@ -1638,6 +1638,17 @@ export class CircuitSim {
   }
 
   // team-mates fighting on track
+  // driver state: confidence (-1..1) after passes and mistakes, pressure (laps with a car within 1s behind), fatigue (endurance stints)
+  shake(c, v) { if (c) c.conf = clamp((c.conf || 0) + v, -1, 1); }
+  nerves(c) {
+    const d = this.driver(c);
+    const tired = this.endurance ? Math.max(0, (c.stintCount || 0) - 1) * 0.12 : 0;
+    return clamp((1 - (c.conf || 0) * 0.35) * (1 + Math.min(6, c.press || 0) * 0.05 * (1.3 - d.attrs.cons / 100)) * (1 + tired), 0.6, 1.8);
+  }
+  mood(c) {
+    const n = this.nerves(c);
+    return { conf: c.conf || 0, press: c.press || 0, nerves: n, label: (c.conf || 0) > 0.3 ? 'In fiducia' : (c.conf || 0) < -0.3 ? 'Nervoso' : (c.press || 0) >= 3 ? 'Sotto pressione' : null };
+  }
   // reliability: the telemetry shows a car at risk, the engineer asks whether to nurse it home
   nurseMoment(c) {
     if (c._nurseAsked || c.eng === 'low' || this.sc || this.vsc || this.laps - c.dist < 4 || c.lap < 2) return;
@@ -1752,6 +1763,13 @@ export class CircuitSim {
         if (c.hot >= 3) { c.hot = 0; c.age += this.life(c) * 0.035; c.blisters = (c.blisters || 0) + 1; if (c.isPlayer) this.log(`📻 Ingegnere a ${first}: «Blistering: le gomme sono surriscaldate${c.dirty ? ' in aria sporca' : ''}, stiamo bruciando vita utile. Gestisci o esci dalla scia.»`, 'radio', c.key, true); }
       } else c.hot = 0;
     }
+    // confidence drifts back to neutral, faster when the driver can breathe (Gestione); pressure builds with a car on the gearbox
+    { const bh = this.cars.find((x) => x.status === 'running' && x.pos === c.pos + 1);
+      const under = bh && bh.gapAhead < 1 && !this.sc && !this.vsc;
+      c.press = under ? Math.min(6, (c.press || 0) + 1) : Math.max(0, (c.press || 0) - 2);
+      c.conf = (c.conf || 0) * (c.mode === 'save' ? 0.75 : 0.88);
+      if (c.isPlayer && !c.auto && c.conf < -0.3 && !c._nervTold) { c._nervTold = true; this.log(`📻 Ingegnere a ${this.driver(c).name.split(' ')[0]}: «Respira. Un paio di giri tranquilli e ritroviamo il ritmo.» (pilota nervoso: più errori sotto pressione; in Gestione si calma prima)`, 'radio', c.key, true); }
+      if (c.conf > -0.15) c._nervTold = false; }
     // incidents
     const d = this.driver(c);
     const comp = COMPOUNDS[c.tyre];
@@ -1770,7 +1788,7 @@ export class CircuitSim {
       const r = Math.random();
       if (r < 0.42) this.retire(c, pick(['Incidente', 'Contatto alla staccata', 'Fuori pista contro le barriere', 'Testacoda e muro']), true);
       else if (r < 0.72) { this.log(`⚠ ${d.name} tocca le barriere: danno all’ala!`, 'warn', c.key, c.isPlayer); this.addDamage(c, rand(0.4, 1.4), 0.25); }
-      else { const loss = rand(4, 12); c.dist -= loss / this.track.lap; c.ledger.err += loss; this.log(`↺ Testacoda di ${d.name}! Perde ${loss.toFixed(0)} secondi.`, 'warn', c.key, c.isPlayer); if (chance(0.5)) this.flatSpot(c, rand(0.08, 0.2)); }
+      else { const loss = rand(4, 12); c.dist -= loss / this.track.lap; c.ledger.err += loss; this.shake(c, -0.35); this.log(`↺ Testacoda di ${d.name}! Perde ${loss.toFixed(0)} secondi.`, 'warn', c.key, c.isPlayer); if (chance(0.5)) this.flatSpot(c, rand(0.08, 0.2)); }
       if (c.status === 'dnf') return;
     }
     if (chance(failP)) {
@@ -1955,19 +1973,21 @@ export class CircuitSim {
           const duel = duelModifiers(this.state, da.id, db.id);
           const mates = a.teamId === b.teamId;
           // pressure tells: the defender can crack (lock-up, running wide) on worn tyres or in the wet
-          const errP = 0.018 * (1.35 - da.attrs.cons / 100) * (a.wear > 0.75 ? 2 : 1) * (this.rain > 0.3 ? 1.6 : 1) * (a.defendUntil > this.time ? 1.4 : 1) * (a.mode === 'push' ? 1.3 : 1);
+          const errP = 0.018 * (1.35 - da.attrs.cons / 100) * (a.wear > 0.75 ? 2 : 1) * (this.rain > 0.3 ? 1.6 : 1) * (a.defendUntil > this.time ? 1.4 : 1) * (a.mode === 'push' ? 1.3 : 1) * this.nerves(a);
           if (!mates && chance(errP)) {
             const loss = rand(0.6, 2.2);
             a.dist = Math.min(a.dist - loss / this.track.lap, b.dist - 0.0012);
             [order[i - 1], order[i]] = [b, a];
             const how = pick(['bloccaggio in staccata', 'va lungo in curva', 'sbaglia la cambiata in uscita', 'finisce sul cordolo e perde trazione']);
             a.ledger.err += loss; if (how === 'bloccaggio in staccata') this.flatSpot(a);
+            this.shake(a, -0.3); this.shake(b, 0.1);
             if (a.isPlayer || b.isPlayer || i <= 8) { this.log(`⚠ ${da.name} sotto pressione: ${how}! ${db.name} passa per la P${i}.`, 'overtake', b.key, a.isPlayer || b.isPlayer); this.comment(`Errore di ${da.name}: ${how}, e ${db.name} non perdona!`, b.key, a.isPlayer || b.isPlayer); this.pushTV({ kind: 'pass', key: b.key, other: a.key, pos: i, err: true }); this.onOvertake?.(b, a); }
             if (a.isPlayer && chance(0.5)) this.log(`📻 ${da.name.split(' ')[0]}: «${pick(['Ho bloccato l’anteriore, scusate!', 'Non avevo più grip dietro...', 'Mi sono innervosito, errore mio.'])}»`, 'radio', a.key, true);
             continue;
           }
-          const p = clamp(duel.pBonus + 0.05 + this.track.ovt * 0.42 + (paceDiff / this.ls) * 0.3 + (db.attrs.race - da.attrs.race) / 110 + (b.drs ? (b.train ? 0.03 : 0.1) : 0) + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.16 : 0) - (a.ersMode === 'deploy' ? 0.1 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.12 : 0) + (b.attackUntil > this.time ? 0.12 : 0) - (a.defendUntil > this.time ? 0.18 : 0) + (a.yieldUntil > this.time ? 0.6 : 0), 0.02, 0.95);
+          const p = clamp(duel.pBonus + 0.05 + this.track.ovt * 0.42 + (paceDiff / this.ls) * 0.3 + (db.attrs.race - da.attrs.race) / 110 + (b.drs ? (b.train ? 0.03 : 0.1) : 0) + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.16 : 0) - (a.ersMode === 'deploy' ? 0.1 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.12 : 0) + (b.attackUntil > this.time ? 0.12 : 0) - (a.defendUntil > this.time ? 0.18 : 0) + (a.yieldUntil > this.time ? 0.6 : 0) + (b.conf || 0) * 0.04 - (a.conf || 0) * 0.03, 0.02, 0.95);
           if (chance(p)) {
+            this.shake(b, 0.12); this.shake(a, -0.07);
             // lap times stay realistic: the attacker never jumps forward, the defender loses the time
             a.dist = Math.min(a.dist, b.dist) - 0.0012;
             [order[i - 1], order[i]] = [b, a];
