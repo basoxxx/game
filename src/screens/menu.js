@@ -167,7 +167,7 @@ function continueCard(s) {
 const NEWS = [
   'Mercato piloti: voci di uno scambio clamoroso tra due top team a fine stagione',
   'Nuove regole aerodinamiche in arrivo: i reparti tecnici già al lavoro sulle simulazioni',
-  'Rally di Monte Carlo: attese neve e ghiaccio sul Col de Turini',
+  'Rally del Principato: attese neve e ghiaccio sul Col de Turini',
   'Endurance: la 24 Ore registra il tutto esaurito nelle tribune',
   'Scontro Totale: la nuova arena della Cava apre ai piloti più coraggiosi',
   'Gomme: il fornitore unico porta una mescola più morbida per le piste cittadine',

@@ -226,7 +226,7 @@ export function pressIssues(st) {
   return [...by.entries()].map(([k, items]) => { const [s, r] = k.split(':').map(Number); return { key: k, s, r, items }; });
 }
 // Italian article for an event name: "il GP di Monaco", "la 24 Ore", "il Rally di Svezia"
-const evArt = (tr) => (/^\d+ Ore/.test(tr) ? 'la ' : /^(Rallye|Safari)/.test(tr) ? 'il ' : /^(GP|Rally|Gran)/.test(tr) ? 'il ' : '');
+const evArt = (tr) => (/^\d+ Ore/.test(tr) ? 'la ' : /^(Rallye|Safari|Rally)/.test(tr) ? 'il ' : /^(GP|Rally|Gran)/.test(tr) ? 'il ' : '');
 const LEAD = [
   (w, tr, tm, pl) => `${w} ${pl ? 'conquistano' : 'conquista'} ${evArt(tr)}${tr}`, (w, tr, tm, pl) => `${tm}, che giornata: ${w} ${pl ? 'dominano' : 'domina'} ${evArt(tr)}${tr}`, (w, tr) => `${tr}: parla solo ${w}`,
   (w, tr) => `Firma d’autore di ${w}: ${evArt(tr)}${tr} è suo`, (w, tr, tm, pl) => `${w} non ${pl ? 'sbagliano' : 'sbaglia'}: festa ${tm}`,

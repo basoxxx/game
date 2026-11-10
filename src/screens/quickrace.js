@@ -26,7 +26,7 @@ export const QR_PRESETS = [
   { id: 'gp', name: 'Gran Premio classico', icon: 'flag', desc: 'Prove, qualifiche e gara a Monza', set: { cat: 'formula', track: 'ita', len: 'normal', weather: 'auto', skip: false, grid: 'quali', night: false } },
   { id: 'sprint', name: 'Sprint', icon: 'bolt', desc: 'Gara corta e tirata, subito in griglia', set: { cat: 'formula', track: 'aut', len: 'short', weather: 'dry', skip: true, grid: 'quali', night: false } },
   { id: 'six', name: '6 Ore', icon: 'hourglass', desc: 'Endurance a Spa: soste, cambi pilota, traffico GT', set: { cat: 'endurance', track: 'spa', len: 'normal', weather: 'auto', skip: true, grid: 'quali', night: false } },
-  { id: 'night', name: 'Rally in notturna', icon: 'moon', desc: 'Prove speciali al buio a Monte-Carlo', set: { cat: 'rally', track: 'mc', len: 'normal', weather: 'auto', skip: true, grid: 'quali', night: true } },
+  { id: 'night', name: 'Rally in notturna', icon: 'moon', desc: 'Prove speciali al buio nel Principato', set: { cat: 'rally', track: 'mc', len: 'normal', weather: 'auto', skip: true, grid: 'quali', night: true } },
   { id: 'wet', name: 'Gara bagnata', icon: 'rain', desc: 'Pioggia dal via a Silverstone', set: { cat: 'formula', track: 'gbr', len: 'short', weather: 'rain', skip: true, grid: 'quali', night: false } },
   { id: 'reverse', name: 'Griglia invertita', icon: 'swap', desc: 'Formula Apex 2 a Monza, i più veloci dietro', set: { cat: 'junior', track: 'ita', len: 'short', weather: 'dry', skip: true, grid: 'reverse', night: false } },
 ];

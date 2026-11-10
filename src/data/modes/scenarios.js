@@ -68,7 +68,7 @@ export const SCENARIOS = [
   },
   {
     id: 'safari_superstite', year: 1977, cat: 'rally', team: 'subaro', track: 'ken', weather: 'auto', unlock: 8,
-    title: 'Il superstite del Safari',
+    title: 'Il superstite della Savana',
     story: 'La sospensione posteriore è piegata, vi resta una sola ruota di scorta e mancano due prove sulle piste africane. Arrivare è già un’impresa.',
     setup: { rally: { stagesKeep: 2, rallyGap: 20, spares: 1, rallyDamage: { suspension: 0.35 } } },
     tiers: [{ t: 'finish' }, { t: 'pos', v: 5 }, { t: 'pos', v: 3 }],
@@ -97,7 +97,7 @@ export const SCENARIOS = [
   {
     id: 'yas_doppietta', year: 2014, cat: 'formula', team: 'mercator', track: 'abu', weather: 'dry', unlock: 13,
     title: 'La doppietta del titolo',
-    story: 'Il mondiale costruttori si decide sotto le luci di Yas Marina: la squadra vuole entrambe le vetture sul podio. Gestite gli ordini di scuderia.',
+    story: 'Il mondiale costruttori si decide sotto le luci del Circuito dell’Isola: la squadra vuole entrambe le vetture sul podio. Gestite gli ordini di scuderia.',
     setup: { gridPos: 2, laps: 16 },
     tiers: [{ t: 'pos', v: 1 }, { t: 'both', v: 4 }, { t: 'both', v: 2 }],
   },

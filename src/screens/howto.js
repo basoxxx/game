@@ -47,7 +47,7 @@ const CH = [
         <div><span class="ht-ph">1</span><b>Prove libere</b><p>Prova gli assetti e <b>ascolta il pilota</b>: ti dice se la macchina sottosterza, sovrasterza o è lenta in rettilineo. Un buon assetto vale decimi su ogni giro. Fai un <b>long run</b> per misurare il degrado gomme.</p></div>
         <div><span class="ht-ph">2</span><b>Qualifiche</b><p>Decidi quando uscire e con quale gomma. La posizione in griglia conta, soprattutto sulle piste dove è difficile sorpassare.</p></div>
         <div><span class="ht-ph">3</span><b>Strategia e gara</b><p>Con il <b>pianificatore</b> scegli quante soste, le mescole e il giro del box: il gioco ti mostra il tempo previsto di ogni piano. Poi la gara, dove la strategia si adatta a quello che succede.</p></div>
-      </div></div><div class="ht-track">${tr}<div class="ht-cap">Spa-Francorchamps · settori e zone DRS sulla mappa di gara</div></div></div>` } },
+      </div></div><div class="ht-track">${tr}<div class="ht-cap">Circuito delle Ardenne · settori e zone DRS sulla mappa di gara</div></div></div>` } },
   { id: 'gara', icon: 'steering', name: 'Decidere in gara', render: () => `
     <p class="ht-lead">In gara non guidi: <b>comandi dal muretto</b>. Le tue scelte decidono il risultato quanto la velocità della macchina.</p>
     <div class="ht-cards">

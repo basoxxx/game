@@ -23,7 +23,7 @@ export const CHALLENGES = [
   { id: 'spa_strategy', cat: 'formula', team: 'ferrani', track: 'bel', title: 'Strategia a Spa', desc: 'Ferrani contro tutti nelle Ardenne, dove il meteo cambia in un giro. Vinci!', goal: 'pos', medals: [1, 2, 4], weather: 'auto' },
   { id: 'cadillon_points', cat: 'formula', team: 'cadillon', track: 'sgp', title: 'Primi punti per Cadillon', desc: 'Il team esordiente cerca i primi punti nella notte di Singapore.', goal: 'pos', medals: [6, 8, 10], weather: 'auto' },
   { id: 'rally_finland', cat: 'rally', team: 'skodar', track: 'fin', title: 'Il Gran Premio di Finlandia', desc: 'Salti e sterrato velocissimo con la Skodar. Rischiare o no?', goal: 'pos', medals: [1, 3, 5], weather: 'dry' },
-  { id: 'rally_monte', cat: 'rally', team: 'lancisa', track: 'mc', title: 'Ghiaccio a Monte-Carlo', desc: 'Lancisa torna al Monte: neve, asfalto e gomme da indovinare.', goal: 'pos', medals: [2, 4, 7], weather: 'auto' },
+  { id: 'rally_monte', cat: 'rally', team: 'lancisa', track: 'mc', title: 'Ghiaccio nel Principato', desc: 'Lancisa torna al Monte: neve, asfalto e gomme da indovinare.', goal: 'pos', medals: [2, 4, 7], weather: 'auto' },
   { id: 'lemans_night', cat: 'endurance', team: 'peugot', track: 'lem', title: 'La notte della Sarthe', desc: 'Peugot alla 24 Ore: carburante, traffico GT, notte e cambi pilota.', goal: 'pos', medals: [1, 3, 6], weather: 'auto' },
   { id: 'spa_wec', cat: 'endurance', team: 'astonmarvin', track: 'spa', title: 'Valkyrie a Spa', desc: 'L’Aston Marvin cerca il primo podio nell’endurance.', goal: 'pos', medals: [3, 5, 8], weather: 'rain' },
 ];
