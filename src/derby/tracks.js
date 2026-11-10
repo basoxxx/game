@@ -12,6 +12,7 @@ export const SURFACES = {
   asphalt: { name: 'asfalto', grip: 1.25, drag: 0, dust: null },
   dirt: { name: 'sterrato', grip: 1.0, drag: 0, dust: [0.66, 0.57, 0.45] },
   mud: { name: 'fango', grip: 0.82, drag: 0.012, dust: [0.36, 0.27, 0.18] },
+  gravel: { name: 'ghiaia', grip: 0.94, drag: 0.004, dust: [0.6, 0.58, 0.54] },
 };
 
 export const VENUES = [
@@ -24,6 +25,12 @@ export const VENUES = [
   { id: 'porto', name: 'Porto Vecchio', desc: 'Banchine di cemento tra muri di container e gru giganti, con un salto sopra la darsena.', kind: 'race', surface: 'asphalt', surfaceName: 'cemento', laps: 3, seed: 71, R: 160, wob: 0.3, elev: 1.5, jumps: [0.52], jumpH: 2.4, width: 15, sky: 'day', ground: 'rock', port: true, flat: true, water: [{ s: 0.536, w: 7, ang: 0, depth: 0.5, canal: true }] },
   { id: 'fossa', name: 'Fossa dei Leoni', desc: 'Derby notturno in una buca di fango sotto i fari, con un’isola di rottami in mezzo.', kind: 'derby', surface: 'mud', surfaceName: 'fango', laps: 0, width: 0, arenaR: 54, sky: 'night', ground: 'rock', island: 5 },
   { id: 'rampa', name: 'Rampa del Diavolo', desc: 'Una discesa, un trampolino e il vuoto: salto in lungo con tre tentativi.', kind: 'stunt', surface: 'asphalt', surfaceName: 'asfalto', laps: 0, width: 30, sky: 'day', ground: 'grass' },
+  // v5: a pinched, twisting gravel circuit through a tyre dump (two fast sweepers squeezed into chicanes)
+  { id: 'discarica', name: 'Cimitero delle Gomme', desc: 'Ghiaia smossa tra montagne di pneumatici: due curvoni veloci strozzati da chicane cieche e un salto sulla vasca dell’olio.', kind: 'race', surface: 'gravel', surfaceName: 'ghiaia', laps: 3, seed: 97, R: 165, wob: 0.22, elev: 6, jumps: [0.31], jumpH: 2.4, width: 14, sky: 'dusk', ground: 'rock', shape: 'pinch', junk: true },
+  // v5: a concrete bowl with kicker ramps and a ring of concrete blocks in the middle
+  { id: 'catino', name: 'Catino d’Acciaio', desc: 'Arena di cemento con quattro trampolini e un anello di blocchi al centro: si vola, si atterra sugli altri.', kind: 'derby', surface: 'asphalt', surfaceName: 'cemento', laps: 0, width: 0, arenaR: 60, sky: 'day', ground: 'rock', ramps: true },
+  // v5: free-roam playground
+  { id: 'parco', name: 'Parco giochi', desc: 'Giro libero senza regole: trampolini, un giro della morte, muri di casse e piramidi di barili da abbattere.', kind: 'park', surface: 'asphalt', surfaceName: 'cemento', laps: 0, width: 0, arenaR: 120, sky: 'day', ground: 'grass', ramps: true },
 ];
 export const STUNT = { x0: -300, x1: 260, lip: 0, lipH: 5.2, kick: 17, startY: 22, slope: 0.13 };
 function stuntY(x) {
@@ -37,7 +44,7 @@ function stuntY(x) {
 
 // returns { pts:[{x,y,z,h,k}], N, ds, width, len, bbox, jumps, crossings }
 export function buildTrack(v) {
-  if (v.kind === 'derby') return { arena: true, R: v.arenaR, island: v.island || 0, pts: [], N: 0, width: 0, len: 0, bbox: [-v.arenaR, -v.arenaR, v.arenaR, v.arenaR] };
+  if (v.kind === 'derby' || v.kind === 'park') return { arena: true, park: v.kind === 'park', R: v.arenaR, island: v.island || 0, pts: [], N: 0, width: 0, len: 0, bbox: [-v.arenaR, -v.arenaR, v.arenaR, v.arenaR], jumps: [], crossings: [] };
   if (v.kind === 'stunt') {
     // open, straight runway along +x: run-in down a hill, a kicker at x = 0, a long landing slope
     const ds = 2.5, pts = [];
@@ -49,6 +56,7 @@ export function buildTrack(v) {
   for (let k = 0; k < M; k++) {
     const t = (k / M) * Math.PI * 2;
     if (v.eight) raw.push([v.A * Math.sin(t), v.A * 0.62 * Math.sin(t) * Math.cos(t)]);
+    else if (v.shape === 'pinch') { const r = v.R * (1 + 0.36 * Math.cos(2 * t) + 0.1 * Math.sin(5 * t + 0.6) + v.wob * n1(t) * 0.3); raw.push([r * Math.cos(t) * 1.08, r * Math.sin(t) * 0.72]); }
     else { const r = v.R * (1 + v.wob * n1(t) * 0.55 + 0.12 * Math.sin(3 * t + 1)); raw.push([r * Math.cos(t), r * Math.sin(t) * 0.82]); }
   }
   // resample at equal arc length

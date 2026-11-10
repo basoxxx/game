@@ -19,9 +19,9 @@ export const PRICES = { berlina: 0, utilitaria: 0, familiare: 12000, muscle: 200
 export const CAR_STARS = { rally: 10, hotrod: 22 };
 
 export const DIFFICULTY = {
-  facile: { name: 'Facile', desc: 'Avversari più lenti e prudenti, la tua auto incassa di più', aiPace: 0.955, aiAggr: 0.6, dmgTaken: 0.7, prize: 0.8 },
-  normale: { name: 'Normale', desc: 'La sfida pensata per lo Scontro Totale', aiPace: 1, aiAggr: 1, dmgTaken: 1, prize: 1 },
-  difficile: { name: 'Spietato', desc: 'Avversari velocissimi e cattivi, lamiere fragili: premi più ricchi', aiPace: 1.025, aiAggr: 1.35, dmgTaken: 1.2, prize: 1.3 },
+  facile: { name: 'Facile', desc: 'Avversari più lenti e prudenti, la tua auto incassa di più', aiPace: 0.955, aiAggr: 0.6, dmgTaken: 0.7, prize: 0.8, rubber: 1.3 },
+  normale: { name: 'Normale', desc: 'La sfida pensata per lo Scontro Totale', aiPace: 1, aiAggr: 1, dmgTaken: 1, prize: 1, rubber: 1 },
+  difficile: { name: 'Spietato', desc: 'Avversari velocissimi e cattivi, lamiere fragili: premi più ricchi', aiPace: 1.025, aiAggr: 1.35, dmgTaken: 1.2, prize: 1.3, rubber: 0.45 },
 };
 
 // ---------------------------------------------------------------- event types
@@ -32,6 +32,11 @@ export const MODES = {
   caccia: { name: 'Caccia alla Lepre', icon: 'target', desc: 'La Lepre dorata scappa in testa al gruppo: speronala fino a demolirla.' },
   derby: { name: 'Demolition derby', icon: 'burst', desc: 'Arena chiusa: l’ultima auto che si muove vince.' },
   stunt: { name: 'Salto in lungo', icon: 'speed', desc: 'Tre tentativi sul trampolino: vola più lontano che puoi.' },
+  squadre: { name: 'Derby a squadre', icon: 'shield', desc: 'Rossi contro Blu nell’arena: l’ultima squadra con un’auto in moto vince. Il fuoco amico fa poco male.' },
+  re: { name: 'Re della collina', icon: 'trophy', desc: 'Tieni da solo il cerchio al centro: 45 secondi di corona e hai vinto. Tutti daranno la caccia al re.' },
+  ondate: { name: 'Sopravvivenza', icon: 'alert', desc: 'Ondate sempre più grosse di demolitori, tutti contro di te. Ogni ondata respinta ripara un po’ l’auto.' },
+  distruzione: { name: 'Demolizione a tempo', icon: 'hourglass', desc: 'Pista sbarrata da muri di casse e barili: ogni oggetto distrutto toglie tempo al cronometro.' },
+  parco: { name: 'Giro libero', icon: 'play', desc: 'Nessuna regola: salti, giro della morte, muri di casse. Esci dalla pausa quando vuoi.' },
 };
 export const MEDALS = ['Nessuna', 'Bronzo', 'Argento', 'Oro'];
 export const MEDAL_COLORS = ['#555', '#c9803f', '#c9ced6', '#ffcf3a'];
@@ -52,6 +57,14 @@ export const CUPS = [
     { id: 'l3', name: 'Tra i container', mode: 'race', venue: 'porto', opponents: 7, prize: 11000 },
     { id: 'l4', name: 'Volo d’angelo', mode: 'stunt', venue: 'rampa', prize: 7000, targets: [70, 86, 98] },
     { id: 'l5', name: 'Fossa dei leoni', mode: 'derby', venue: 'fossa', opponents: 7, prize: 11000 },
+  ] },
+  // v5: the new event types and venues
+  { id: 'caos', name: 'Coppa Caos', sub: 'Squadre, corone, ondate e muri di casse: regole nuove, stesse lamiere', stars: 14, color: '#3ddc84', events: [
+    { id: 'c1', name: 'Gomme e ghiaia', mode: 'race', venue: 'discarica', opponents: 7, prize: 12000 },
+    { id: 'c2', name: 'Rossi contro Blu', mode: 'squadre', venue: 'arena', opponents: 7, prize: 12000 },
+    { id: 'c3', name: 'La corona di ferro', mode: 're', venue: 'catino', opponents: 5, prize: 13000 },
+    { id: 'c4', name: 'Ondata dopo ondata', mode: 'ondate', venue: 'fossa', prize: 13000 },
+    { id: 'c5', name: 'Rottama il cronometro', mode: 'distruzione', venue: 'cava', laps: 2, prize: 10000 },
   ] },
   { id: 'inferno', name: 'Coppa Inferno', sub: 'Sotto i riflettori, senza pietà', stars: 20, color: '#ff6a1a', events: [
     { id: 'i1', name: 'Notte di ferro', mode: 'race', venue: 'stadio', opponents: 7, prize: 14000 },
@@ -75,7 +88,7 @@ export function starsOf(p = prog()) { return Object.values(p.career.res).reduce(
 export function cupUnlocked(cup, p = prog()) { return starsOf(p) >= cup.stars; }
 export function cupStars(cup, p = prog()) { return cup.events.reduce((s, e) => s + (p.career.res[e.id]?.medal || 0), 0); }
 // venues that need career progress before free play
-export const VENUE_STARS = { porto: 8, fossa: 8 };
+export const VENUE_STARS = { porto: 8, fossa: 8, discarica: 12, catino: 14 };
 export function venueUnlocked(id, p = prog()) { return starsOf(p) >= (VENUE_STARS[id] || 0); }
 export function carBuyable(id, p = prog()) { return starsOf(p) >= (CAR_STARS[id] || 0); }
 
@@ -84,13 +97,18 @@ export function medalFor(mode, r) {
   if (mode === 'time') { const t = r.time, T = r.targets || []; if (!t) return 0; return t <= T[2] ? 3 : t <= T[1] ? 2 : t <= T[0] ? 1 : 0; }
   if (mode === 'stunt') { const d = r.distance || 0, T = r.targets || []; return d >= T[2] ? 3 : d >= T[1] ? 2 : d >= T[0] ? 1 : 0; }
   if (mode === 'caccia') { const d = r.huntDmg || 0; return r.huntWreck || d >= 100 ? 3 : d >= 40 ? 2 : d >= 15 ? 1 : 0; }
+  if (mode === 'distruzione') return medalFor('time', r);
+  if (mode === 'squadre') return r.teamWon ? (r.alive ? 3 : 2) : (r.kills || 0) >= 1 ? 1 : 0;
+  if (mode === 'ondate') { const w = r.waves || 0; return w >= 6 ? 3 : w >= 4 ? 2 : w >= 2 ? 1 : 0; }
+  if (mode === 'parco') return 0;
   return r.pos === 1 ? 3 : r.pos === 2 ? 2 : r.pos === 3 ? 1 : 0;
 }
 // payout for an event result (career events pay their own purse; free play pays by medal/position)
 export function payout(ev, medal, r, diff = 'normale') {
   const k = DIFFICULTY[diff]?.prize || 1;
-  if (ev) { const base = ev.prize; return Math.round((medal === 3 ? base : medal === 2 ? base * 0.6 : medal === 1 ? base * 0.35 : 400) * k / 50) * 50; }
-  const byMedal = [500, 3000, 6000, 10000][medal];
+  // early cups pay a little more (the first upgrades come sooner); a run without a medal still covers the fuel
+  if (ev) { const base = ev.prize * (ev.cup === 'ferraglia' ? 1.2 : 1); return Math.round((medal === 3 ? base : medal === 2 ? base * 0.6 : medal === 1 ? base * 0.38 : 600) * k / 50) * 50; }
+  const byMedal = [400, 2000, 3500, 5500][medal];
   return Math.round(byMedal * k / 50) * 50;
 }
 // record a career result; returns { medal, improved, prev, newCups:[...] }
@@ -124,7 +142,7 @@ export const CHALLENGES = [
   { id: 'meccanico', name: 'Mani di grasso', desc: 'Porta un potenziamento al livello massimo', prize: 3000, icon: 'wrench', check: (r, p) => Object.values(p.garage || {}).some((t) => Object.values(t).some((l) => l >= 3)) },
   { id: 'collezione', name: 'Collezionista', desc: 'Possiedi 5 auto', prize: 8000, icon: 'factory', check: (r, p) => p.owned.length >= 5 },
   { id: 'ferraglia', name: 'Re della ferraglia', desc: 'Tutti gli ori nella Coppa Ferraglia', prize: 8000, icon: 'medal', check: (r, p) => CUPS[0].events.every((e) => p.career.res[e.id]?.medal === 3) },
-  { id: 'campione', name: 'Campione del Rottame', desc: 'Tutti gli ori nel Gran Premio Rottame', prize: 30000, icon: 'trophy', check: (r, p) => CUPS[3].events.every((e) => p.career.res[e.id]?.medal === 3) },
+  { id: 'campione', name: 'Campione del Rottame', desc: 'Tutti gli ori nel Gran Premio Rottame', prize: 30000, icon: 'trophy', check: (r, p) => CUPS.find((c) => c.id === 'finale').events.every((e) => p.career.res[e.id]?.medal === 3) },
 ];
 // evaluate after an event: marks and pays new challenges, returns the list completed now
 export function checkChallenges(r) {

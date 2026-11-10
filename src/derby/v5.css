@@ -1,0 +1,55 @@
+/* v5 HUD: damage report, engine temperature, bonus objectives, pit box, teams, crown, results objectives, rival card, podium */
+.dzx-dmg { position: absolute; right: 420px; bottom: 26px; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; pointer-events: none; }
+.dzx-dmg span { font: 800 11px/1.2 'Exo 2', sans-serif; letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; background: rgba(8,10,14,.7); border-left: 3px solid #ffb020; color: #ffe2a8; }
+.dzx-dmg span.bad { border-color: #ff3b3b; color: #ffb3b3; }
+.dzx-dmg span.fire { border-color: #ff6a00; color: #fff; background: linear-gradient(90deg, rgba(255,80,0,.85), rgba(160,20,0,.7)); animation: dzxblink .5s infinite; }
+.dzx-heat { position: absolute; right: 362px; bottom: 120px; width: 52px; display: none; flex-direction: column; gap: 2px; font: 800 9px 'Exo 2', sans-serif; letter-spacing: .12em; opacity: .9; }
+.dzx-heat.on { display: flex; }
+.dzx-heat div { height: 6px; background: rgba(255,255,255,.15); border-radius: 3px; overflow: hidden; }
+.dzx-heat i { display: block; height: 100%; width: 0; }
+.dzx-obj { position: absolute; left: 20px; top: 50%; transform: translateY(-50%) translateX(-20px); opacity: 0; transition: opacity .4s, transform .4s; display: flex; flex-direction: column; gap: 4px; background: rgba(8,10,14,.72); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 10px 14px; pointer-events: none; max-width: 300px; }
+.dzx-obj.on { opacity: 1; transform: translateY(-50%); }
+.dzx-obj b { font-size: 11px; letter-spacing: .16em; color: #ffd400; }
+.dzx-obj span { font-size: 13px; }
+.dzx-obj i { font-style: normal; color: #3ddc84; font-weight: 800; margin-left: 4px; }
+.dzx-pit { position: absolute; left: 50%; top: 31%; transform: translateX(-50%); display: none; font: 900 18px 'Exo 2', sans-serif; letter-spacing: .1em; padding: 6px 16px; border-radius: 8px; background: rgba(20,60,160,.8); border: 2px solid #9cc0ff; }
+.dzx-pit.on { display: block; }
+.dzx-teams { display: flex; gap: 14px; }
+.dzx-teams span { font-weight: 900; letter-spacing: .1em; padding: 2px 10px; border-radius: 4px; background: color-mix(in srgb, var(--tc) 45%, transparent); border: 1px solid var(--tc); }
+.dzx-crown { display: flex; gap: 12px; font-size: 13px; }
+.dzx-crown span.me { color: #ffd400; }
+.dzx-crown i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
+.dzx-objres { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 10px 0 4px; }
+.dzx-objres span { font-size: 13px; padding: 5px 10px; border-radius: 6px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); opacity: .65; }
+.dzx-objres span.ok { opacity: 1; border-color: rgba(61,220,132,.6); background: rgba(61,220,132,.1); }
+.dzx-objres i { font-style: normal; font-weight: 900; margin-right: 6px; }
+.dzx-objres span.ok i { color: #3ddc84; }
+.dzx-objres b { margin-left: 6px; color: #3ddc84; }
+.dzx-rival { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); display: none; align-items: center; gap: 12px; background: linear-gradient(90deg, rgba(120,10,10,.85), rgba(10,10,14,.8)); border: 1px solid rgba(255,90,90,.5); border-radius: 12px; padding: 10px 16px; max-width: 520px; pointer-events: none; }
+.dzx-rival.on { display: flex; animation: dzxin .5s; }
+.dzx-rival svg { width: 64px; height: 64px; flex: none; border-radius: 50%; background: #222; border: 2px solid #ff5a5a; }
+.dzx-rival b { display: block; font-size: 17px; letter-spacing: .06em; }
+.dzx-rival em { display: block; font-size: 13px; opacity: .9; margin-top: 2px; }
+.dzx-rival small { display: block; font-size: 11px; letter-spacing: .14em; color: #ff9a9a; text-transform: uppercase; }
+.dzx-rivres { display: flex; align-items: center; gap: 10px; justify-content: center; font-size: 13px; margin: 6px 0; }
+.dzx-rivres svg { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #ff5a5a; background: #222; flex: none; }
+.dzx-podium { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 6vh; pointer-events: none; z-index: 30; }
+.dzx-podium.on { display: flex; }
+.dzx.podium > *:not(.dzx-podium) { display: none !important; }
+.dzx-podium .pc { pointer-events: auto; background: rgba(8,10,14,.8); border: 1px solid rgba(255,207,58,.5); border-radius: 14px; padding: 14px 22px; text-align: center; max-width: 660px; }
+.dzx-podium h2 { margin: 0; font-size: 34px; letter-spacing: .06em; color: #ffcf3a; }
+.dzx-podium p { margin: 6px 0 10px; font-size: 14px; opacity: .9; }
+.dzx-podium .pp { display: flex; gap: 16px; justify-content: center; margin-bottom: 10px; }
+.dzx-podium .pp div { display: flex; flex-direction: column; align-items: center; font-size: 13px; }
+.dzx-podium .pp svg { width: 52px; height: 52px; border-radius: 50%; border: 2px solid #ffcf3a; background: #222; }
+.dz-opts5 { display: grid; grid-template-columns: 150px 1fr; gap: 10px 14px; align-items: center; }
+.dz-opts5 input[type=range] { width: 220px; }
+.dz-rivals { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.dz-rival { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+.dz-rival svg { width: 54px; height: 54px; flex: none; border-radius: 50%; background: #222; border: 2px solid var(--rc, #ff5a5a); }
+.dz-rival .tiny { opacity: .8; }
+.dz-story { font-size: 13px; color: var(--text2); font-style: italic; margin-top: 4px; }
+.dzx-board u.codardo { background: #ffe066; }
+.dzx-board u.rivale { background: #ff3bd0; box-shadow: 0 0 6px #ff3bd0; }
+@keyframes dzxin { from { opacity: 0; transform: translateX(-50%) translateY(10px); } }
+@media (max-width: 900px) { .dzx-dmg, .dzx-heat { display: none !important; } }

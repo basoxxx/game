@@ -11,21 +11,21 @@ import { mergeStatic } from './merge.js';
 // rearGrip / frontGrip (balance), powerOver (rear grip lost under throttle), hbYaw (handbrake rotation help).
 export const BANGERS = [
   { id: 'berlina', name: 'Torpedo 78', desc: 'Berlina anni ’70: pesante, robusta, prevedibile.', mass: 1450, power: 1.0, top: 1.0, armor: 1.25, grip: 1.0, color: '#7a1f1f',
-    cls: 'Berlina · trazione posteriore', drive: 'rwd', steer: 0.58, steerRate: 3.0, gears: 4, engine: 'endurance', comY: -0.28, roll: 1.0, frontGrip: 1.0, rearGrip: 1.0, powerOver: 0.04, hbYaw: 1.0 },
+    cls: 'Berlina · trazione posteriore', drive: 'rwd', steer: 0.58, steerRate: 3.0, gears: 4, engine: 'endurance', comY: -0.28, roll: 1.0, frontGrip: 1.0, rearGrip: 1.0, powerOver: 0.04, hbYaw: 1.0, susp: 26, travel: 0.33 },
   { id: 'muscle', name: 'Bisonte V8', desc: 'Muscle car: tanta potenza, coda nervosa.', mass: 1500, power: 1.28, top: 1.12, armor: 1.0, grip: 0.92, color: '#1f3f7a',
-    cls: 'Muscle · V8 posteriore', drive: 'rwd', steer: 0.56, steerRate: 3.2, gears: 4, engine: 'endurance', comY: -0.3, roll: 1.1, frontGrip: 1.04, rearGrip: 0.93, powerOver: 0.12, hbYaw: 1.2 },
+    cls: 'Muscle · V8 posteriore', drive: 'rwd', steer: 0.56, steerRate: 3.2, gears: 4, engine: 'endurance', comY: -0.3, roll: 1.1, frontGrip: 1.04, rearGrip: 0.93, powerOver: 0.12, hbYaw: 1.2, susp: 28, travel: 0.31 },
   { id: 'pickup', name: 'Mulo 4x4', desc: 'Pick-up a trazione integrale: un ariete.', mass: 1750, power: 1.08, top: 0.92, armor: 1.5, grip: 1.08, awd: true, color: '#5b6b2b',
-    cls: 'Pick-up · integrale', drive: 'awd', steer: 0.52, steerRate: 2.6, gears: 5, engine: 'endurance', comY: -0.18, roll: 1.45, frontGrip: 0.97, rearGrip: 1.05, powerOver: 0.05, hbYaw: 0.8 },
-  { id: 'utilitaria', name: 'Grillo GT', desc: 'Utilitaria leggera e agile, ma fragile.', mass: 1050, power: 0.9, top: 0.98, armor: 0.75, grip: 1.12, color: '#c99a12',
-    cls: 'Utilitaria · trazione anteriore', drive: 'fwd', steer: 0.66, steerRate: 4.0, gears: 5, engine: 'rally', comY: -0.26, roll: 0.9, frontGrip: 1.0, rearGrip: 0.97, powerOver: 0, hbYaw: 1.35 },
+    cls: 'Pick-up · integrale', drive: 'awd', steer: 0.52, steerRate: 2.6, gears: 5, engine: 'endurance', comY: -0.18, roll: 1.45, frontGrip: 0.97, rearGrip: 1.1, powerOver: 0.05, hbYaw: 0.8, susp: 29, travel: 0.4 },
+  { id: 'utilitaria', name: 'Grillo GT', desc: 'Utilitaria leggera e agile, ma fragile.', mass: 1050, power: 0.84, top: 0.98, armor: 0.75, grip: 1.12, color: '#c99a12',
+    cls: 'Utilitaria · trazione anteriore', drive: 'fwd', steer: 0.66, steerRate: 4.0, gears: 5, engine: 'rally', comY: -0.26, roll: 0.9, frontGrip: 1.0, rearGrip: 0.97, powerOver: 0, hbYaw: 1.35, susp: 31, travel: 0.3 },
   { id: 'familiare', name: 'Carovana SW', desc: 'Station wagon da famiglia numerosa: lunga, pesante, una corazzata con il portapacchi.', mass: 1600, power: 0.98, top: 0.97, armor: 1.4, grip: 0.98, color: '#2c5a4a',
-    cls: 'Station wagon · posteriore', drive: 'rwd', steer: 0.55, steerRate: 2.8, gears: 4, engine: 'endurance', comY: -0.25, roll: 1.15, frontGrip: 1.0, rearGrip: 1.0, powerOver: 0.03, hbYaw: 0.95 },
+    cls: 'Station wagon · posteriore', drive: 'rwd', steer: 0.55, steerRate: 2.8, gears: 4, engine: 'endurance', comY: -0.25, roll: 1.15, frontGrip: 1.0, rearGrip: 1.0, powerOver: 0.03, hbYaw: 0.95, susp: 25, travel: 0.33 },
   { id: 'furgone', name: 'Bestione Van', desc: 'Furgone delle consegne: alto, lento a girare, ma è un muro che cammina.', mass: 1900, power: 1.06, top: 0.88, armor: 1.75, grip: 0.95, color: '#d9d4c5',
-    cls: 'Furgone · posteriore', drive: 'rwd', steer: 0.5, steerRate: 2.5, gears: 4, engine: 'endurance', comY: -0.08, roll: 1.6, frontGrip: 1.0, rearGrip: 1.02, powerOver: 0.03, hbYaw: 0.75 },
+    cls: 'Furgone · posteriore', drive: 'rwd', steer: 0.5, steerRate: 2.5, gears: 4, engine: 'endurance', comY: -0.08, roll: 1.6, frontGrip: 1.0, rearGrip: 1.02, powerOver: 0.03, hbYaw: 0.75, susp: 27, travel: 0.32 },
   { id: 'rally', name: 'Saetta HF', desc: 'Compatta da rally a trazione integrale: incollata al fango, scatta come un fulmine.', mass: 1150, power: 1.12, top: 1.04, armor: 0.85, grip: 1.18, color: '#e8e4d8',
-    cls: 'Rally · integrale', drive: 'awd', steer: 0.64, steerRate: 3.8, gears: 5, engine: 'rally', comY: -0.3, roll: 0.9, frontGrip: 1.0, rearGrip: 1.0, powerOver: 0.02, hbYaw: 1.3 },
+    cls: 'Rally · integrale', drive: 'awd', steer: 0.64, steerRate: 3.8, gears: 5, engine: 'rally', comY: -0.3, roll: 0.9, frontGrip: 1.0, rearGrip: 1.0, powerOver: 0.02, hbYaw: 1.3, susp: 33, travel: 0.38 },
   { id: 'hotrod', name: 'Diavolaccio', desc: 'Hot rod col motore all’aria e il compressore cromato: potenza brutale, telaio di carta velina.', mass: 1250, power: 1.42, top: 1.18, armor: 0.7, grip: 0.95, color: '#8a1010',
-    cls: 'Hot rod · V8 compressore', drive: 'rwd', steer: 0.58, steerRate: 3.4, gears: 4, engine: 'endurance', comY: -0.3, roll: 1.0, frontGrip: 1.05, rearGrip: 0.95, powerOver: 0.14, hbYaw: 1.25 },
+    cls: 'Hot rod · V8 compressore', drive: 'rwd', steer: 0.58, steerRate: 3.4, gears: 4, engine: 'endurance', comY: -0.3, roll: 1.0, frontGrip: 1.05, rearGrip: 0.95, powerOver: 0.14, hbYaw: 1.25, susp: 32, travel: 0.28 },
 ];
 export const AI_COLORS = ['#9b2c2c', '#2c5d9b', '#3d7a3a', '#b8761c', '#6b3d8f', '#2b8a8a', '#8f8f8f', '#c7c2b0', '#3a3a3a', '#a33b6b', '#47602b'];
 
