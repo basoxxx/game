@@ -933,7 +933,7 @@ export class CircuitSim {
     const lap = Math.floor(this.progress * this.laps);
     const nxt = Math.max(0, ...this.weather.plan.slice(lap, lap + 4));
     switch (m.type) {
-      case 'sc': return cs.some((x) => x.wear > 0.33 && this.laps - x.dist > 4) ? 0 : 1;
+      case 'sc': return cs.some((x) => x.pitReq || (x.wear > 0.33 && this.laps - x.dist > 4)) ? 0 : 1;
       case 'rain': return Math.max(nxt, this.rain) > 0.34 ? 0 : 1;
       case 'dry': return nxt < 0.12 ? 0 : 1;
       case 'front': return 0;
@@ -1313,11 +1313,39 @@ export class CircuitSim {
     this.pushTV({ kind: 'sc', title: 'Safety car', text: 'Gruppo neutralizzato, pit stop a metà prezzo' });
     for (const c of this.cars) c.lapTarget = this.computeLap(c);
     const mine = this.mine().filter((c) => this.laps - c.dist > 3);
-    if (mine.length) this.pushMoment({ type: 'sc', keys: mine.map((c) => c.key), key: 'all', cd: 30, title: '🚨 Safety Car!', text: `Pit stop a metà prezzo (${(this.pitLoss * 0.5).toFixed(0)}s invece di ${this.pitLoss}s). ${mine.map((c) => `${this.driver(c).name}: P${c.pos}, gomme al ${Math.round(c.wear * 100)}%`).join(' · ')}. Chi resta fuori guadagna posizioni, ma con gomme vecchie alla ripartenza.`,
+    if (mine.length) this.pushMoment({ type: 'sc', keys: mine.map((c) => c.key), key: 'all', cd: 30, title: '🚨 Safety Car!', text: `Pit stop a metà prezzo (${(this.pitLoss * 0.5).toFixed(0)}s invece di ${this.pitLoss}s). ${mine.map((c) => `${this.driver(c).name}: P${c.pos}, gomme al ${Math.round(c.wear * 100)}%${c.pitReq ? ' (box già chiamato)' : ''}`).join(' · ')}. Chi resta fuori guadagna posizioni, ma con gomme vecchie alla ripartenza.`,
       options: [
         { label: 'Box per tutti', desc: 'Gomme nuove per l’attacco finale', act: 'pit', radio: 'Box, box! Approfittiamo della safety car.' },
-        { label: 'Restiamo fuori', desc: 'Guadagni posizione in pista, rischi in ripartenza', act: 'stay', radio: 'Resta fuori, teniamo la posizione.' },
+        { label: 'Restiamo fuori', desc: `Guadagni posizione in pista, rischi in ripartenza${mine.some((c) => c.pitReq) ? ' · annulla il box già chiamato' : ''}`, act: 'stay', radio: 'Resta fuori, teniamo la posizione.' },
       ] });
+  }
+  // Scripted race events (tests, challenges, scenario modes). Additive API, safe to call at any time:
+  //   'sc' | 'vsc' | 'red' → neutralisation now · 'rain' {level=0.7, laps=4} → rain from the next lap
+  //   'dry' → the plan dries from the next lap · 'issue' {key, issue} → a mechanical issue on that car
+  //   'puncture' {key} → puncture on that car (pit request + damage). Returns true when something happened.
+  forceEvent(type, o = {}) {
+    const lap = Math.max(0, Math.floor(this.progress * this.laps));
+    const plan = this.weather.plan;
+    switch (type) {
+      case 'sc': if (this.sc) return false; this.deploySC(); return true;
+      case 'vsc': if (this.sc || this.vsc) return false; this.deployVSC(); return true;
+      case 'red': if (this.sc?.red) return false; this.redFlag(o.why || 'incidente'); return true;
+      case 'rain': { const lv = o.level ?? 0.7; for (let l = lap + 1; l < Math.min(plan.length, lap + 1 + (o.laps ?? 4)); l++) plan[l] = lv; this.weather.isRain = true; return true; }
+      case 'dry': { for (let l = lap + 1; l < plan.length; l++) plan[l] = 0; return true; }
+      case 'issue': {
+        const c = this.cars.find((x) => x.key === o.key && x.status === 'running'); if (!c || c.issue) return false;
+        const type2 = ISSUES[o.issue] ? o.issue : 'brakes'; const I = ISSUES[type2]; const d = this.driver(c);
+        c._issueDone = true;
+        if (c.isPlayer && !c.auto && this.momentsOn) { this.pushMoment({ type: 'issue', key: c.key, cd: 1, title: `${I.title} · ${d.name}`, text: I.text, options: I.options.map((x, i) => ({ label: x.label, desc: x.desc, act: 'issue', issue: type2, opt: i, radio: x.radio })) }); return true; }
+        this.applyIssue(c, type2, this.aiIssueChoice(c, type2)); return true;
+      }
+      case 'puncture': {
+        const c = this.cars.find((x) => x.key === o.key && x.status === 'running'); if (!c) return false;
+        c.damage += 0.6; c.pitReq = c.pitReq || { compound: this.dryChoice(c, this.laps - c.dist), fuel: true }; c.dist -= 0.15;
+        this.log(`💥 Foratura per ${this.driver(c).name}!`, 'warn', c.key, true); return true;
+      }
+    }
+    return false;
   }
   deployVSC() {
     this.vsc = { until: this.time + rand(50, 110) };
@@ -1628,6 +1656,8 @@ export class CircuitSim {
       const w = this.wxCall(c, 0);
       if (w) { c.pitReq = { compound: w, fuel: true, crew: c.crew, repair: c.repair !== false }; this.log(`📻 Ingegnere a ${d.name.split(' ')[0]}: «Crossover: box, box per le ${COMPOUNDS[w].name}!»`, 'radio', c.key, true); }
     }
+    // a box call deferred to a later lap must never run the tank dry: the engineer brings it forward
+    if (this.endurance && c.pitReq?.minLap > c.lap && c.fuel < 1.05) { c.pitReq.minLap = 0; if (c.isPlayer) this.log(`⛽ Ingegnere a ${d.name.split(' ')[0]}: «Non arriviamo a fine giro prossimo con questa benzina: box adesso, anticipiamo la sosta.»`, 'pit', c.key, true); }
     if (c.isPlayer && !c.auto && this.endurance && c.fuel < 1.05 && !c.pitReq) { c.pitReq = this.endPitReq(c); this.log(`⛽ Ingegnere: ${d.name} chiamato ai box per carburante${c.pitReq.compound ? ' e gomme ' + COMPOUNDS[c.pitReq.compound].name : ''} (come da piano).`, 'pit', c.key, true); }
     if (c.isPlayer && !c.auto && wear > 1.1 && !c.pitReq && this.laps - c.dist > 2) this.log(`📻 Ingegnere a ${d.name.split(' ')[0]}: «Le gomme sono finite, dobbiamo fermarci!»`, 'radio', c.key, true);
     if (c.isPlayer && !c.auto) { this.maybeRadio(c); this.checkMoments(); this.fatigueMoment(c); }
