@@ -146,7 +146,9 @@ export function buildMidTerrain(r3, mat, biome, uvOf) {
     if (r3.coastK) k *= r3.coastK(px, pz);
     for (const o of r3.obstacles || []) if (o.r > 10) k *= sm(o.r + 8, o.r + 70, Math.hypot(px - o.x, pz - o.z));
     if (k <= 0) continue;
-    const n = 0.62 * Math.sin(px * 0.0105 + ph[0]) * Math.cos(pz * 0.0118 + ph[1]) + 0.42 * Math.sin((px + pz) * 0.021 + ph[2]) * Math.sin((px - pz) * 0.017 + ph[3]) + 0.16 * Math.sin(px * 0.052 + ph[4]) * Math.sin(pz * 0.047 + ph[5]);
+    // domain-warped so the relief does not read as a regular egg-crate from the helicopter
+    const wx = px + 90 * Math.sin(pz * 0.0041 + ph[6]) + 40 * Math.sin((px + pz) * 0.0093 + ph[3]), wz = pz + 90 * Math.sin(px * 0.0037 + ph[7]) + 40 * Math.sin((px - pz) * 0.0087 + ph[2]);
+    const n = 0.62 * Math.sin(wx * 0.0105 + ph[0]) * Math.cos(wz * 0.0118 + ph[1]) + 0.42 * Math.sin((wx + wz) * 0.021 + ph[2]) * Math.sin((wx - wz) * 0.017 + ph[3]) + 0.16 * Math.sin(wx * 0.052 + ph[4]) * Math.sin(wz * 0.047 + ph[5]);
     H[j * (nx + 1) + i] = amp * k * (0.18 + Math.max(0, n + 0.4) ** 1.2);
   }
   r3.envH = (px, pz) => {
