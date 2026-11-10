@@ -15,13 +15,13 @@ export const SCENARIOS = [
     title: 'Gomme alla frutta',
     story: 'Siete in testa a Budapest, ma le vostre gomme sono vecchie di trenta giri e l’ingegnere vede detriti in curva 4: la safety car sta per entrare. Fermarsi o restare fuori?',
     setup: { gridPos: 1, myWear: 0.64, scLap: 2, laps: 14, note: 'Leader con gomme consumate, la safety car è in arrivo.' },
-    tiers: [{ t: 'pos', v: 5 }, { t: 'pos', v: 3 }, { t: 'pos', v: 1 }],
+    tiers: [{ t: 'pos', v: 6 }, { t: 'pos', v: 3 }, { t: 'pos', v: 1 }],
   },
   {
     id: 'spa_ultima_ora', year: 2011, cat: 'endurance', team: 'porscha', track: 'spa', weather: 'auto', unlock: 0,
     title: 'L’ultima ora',
     story: 'Mancano sessanta minuti alla fine e la vostra vettura ha il fondo rovinato da un contatto con una GT. Secondi in classifica, con la Toyoda in fuga: portate a casa il risultato.',
-    setup: { gridPos: 2, myDamage: 0.9, laps: 8, note: 'Ultima ora: fondo danneggiato dopo un contatto con una GT.' },
+    setup: { gridPos: 2, myDamage: 0.5, laps: 8, note: 'Ultima ora: fondo danneggiato dopo un contatto con una GT.' },
     tiers: [{ t: 'pos', v: 5 }, { t: 'pos', v: 3 }, { t: 'pos', v: 1 }],
   },
   {
@@ -36,7 +36,7 @@ export const SCENARIOS = [
     title: 'Il trenino di Monte Carlo',
     story: 'Ottavi sul circuito dove non si sorpassa. Solo la strategia può farvi guadagnare posizioni: undercut, safety car e un pizzico di fortuna.',
     setup: { gridPos: 8, laps: 18 },
-    tiers: [{ t: 'pos', v: 7 }, { t: 'pos', v: 5 }, { t: 'pos', v: 3 }],
+    tiers: [{ t: 'pos', v: 8 }, { t: 'pos', v: 6 }, { t: 'pos', v: 4 }],
   },
   {
     id: 'monza_esordio', year: 2009, cat: 'junior', team: 'amersford', track: 'ita', weather: 'dry', unlock: 3,

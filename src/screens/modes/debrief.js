@@ -95,7 +95,7 @@ registerScreen({
       <div class="md-debrief anim-in">
         <div class="panel md-medal-panel">
           ${won ? `${medalSVG(MEDAL[o.medal].col)}<h2 style="color:${MEDAL[o.medal].col}">Medaglia ${o.medal === 2 ? 'd’oro' : o.medal === 1 ? 'd’argento' : 'di bronzo'}</h2>` : `<div class="md-fail">${icon('x')}</div><h2>Obiettivo mancato</h2>`}
-          <div class="small muted">Miglior arrivo: <b>${o.best >= 99 ? 'ritiro' : 'P' + o.best}</b>${o.gain > -99 ? ` · posizioni guadagnate: <b>${o.gain >= 0 ? '+' : ''}${o.gain}</b>` : ''}</div>
+          <div class="small muted">Miglior arrivo: <b>${o.best >= 99 ? 'ritiro' : 'P' + o.best}</b>${o.gain > -99 && m.cat !== 'rally' ? ` · posizioni guadagnate: <b>${o.gain >= 0 ? '+' : ''}${o.gain}</b>` : ''}</div>
           <div class="mt16">${tierList(m.tiers, m.cat, o.met)}</div>
           <div class="row center gap6 mt24 wrap"><button class="btn primary lg" data-a="retry">${icon('replay')} Riprova</button>
             ${next ? `<button class="btn lg" data-a="next" data-id="${next.id}">${icon('right')} ${esc(next.title)}</button>` : ''}

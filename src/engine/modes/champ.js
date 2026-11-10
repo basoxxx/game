@@ -135,7 +135,21 @@ export function roundSummary(st, idx) {
 
 export function champTable(st) {
   const s = standings(st);
-  const drivers = s.drivers.filter((x) => st.drivers[x.id]?.teamId && st.teams[st.drivers[x.id].teamId]);
+  let drivers = s.drivers.filter((x) => st.drivers[x.id]?.teamId && st.teams[st.drivers[x.id].teamId]);
+  // endurance: one line per crew (the co-drivers of a car share every point)
+  const per = CATEGORIES[st.category].driversPerCar;
+  if (per > 1) {
+    const seen = new Set();
+    drivers = drivers.filter((x) => {
+      if (seen.has(x.id)) return false;
+      const t = st.teams[st.drivers[x.id].teamId]; const i = t.drivers.indexOf(x.id);
+      const crew = t.drivers.slice(Math.floor(i / per) * per, Math.floor(i / per) * per + per);
+      crew.forEach((id) => seen.add(id));
+      x.crew = crew.map((id) => st.drivers[id]?.name).filter(Boolean);
+      return true;
+    });
+  }
+  for (const x of drivers) x.name = x.crew ? x.crew.map((n) => n.split(' ').slice(-1)[0]).join(' / ') : st.drivers[x.id].name;
   return { drivers, teams: s.teams.filter((t) => st.teams[t.id]) };
 }
 

@@ -134,7 +134,7 @@ function standingsPanels(st, pt) {
   const C = CATEGORIES[st.category];
   const lead = drivers[0]?.pts || 0;
   return `<div class="panel flush"><div class="panel-head" style="margin:0;padding:16px 18px 12px"><h3>${icon('trophy')} Classifica ${C.driversPerCar > 1 ? 'equipaggi' : 'piloti'}</h3></div>
-    <table class="tbl small"><tbody>${drivers.map((x, i) => { const d = st.drivers[x.id]; const t = st.teams[d.teamId]; return `<tr class="${d.teamId === pt.id ? 'me' : ''}"><td class="pos p${i + 1}">${i + 1}</td><td style="width:8px;padding:0">${teamStripe(t)}</td><td>${driverChip(st, d, { helmet: false })}</td><td class="right mono"><b>${x.pts}</b></td><td class="right mono tiny muted">${i ? '-' + (lead - x.pts) : ''}</td></tr>`; }).join('')}</tbody></table></div>
+    <table class="tbl small"><tbody>${drivers.map((x, i) => { const d = st.drivers[x.id]; const t = st.teams[d.teamId]; return `<tr class="${d.teamId === pt.id ? 'me' : ''}"><td class="pos p${i + 1}">${i + 1}</td><td style="width:8px;padding:0">${teamStripe(t)}</td><td>${x.crew ? `<b class="small">${esc(x.name)}</b>` : driverChip(st, d, { helmet: false })}</td><td class="right mono"><b>${x.pts}</b></td><td class="right mono tiny muted">${i ? '-' + (lead - x.pts) : ''}</td></tr>`; }).join('')}</tbody></table></div>
     <div class="panel flush"><div class="panel-head" style="margin:0;padding:16px 18px 12px"><h3>${icon('users')} Costruttori</h3></div>
     <table class="tbl small"><tbody>${teams.map((x, i) => { const t = st.teams[x.id]; return `<tr class="${t.isPlayer ? 'me' : ''}"><td class="pos p${i + 1}">${i + 1}</td><td>${teamBadge(t, 22)}</td><td>${esc(t.name)}</td><td class="right mono"><b>${x.pts}</b></td></tr>`; }).join('')}</tbody></table></div>`;
 }
@@ -155,10 +155,10 @@ function ceremony(st) {
   const myT = teams.findIndex((x) => x.id === st.playerTeam) + 1;
   const won = st.drivers[drivers[0].id].teamId === st.playerTeam;
   const tp = st.modeRun.kind === 'tp' ? tpRating(st) : null;
-  const pod = drivers.slice(0, 3).map((x, i) => { const d = st.drivers[x.id]; const t = st.teams[d.teamId]; return `<div class="md-pod p${i + 1}" style="--tc:${teamColor(t.car.livery)}"><div class="md-pod-n">${esc(d.name)}</div><div class="small muted">${esc(t.name)} · ${x.pts} pt</div><div class="md-pod-b">${i + 1}</div></div>`; });
+  const pod = drivers.slice(0, 3).map((x, i) => { const d = st.drivers[x.id]; const t = st.teams[d.teamId]; return `<div class="md-pod p${i + 1}" style="--tc:${teamColor(t.car.livery)}"><div class="md-pod-n">${esc(x.name)}</div><div class="small muted">${esc(t.name)} · ${x.pts} pt</div><div class="md-pod-b">${i + 1}</div></div>`; });
   return `<div class="md-ceremony anim-in">
     <div class="md-cer-head"><div class="hh-eyebrow">${icon('trophy')} Premiazione finale</div>
-      <div class="md-cer-champ">${esc(champ.name)}</div><div class="hh-circ">Campione ${CATEGORIES[st.category].driversPerCar > 1 ? 'equipaggi' : 'piloti'} · ${esc(st.teams[champ.teamId].name)}</div>
+      <div class="md-cer-champ">${esc(drivers[0].name)}</div><div class="hh-circ">Campione ${CATEGORIES[st.category].driversPerCar > 1 ? 'equipaggi' : 'piloti'} · ${esc(st.teams[champ.teamId].name)}</div>
       <div class="small mt8">Titolo costruttori: <b>${esc(ct.name)}</b></div></div>
     <div class="md-podium">${pod[1] || ''}${pod[0]}${pod[2] || ''}</div>
     <div class="row center wrap gap16 mt24">
@@ -168,6 +168,7 @@ function ceremony(st) {
       ${won ? '<span class="tag">Campione del mondo!</span>' : ''}
     </div>
     ${tp && tp.medal >= 0 ? `<div class="center">${medalSVG(MEDAL[tp.medal].col)}</div>` : ''}
+    ${tp ? `<div class="small muted mt16">Valutazione: bronzo se chiudi tra i costruttori almeno al ${tp.start}° posto (la forza iniziale della vettura), argento guadagnando una posizione, oro con tre posizioni o il titolo.</div>` : ''}
     <div class="row center gap6 mt24"><button class="btn primary lg" data-a="${st.modeRun.kind === 'tp' ? 'tp-again' : 'again'}">${icon('replay')} Rigioca con le stesse regole</button>${st.modeRun.kind === 'tp' ? '' : `<button class="btn lg" data-a="new">${icon('plus')} Nuovo campionato</button>`}<button class="btn lg ghost" data-a="leave">${icon('home')} Menu</button></div>
   </div>`;
 }
@@ -237,7 +238,12 @@ registerScreen({ id: 'mode-champ', full: true, render: () => hub('champ'), actio
 registerScreen({ id: 'mode-tp', full: true, render: () => hub('tp'), actions: hubActions('tp'), mount() { celebrateIfDone('tp'); } });
 function celebrateIfDone(kind) {
   const st = current(kind);
-  if (st && st.round >= st.calendar.length && !st.modeRun._cele) { st.modeRun._cele = true; saveChamp(st); celebrate(240); }
+  if (st && st.round >= st.calendar.length && !st.modeRun._cele) {
+    st.modeRun._cele = true; saveChamp(st);
+    const { drivers, teams } = champTable(st);
+    const good = kind === 'tp' ? tpRating(st).medal >= 0 : teams[0]?.id === st.playerTeam || st.drivers[drivers[0]?.id]?.teamId === st.playerTeam || teams.slice(0, 3).some((t) => t.id === st.playerTeam);
+    if (good) celebrate(240);
+  }
 }
 
 // ------------------------------------------------------------------ setup screen
