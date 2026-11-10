@@ -540,7 +540,7 @@ export class CircuitSim {
     if (bh) out.behind = { key: bh.key, name: this.driver(bh).name, gap: (myD - bh.dist) * this.track.lap };
     // team-mate boxing on the same lap: the second car queues
     const mate = this.cars.find((x) => x.teamId === c.teamId && x !== c && x.status === 'running' && x.pitReq && !(x.pitReq.minLap > x.lap + 1));
-    if (mate) { const g = Math.abs(mate.dist - c.dist) * this.track.lap; if (g < stat + 1.5) out.stack = Math.max(0, stat + 1.5 - g); }
+    if (mate && !this.endurance) { const g = Math.abs(mate.dist - c.dist) * this.track.lap; if (g < stat + 1.5) out.stack = Math.max(0, stat + 1.5 - g); }
     // undercut on the car directly ahead on track
     const cls = this.cars.filter((x) => x.status === 'running').sort((a, b) => b.dist - a.dist);
     const r = cls[cls.indexOf(c) - 1];
@@ -1182,7 +1182,7 @@ export class CircuitSim {
     const fromTyre = c.tyre, fromAge = c.stintLap;
     // double stack: the second car of the team waits behind the first
     { const pb = (this._pitBox ||= {}); const prev = pb[c.teamId];
-      if (prev && prev.key !== c.key && this.time - prev.t < prev.dur) {
+      if (!this.endurance && prev && prev.key !== c.key && this.time - prev.t < prev.dur) {
         const wait = prev.dur - (this.time - prev.t); stat += wait; slow += ` (doppia sosta: +${wait.toFixed(1)}s in coda)`;
         if (c.isPlayer || c.pos <= 6) this.log(`⏱ Doppia sosta ${c.team.short || c.team.name}: ${this.driver(c).name} aspetta ${wait.toFixed(1)}s dietro il compagno.`, 'pit', c.key, c.isPlayer);
       }
@@ -1249,7 +1249,7 @@ export class CircuitSim {
     if (c.pos <= 10 || c.isPlayer) this.comment(commentaryGeneric('retire', d, crash ? ' dopo il contatto' : ''), c.key, true);
     if (c.pos <= 12 || c.isPlayer) this.pushTV({ kind: 'retire', key: c.key, title: crash ? 'Incidente' : 'Ritiro', text: `${d.name} · ${reason}` });
     if (!this.sc && !this.vsc && c.dist < this.laps - 1.5) {
-      if (crash && !this.redDone && !this.endurance && this.laps - c.dist > 5 && c.lap >= 1 && chance(0.1)) this.redFlag('pista ostruita dopo l’incidente');
+      if (crash && !this.redDone && !this.endurance && this.laps - c.dist > 5 && c.lap >= 1 && chance(0.16)) this.redFlag('pista ostruita dopo l’incidente');
       else if (crash && chance(0.6)) this.deploySC();
       else if (chance(crash ? 0.5 : 0.35)) this.deployVSC();
     }
