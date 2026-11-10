@@ -7,7 +7,7 @@ import { genStage, STAGE_STYLE } from './trackview.js';
 import { getSettings } from '../engine/state.js';
 import { passBy } from './audio.js';
 import { buildCar, setTyreColor, setCarLOD, MAT } from './cars3d.js';
-import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, updateSunFlare, updateGodRays } from './gfx.js';
+import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, updateSunFlare, updateGodRays, HeightFog, stabilizeShadow, triMat, loadTex } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { biomeOf, RALLY_LOOK } from './env/biomes.js';
 import { buildCoast, buildMidTerrain, buildDecals, buildLife, buildRallyExtras, buildGridSlots } from './env/scenery.js';
@@ -205,7 +205,7 @@ export class Race3D {
     this.renderer.setPixelRatio(this.low ? 1 : Math.min(1.5, window.devicePixelRatio || 1));
     this.renderer.shadowMap.enabled = !this.low;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMapping = THREE.AgXToneMapping;
     this.renderer.toneMappingExposure = night ? 1.0 : 1.05;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
@@ -235,7 +235,10 @@ export class Race3D {
     WET.value = 0;
     // time of day: explicit opts.timeOfDay ('day' | 'afternoon' | 'dusk'), else endurance races at
     // the night circuits start in the evening light
-    this.skyKind = night ? 'night' : TOD[timeOfDay] ? timeOfDay : category === 'endurance' && DUSK_TRACKS.includes(this.geo.cid) ? 'dusk' : (!this.open && TOD[this.biome.tod] ? this.biome.tod : 'day');
+    // the golden-hour look of some rounds is the race's: practice / qualifying (the session screen)
+    // run in the plain day light unless they pass a timeOfDay themselves
+    const session = !!container.closest?.('.ss-screen');
+    this.skyKind = night ? 'night' : TOD[timeOfDay] ? timeOfDay : category === 'endurance' && DUSK_TRACKS.includes(this.geo.cid) ? 'dusk' : (!this.open && !session && TOD[this.biome.tod] ? this.biome.tod : 'day');
     this.tod = TOD[this.skyKind] || null;
     if (this.tod) {
       const T = this.tod;
@@ -253,7 +256,14 @@ export class Race3D {
       if (sd) this.buildSunDisc(sd);
     });
     this.composer = makeComposer(this.renderer, this.scene, this.camera, { bloom: night ? 0.45 : 0.18, low: this.low, ao: true, flare: !night, rays: !night, dof: true });
-    if (this.composer?.grade && this.tod) { this.composer.grade.uniforms.uWarm.value = this.tod.warm; this.composer.grade.uniforms.uSat.value = this.tod.sat; }
+    // AgX tone mapping (soft highlight roll-off, no hue skews on the liveries) with a broadcast
+    // grade on top: more exposure, contrast and saturation to get the punch back. The light
+    // setting (no post-processing) keeps ACES, which needs no grade.
+    this._agx = !!this.composer;
+    if (!this._agx) this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this._expK = this._agx ? (this.skyKind === 'afternoon' || this.skyKind === 'dusk' ? 1.38 : 1.5) : 1; this._gSat = this._agx ? 1.22 : 1; this._gCon = this._agx ? 1.2 : 1.08;
+    this.renderer.toneMappingExposure *= this._expK;
+    if (this.composer?.grade) { const gu = this.composer.grade.uniforms; gu.uCon.value = this._gCon; gu.uSat.value = (this.tod?.sat ?? 1.08) * this._gSat; if (this.tod) gu.uWarm.value = this.tod.warm; }
     if (this.composer?.rays && this.tod) this.composer.rays.uniforms.uTint.value.setHex(this.tod.disc);
     this.cars = new Map();
     for (const c of cars) this.addCar(c);
@@ -301,10 +311,10 @@ export class Race3D {
     this.sunDir = night ? new THREE.Vector3(0.22, 0.93, 0.3).normalize() : new THREE.Vector3(0.55, 0.62, 0.45).normalize();
     sun.position.copy(this.sunDir).multiplyScalar(400);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(3072, 3072);
     // tight frustum that follows the camera target (see updateCamera)
     const sc = sun.shadow.camera; sc.left = -70; sc.right = 70; sc.top = 70; sc.bottom = -70; sc.near = 50; sc.far = 900;
-    sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.03;
+    sun.shadow.bias = -0.00025; sun.shadow.normalBias = 0.02;
     this.scene.add(sun); this.scene.add(sun.target);
     this.sun = sun;
     // sky dome gradient
@@ -433,6 +443,54 @@ export class Race3D {
     const runoffMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x777b82, roughness: 0.9 }) : D(pbr('concrete_floor_worn_001', { color: street > 0.7 ? 0x8a8a8a : 0xb8b8b8 }), { macro: 0.12, macroScale: 0.05, wet: true });
     const grassCol = this.biome.grass;
     const groundMat = this.low ? new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x84817b : 0x3f7a34, roughness: 1 }) : D(pbr(street > 0.7 ? 'concrete_floor_worn_001' : 'aerial_grass_rock', { repeat: [1400, 1400], color: street > 0.7 ? 0xb9b4aa : grassCol }), { macro: street > 0.7 ? 0.34 : 0.22, macroScale: street > 0.7 ? 0.03 : 0.012, tint: street > 0.7 ? 0x9a8f80 : this.biome.dry, tintAmt: street > 0.7 ? 0.5 : this.biome.dryAmt });
+    // street circuits: the town around the track is laid out on a block grid aligned with the
+    // main straight. The ground shows the streets (asphalt, lane markings), pavements, courtyards
+    // and parks; buildSkyline puts its buildings on the same blocks
+    if (street > 0.7) {
+      const th = this.geo.hdg[0], B = 96, RW = 15, ox = Math.random() * B, oz = Math.random() * B;
+      const cs = Math.cos(th), sn = Math.sin(th);
+      const toG = (x, z) => [(x * cs + z * sn + ox) / B, (-x * sn + z * cs + oz) / B];
+      const hash = (i, j) => { const v = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return v - Math.floor(v); };
+      this.city = { th, B, RW, toG, hash, fromG: (u, v) => { const a = u * B - ox, b = v * B - oz; return [a * cs - b * sn, a * sn + b * cs]; }, park: (i, j) => hash(i, j) > 0.84 };
+      if (!this.low) {
+        const prev = groundMat.onBeforeCompile;
+        groundMat.onBeforeCompile = (sh, r) => {
+          prev(sh, r);
+          sh.fragmentShader = sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+            {
+              vec2 w = vWPos.xz; vec2 g = vec2(w.x * ${cs.toFixed(6)} + w.y * ${sn.toFixed(6)} + ${ox.toFixed(3)}, -w.x * ${sn.toFixed(6)} + w.y * ${cs.toFixed(6)} + ${oz.toFixed(3)});
+              vec2 cell = floor(g / ${B.toFixed(1)}), f = g - cell * ${B.toFixed(1)};
+              vec2 e = min(f, ${B.toFixed(1)} - f);                       // distance to the block edge (m)
+              float ed = min(e.x, e.y);
+              float road = 1.0 - step(${(RW / 2).toFixed(1)}, ed);
+              float kerb = (1.0 - road) * (1.0 - step(${(RW / 2 + 0.35).toFixed(2)}, ed));
+              float pave = (1.0 - road) * (1.0 - step(${(RW / 2 + 4.5).toFixed(2)}, ed));
+              float hv = fract(sin(cell.x * 127.1 + cell.y * 311.7) * 43758.5453);
+              vec3 c = diffuseColor.rgb;
+              // block interior: courtyards / car parks between the buildings, or a park
+              // inner yards: paved courtyards / car parks (bays, parked cars) and small gardens
+              vec2 sub = floor(f / 24.0); float hs = fract(sin(dot(cell * 3.0 + sub, vec2(12.9898, 78.233))) * 43758.5453);
+              vec3 yard = c * (0.7 + 0.1 * step(0.5, fract(f.x / 2.6)) * step(0.2, fract(f.y / 5.2)));
+              float carS = step(0.55, fract(sin(dot(floor(f / vec2(2.6, 5.2)) + cell * 7.0, vec2(41.3, 17.9))) * 9631.7)) * step(0.2, fract(f.y / 5.2)) * step(0.15, fract(f.x / 2.6)) * step(fract(f.x / 2.6), 0.85);
+              yard = mix(yard, vec3(0.1, 0.11, 0.13) * (0.5 + 2.2 * fract(hs * 13.0 + floor(f.x / 2.6) * 0.37)), carS * step(0.62, hs) * 0.75);
+              yard = mix(yard, c * vec3(0.45, 0.62, 0.33) * (0.8 + 0.4 * dvn(w * 0.3)), step(0.82, hs));
+              vec3 inner = hv > 0.84 ? c * vec3(0.42, 0.62, 0.3) * (0.8 + 0.4 * dfbm(w * 0.15)) : yard;
+              c = mix(inner, c * 1.08, pave);                                 // pale paving slabs
+              c = mix(c, c * 1.25, kerb);
+              // street: dark asphalt, a dashed centre line, zebra crossings near the junctions
+              float alongX = step(e.y, e.x); // which street we are on
+              float lat = alongX > 0.5 ? e.y : e.x, lon = alongX > 0.5 ? f.x : f.y;
+              float dash = step(0.55, fract(lon / 6.0)) * (1.0 - step(0.12, abs(lat - 0.0)));
+              float zebra = step(0.5, fract(lat / 1.1)) * (1.0 - step(5.0, min(lon, ${B.toFixed(1)} - lon))) * step(${(RW / 2 + 0.8).toFixed(1)}, min(lon, ${B.toFixed(1)} - lon));
+              vec3 asph = vec3(0.05, 0.052, 0.056) * (0.8 + 0.4 * dvn(w * 0.4));
+              asph = mix(asph, vec3(0.8), max(dash * 0.75, zebra * 0.85));
+              c = mix(c, asph, road);
+              diffuseColor.rgb = c;
+            }`);
+        };
+        const k0 = groundMat.customProgramCacheKey; groundMat.customProgramCacheKey = () => k0() + '|city' + th.toFixed(4) + ox.toFixed(2);
+      }
+    }
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(12000, 12000), groundMat);
     ground.rotation.x = -Math.PI / 2; ground.position.set((this.geo.bbox[0] + this.geo.bbox[2]) / 2, -0.25, (this.geo.bbox[1] + this.geo.bbox[3]) / 2);
     ground.receiveShadow = true;
@@ -476,7 +534,15 @@ export class Race3D {
       }
     }
     // white edge lines + rubbered racing line
-    const lineMat = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.6 });
+    // white lines: thermoplastic paint, chipped and greyed by rubber where the cars cross it
+    const lineTex = canvasTex(32, 512, (c, w, h) => {
+      c.fillStyle = '#f4f4f2'; c.fillRect(0, 0, w, h);
+      for (let k = 0; k < 260; k++) { c.fillStyle = `rgba(70,70,72,${0.15 + Math.random() * 0.5})`; c.beginPath(); c.arc(Math.random() * w, Math.random() * h, 0.4 + Math.random() * 1.6, 0, 7); c.fill(); }
+      for (let k = 0; k < 40; k++) { c.fillStyle = `rgba(20,20,20,${Math.random() * 0.18})`; c.fillRect(Math.random() * w, Math.random() * h, 2 + Math.random() * 10, 20 + Math.random() * 120); }
+      for (let k = 0; k < 6; k++) { const y = Math.random() * h; c.fillStyle = 'rgba(60,60,60,0.55)'; c.fillRect(0, y, w, 2 + Math.random() * 6); }
+    });
+    const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: lineTex, roughness: 0.55 });
+    if (!this.low) detailPatch(lineMat, { antiTile: false, macro: 0.06, macroScale: 0.1, wet: true, key: 'line' });
     this.scene.add(this.ribbon(W / 2 - 0.35, W / 2 - 0.1, 0.045, lineMat, 0.05));
     this.scene.add(this.ribbon(-W / 2 + 0.1, -W / 2 + 0.35, 0.045, lineMat, 0.05));
     // rubbered-in racing line: two tyre tracks made of fine streaks
@@ -540,11 +606,16 @@ export class Race3D {
       // lane lines: fast-lane edge by the pit wall, fast / working lane divider
       this.scene.add(this.laneStrip(-P + 1, P - 1, () => this.pit.fl0 - 0.1, () => this.pit.fl0 + 0.1, 0.04, lineMat));
       this.scene.add(this.laneStrip(-P + 1, P - 1, () => this.pit.fl1 + 0.0, () => this.pit.fl1 + 0.2, 0.04, lineMat));
+      // pit entry / exit lines: solid white from the track edge to the end of the pit wall
+      const pwq = P + 3, edge = W / 2 + 0.25;
+      const blend = (q) => { const t = Math.min(1, Math.max(0, (P + 15 - Math.abs(q)) / 12)); return edge + (this.pit.wall - 0.3 - edge) * t; };
+      this.scene.add(this.laneStrip(-P - 15, -pwq, (q) => blend(q) - 0.12, (q) => blend(q) + 0.12, 0.043, lineMat));
+      this.scene.add(this.laneStrip(pwq, P + 15, (q) => blend(q) - 0.12, (q) => blend(q) + 0.12, 0.043, lineMat));
     }
     this.buildBarriers(street, wallMat);
     // bridge decks and pillars for figure-of-eight crossings
     if (this.geo.bridges) {
-      const deckMat = new THREE.MeshStandardMaterial({ color: 0x8d9095, roughness: 0.8 });
+      const deckMat = triMat('concrete_wall_008', { scale: 0.25, color: 0xb4b7ba, roughness: 1, low: this.low });
       for (const [i0, j] of this.geo.bridges) {
         for (let k = -16; k <= 16; k += 2) {
           const q = (j + k + N) % N; const hq = this.geo.h[q];
@@ -681,12 +752,37 @@ export class Race3D {
       const offs = [3.4, 6, 10, 17, 28, 45, 70, 105, 150, 210, 290, 420, 900], st = this.low ? 2 : 1;
       const lat = [...offs.slice().reverse().map((o) => -o), ...offs], P = lat.length, rows = Math.floor((N - 1) / st) + 1;
       const pos = new Float32Array(rows * P * 3), uv = new Float32Array(rows * P * 2), idx = [];
+      // free lateral room on each side of every row: half the distance to the next stretch of road
+      // across (hairpin legs, parallel switchbacks) and, on the inside of a bend, the bend radius,
+      // so cross-sections never fold through each other or poke up through the road
+      const room = [new Float32Array(rows).fill(1e9), new Float32Array(rows).fill(1e9)];
+      {
+        const HC = 220, hc = new Map();
+        for (let j = 0; j < N; j += 2) { const k = Math.floor(gx[j] / HC) + ',' + Math.floor(gz[j] / HC); if (!hc.has(k)) hc.set(k, []); hc.get(k).push(j); }
+        const hd = this.geo.hdg, ds = this.geo.ds;
+        for (let r = 0; r < rows; r++) {
+          const i = Math.min(N - 1, r * st), c = Math.cos(hd[i]), sn = Math.sin(hd[i]);
+          const cx = Math.floor(gx[i] / HC), cz = Math.floor(gz[i] / HC);
+          for (let a = -4; a <= 4; a++) for (let b = -4; b <= 4; b++) { const l = hc.get((cx + a) + ',' + (cz + b)); if (l) for (const j of l) {
+            const vx = gx[j] - gx[i], vz = gz[j] - gz[i], lon = vx * c + vz * sn, la = -vx * sn + vz * c;
+            if (Math.abs(lon) > Math.abs(la) * 0.7 || Math.abs(la) < 1) continue;
+            const sd = la > 0 ? 0 : 1, h = Math.abs(la) / 2; if (h < room[sd][r]) room[sd][r] = h;
+          } }
+          const i0 = Math.max(0, i - 2), i1 = Math.min(N - 1, i + 2);
+          let dh = hd[i1] - hd[i0]; while (dh > Math.PI) dh -= 2 * Math.PI; while (dh < -Math.PI) dh += 2 * Math.PI;
+          const kk = dh / Math.max(1e-6, (i1 - i0) * ds);
+          if (Math.abs(kk) > 1 / 900) { const sd = kk > 0 ? 0 : 1; room[sd][r] = Math.min(room[sd][r], 0.92 / Math.abs(kk)); }
+        }
+        // smooth the limits along the road so neighbouring rows stay close (no jagged edges)
+        for (const R of room) { const t = Float32Array.from(R); for (let r = 0; r < rows; r++) { let m = 1e9; for (let q = -3; q <= 3; q++) m = Math.min(m, t[Math.min(rows - 1, Math.max(0, r + q))]); R[r] = Math.max(W / 2 + 2.6, m); } }
+      }
       for (let r = 0; r < rows; r++) {
         const i = Math.min(N - 1, r * st), nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
-        lat.forEach((o, q) => {
+        lat.forEach((o0, q) => {
+          const lim = room[o0 > 0 ? 0 : 1][r], o = Math.sign(o0) * Math.min(Math.abs(o0), lim);
           const x = gx[i] + nx * o, z = gz[i] + nz * o, k = r * P + q;
           pos[k * 3] = x; pos[k * 3 + 1] = Math.abs(o) > 500 ? hMin - 3.2 : terrH(x, z, i, Math.abs(o)); pos[k * 3 + 2] = z; uv[k * 2] = x / 21; uv[k * 2 + 1] = z / 21;
-          if (r < rows - 1 && q < P - 1 && !(o < 0 && lat[q + 1] > 0)) idx.push(k, k + 1, k + P, k + 1, k + P + 1, k + P);
+          if (r < rows - 1 && q < P - 1 && !(o0 < 0 && lat[q + 1] > 0)) idx.push(k, k + 1, k + P, k + 1, k + P + 1, k + P);
         });
       }
       // under the road: one quad per row between the two inner edges, just below the verge
@@ -751,7 +847,7 @@ export class Race3D {
       const beam = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, W + 2.8), m); beam.position.y = 5; g.add(beam);
       this.placeAt(g, i, 0, this.geo.h ? this.geo.h[i] : 0); this.scene.add(g);
     }
-    if (this.scene.fog) { this.scene.fog = new THREE.FogExp2(this.scene.fog.color, 0.0007); this.fogDensity = this.scene.fog.density; }
+    if (this.scene.fog) { this.scene.fog = new HeightFog(this.scene.fog.color, 0.0007); this.fogDensity = this.scene.fog.density; }
   }
 
   // rally stage dressing: spectator groups behind red/white tape on the outside of corners and
@@ -957,14 +1053,38 @@ export class Race3D {
   // street circuits, and catch-fences with posts everywhere
   buildBarriers(street, paintedMat) {
     const N = this.geo.N;
-    const steel = new THREE.MeshStandardMaterial({ color: 0xb9c0c7, metalness: 0.92, roughness: 0.32, side: THREE.DoubleSide });
+    // Armco W-beam: galvanised steel with the two-ridge profile in a normal map, splice bolts every
+    // 4 m (one texture tile), dirt thrown up along the bottom edge
+    const armD = canvasTex(256, 64, (c, w, h) => {
+      const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#d5dadf'); g.addColorStop(0.5, '#b4bbc2'); g.addColorStop(1, '#8f8a80'); c.fillStyle = g; c.fillRect(0, 0, w, h);
+      for (let k = 0; k < 90; k++) { c.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '60,62,66'},${Math.random() * 0.12})`; c.fillRect(Math.random() * w, Math.random() * h, 4 + Math.random() * 40, 1 + Math.random() * 2); }
+      c.fillStyle = 'rgba(40,42,46,0.55)'; c.fillRect(0, 0, 3, h); for (const y of [0.22, 0.5, 0.78]) for (const x of [7, 15]) { c.beginPath(); c.arc(x, y * h, 2.2, 0, 7); c.fill(); }
+      const d = c.createLinearGradient(0, h * 0.65, 0, h); d.addColorStop(0, 'rgba(90,75,55,0)'); d.addColorStop(1, 'rgba(90,75,55,0.35)'); c.fillStyle = d; c.fillRect(0, h * 0.65, w, h * 0.35);
+    });
+    armD.repeat.set(1, 1);
+    const armN = canvasTex(4, 64, (c, w, h) => { for (let y = 0; y < h; y++) { const v = y / h; const dh = Math.sin(v * Math.PI * 4) * 0.85; const ny = -dh, nz = Math.sqrt(Math.max(0, 1 - ny * ny)); c.fillStyle = `rgb(128,${Math.round((ny * 0.5 + 0.5) * 255)},${Math.round((nz * 0.5 + 0.5) * 255)})`; c.fillRect(0, y, w, 1); } });
+    armN.colorSpace = THREE.NoColorSpace;
+    const steel = new THREE.MeshStandardMaterial({ color: 0xffffff, map: armD, normalMap: this.low ? null : armN, metalness: 0.85, roughness: 0.42, side: THREE.DoubleSide });
     const fenceTex = canvasTex(128, 128, (c, w, h) => { c.clearRect(0, 0, w, h); c.strokeStyle = 'rgba(205,210,214,0.95)'; c.lineWidth = 3; for (let k = -w; k < w * 2; k += 32) { c.beginPath(); c.moveTo(k, 0); c.lineTo(k + h, h); c.stroke(); c.beginPath(); c.moveTo(k, h); c.lineTo(k + h, 0); c.stroke(); } }, [1, 1]);
     fenceTex.wrapS = fenceTex.wrapT = THREE.RepeatWrapping; fenceTex.repeat.set(1, 2);
     const fence = new THREE.MeshStandardMaterial({ map: fenceTex, alphaTest: 0.35, transparent: false, metalness: 0.6, roughness: 0.5, side: THREE.DoubleSide });
     // Tecpro zones: outside of corners
     const tec = new Uint8Array(N);
-    for (const cn of this.geo.corners) { if (cn.r > 260) continue; const span = Math.min(36, Math.max(12, Math.round(cn.r / 6))); for (let q = -Math.round(span * 0.8); q <= span; q++) tec[(cn.i + q + N) % N] = cn.dir > 0 ? 2 : 1; }
+    // tyre walls (bolted stacks behind a conveyor belt) instead of Tecpro at some older corners
+    const tyreZ = new Uint8Array(N);
+    for (const cn of this.geo.corners) { if (cn.r > 260) continue; const span = Math.min(36, Math.max(12, Math.round(cn.r / 6))), ty = (cn.i * 7 + N) % 3 === 0; for (let q = -Math.round(span * 0.8); q <= span; q++) { const j = (cn.i + q + N) % N; tec[j] = cn.dir > 0 ? 2 : 1; tyreZ[j] = ty ? 1 : 0; } }
     const tecMatA = new THREE.MeshStandardMaterial({ map: canvasTex(256, 64, (c, w, h) => { const cols = ['#1f4fd1', '#d8262d']; for (let k = 0; k < 4; k++) { c.fillStyle = cols[k % 2]; c.fillRect(k * w / 4, 0, w / 4, h); c.fillStyle = 'rgba(255,255,255,0.12)'; c.fillRect(k * w / 4, 0, 3, h); } c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(0, h - 6, w, 6); }), roughness: 0.75 });
+    // tyre wall: four rows of tyres strapped together behind a red / white conveyor belt that
+    // stops short of the ground, so the bottom row shows
+    const tyreTex = canvasTex(256, 128, (c, w, h) => {
+      c.fillStyle = '#121214'; c.fillRect(0, 0, w, h);
+      for (let r = 0; r < 4; r++) for (let k = 0; k < 8; k++) { const x = (k + 0.5 + (r % 2) * 0.5) * w / 8, y = h - (r + 0.5) * h / 4; const g = c.createRadialGradient(x, y, 2, x, y, w / 16); g.addColorStop(0, '#050506'); g.addColorStop(0.45, '#0b0b0c'); g.addColorStop(0.55, '#2a2a2c'); g.addColorStop(1, '#151517'); c.fillStyle = g; c.beginPath(); c.arc(x, y, w / 16 - 1, 0, 7); c.fill(); }
+      for (let k = 0; k < 8; k++) { c.fillStyle = k % 2 ? '#f1f1ef' : '#d0141b'; c.fillRect(k * w / 8, 0, w / 8, h * 0.74); }
+      c.fillStyle = 'rgba(0,0,0,0.25)'; for (let k = 0; k < 8; k++) c.fillRect(k * w / 8, 0, 2, h * 0.74);
+      c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, h * 0.72, w, 3);
+      for (let k = 0; k < 60; k++) { c.fillStyle = `rgba(40,30,20,${Math.random() * 0.25})`; c.fillRect(Math.random() * w, h * (0.45 + Math.random() * 0.3), 3 + Math.random() * 20, 2 + Math.random() * 8); }
+    });
+    const tyreMat = new THREE.MeshStandardMaterial({ map: tyreTex, roughness: 0.8, side: THREE.DoubleSide });
     for (const side of [1, -1]) {
       const tag = side > 0 ? 1 : 2; // a left-hand corner (dir>0) has its outside on the right (-)
       if (street > 0.7) {
@@ -975,10 +1095,11 @@ export class Race3D {
       } else {
         const isTec = (i) => tec[i] === (side > 0 ? 1 : 2);
         // guard-rail: two steel beams on posts
-        this.barrierStrip(side, 0.42, 0.72, steel, { filter: (i) => !isTec(i), inset: 0.05 });
-        this.barrierStrip(side, 0.82, 1.08, steel, { filter: (i) => !isTec(i), inset: 0.05 });
-        // Tecpro blocks where cars arrive at speed
-        this.barrierStrip(side, 0, 1.2, tecMatA, { filter: isTec, vRepeat: 8, inset: -0.4 });
+        this.barrierStrip(side, 0.42, 0.74, steel, { filter: (i) => !isTec(i), inset: 0.05, vRepeat: 4 });
+        this.barrierStrip(side, 0.8, 1.1, steel, { filter: (i) => !isTec(i), inset: 0.05, vRepeat: 4 });
+        // Tecpro blocks where cars arrive at speed, tyre walls at some corners
+        this.barrierStrip(side, 0, 1.2, tecMatA, { filter: (i) => isTec(i) && !tyreZ[i], vRepeat: 8, inset: -0.4 });
+        this.barrierStrip(side, 0, 1.05, tyreMat, { filter: (i) => isTec(i) && !!tyreZ[i], vRepeat: 6, inset: -0.9 });
       }
       // catch fence
       this.barrierStrip(side, 1.15, 4.4, fence, { vRepeat: 1.6, inset: 0.6 });
@@ -1037,10 +1158,37 @@ export class Race3D {
     const mat = this.low ? new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x5d6a52 : 0x3f7a34, vertexColors: true, roughness: 1 })
       : detailPatch(pbr(street > 0.7 ? 'aerial_grass_rock' : 'aerial_grass_rock', { repeat: [1, 1], color: street > 0.7 ? 0x7f9a62 : this.groundCol }), { macro: 0.25, macroScale: 0.004, tint: 0xd8c27a, tintAmt: 0.3, key: 'hills' });
     mat.vertexColors = true;
+    if (!this.low) {
+      // far landscape: forest canopy (mottled crowns with self-shadowing) where the vertex colour
+      // says forest, rock on steep / high ground, snow caps on the alpine ranges
+      const prev = mat.onBeforeCompile, rockT = loadTex('tex/aerial_rocks_02_diff_1k.jpg'), rcol = new THREE.Color(this.biome.rockCol), snowH = this.biome.rock ? 260 * Math.max(0.8, this.biome.hill) : 1e5;
+      mat.onBeforeCompile = (sh, r) => {
+        prev(sh, r);
+        sh.uniforms.tRock = { value: rockT };
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D tRock;')
+          .replace('#include <color_fragment>', `#include <color_fragment>
+            {
+              vec3 wN = normalize((vec4(normalize(vNormal), 0.0) * viewMatrix).xyz);
+              float slope = 1.0 - clamp(wN.y, 0.0, 1.0), dist = length(vWPos - cameraPosition);
+              float fk = smoothstep(0.8, 0.3, dot(vColor.rgb, vec3(0.333)));
+              float fade = 1.0 - smoothstep(1500.0, 4500.0, dist);
+              float crowns = dvn(vWPos.xz * 0.11) * 0.6 + dvn(vWPos.xz * 0.29 + 3.1) * 0.4;
+              float clumps = dfbm(vWPos.xz * 0.012 + 9.0);
+              diffuseColor.rgb *= mix(1.0, (0.55 + 0.8 * mix(0.5, crowns, fade)) * (0.75 + 0.5 * clumps), fk);
+              float rk = max(smoothstep(0.42, 0.68, slope), smoothstep(${(rockH).toFixed(1)}, ${(rockH + 120).toFixed(1)}, vWPos.y + 40.0 * (clumps - 0.5)));
+              vec3 rp = vWPos * 0.0045;
+              vec3 rt = mix(texture2D(tRock, rp.xz).rgb, mix(texture2D(tRock, rp.xy).rgb, texture2D(tRock, rp.zy).rgb, abs(wN.x)), smoothstep(0.3, 0.7, slope));
+              diffuseColor.rgb = mix(diffuseColor.rgb, rt * vec3(${rcol.r.toFixed(3)}, ${rcol.g.toFixed(3)}, ${rcol.b.toFixed(3)}) * 2.2, rk * 0.85);
+              float sn = smoothstep(${snowH.toFixed(1)}, ${(snowH + 90).toFixed(1)}, vWPos.y + 60.0 * (clumps - 0.5)) * (1.0 - smoothstep(0.55, 0.8, slope));
+              diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.95, 0.98), sn);
+            }`);
+      };
+      const k0 = mat.customProgramCacheKey; mat.customProgramCacheKey = () => k0() + '|farland' + rockH + '|' + snowH + '|' + this.biome.rockCol;
+    }
     const hills = new THREE.Mesh(g, mat); hills.receiveShadow = false; this.scene.add(hills);
     if (street <= 0.7) buildMidTerrain(this, mat, this.biome, (x, z) => [(x - (cx - 6000)) / 12000 * 1400, (-(z - cz) + 6000) / 12000 * 1400]);
     // exponential haze: crisp near the track, blue-grey aerial perspective on the hills
-    if (this.scene.fog) { this.scene.fog = new THREE.FogExp2(this.scene.fog.color, this.night ? 0.0009 : 0.00025 * this.biome.haze); this.fogDensity = this.scene.fog.density; }
+    if (this.scene.fog) { this.scene.fog = new HeightFog(this.scene.fog.color, this.night ? 0.0009 : 0.00025 * this.biome.haze); this.fogDensity = this.scene.fog.density; }
   }
 
   // city skyline behind street circuits (and a distant downtown for park circuits): glass and
@@ -1065,13 +1213,53 @@ export class Race3D {
       if (items.some((it) => (it.x - px) ** 2 + (it.z - pz) ** 2 < ((it.w + wd) * 0.62) ** 2)) continue;
       const core = Math.exp(-((da / c.w) ** 2) * 2.2);
       const h = 35 + c.peak * core * (0.35 + Math.random() * 0.75) + Math.random() * 30;
-      items.push({ x: px, z: pz, w: wd, dp, h, y: this.hillH ? this.hillH(px, pz) - 3 : -3, rot: Math.random() * 6.283, t: tints[Math.floor(Math.random() * tints.length)] });
+      let tx = px, tz = pz, rot = Math.random() * 6.283;
+      if (this.city) {
+        // on the street grid: one tower per block, square to the streets, never in a park
+        const C = this.city, [u, v] = C.toG(px, pz), bi = Math.floor(u), bj = Math.floor(v), cs0 = Math.cos(C.th), sn0 = Math.sin(C.th);
+        if (C.park(bi, bj) || items.some((it) => it.bi === bi && it.bj === bj)) continue;
+        [tx, tz] = C.fromG(bi + 0.5, bj + 0.5); rot = -C.th;
+        if (this.seaMask?.(tx, tz) || !this.clearOfTrack(tx, tz, this.TW / 2 + 30 + wd)) continue;
+        // on a slope the base sits at the lowest corner (buried uphill, never floating downhill)
+        const yb = this.hillH ? Math.min(...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => this.hillH(tx + (a * cs0 - b * sn0) * wd / 2, tz + (a * sn0 + b * cs0) * dp / 2))) : 0;
+        if (yb > 12) continue; // the coarse hill mesh would leave towers hanging over the slopes
+        items.push({ x: tx, z: tz, w: Math.min(wd, 58), dp: Math.min(dp, 58), h: h + (this.hillH ? this.hillH(tx, tz) - yb : 0), y: yb - 3, rot, t: tints[Math.floor(Math.random() * tints.length)], bi, bj, s: Math.random() < 0.5 ? 2 : 0 });
+        k++; continue;
+      }
+      items.push({ x: tx, z: tz, w: wd, dp, h, y: this.hillH ? this.hillH(px, pz) - 3 : -3, rot, t: tints[Math.floor(Math.random() * tints.length)] });
       k++;
       // a stepped crown / podium on some towers
       if (h > 110 && Math.random() < 0.5) items.push({ x: px, z: pz, w: wd * 0.62, dp: dp * 0.62, h: h + 12 + Math.random() * 25, y: this.hillH ? this.hillH(px, pz) - 3 : -3, rot: items[items.length - 1].rot, t: items[items.length - 1].t });
     }
     // street circuits: low and mid-rise blocks fill the city between the circuit and the towers
-    if (full) {
+    if (full && this.city) {
+      // block by block: perimeter buildings on 2-4 lots, square to the streets, varied heights and
+      // facades (stone / plaster town houses, office bands, glass); parks stay open
+      const C = this.city, B = C.B, inner = B - C.RW - 9;
+      const [gx, gz] = C.toG(cx, cz), Rb = Math.ceil((R0 + 260) / B);
+      const cap = Math.round(700 * (this.low ? 0.4 : 1)); let cnt = 0;
+      const blocks = [];
+      for (let bi = Math.floor(gx) - Rb; bi <= Math.floor(gx) + Rb; bi++) for (let bj = Math.floor(gz) - Rb; bj <= Math.floor(gz) + Rb; bj++) blocks.push([bi, bj, Math.hypot(bi + 0.5 - gx, bj + 0.5 - gz)]);
+      blocks.sort((a, b) => a[2] - b[2]);
+      for (const [bi, bj] of blocks) {
+        if (cnt >= cap) break;
+        if (C.park(bi, bj) || items.some((it) => it.bi === bi && it.bj === bj)) continue;
+        const nl = 2 + Math.floor(C.hash(bi + 3, bj) * 3), tall = C.hash(bi, bj + 5);
+        for (let l = 0; l < nl; l++) {
+          // lots along one axis of the block, each a building facing the street
+          const along = (l + 0.5) / nl, wd = inner / nl - 2, dp = inner * (0.45 + 0.4 * C.hash(bi + l, bj - l));
+          const side = l % 2 ? 1 : -1;
+          const [px, pz] = C.fromG(bi + 0.5 + (along - 0.5) * inner / B, bj + 0.5 + side * (inner - dp) / (2 * B) * (nl > 2 ? 1 : 0));
+          const rad = Math.hypot(wd, dp) / 2;
+          if (this.seaMask?.(px, pz) || (this.hillH && this.hillH(px, pz) > 1.2) || !this.clearOfTrack(px, pz, this.TW / 2 + 18 + rad)) continue;
+          if ((this.obstacles || []).some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.r + rad) ** 2)) continue;
+          const h = 10 + (tall > 0.7 ? 18 + Math.random() * 30 : Math.random() * 16) + Math.floor(Math.random() * 3) * 3.4;
+          const st = tall > 0.7 ? (Math.random() < 0.5 ? 1 : 2) : (Math.random() < 0.25 ? 1 : 3);
+          items.push({ x: px, z: pz, w: Math.max(8, wd), dp, h, y: (this.hillH ? this.hillH(px, pz) : 0) - 0.5, rot: -C.th, t: [0xd8cfc0, 0xc9c2b6, 0xe6dccb, 0xe0d6c4, 0xd2c3ae, 0xb8bec6][Math.floor(Math.random() * 6)], s: st });
+          cnt++;
+        }
+      }
+    } else if (full) {
       const [bx0, bz0, bx1, bz1] = this.geo.bbox; const rIn = Math.hypot(bx1 - bx0, bz1 - bz0) * 0.2;
       const nf = Math.round(260 * (this.low ? 0.4 : 1));
       for (let k = 0, guard = 0; k < nf && guard < nf * 6; guard++) {
@@ -1088,13 +1276,16 @@ export class Race3D {
     if (!items.length) return;
     const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.55, roughness: 0.22, envMapIntensity: 1.2, ...(this.night ? { emissive: 0xffd9a0, emissiveIntensity: 2.1 } : {}) });
     const nightK = { value: this.night ? 1 : 0 }; this._skylineNight = nightK;
+    const facT = this.low ? null : [loadTex('tex/facade006_diff_1k.jpg'), loadTex('tex/facade001_diff_1k.jpg')];
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uNight = nightK;
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec4 vTw;')
+      if (facT) { sh.uniforms.tFac1 = { value: facT[0] }; sh.uniforms.tFac2 = { value: facT[1] }; }
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec4 vTw; attribute float aSt; varying float vSt;')
         .replace('#include <uv_vertex>', `#include <uv_vertex>
+          vSt = aSt;
           vec3 tsc = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
           vTw = vec4(uv.x * (abs(normal.x) > 0.5 ? tsc.z : tsc.x), position.y * tsc.y, normal.y, instanceMatrix[3].x * 0.011 + instanceMatrix[3].z * 0.017);`);
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec4 vTw; uniform float uNight;\nfloat th(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }')
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec4 vTw; varying float vSt; uniform float uNight;' + (facT ? ' uniform sampler2D tFac1, tFac2;' : '') + '\nfloat th(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }')
         .replace('#include <map_fragment>', `#include <map_fragment>
           float roofT = step(0.5, vTw.z);
           float fl = fract(vTw.y / 3.8), cl = fract(vTw.x / 1.6);
@@ -1104,15 +1295,41 @@ export class Race3D {
           float var = th(vec2(floor(vTw.x / 1.6), floor(vTw.y / 3.8)) + vTw.w);
           diffuseColor.rgb *= mix(vec3(0.42), vec3(0.55 + 0.25 * var), win);
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.22), roofT);
-          float lit = step(0.7, th(vec2(floor(vTw.x / 6.4) + vTw.w * 13.0, floor(vTw.y / 3.8)))) * win;`)
+          float lit = step(0.7, th(vec2(floor(vTw.x / 6.4) + vTw.w * 13.0, floor(vTw.y / 3.8)))) * win;
+          ${facT ? `if (vSt > 0.5) {
+            vec3 fc; float fwin;
+            if (vSt < 1.5) { fc = texture2D(tFac1, vTw.xy / vec2(22.0, 26.0) + vec2(vTw.w, 0.0)).rgb; fwin = smoothstep(0.62, 0.42, dot(fc, vec3(0.333))); }
+            else if (vSt < 2.5) { fc = texture2D(tFac2, vTw.xy / vec2(17.0, 19.0) + vec2(vTw.w, 0.0)).rgb * 1.25; fwin = 0.85; }
+            else {
+              // plaster town house: shuttered windows on each floor, a darker ground-floor shop band
+              float fl2 = fract(vTw.y / 3.3), cl2 = fract(vTw.x / 3.4);
+              float w2 = step(0.28, fl2) * step(fl2, 0.82) * step(0.32, cl2) * step(cl2, 0.68) * step(3.3, vTw.y);
+              float sh2 = step(0.28, fl2) * step(fl2, 0.82) * (step(0.2, cl2) * step(cl2, 0.32) + step(0.68, cl2) * step(cl2, 0.8)) * step(3.3, vTw.y);
+              float shop = 1.0 - step(3.0, vTw.y);
+              fc = vec3(0.92) * (0.9 + 0.1 * th(floor(vTw.xy * 0.5)));
+              fc = mix(fc, vec3(0.16, 0.18, 0.2), w2);
+              fc = mix(fc, vec3(0.3, 0.42, 0.32) * 1.4, sh2);
+              fc = mix(fc, vec3(0.25, 0.24, 0.23), shop * step(0.15, cl2) * step(cl2, 0.85));
+              fwin = w2 + shop * 0.5;
+            }
+            // roofs: pale gravel / membrane, terracotta tiles or dark bitumen, with plant boxes
+            float rv = th(vec2(vTw.w * 7.0, 3.0));
+            vec3 roofC = rv < 0.4 ? vec3(0.62, 0.61, 0.58) : rv < 0.75 ? vec3(0.55, 0.3, 0.22) : vec3(0.3, 0.31, 0.33);
+            roofC *= 0.85 + 0.3 * th(floor(vTw.xy * 0.25));
+            diffuseColor.rgb = mix(fc, roofC, roofT);
+            win = fwin * (1.0 - roofT);
+            lit = step(0.72, th(vec2(floor(vTw.x / 4.0) + vTw.w * 13.0, floor(vTw.y / 3.4)))) * win;
+          }` : ''}`)
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(0.85, 0.12, win);')
         .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(0.05, 0.7, win);')
         .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance *= lit * uNight * (0.6 + 0.8 * var);');
     };
     mat.customProgramCacheKey = () => 'skyline' + (this.night ? 'n' : '');
     const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), mat, items.length);
-    items.forEach((it, k) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.set(it.w, it.h, it.dp); d.updateMatrix(); im.setMatrixAt(k, d.matrix); im.setColorAt(k, col.setHex(it.t)); });
-    im.castShadow = false; im.receiveShadow = false; im.computeBoundingSphere();
+    const stA = new Float32Array(items.length);
+    items.forEach((it, k) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.set(it.w, it.h, it.dp); d.updateMatrix(); im.setMatrixAt(k, d.matrix); im.setColorAt(k, col.setHex(it.t)); stA[k] = it.s || 0; });
+    im.geometry.setAttribute('aSt', new THREE.InstancedBufferAttribute(stA, 1));
+    im.castShadow = !!this.city && !this.low; im.receiveShadow = !!this.city && !this.low; im.computeBoundingSphere();
     this.scene.add(im); this.skyline = im; this.towers = items;
     // aircraft warning lights on the tallest towers at night
     if (this.night) {
@@ -1139,7 +1356,14 @@ export class Race3D {
     // keep a clear line of sight between every TV camera and the track
     const N0 = this.geo.N; const sight = (this.tvCams || []).flatMap((c) => [0, -15, -30].map((d) => { const j = (c.i + d + N0) % N0; return { x0: c.pos.x, z0: c.pos.z, x1: this.geo.x[j], z1: this.geo.y[j] }; }));
     const blocksCam = (px, pz) => sight.some((v) => { const dx = v.x1 - v.x0, dz = v.z1 - v.z0; const L2 = dx * dx + dz * dz || 1; const t = Math.max(-0.4, Math.min(1, ((px - v.x0) * dx + (pz - v.z0) * dz) / L2)); const qx = v.x0 + dx * t, qz = v.z0 + dz * t; return (px - qx) ** 2 + (pz - qz) ** 2 < 26 * 26; });
-    const ok = (px, pz, r) => !this.seaMask?.(px, pz) && this.clearOfTrack(px, pz, W / 2 + 7 + r) && !blocksCam(px, pz) && !this.obstacles.some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.r + r) ** 2);
+    // in the town, trees grow in the parks and as avenues along the pavements, never in the blocks
+    const C = this.city, cR = this.hillR0 ? this.hillR0 + 260 + 96 : 0;
+    const cityOK = (px, pz) => {
+      if (!C || !cR || Math.hypot(px - this.hillC[0], pz - this.hillC[1]) > cR) return true;
+      const [u, v] = C.toG(px, pz), i = Math.floor(u), j = Math.floor(v), fx = (u - i) * C.B, fz = (v - j) * C.B, ed = Math.min(fx, fz, C.B - fx, C.B - fz);
+      return C.park(i, j) ? ed > C.RW / 2 + 2 : ed > C.RW / 2 + 1.2 && ed < C.RW / 2 + 3.6;
+    };
+    const ok = (px, pz, r) => !this.seaMask?.(px, pz) && cityOK(px, pz) && this.clearOfTrack(px, pz, W / 2 + 7 + r) && !blocksCam(px, pz) && !this.obstacles.some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.r + r) ** 2);
     let guard = 0;
     while (items.length < target && guard++ < target * 6) {
       const i = Math.floor(Math.random() * N); const side = Math.random() < 0.5 ? 1 : -1;
@@ -1166,7 +1390,7 @@ export class Race3D {
         const a = Math.random() * 6.283; const r = this.hillR0 + 30 + Math.random() ** 1.8 * 900;
         const cl = 0.5 + 0.5 * Math.sin(a * 9 + r * 0.004) * Math.cos(a * 4 - r * 0.002); if (Math.random() > cl * cl * cl) continue;
         const px = cx + Math.cos(a) * r, pz = cz + Math.sin(a) * r;
-        if (this.seaMask?.(px, pz) || (this.coastK && this.coastK(px, pz) < 0.4)) continue;
+        if (this.seaMask?.(px, pz) || (this.coastK && this.coastK(px, pz) < 0.4) || !cityOK(px, pz)) continue;
         const meta = conif[Math.floor(Math.random() * conif.length)];
         const h = (meta.kind === 'conifer' ? 14 : meta.kind === 'desert' ? 6 : 9) * (0.8 + Math.random() * 0.6);
         const v = 0.8 + Math.random() * 0.25;
@@ -1197,12 +1421,13 @@ export class Race3D {
       });
     });
     ad.wrapS = ad.wrapT = THREE.ClampToEdgeWrapping; ad.anisotropy = 8;
-    const conc = this.low ? new THREE.MeshStandardMaterial({ color: 0xb9bcbf, roughness: 0.9 }) : pbr('concrete_floor_worn_001', { color: 0xd4d6d8, repeat: [0.22, 0.22], roughness: 0.95 });
+    const low = this.low;
+    const conc = triMat('concrete_wall_008', { scale: 0.22, color: 0xdcdcda, roughness: 1, low });
     this._sm = {
       crowd: crowdMat, conc,
-      steel: new THREE.MeshStandardMaterial({ color: 0x8e979f, roughness: 0.45, metalness: 0.6 }),
-      dark: new THREE.MeshStandardMaterial({ color: 0x3a3e45, roughness: 0.8, metalness: 0.2 }),
-      roof: new THREE.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.42, metalness: 0.35 }),
+      steel: triMat('metal_plate', { scale: 0.45, color: 0xa4adb5, roughness: 0.9, metalness: 0.65, low }),
+      dark: triMat('metal_plate', { scale: 0.45, color: 0x3d4148, roughness: 1, metalness: 0.3, low }),
+      roof: triMat('corrugated_iron_02', { scale: 0.35, color: 0xf2f3f4, roughness: 0.75, metalness: 0.45, low }),
       ad: new THREE.MeshStandardMaterial({ map: ad, roughness: 0.5, emissive: 0xffffff, emissiveMap: ad, emissiveIntensity: this.night ? 0.5 : 0.06 }),
       back: this.standBackMat(),
       nBrands: brands.length,
@@ -1393,7 +1618,7 @@ export class Race3D {
   // (lamps face the grid; this.lights[k] shares its material with the whole column)
   buildGantry(W) {
     const g = new THREE.Group();
-    const steel = new THREE.MeshStandardMaterial({ color: 0x30343b, metalness: 0.75, roughness: 0.38 });
+    const steel = triMat('metal_plate', { scale: 0.5, color: 0x40454d, metalness: 0.75, roughness: 0.85, low: this.low });
     const span = this.pit ? 2 * this.pit.wall : W + 6; // + side post stands on the pit wall
     for (const zz of [span / 2, -span / 2]) {
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.9, 8.4, 0.9), steel); post.position.set(0, 4.2, zz); post.castShadow = true; g.add(post);
@@ -1465,8 +1690,8 @@ export class Race3D {
           break;
         }
       }
-      instanced(new THREE.BoxGeometry(2.4, 2.4, 2.2).translate(0, 1.2, 0), new THREE.MeshStandardMaterial({ color: 0xe9e9e6, roughness: 0.7 }), huts);
-      instanced(new THREE.BoxGeometry(2.9, 0.22, 2.7), new THREE.MeshStandardMaterial({ color: 0xf07d10, roughness: 0.6 }), roofs);
+      instanced(new THREE.BoxGeometry(2.4, 2.4, 2.2).translate(0, 1.2, 0), triMat('concrete_wall_008', { scale: 0.45, color: 0xf2f2ef, roughness: 1, low: this.low }), huts);
+      instanced(new THREE.BoxGeometry(2.9, 0.22, 2.7), triMat('metal_plate', { scale: 0.6, color: 0xf07d10, roughness: 0.8, low: this.low }), roofs);
       const led = canvasTex(64, 64, (c, w, h) => { c.fillStyle = '#050607'; c.fillRect(0, 0, w, h); for (let y = 6; y < h - 4; y += 6) for (let x = 6; x < w - 4; x += 6) { c.fillStyle = 'rgba(40,255,90,0.95)'; c.fillRect(x, y, 3, 3); } });
       instanced(new THREE.BoxGeometry(1.2, 1.0, 0.12), new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xffffff, emissiveMap: led, emissiveIntensity: 0.9, roughness: 0.4 }), panels, false);
     }
@@ -1482,8 +1707,8 @@ export class Race3D {
         dummy.position.set(c.pos.x, top, c.pos.z); dummy.rotation.set(0, -rot, 0); dummy.scale.set(1, 1, 1); dummy.updateMatrix(); decks.push(dummy.matrix.clone());
         this.obstacles.push({ x: c.pos.x, z: c.pos.z, r: 2.4, h: 0 });
       }
-      instanced(new THREE.BoxGeometry(0.24, 1, 0.24), new THREE.MeshStandardMaterial({ color: 0x9aa1a8, metalness: 0.7, roughness: 0.45 }), legs);
-      instanced(new THREE.BoxGeometry(2.6, 0.16, 2.6), new THREE.MeshStandardMaterial({ color: 0x5b6067, roughness: 0.8, metalness: 0.3 }), decks);
+      instanced(new THREE.BoxGeometry(0.24, 1, 0.24), triMat('metal_plate', { scale: 0.8, color: 0xaab1b8, metalness: 0.7, roughness: 0.8, low: this.low }), legs);
+      instanced(new THREE.BoxGeometry(2.6, 0.16, 2.6), triMat('metal_plate', { scale: 0.6, color: 0x6b7077, roughness: 1, metalness: 0.3, low: this.low }), decks);
     }
     // sponsor footbridge over the middle of the longest straight (away from the start)
     {
@@ -1493,7 +1718,7 @@ export class Race3D {
         let i = best % N; if (Math.min(i, N - i) < this.pitSpan + 30) i = (i + Math.round(bestLen / 4)) % N;
         const g = new THREE.Group();
         const wl = this.wallOff(i, 1) + 2, wr = this.wallOff(i, -1) + 2, H = 7.2;
-        const steelM = new THREE.MeshStandardMaterial({ color: 0x3a3f46, metalness: 0.7, roughness: 0.4 });
+        const steelM = triMat('metal_plate', { scale: 0.45, color: 0x464c55, metalness: 0.7, roughness: 0.85, low: this.low });
         for (const zz of [wl, -wr]) { const t = new THREE.Mesh(new THREE.BoxGeometry(2.2, H + 2.4, 2.2), steelM); t.position.set(0, (H + 2.4) / 2, zz); t.castShadow = true; g.add(t); }
         const brands = ['PIRELLO', 'LAVAZZO', 'DHX', 'ROLEXA']; const brand = brands[i % brands.length];
         const bt = canvasTex(1024, 128, (c, w, h) => { const gr = c.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#ffd400'); gr.addColorStop(1, '#f1b700'); c.fillStyle = gr; c.fillRect(0, 0, w, h); c.fillStyle = '#111'; c.font = 'italic 900 92px "Exo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(brand, w / 2, h / 2 + 4); });
@@ -1943,7 +2168,7 @@ export class Race3D {
     const F = this.pitBack, bw = ds * 3;
     const d = new THREE.Object3D();
     const frame = (q) => { const i = ((Math.round(q) % N) + N) % N; this.placeAt(d, q, 0, this.geo.h ? this.geo.h[i] : 0); d.updateMatrix(); return d.matrix.clone(); };
-    const G = { shell: [], glass: [], roof: [], vc: [], glow: [], art: [], head: [], screen: [], mark: [] };
+    const G = { shell: [], glass: [], roof: [], vc: [], glow: [], art: [], head: [], screen: [], mark: [], bal: [], pod: [] };
     const col = new THREE.Color();
     const put = (list, geo, M, color) => {
       for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(k)) geo.deleteAttribute(k);
@@ -2023,6 +2248,13 @@ export class Race3D {
       put(G.glass, box(bw, 3.3, 12.4, 0, 7.1, F + 7.6), M);
       put(G.roof, box(bw + 0.05, 0.45, 15, 0, 8.95, F + 6.8), M);
       put(G.head, tilePlane(bw - 1.4, 0.72, 0, 4.5, F - 0.02, T ? b.team : 31, 4, 8), M);
+      // hospitality balcony in front of the first-floor suites: slab, glass balustrade on
+      // stainless posts with a handrail, and the team name on the roof fascia
+      put(G.shell, box(bw, 0.3, 1.45, 0, 5.3, F - 0.62), M);
+      put(G.bal, box(bw - 0.1, 1.0, 0.03, 0, 5.95, F - 1.26), M);
+      put(G.vc, box(bw, 0.06, 0.09, 0, 6.47, F - 1.26), M, '#cfd4da');
+      put(G.vc, box(0.06, 1.05, 0.06, -bw / 2 + 0.05, 5.95, F - 1.26), M, '#9aa1a8');
+      put(G.head, tilePlane(bw - 0.3, 0.4, 0, 8.95, F - 0.71, T ? b.team : 31, 4, 8), M);
       if (!T) { put(G.art, tilePlane(bw - 0.8, 4.0, 0, 2.0, F + 0.35, 15, 4, 4), M); continue; }
       // interior: epoxy floor with team stripe, white partitions, dark ceiling with light strips
       const iw = bw - 0.8;
@@ -2060,7 +2292,7 @@ export class Race3D {
     }
     // ---- pit wall: concrete wall + debris fence; team stands with canopy, monitors, engineers
     {
-      const concrete = new THREE.MeshStandardMaterial({ color: 0xd9dcdf, roughness: 0.8 });
+      const concrete = triMat('concrete_wall_008', { scale: 0.3, color: 0xe6e7e8, roughness: 1, low: this.low });
       const wallG = [];
       const vs = (q0, q1, off, y0, y1, flip) => { const pos = [], uv = [], idx = []; for (let q = q0, n = 0; q <= q1; q++, n++) { const i = ((q % N) + N) % N; const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]); const hh = this.geo.h ? this.geo.h[i] : 0; const px = this.geo.x[i] + nx * off, pz = this.geo.y[i] + nz * off; pos.push(px, hh + y0, pz, px, hh + y1, pz); uv.push(n * ds / 3, 0, n * ds / 3, 1); if (q < q1) { const k = n * 2; flip ? idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2) : idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); } } const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); return g; };
       const q0 = -P - 3, q1 = P + 3, a = pit.wall - 0.3, b2 = pit.wall + 0.3;
@@ -2104,8 +2336,29 @@ export class Race3D {
         this.scene.add(m);
       }
     }
+    // ---- podium: a balcony cantilevered over the pit lane from the middle of the pit building,
+    // three steps, sponsor backdrop, canopy on two columns
+    let podTex = null;
+    if (bays.length > 4) {
+      const qc = bays[Math.floor(bays.length / 2)].q, M = frame(qc), z0 = F - 2.9;
+      put(G.shell, box(13, 0.45, 4.6, 0, 5.35, z0 + 0.6), M);                       // deck
+      put(G.vc, box(13, 0.08, 0.06, 0, 6.6, z0 - 1.66), M, '#d9dde2');               // handrail
+      put(G.bal, box(13, 1.05, 0.03, 0, 6.1, z0 - 1.66), M);                         // glass front
+      for (const [x, h] of [[0, 0.95], [-2.4, 0.62], [2.4, 0.4]]) { put(G.vc, box(2.1, h, 1.6, x, 5.58 + h / 2, z0 + 1.2), M, '#f4f4f2'); put(G.vc, box(2.1, 0.08, 1.62, x, 5.58 + h, z0 + 1.2), M, '#c8102e'); }
+      put(G.pod, tilePlane(13, 3.4, 0, 7.4, z0 + 2.8, 0, 1, 1), M);                   // backdrop
+      put(G.shell, box(14, 0.3, 5.4, 0, 9.4, z0 + 0.6), M);                          // canopy
+      for (const x of [-6.2, 6.2]) put(G.shell, box(0.35, 4.0, 0.35, x, 7.45, z0 - 1.5), M);
+      podTex = canvasTex(1024, 256, (c, w, h) => {
+        const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0b1020'); g.addColorStop(1, '#1b2340'); c.fillStyle = g; c.fillRect(0, 0, w, h);
+        const br = ['APEX DYNASTY', 'ROLEXA', 'PIRELLO', 'DHX', 'ARAMCORE', 'HEINEKAN 0.0'];
+        for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) { c.fillStyle = (r + k) % 3 ? '#ffffff' : '#ffd400'; c.font = 'italic 900 30px "Exo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(br[(r * 4 + k) % br.length], (k + 0.5 + (r % 2) * 0.25) * w / 4, (r + 0.5) * h / 4); }
+        c.fillStyle = '#e10600'; c.fillRect(0, h - 10, w, 10);
+      });
+      podTex.wrapS = podTex.wrapT = THREE.ClampToEdgeWrapping;
+      this.obstacles?.push((() => { this.placeAt(d, qc, z0); return { x: d.position.x, z: d.position.z, r: 8, h: 10 }; })());
+    }
     // ---- merge and add
-    const shellMat = new THREE.MeshStandardMaterial({ color: 0xd3d8de, roughness: 0.5, metalness: 0.2 });
+    const shellMat = triMat('concrete_wall_008', { scale: 0.22, color: 0xe9ebee, roughness: 0.9, metalness: 0.05, low: this.low });
     // first-floor glazing: tinted panes with mullions and transoms (lit offices at night)
     const glassTex = canvasTex(256, 128, (c, w, h) => {
       const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#2a3b52'); g.addColorStop(0.6, '#152233'); g.addColorStop(1, '#1d2c40'); c.fillStyle = g; c.fillRect(0, 0, w, h);
@@ -2129,8 +2382,8 @@ export class Race3D {
     const lit = (map, k) => new THREE.MeshStandardMaterial({ map, roughness: 0.55, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: k });
     const out = [
       [G.shell, shellMat, true], [G.glass, glassMat, false], [G.roof, roofMat, true], [G.vc, vcMat, true],
-      [G.glow, new THREE.MeshBasicMaterial({ color: 0xfff7e8 }), false], [G.art, (this._pitArt = lit(artTex, this.night ? 0.55 : 0.32)), false],
-      [G.head, lit(headTex, this.night ? 0.6 : 0.2), false], [G.screen, new THREE.MeshBasicMaterial({ map: scrTex }), false],
+      [G.glow, new THREE.MeshBasicMaterial({ color: 0xfff7e8 }), false], [G.bal, new THREE.MeshStandardMaterial({ color: 0xa9c4d2, transparent: true, opacity: 0.32, roughness: 0.04, metalness: 0.2, depthWrite: false }), false], [G.art, (this._pitArt = lit(artTex, this.night ? 0.55 : 0.32)), false],
+      [G.head, lit(headTex, this.night ? 0.6 : 0.2), false], [G.pod, podTex ? lit(podTex, this.night ? 0.6 : 0.15) : null, false], [G.screen, new THREE.MeshBasicMaterial({ map: scrTex }), false],
     ];
     for (const [list, mat, cast] of out) {
       if (!list.length) continue;
@@ -2516,7 +2769,7 @@ export class Race3D {
     this.setLampLevel?.(n);
     this._lit = { sun: this.sun.intensity, bg: this.hdr ? this.scene.backgroundIntensity : 1, fog: this.scene.fog.color.clone() }; this._wetApplied = -1;
     if (this.forest) this.forest.material.uniforms.light.value = 1 - n * 0.8;
-    this.renderer.toneMappingExposure = T.exp - n * 0.2;
+    this.renderer.toneMappingExposure = (T.exp - n * 0.2) * (this._expK || 1);
   }
 
   // visible sun: soft disc + glow sprite on the sun painted in the HDRI (the 1k map clips it to
@@ -2649,9 +2902,9 @@ export class Race3D {
       const fogT = (this._rainFog ||= new THREE.Color());
       fogT.copy(hor).multiplyScalar(0.92);
       this.scene.fog.color.copy(base.fog).lerp(fogT, Math.min(1, ovc * 0.9 + wet * 0.1));
-      if (this.composer?.grade) this.composer.grade.uniforms.uSat.value = (this.tod?.sat ?? 1.08) - 0.18 * ovc - 0.12 * wet;
+      if (this.composer?.grade) this.composer.grade.uniforms.uSat.value = ((this.tod?.sat ?? 1.08) - 0.18 * ovc - 0.12 * wet) * (this._gSat || 1);
       // moody overcast: cooler highlights, deeper contrast instead of a flat grey image
-      if (this.composer?.grade) { const gu = this.composer.grade.uniforms; gu.uWarm.value = (this.tod?.warm ?? 0.035) * (1 - ovc) - 0.016 * ovc * (1 - nite); gu.uCon.value = 1.08 + 0.07 * ovc + 0.04 * storm; gu.uVig.value = 0.32 + 0.1 * ovc; }
+      if (this.composer?.grade) { const gu = this.composer.grade.uniforms; gu.uWarm.value = (this.tod?.warm ?? 0.035) * (1 - ovc) - 0.016 * ovc * (1 - nite); gu.uCon.value = (this._gCon || 1.08) + 0.07 * ovc + 0.04 * storm; gu.uVig.value = 0.32 + 0.1 * ovc; }
     }
     if (!this.asphaltMat.userData.wetPatch) { this.asphaltMat.roughness = 0.82 - wet * 0.5; this.asphaltMat.metalness = 0.04 + wet * 0.12; if (this.asphaltMat.color) { this._asphBase ??= this.asphaltMat.color.getHex(); this.asphaltMat.color.setHex(this._asphBase).multiplyScalar(1 - wet * 0.45); } }
     WET.value = wet;
@@ -3386,8 +3639,7 @@ export class Race3D {
       this.camera.lookAt(look);
       this.camPos.copy(this.camera.position); this.camLook.copy(look);
       this.skyDome.position.copy(this.camera.position);
-      const sc = this.sun.shadow.camera; if (sc.right !== 70) { sc.left = -70; sc.right = 70; sc.top = 70; sc.bottom = -70; sc.updateProjectionMatrix(); }
-      this.sun.position.copy(look).addScaledVector(this.sunDir, 400); this.sun.target.position.copy(look);
+      stabilizeShadow(this.sun, look, this.sunDir, 70);
       if (this.composer?.dof) this.composer.dof.enabled = false;
       if (this.introT <= 0) this._intro = null;
       this._camCar = null;
@@ -3480,8 +3732,11 @@ export class Race3D {
     } else if (this.camMode === 'cockpit') {
       m.updateMatrixWorld();
       const formula = this.category === 'formula' || this.category === 'junior';
-      pos = m.localToWorld(new THREE.Vector3(formula ? -0.36 : 0.05, formula ? 0.9 : 1.05, formula ? 0 : 0.35));
-      look = m.localToWorld(new THREE.Vector3(30, formula ? -0.6 : 0.8, formula ? 0 : 0.35));
+      // driver's eye point from the car model when it provides one (local coords, +x forward)
+      const eye = m.userData?.eye;
+      const ex = eye ? eye.x : formula ? -0.36 : 0.05, ey = eye ? eye.y : formula ? 0.9 : 1.05, ez = eye ? eye.z : formula ? 0 : 0.35;
+      pos = m.localToWorld(new THREE.Vector3(ex, ey, ez));
+      look = m.localToWorld(new THREE.Vector3(30, ey - (formula ? 1.5 : 0.25), ez));
       fov = 70 + Math.min(8, spd * 0.08);
     } else if (this.camMode === 'onboard') {
       // formula: T-cam above the airbox; closed cars: bonnet camera ahead of the windscreen
@@ -3611,12 +3866,10 @@ export class Race3D {
     // the frustum is only as wide as the view needs: close cameras get ~3 cm shadow texels
     // (crisp self-shadowing on the cars), the helicopter keeps the wide one
     const half = mode === 'heli' ? 70 : mode === 'tv' ? 60 : mode === 'chase' || mode === 'garage' ? 40 : 46;
-    const sc = this.sun.shadow.camera;
-    if (sc.right !== half) { sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.updateProjectionMatrix(); this.sun.shadow.normalBias = 0.03 * Math.max(0.5, half / 70); }
-    const fc = mode === 'tv' || mode === 'heli' ? target.clone() : this.camera.position.clone().lerp(target, 0.5).addScaledVector(fwd, half * 0.45);
-    const tex = (2 * half) / this.sun.shadow.mapSize.x; fc.x = Math.round(fc.x / tex) * tex; fc.z = Math.round(fc.z / tex) * tex;
-    this.sun.position.copy(fc).addScaledVector(this.sunDir, 400);
-    this.sun.target.position.copy(fc);
+    if (this.sun.shadow.camera.right !== half) this.sun.shadow.normalBias = 0.02 * Math.max(0.5, half / 70);
+    const fc = (this._shC ||= new THREE.Vector3());
+    if (mode === 'tv' || mode === 'heli') fc.copy(target); else fc.copy(this.camera.position).lerp(target, 0.5).addScaledVector(fwd, half * 0.45);
+    stabilizeShadow(this.sun, fc, this.sunDir, half);
     this.skyDome.position.copy(this.camera.position);
     if (this.clouds) this.clouds.position.set(this.camera.position.x, 0, this.camera.position.z);
     // depth of field: shallow in the pit-lane camera, a hint of it on long TV lenses

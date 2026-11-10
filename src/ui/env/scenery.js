@@ -64,16 +64,39 @@ export function buildCoast(r3, biome, street) {
     const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 })); m.position.set(cx + Math.cos(a) * 5200, -40, cz + Math.sin(a) * 5200); r3.scene.add(m);
   }
   if (!biome.sea) return;
-  const a = biome.sea.a * Math.PI / 180, dx = Math.cos(a), dz = Math.sin(a);
-  let D = -1e9; const { N, x, y } = r3.geo;
+  // the coast bearing is a preference only: layouts may be rotated / mirrored, so the side is
+  // chosen from the geometry at runtime (within +-75 deg of the preference, the flank where the
+  // circuit reaches least far out, i.e. its long side), and the shore is always placed beyond the
+  // farthest track sample in that direction, so the sea can never cover the track
+  const { N, x, y } = r3.geo, a0 = biome.sea.a * Math.PI / 180, ext = Math.hypot(x1 - x0, y1 - y0);
+  const reach = (ang) => { const ux = Math.cos(ang), uz = Math.sin(ang); let m = -1e9; for (let i = 0; i < N; i += 2) m = Math.max(m, (x[i] - cx) * ux + (y[i] - cz) * uz); return m; };
+  let a = a0, best = Infinity;
+  for (let k = -5; k <= 5; k++) { const ang = a0 + k * Math.PI / 12, sc = reach(ang) + Math.abs(k) * 0.06 * ext; if (sc < best) { best = sc; a = ang; } }
+  const dx = Math.cos(a), dz = Math.sin(a);
+  let D = -1e9;
   for (let i = 0; i < N; i++) D = Math.max(D, (x[i] - cx) * dx + (y[i] - cz) * dz);
-  D += street > 0.7 ? 70 : 150;
-  const proj = (px, pz) => (px - cx) * dx + (pz - cz) * dz;
-  r3.seaMask = (px, pz) => proj(px, pz) > D - 14;
-  r3.coastK = (px, pz) => sm(0, 1, (D - 30 - proj(px, pz)) / 260);
+  D += street > 0.7 ? Math.max(70, (r3.pitBack || 20) + 40) : 150;
+  r3.seaDir = a;
+  const proj = (px, pz) => (px - cx) * dx + (pz - cz) * dz, latOf = (px, pz) => -(px - cx) * dz + (pz - cz) * dx;
+  // natural coastline: bays and headlands only ever push the shore out to sea (never towards
+  // the circuit); harbour fronts (street circuits) stay straighter
+  const ph = [Math.random() * 6.283, Math.random() * 6.283, Math.random() * 6.283], ampK = street > 0.7 ? 0.25 : 1;
+  const bay = (l) => ampK * (110 * (1 + Math.sin(l / 520 + ph[0])) + 45 * (1 + Math.sin(l / 190 + ph[1])) + 14 * (1 + Math.sin(l / 61 + ph[2])));
+  const shoreAt = (px, pz) => D + bay(latOf(px, pz));
+  r3.seaMask = (px, pz) => proj(px, pz) > shoreAt(px, pz) - 14;
+  r3.coastK = (px, pz) => sm(0, 1, (shoreAt(px, pz) - 30 - proj(px, pz)) / 260);
+  // strip between (shore + d0) and (shore + d1) along the curved coast, built in (along, lateral) space
   const quad = (d0, d1, yy, mat, half = 9000) => {
-    const g = new THREE.PlaneGeometry(d1 - d0, half * 2, Math.max(1, Math.min(32, Math.round((d1 - d0) / 300))), 24).rotateX(-Math.PI / 2);
-    const m = new THREE.Mesh(g, mat); m.position.set(cx + dx * (d0 + d1) / 2, yy, cz + dz * (d0 + d1) / 2); m.rotation.y = -a; m.receiveShadow = true; r3.scene.add(m); return m;
+    const nl = r3.low ? 160 : 420, na = Math.max(1, Math.min(24, Math.round((d1 - d0) / 300)));
+    const pos = [], idx = [];
+    for (let j = 0; j <= nl; j++) {
+      const l = -half + (2 * half * j) / nl, s0 = D + bay(l);
+      for (let i = 0; i <= na; i++) { const t = i / na, ex = d1 > 2000 ? d1 : s0 + d1, al = (s0 + d0) + (ex - (s0 + d0)) * (t * t); pos.push(cx + dx * al - dz * l, yy, cz + dz * al + dx * l); }
+      if (j < nl) for (let i = 0; i < na; i++) { const k = j * (na + 1) + i; idx.push(k, k + 1, k + na + 1, k + 1, k + na + 2, k + na + 1); }
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+    if (g.attributes.normal.getY(0) < 0) { const ia = g.index.array; for (let k = 0; k < ia.length; k += 3) { const t = ia[k]; ia[k] = ia[k + 1]; ia[k + 1] = t; } g.computeVertexNormals(); }
+    const m = new THREE.Mesh(g, mat); m.receiveShadow = true; r3.scene.add(m); return m;
   };
   const night = r3.night;
   const water = new THREE.MeshStandardMaterial({ color: night ? 0x0a1420 : 0x1f5672, roughness: 0.16, metalness: 0.25, envMapIntensity: 1.3 });
@@ -90,22 +113,24 @@ export function buildCoast(r3, biome, street) {
             float h0 = wn(p * 0.35) + 0.5 * wn(p * 0.9 + 7.0), hx = wn((p + vec2(e, 0.0)) * 0.35) + 0.5 * wn((p + vec2(e, 0.0)) * 0.9 + 7.0), hz = wn((p + vec2(0.0, e)) * 0.35) + 0.5 * wn((p + vec2(0.0, e)) * 0.9 + 7.0);
             vec3 wnrm = normalize(vec3((h0 - hx) * k, 0.3, (h0 - hz) * k));
             normal = normalize(mix(normal, (viewMatrix * vec4(wnrm, 0.0)).xyz, 0.85));
-            diffuseColor.rgb *= 0.8 + 0.4 * wn(p * 0.02); }`);
+            diffuseColor.rgb *= 0.8 + 0.4 * wn(p * 0.02); }`)
+        // far water: rougher so the sub-pixel ripples do not sparkle / alias
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.42, smoothstep(250.0, 2500.0, length(vWp - cameraPosition)));');
     };
     water.customProgramCacheKey = () => 'envwater';
   }
-  quad(D, 9000, -0.12, water);
+  quad(0, 9000, -0.12, water);
   // shore: quay (street circuits) or beach
   const shore = new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x9a9690 : 0xd9c9a0, roughness: 0.95 });
-  quad(D - 16, D + 1, -0.05, shore);
-  if (street > 0.7) { const wall = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.6, 18000), shore); wall.position.set(cx + dx * D, -0.3, cz + dz * D); wall.rotation.y = -a; r3.scene.add(wall); }
+  quad(street > 0.7 ? -16 : -30, 1, -0.05, shore);
+  if (street > 0.7) quad(-1.2, 0.2, -0.03, new THREE.MeshStandardMaterial({ color: 0xc9c4ba, roughness: 0.9 })); // quay edge stones
   // boats: moored yachts near the shore, a few further out
   const hull = [part(new THREE.BoxGeometry(1, 0.22, 0.26).translate(0, 0.08, 0), '#ffffff'), part(new THREE.BoxGeometry(0.42, 0.14, 0.2).translate(-0.08, 0.26, 0), '#eef1f4'), part(new THREE.BoxGeometry(0.4, 0.05, 0.19).translate(-0.08, 0.3, 0), '#27323f'), part(new THREE.BoxGeometry(0.2, 0.1, 0.14).translate(-0.12, 0.38, 0), '#f4f4f4')];
   const bg = mergeGeometries(hull); const list = [], cols = []; const d = new THREE.Object3D();
   const nb = Math.round((street > 0.7 ? 150 : 50) * (r3.low ? 0.3 : 1));
   for (let k = 0; k < nb; k++) {
     const far = Math.random() < 0.25, off = far ? rnd(200, 1200) : rnd(8, 150), lat = (Math.random() - 0.5) * (far ? 3600 : 1700), L = far ? rnd(16, 45) : rnd(10, 38);
-    d.position.set(cx + dx * (D + off) - dz * lat, -0.15, cz + dz * (D + off) + dx * lat); d.rotation.set(0, far ? Math.random() * 6.28 : -a + (Math.random() < 0.5 ? 0 : Math.PI) + rnd(-0.12, 0.12), 0); d.scale.set(L, L * 0.8, L * 0.85); d.updateMatrix();
+    const so = bay(lat); d.position.set(cx + dx * (D + so + off) - dz * lat, -0.15, cz + dz * (D + so + off) + dx * lat); d.rotation.set(0, far ? Math.random() * 6.28 : -a + (Math.random() < 0.5 ? 0 : Math.PI) + rnd(-0.12, 0.12), 0); d.scale.set(L, L * 0.8, L * 0.85); d.updateMatrix();
     list.push(d.matrix.clone()); cols.push(['#ffffff', '#f2f2ee', '#1d2a3a', '#e9e4d8', '#ffffff'][k % 5]);
   }
   instanced(r3.scene, bg, tintWhite(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, ...(night ? { emissive: 0xffe2b0, emissiveIntensity: 0.25 } : {}) }), 'boat'), list, { colors: cols });
@@ -130,7 +155,9 @@ export function buildMidTerrain(r3, mat, biome, uvOf) {
     if (r3.coastK) k *= r3.coastK(px, pz);
     for (const o of r3.obstacles || []) if (o.r > 10) k *= sm(o.r + 8, o.r + 70, Math.hypot(px - o.x, pz - o.z));
     if (k <= 0) continue;
-    const n = 0.62 * Math.sin(px * 0.0105 + ph[0]) * Math.cos(pz * 0.0118 + ph[1]) + 0.42 * Math.sin((px + pz) * 0.021 + ph[2]) * Math.sin((px - pz) * 0.017 + ph[3]) + 0.16 * Math.sin(px * 0.052 + ph[4]) * Math.sin(pz * 0.047 + ph[5]);
+    // domain-warped so the relief does not read as a regular egg-crate from the helicopter
+    const wx = px + 90 * Math.sin(pz * 0.0041 + ph[6]) + 40 * Math.sin((px + pz) * 0.0093 + ph[3]), wz = pz + 90 * Math.sin(px * 0.0037 + ph[7]) + 40 * Math.sin((px - pz) * 0.0087 + ph[2]);
+    const n = 0.62 * Math.sin(wx * 0.0105 + ph[0]) * Math.cos(wz * 0.0118 + ph[1]) + 0.42 * Math.sin((wx + wz) * 0.021 + ph[2]) * Math.sin((wx - wz) * 0.017 + ph[3]) + 0.16 * Math.sin(wx * 0.052 + ph[4]) * Math.sin(wz * 0.047 + ph[5]);
     H[j * (nx + 1) + i] = amp * k * (0.18 + Math.max(0, n + 0.4) ** 1.2);
   }
   r3.envH = (px, pz) => {
@@ -179,9 +206,12 @@ export function buildDecals(r3, street) {
   // resurfacing: darker fresh tarmac and paler old patches, each outlined by tar seams
   const nP = Math.round(N / 55);
   for (let k = 0; k < nP; k++) {
-    const i0 = Math.floor(Math.random() * N), len = 5 + Math.floor(Math.random() * 22), fresh = Math.random() < 0.6;
-    const full = Math.random() < 0.45, a = full ? -W / 2 + 0.45 : Math.random() < 0.5 ? -W / 2 + 0.45 : rnd(-1.5, 1.5), b = full ? W / 2 - 0.45 : a < -W / 4 ? rnd(-1, 2.5) : W / 2 - 0.45;
-    const tone = fresh ? [0.02, 0.02, 0.025, rnd(0.2, 0.36)] : [0.62, 0.61, 0.6, rnd(0.035, 0.07)];
+    // lengths in metres (samples are 5 m apart): lane-width patches 6-30 m, the rare full-width
+    // relay 8-18 m and fainter, so no long dark slab ever covers the whole track
+    const full = Math.random() < 0.18, fresh = Math.random() < 0.6;
+    const len = Math.max(1, Math.round((full ? rnd(8, 18) : rnd(6, 30)) / g.ds)), i0 = Math.floor(Math.random() * N);
+    const a = full ? -W / 2 + 0.45 : Math.random() < 0.5 ? -W / 2 + 0.45 : rnd(-1.5, 1.5), b = full ? W / 2 - 0.45 : a < -W / 4 ? rnd(-1, 2.5) : W / 2 - 0.45;
+    const tone = fresh ? [0.02, 0.02, 0.025, rnd(0.16, 0.3) * (full ? 0.6 : 1)] : [0.62, 0.61, 0.6, rnd(0.035, 0.07)];
     strip(i0, i0 + len, a, b, tone, 0.047);
     const seam = [0.015, 0.015, 0.018, 0.5];
     for (const o of [a, b]) if (Math.abs(o) < W / 2 - 0.6) strip(i0, i0 + len, o - 0.05, o + 0.05, seam, 0.049);

@@ -36,6 +36,46 @@ export function pbr(id, { repeat = [1, 1], color = 0xffffff, normalScale = 1, ro
   return new THREE.MeshStandardMaterial({ map, normalMap: nor, roughnessMap: rough, roughness, metalness, color, normalScale: new THREE.Vector2(normalScale, normalScale) });
 }
 
+// ---- world-space (triplanar) PBR material -------------------------------------------------
+// For built structures (merged / instanced boxes without meaningful uvs): albedo, roughness and
+// normal are projected from the world position along the three axes and blended by the normal,
+// so every wall gets the texture at its true scale (scale = texture repeats per metre).
+// Vertex / instance colours still tint the result. low = plain material (light setting).
+export function triMat(id, { scale = 0.25, color = 0xffffff, roughness = 1, metalness = 0, normalScale = 1, low = false, vertexColors = false, emissive = null, emissiveIntensity = 1, envMapIntensity = 1, key = '' } = {}) {
+  const base = { color, roughness: low ? Math.min(1, roughness * 0.8) : roughness, metalness, vertexColors, envMapIntensity };
+  if (emissive != null) Object.assign(base, { emissive, emissiveIntensity });
+  if (low) return new THREE.MeshStandardMaterial(base);
+  const mat = new THREE.MeshStandardMaterial(base);
+  const U = { tTriD: { value: load(`${BASE}tex/${id}_diff_1k.jpg`, true) }, tTriR: { value: load(`${BASE}tex/${id}_rough_1k.jpg`) }, tTriN: { value: load(`${BASE}tex/${id}_nor_gl_1k.jpg`) }, uTriS: { value: scale }, uTriNS: { value: normalScale } };
+  mat.userData.tri = U;
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTriP; varying vec3 vTriN;')
+      .replace('#include <project_vertex>', `#include <project_vertex>
+        { vec4 tp = vec4(transformed, 1.0); vec3 tn = objectNormal;
+          #ifdef USE_INSTANCING
+            tp = instanceMatrix * tp; tn = mat3(instanceMatrix) * tn;
+          #endif
+          vTriP = (modelMatrix * tp).xyz; vTriN = normalize(mat3(modelMatrix) * tn); }`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+        varying vec3 vTriP; varying vec3 vTriN; uniform sampler2D tTriD, tTriR, tTriN; uniform float uTriS, uTriNS;
+        vec3 triW() { vec3 w = pow(abs(normalize(vTriN)), vec3(6.0)); return w / (w.x + w.y + w.z); }
+        vec4 triS(sampler2D t, vec3 w) { vec3 p = vTriP * uTriS; return texture2D(t, p.zy) * w.x + texture2D(t, p.xz) * w.y + texture2D(t, p.xy) * w.z; }`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        vec3 triw = triW(); diffuseColor.rgb *= triS(tTriD, triw).rgb;`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        roughnessFactor *= triS(tTriR, triw).g;`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        { vec3 p = vTriP * uTriS, n = normalize(vTriN);
+          vec3 tx = texture2D(tTriN, p.zy).xyz * 2.0 - 1.0, ty = texture2D(tTriN, p.xz).xyz * 2.0 - 1.0, tz = texture2D(tTriN, p.xy).xyz * 2.0 - 1.0;
+          // whiteout-style blend of the three tangent-space normals into world space
+          vec3 wn = normalize(n + (vec3(0.0, tx.y, tx.x) * triw.x + vec3(ty.x, 0.0, ty.y) * triw.y + vec3(tz.x, tz.y, 0.0) * triw.z) * uTriNS);
+          normal = normalize((viewMatrix * vec4(wn, 0.0)).xyz); }`);
+  };
+  mat.customProgramCacheKey = () => 'tri' + key;
+  return mat;
+}
+
 // ---- surface detail shader patch -------------------------------------------------------
 // Breaks texture tiling (second rotated sample blended by world-space noise), adds macro
 // colour variation and, for the racing surface, rain wetness with puddles (mirror-like
@@ -47,7 +87,8 @@ const NOISE_GLSL = /* glsl */`
   float dh21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
   float dvn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     return mix(mix(dh21(i), dh21(i + vec2(1.0, 0.0)), f.x), mix(dh21(i + vec2(0.0, 1.0)), dh21(i + vec2(1.0, 1.0)), f.x), f.y); }
-  float dfbm(vec2 p) { return dvn(p) * 0.5 + dvn(p * 2.03 + 17.1) * 0.3 + dvn(p * 4.07 + 3.7) * 0.2; }
+  // octaves on rotated lattices: no visible grid of blobs when seen from high up
+  float dfbm(vec2 p) { return dvn(p) * 0.5 + dvn(mat2(0.8, -0.6, 0.6, 0.8) * p * 2.03 + 17.1) * 0.3 + dvn(mat2(0.28, 0.96, -0.96, 0.28) * p * 4.07 + 3.7) * 0.2; }
 `;
 // track: { halfW, uScale } turns on the racing-surface model. The mesh then carries an
 // attribute aTrk = (lateral offset m, racing-line offset m, cornerness 0..1) and uv.y * uScale
@@ -150,6 +191,53 @@ export function detailPatch(mat, { antiTile = true, macro = 0.18, macroScale = 0
   };
   mat.customProgramCacheKey = () => `detail|${antiTile}|${macro}|${macroScale}|${tintAmt}|${tintV.getHex()}|${wet}|${rough}|${key}|${track ? track.halfW + ',' + track.uScale + ',' + !!track.ruts + !!track.snow : ''}|${mow ? mow.uScale : ''}`;
   return mat;
+}
+
+// ---- height fog / aerial perspective ------------------------------------------------------
+// Opt-in through HeightFog (an exponential fog whose density uniform is sent negative): the fog
+// is thick near the ground and thins out with altitude (analytic integral of the density along
+// the view ray), so low views keep the familiar haze while helicopter shots look down through
+// clear air and distant mountain tops stand out against the sky. Plain Fog / FogExp2 (derby,
+// garage) are unchanged.
+{
+  const C = THREE.ShaderChunk;
+  if (!C.fog_vertex.includes('vFogRay')) {
+    C.fog_pars_vertex = C.fog_pars_vertex.replace('varying float vFogDepth;', 'varying float vFogDepth;\n#ifdef FOG_EXP2\nvarying vec3 vFogRay;\n#endif');
+    C.fog_vertex = C.fog_vertex.replace('vFogDepth = - mvPosition.z;', 'vFogDepth = - mvPosition.z;\n#ifdef FOG_EXP2\nvFogRay = transpose(mat3(viewMatrix)) * mvPosition.xyz;\n#endif');
+    C.fog_pars_fragment = C.fog_pars_fragment.replace('uniform float fogDensity;', 'uniform float fogDensity;\nvarying vec3 vFogRay;');
+    C.fog_fragment = C.fog_fragment.replace('float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );', /* glsl */`
+      float fogFactor;
+      if (fogDensity < 0.0) {
+        // density(y) = a * (0.3 + 0.7 * exp(-y / 260)): integrate along the ray camera -> fragment
+        float fd = length(vFogRay), y0 = max(cameraPosition.y, 0.0), dy = (cameraPosition.y + vFogRay.y) - cameraPosition.y;
+        float b = 1.0 / 260.0, e0 = exp(-y0 * b);
+        float avg = abs(dy * b) < 1e-3 ? e0 : e0 * (1.0 - exp(-dy * b)) / (dy * b);
+        float tau = -fogDensity * fd * (0.3 + 0.7 * clamp(avg, 0.0, 1.5));
+        fogFactor = 1.0 - exp(-tau * tau);
+      } else fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );`);
+  }
+}
+export class HeightFog extends THREE.FogExp2 {
+  constructor(color, density = 0.00025) { super(color, density); this.isHeightFog = true; }
+  get density() { return -Math.abs(this._d ?? 0); }
+  set density(v) { this._d = Math.abs(v); }
+  clone() { return new HeightFog(this.color, Math.abs(this.density)); }
+}
+
+// Stable directional shadows: centre the light's frustum on `center` with the centre snapped
+// to whole shadow-map texels in light space, so the map does not crawl / shimmer as the
+// camera moves. half = half-size of the (square) frustum in metres.
+const _sx = new THREE.Vector3(), _sy = new THREE.Vector3(), _sz = new THREE.Vector3(), _UP = new THREE.Vector3(0, 1, 0);
+export function stabilizeShadow(light, center, dir, half, dist = 400) {
+  const sc = light.shadow.camera;
+  if (sc.right !== half) { sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.updateProjectionMatrix(); }
+  _sz.copy(dir).normalize();
+  _sx.crossVectors(_UP, _sz); if (_sx.lengthSq() < 1e-6) _sx.set(1, 0, 0); _sx.normalize();
+  _sy.crossVectors(_sz, _sx);
+  const tex = (2 * half) / light.shadow.mapSize.x;
+  const u = Math.round(center.dot(_sx) / tex) * tex, v = Math.round(center.dot(_sy) / tex) * tex, w = center.dot(_sz);
+  light.target.position.set(0, 0, 0).addScaledVector(_sx, u).addScaledVector(_sy, v).addScaledVector(_sz, w);
+  light.position.copy(light.target.position).addScaledVector(_sz, dist);
 }
 
 const HDRIS = { day: 'kloofendal_48d_partly_cloudy_puresky_1k.hdr', afternoon: 'qwantani_late_afternoon_puresky_1k.hdr', dusk: 'qwantani_dusk_2_puresky_1k.hdr', night: 'moonless_golf_1k.hdr' };
