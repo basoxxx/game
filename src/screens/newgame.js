@@ -24,6 +24,12 @@ function teamStrengthLabel(td, all) {
 }
 
 let ngStage = null;
+const CAT_LIVERY = {
+  formula: { primary: '#e10600', secondary: '#ffffff', accent: '#111111', pattern: 1, number: 16 },
+  junior: { primary: '#0a2a66', secondary: '#3aa0ff', accent: '#ffffff', pattern: 3, number: 2 },
+  rally: { primary: '#0a2a66', secondary: '#ffcc00', accent: '#e10600', pattern: 5, number: 1 },
+  endurance: { primary: '#111111', secondary: '#00c2ff', accent: '#ffffff', pattern: 2, number: 7 },
+};
 registerScreen({
   id: 'newgame', full: true,
   unmount() { ngStage?.destroy(); ngStage = null; },
@@ -85,7 +91,7 @@ registerScreen({
 function step1() {
   return `<div class="cat-cards anim-in">${Object.values(CATEGORIES).map((c) => `
     <div class="cat-card ${W.cat === c.id ? 'sel' : ''}" style="--cc:${c.color}" data-a="pick-cat" data-id="${c.id}">
-      <div class="art">${categoryArt(c.id)}</div>
+      <div class="art art3d">${carImg(c.id, CAT_LIVERY[c.id], { number: CAT_LIVERY[c.id].number, sponsor: 'Apex' }, 720, 340, categoryArt(c.id))}</div>
       <div class="cinfo"><div class="cc-k" style="color:${c.color}">${c.id === 'junior' ? 'Carriera dalla gavetta' : c.type === 'rally' ? 'Prove speciali' : c.id === 'endurance' ? 'Gare di durata' : 'Monoposto'}</div><h2 class="mt8">${c.name}</h2><div class="small mt8" style="color:var(--text2);min-height:38px">${c.tagline}</div>
       <div class="cc-facts"><span><b>${TEAMS[c.id].length}</b>team</span><span><b>${c.cars}</b>auto/team</span>${c.driversPerCar > 1 ? `<span><b>${c.driversPerCar}</b>piloti/auto</span>` : ''}<span>${c.type === 'rally' ? 'Decisioni live' : c.refuel ? 'Rifornimenti' : 'Strategia gomme'}</span></div>${c.id === 'junior' ? '<div class="small good mt8">Vinci per salire in Formula Apex</div>' : ''}</div>
     </div>`).join('')}</div>

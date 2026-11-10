@@ -281,7 +281,7 @@ function buildSet() {
     set.add(g);
   }
   // air bottles + stands
-  for (const [x, z, col] of [[0.6, -6.9, 0x2f6fd0], [0.95, -6.9, 0x2f6fd0], [6.4, 6.9, 0xb9bdc4]]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 1.4, 18), std({ color: col, roughness: 0.35, metalness: 0.5 })); c.position.set(x, 0.7, z); c.castShadow = true; set.add(c); const cap = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 8, 0, 7, 0, Math.PI / 2), steel); cap.position.set(x, 1.4, z); set.add(cap); }
+  for (const [x, z, col] of [[0.6, -6.9, 0x2b3038], [0.95, -6.9, 0x2b3038], [6.4, 6.9, 0xb9bdc4]]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 1.4, 18), std({ color: col, roughness: 0.35, metalness: 0.5 })); c.position.set(x, 0.7, z); c.castShadow = true; set.add(c); const cap = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 8, 0, 7, 0, Math.PI / 2), steel); cap.position.set(x, 1.4, z); set.add(cap); }
   // overhead boom with air lines above the bay (classic pit-garage silhouette)
   set.add(box(0.1, 0.1, 4.4, dark, 2.3, 3.5, 0));
   for (const z of [-2.2, 2.2]) set.add(box(0.07, 1.2, 0.07, dark, 2.3, 4.1, z));

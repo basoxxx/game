@@ -1,7 +1,13 @@
 // Inbox, Standings, Calendar, Career, Settings
 import { App, registerScreen, trackName } from '../app.js';
 import { icon } from '../ui/icons.js';
-import { flagSVG, teamBadge, carSVG, helmetSVG, trackSVG } from '../ui/art.js';
+import { flagSVG, teamBadge, carSVG, helmetSVG, trackSVG, weatherIcon } from '../ui/art.js';
+import { trackArt } from '../ui/trackart.js';
+import { progressChart } from '../ui/charts.js';
+import { trackStats, partSensitivity } from '../engine/trackphys.js';
+import { partName } from '../engine/season.js';
+import { teamColor } from '../app.js';
+import { SURFACES } from '../data/categories.js';
 import { circuitPath } from '../ui/trackview.js';
 import { esc, bar, fmtGap, fmtLong } from '../ui/dom.js';
 import { S, getSettings, setSettings, saveGame, exportSave } from '../engine/state.js';
@@ -96,38 +102,105 @@ registerScreen({
       }).join('')}</tbody></table>`;
     }
     return `<div class="screen-title"><div><div class="sub">${esc(cat(st).full)} ${st.season}</div><h1>Classifiche</h1></div><div class="tabs"><div class="tab ${standTab === 'drivers' ? 'active' : ''}" data-a="tab" data-t="drivers">Piloti</div><div class="tab ${standTab === 'teams' ? 'active' : ''}" data-a="tab" data-t="teams">Costruttori</div></div></div>
-    <div class="panel flush anim-in" style="overflow-x:auto">${body}</div>`;
+    <div class="stand-wrap anim-in"><div class="panel flush" style="overflow-x:auto">${body}</div>${standSide(st, s, pt, done)}</div>`;
   },
   actions: { tab(el) { standTab = el.dataset.t; App.refresh(); } },
 });
 
+// right-hand column of the standings: points progression + the fight around the player
+function standSide(st, s, pt, done) {
+  const drivers = standTab === 'drivers';
+  const labels = done.map((e) => `R${e.round}`);
+  const rows = drivers ? s.drivers : s.teams;
+  const mineIds = drivers ? Object.values(st.drivers).filter((d) => d.teamId === pt.id).map((d) => d.id) : [pt.id];
+  const keep = rows.filter((x, i) => i < 8 || mineIds.includes(x.id));
+  const col = teamColor(pt.car.livery);
+  const series = keep.map((x) => {
+    let acc = 0;
+    const values = done.map((e) => { for (const c of e.results.classification) if (drivers ? c.driverIds.includes(x.id) : c.teamId === x.id) acc += c.pts; return acc; });
+    const name = drivers ? st.drivers[x.id].name : st.teams[x.id].name;
+    return { id: x.id, name, short: drivers ? name.split(' ').slice(-1)[0] : st.teams[x.id].short || name, color: col, values, me: mineIds.includes(x.id), lead: x.id === rows[0].id };
+  });
+  const meIdx = rows.findIndex((x) => mineIds.includes(x.id));
+  const me = rows[meIdx], ahead = rows[meIdx - 1], behind = rows[meIdx + 1];
+  const nm = (x) => esc(drivers ? st.drivers[x.id].name : st.teams[x.id].name);
+  const left = st.calendar.length - done.length;
+  const duel = me ? `<div class="stand-duel">
+      ${ahead ? `<div><span>Davanti · P${meIdx}</span><b>${nm(ahead)}</b><em class="bad">+${ahead.pts - me.pts} pt</em></div>` : `<div><span>In testa</span><b>${nm(me)}</b><em class="good">Leader</em></div>`}
+      <div class="me"><span>${drivers ? 'Il tuo miglior pilota' : 'La tua squadra'} · P${meIdx + 1}</span><b>${nm(me)}</b><em>${me.pts} pt</em></div>
+      ${behind ? `<div><span>Dietro · P${meIdx + 2}</span><b>${nm(behind)}</b><em class="good">−${me.pts - behind.pts} pt</em></div>` : '<div><span>Dietro</span><b>—</b><em></em></div>'}
+    </div>` : '';
+  return `<div class="col gap16 stand-side">
+    <div class="panel"><div class="panel-head"><h3>Andamento punti</h3><span class="small muted">${done.length}/${st.calendar.length} eventi · ${left} da disputare</span></div>
+      ${progressChart(series, labels, { empty: 'Il grafico si riempie dopo il primo evento.' })}
+      <div class="chart-legend"><span><i class="me" style="background:${col}"></i>${esc(pt.name)}</span><span><i class="ref"></i>Leader</span><span><i class="avg"></i>Rivali</span></div>
+    </div>
+    <div class="panel"><div class="panel-head"><h3>La tua lotta</h3><span class="small muted">${drivers ? 'Classifica piloti' : 'Classifica costruttori'}</span></div>${duel}</div>
+  </div>`;
+}
+
 // ---------------- CALENDAR ----------------
+let calSel = null, calSeason = null, calRound = null;
+function calPreview(st, ev, i, pt) {
+  const tr = getTrack(st.category, ev.trackId);
+  const rally = st.category === 'rally';
+  const fact = (v, l, cls = '') => `<div class="${cls}"><b>${v}</b><span>${l}</span></div>`;
+  let facts = '';
+  try {
+    if (rally) {
+      const km = ev.stages.reduce((a, b) => a + b.km, 0);
+      facts = fact(ev.stages.length, 'Prove speciali') + fact(`${km}<small>km</small>`, 'Distanza') + [...new Set(ev.stages.map((x) => x.surface))].map((x) => fact(`<i class="surf" style="background:${SURFACES[x].color}"></i>${SURFACES[x].name}`, 'Fondo')).join('');
+    } else {
+      const ts = trackStats(st.category, tr), sens = partSensitivity(st.category, tr);
+      const key = Object.entries(sens).sort((a, b) => b[1] - a[1])[0][0];
+      facts = fact(`${(ts.len / 1000).toFixed(3)}<small>km</small>`, 'Lunghezza') + fact(ts.corners, 'Curve') + fact(`${Math.round(ts.vmax)}<small>km/h</small>`, 'Velocità max') + fact(`${Math.round(ts.full * 100)}<small>%</small>`, 'Gas a fondo') + fact(tr.hours ? `${tr.hours}<small>ore</small>` : tr.laps || '—', tr.hours ? 'Durata' : 'Giri (reali)') + fact(partName(st, key), 'Fattore chiave', 'key');
+      if (tr.ovt != null) facts += fact(tr.ovt > 0.6 ? 'Facili' : tr.ovt > 0.3 ? 'Medi' : 'Difficili', 'Sorpassi');
+      if (tr.wear != null) facts += fact(tr.wear > 1.2 ? 'Alta' : tr.wear > 0.9 ? 'Media' : 'Bassa', 'Usura gomme');
+    }
+  } catch {}
+  const res = ev.results;
+  const podium = res ? `<div class="cp-podium">${res.classification.slice(0, 3).map((c, k) => { const d = st.drivers[c.driverIds[0]]; const tm = st.teams[c.teamId]; return `<div class="p${k + 1}"><i>${k + 1}</i>${tm ? teamBadge(tm, 24) : ''}<b>${esc(d?.name || '')}</b></div>`; }).join('')}</div>` : '';
+  const rainTxt = tr.rain < 0.12 ? 'Asciutto quasi certo' : tr.rain < 0.3 ? 'Variabile' : tr.rain < 0.5 ? 'Pioggia possibile' : 'Pioggia probabile';
+  return `<aside class="cal-side">
+    <div class="cp-head"><div class="cp-rd">Round ${ev.round} / ${st.calendar.length}${i === st.round ? ' · <em>Prossimo evento</em>' : res ? ' · Disputato' : ''}</div>
+      <div class="cp-name">${flagSVG(tr.nat, 42, 28)}<span>${esc(tr.name)}</span></div>
+      <div class="cp-circ">${esc(tr.circuit || '')}${ev.sprint ? ' · Weekend sprint' : ''}${tr.night ? ' · Notturna' : ''}${tr.double ? ' · Punti doppi' : ''}</div></div>
+    <div class="cp-map">${trackArt(st.category, tr, { w: 640, h: 400, accent: teamColor(pt.car.livery) })}
+      <div class="cp-wx" data-tip="Probabilità di pioggia stimata per l’evento">${weatherIcon(tr.rain, tr.night, 30)}<div><b>${Math.round(tr.rain * 100)}%</b><span>${rainTxt}</span></div></div></div>
+    <div class="cp-facts">${facts}</div>
+    ${podium}
+    ${i === st.round ? `<button class="btn primary lg cp-go" data-a="continue">${st.weekend ? 'Riprendi il weekend' : 'Vai al weekend'} ${icon('right')}</button>` : ''}
+  </aside>`;
+}
+
 registerScreen({
   id: 'calendar',
   render() {
     const st = S();
     const pt = playerTeam(st);
     const done = st.calendar.filter((e) => e.results).length;
+    if (calSeason !== st.season || calRound !== st.round || calSel == null || !st.calendar[calSel]) { calSeason = st.season; calRound = st.round; calSel = Math.min(st.round, st.calendar.length - 1); }
     return `<div class="screen-title"><div><div class="sub">Stagione ${st.season} · ${done}/${st.calendar.length} eventi disputati</div><h1>Calendario</h1></div></div>
     <div class="cal-prog mb16"><i style="width:${(done / Math.max(1, st.calendar.length)) * 100}%"></i></div>
-    <div class="cal-list anim-in">${st.calendar.map((ev, i) => {
+    <div class="cal-wrap anim-in"><div class="cal-list">${st.calendar.map((ev, i) => {
       const tr = getTrack(st.category, ev.trackId);
       const res = ev.results;
       const win = res?.classification[0];
       const mine = res?.classification.filter((c) => c.teamId === pt.id) || [];
       const cur = i === st.round;
       let map = '';
-      try { map = st.category === 'rally' ? '' : trackSVG(circuitPath(tr.cid), { w: 90, h: 54, glow: null, color: cur ? '#fff' : 'rgba(255,255,255,.55)', width: 3, start: false }); } catch {}
+      try { map = st.category === 'rally' ? '' : trackSVG(circuitPath(tr.cid), { w: 72, h: 44, glow: null, color: cur || i === calSel ? '#fff' : 'rgba(255,255,255,.55)', width: 3, start: false }); } catch {}
       const tags = `${ev.sprint ? `<span class="tag">${icon('bolt')} Sprint</span>` : ''}${tr.night ? `<span class="tag dark">${icon('moon')} Notte</span>` : ''}${tr.double ? '<span class="tag">Punti doppi</span>' : ''}`;
-      return `<div class="cal-row ${cur ? 'cur' : ''} ${res ? 'done' : ''}">
+      return `<div class="cal-row ${cur ? 'cur' : ''} ${res ? 'done' : ''} ${i === calSel ? 'sel' : ''}" data-a="cal-sel" data-i="${i}" aria-current="${i === calSel}">
         <div class="cal-rd">${String(ev.round).padStart(2, '0')}</div>
         <div class="cal-ev">${flagSVG(tr.nat, 34, 23)}<div style="min-width:0"><div class="cal-name">${esc(tr.name)}</div><div class="cal-circ">${esc(tr.circuit || (ev.stages ? `${ev.stages.length} PS · ${ev.stages.reduce((a, b) => a + b.km, 0)} km` : ''))}</div></div></div>
         <div class="cal-map">${map}</div>
-        <div class="cal-info">${win ? `<div class="cal-win"><span class="tiny upper muted">Vincitore</span>${driverChip(st, st.drivers[win.driverIds[0]], { helmet: false })}</div>` : cur ? '<span class="tag red">Prossimo evento</span>' : `<span class="small muted">Pioggia ${Math.round(tr.rain * 100)}%</span>`}<div class="row gap4">${tags}</div></div>
+        <div class="cal-info">${win ? `<div class="cal-win"><span class="tiny upper muted">Vincitore</span>${driverChip(st, st.drivers[win.driverIds[0]], { helmet: false })}</div>` : cur ? '<span class="tag red">Prossimo evento</span>' : `<span class="cal-wx">${weatherIcon(tr.rain, tr.night, 20)}<span class="small muted">Pioggia ${Math.round(tr.rain * 100)}%</span></span>`}<div class="row gap4">${tags}</div></div>
         <div class="cal-mine">${mine.map((m) => `<div class="cal-res"><span class="small muted">${esc((st.drivers[m.driverIds[0]]?.name || '').split(' ').slice(-1)[0])}</span><b class="${m.status === 'dnf' ? 'bad' : m.pos <= 3 ? 'good' : ''}">${m.status === 'dnf' ? 'RIT' : 'P' + m.pos}</b></div>`).join('')}</div>
       </div>`;
-    }).join('')}</div>`;
+    }).join('')}</div>${calPreview(st, st.calendar[calSel], calSel, pt)}</div>`;
   },
+  actions: { 'cal-sel'(el) { calSel = +el.dataset.i; App.refresh(); } },
 });
 
 // ---------------- CAREER ----------------

@@ -12,6 +12,7 @@ import { ENGINE_SUPPLIERS } from '../data/teams.js';
 import { avgPart } from '../engine/world.js';
 import { sfx } from '../ui/audio.js';
 import { mountStage, stageEnabled, partPositions } from '../ui/garage3d.js';
+import { radarChart } from '../ui/charts.js';
 import { teamColor } from '../app.js';
 let garage = null, show3d = true;
 
@@ -165,7 +166,20 @@ function designTab(st, t, C) {
 
 function compareTab(st, t, C) {
   const teams = Object.values(st.teams).sort((a, b) => avgPart(b) - avgPart(a));
-  return `<div class="panel flush"><table class="tbl"><thead><tr><th>#</th><th>Team</th>${C.parts.map((p) => `<th class="right">${p.name}</th>`).join('')}<th class="right">Media</th></tr></thead><tbody>
+  const ids = C.parts.map((p) => p.id);
+  const lo = Math.min(...teams.flatMap((x) => ids.map((k) => x.car.parts[k]))) - 4, hi = Math.max(...teams.flatMap((x) => ids.map((k) => x.car.parts[k]))) + 1;
+  const nrm = (v) => (v - lo) / (hi - lo);
+  const best = ids.map((k) => Math.max(...teams.map((x) => x.car.parts[k]))), avg = ids.map((k) => teams.reduce((a, x) => a + x.car.parts[k], 0) / teams.length);
+  const leader = teams[0].id === t.id ? teams[1] : teams[0];
+  const radar = radarChart(C.parts, [
+    { name: 'Media della griglia', kind: 'avg', values: avg.map(nrm) },
+    { name: `Migliore per area`, kind: 'ref', values: best.map(nrm) },
+    { name: t.name, kind: 'me', color: teamColor(t.car.livery), values: ids.map((k) => nrm(t.car.parts[k])), rawv: ids.map((k) => t.car.parts[k]) },
+  ], { size: 360, raw: (s, i) => s.rawv[i].toFixed(1) });
+  const gaps = C.parts.map((p, i) => { const v = t.car.parts[p.id], d = v - best[i]; const rk = partRanking(st, p.id).indexOf(t.id) + 1; return `<div class="cmp-gap"><span>${p.name}</span><b class="mono">${v.toFixed(1)}</b><em class="${d >= -0.05 ? 'good' : d > -3 ? 'warn' : 'bad'}">${d >= -0.05 ? 'Riferimento' : d.toFixed(1)}</em><i>${rk}°</i></div>`; }).join('');
+  return `<div class="cmp-top mb16"><div class="panel"><div class="panel-head"><h3>Profilo della vettura</h3><span class="small muted">Rispetto alla griglia</span></div>${radar}</div>
+    <div class="panel"><div class="panel-head"><h3>Distacco dal migliore</h3><span class="small muted">Riferimento generale: ${esc(leader.name)}</span></div><div class="cmp-gaps">${gaps}</div><div class="tiny muted mt16">Il distacco è misurato in punti prestazione dal miglior valore in griglia per ogni area. La posizione a destra è la classifica del componente.</div></div></div>
+  <div class="panel flush"><table class="tbl"><thead><tr><th>#</th><th>Team</th>${C.parts.map((p) => `<th class="right">${p.name}</th>`).join('')}<th class="right">Media</th></tr></thead><tbody>
     ${teams.map((x, i) => `<tr class="${x.id === t.id ? 'me' : ''}"><td class="pos">${i + 1}</td><td><div class="row">${teamBadge(x, 24)}<b>${esc(x.name)}</b></div></td>${C.parts.map((p) => { const r = partRanking(st, p.id).indexOf(x.id); return `<td class="right mono ${r === 0 ? 'good' : r >= teams.length - 2 ? 'bad' : ''}">${x.car.parts[p.id].toFixed(1)}</td>`; }).join('')}<td class="right mono"><b>${avgPart(x).toFixed(1)}</b></td></tr>`).join('')}
   </tbody></table></div>`;
 }
