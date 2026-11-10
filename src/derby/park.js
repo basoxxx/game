@@ -90,6 +90,6 @@ export function buildFurniture(game) {
   } else {
     // Catino: four kickers around the bowl, a ring of blocks in the middle
     for (let k = 0; k < 4; k++) { const a = (k / 4) * Math.PI * 2 + Math.PI / 4, r = 30; ramp(game, cx + Math.cos(a) * r, cz + Math.sin(a) * r, a + Math.PI / 2, 10, 6, 1.9); }
-    for (let k = 0; k < 10; k++) { if (k % 5 === 0) continue; const a = (k / 10) * Math.PI * 2, r = 11; block(game, cx + Math.cos(a) * r, cz + Math.sin(a) * r, a + Math.PI / 2); }
+    for (let k = 0; k < 12; k += 2) { const a = (k / 12) * Math.PI * 2 + 0.26, r = 19; block(game, cx + Math.cos(a) * r, cz + Math.sin(a) * r, a + Math.PI / 2); }
   }
 }

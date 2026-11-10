@@ -36,7 +36,7 @@ export function buildHud(game) {
     <div class="dzx-help">W/S gas e freno · A/D sterzo · Spazio freno a mano · Shift nitro · Q guarda dietro · C camera · R riposiziona · T ricomincia · F filtro · O foto · Esc pausa · Gamepad: grilletti, stick, A nitro, B freno a mano, X camera, Y riposiziona, LB guarda dietro</div>
     <div class="dzx-slow" id="dzx-slow"></div>
     <div class="dzx-photo" id="dzx-photo"><b>${'MODALITÀ FOTO'}</b><span>Trascina: ruota · Tasto destro/Shift: sposta · Rotella o W/S: zoom · Q/E: altezza · Z/X: obiettivo · R/T: inclina · F: filtro <i id="dzx-photo-f"></i> · H: nascondi · <u>Invio: scatta</u> · O/Esc: esci</span><em id="dzx-photo-m"></em></div>
-    <div class="dzx-over dzx-pause" id="dzx-pause"><h2>Pausa</h2><div class="dzx-btns"><button class="btn primary lg" data-a="dz-resume">Riprendi</button><button class="btn lg" data-a="dz-restart">Ricomincia</button><button class="btn lg" id="dzx-photo-btn">Modalità foto</button><button class="btn ghost lg" data-a="dz-quit">Esci</button></div></div>
+    <div class="dzx-over dzx-pause" id="dzx-pause"><h2>Pausa</h2><div class="dzx-btns"><button class="btn primary lg" data-a="dz-resume">Riprendi</button><button class="btn lg" data-a="dz-restart">Ricomincia</button>${game.mode === 'parco' ? '<button class="btn lg" id="dzx-end-btn">Termina la sessione</button>' : ''}<button class="btn lg" id="dzx-photo-btn">Modalità foto</button><button class="btn ghost lg" data-a="dz-quit">Esci</button></div></div>
     <div class="dzx-over dzx-results" id="dzx-results"></div>
     <div class="dzx-replay" id="dzx-replay"><b>REPLAY</b><span>Il botto più bello della gara</span><button class="btn sm" id="dzx-replay-x">Salta · Invio / A</button></div>`;
   const $ = (id) => h.querySelector('#' + id);
@@ -44,6 +44,7 @@ export function buildHud(game) {
   $('dzx-spec-x').addEventListener('click', () => game.endSpectate());;
   $('dzx-replay-x').addEventListener('click', () => game.stopReplay());
   $('dzx-photo-btn').addEventListener('click', () => game.photoMode(true));
+  $('dzx-end-btn')?.addEventListener('click', () => { game.togglePause(); game.finishOrder = game.standings(); game.finish(); });
   game.hud.photoF = $('dzx-photo-f'); game.hud.photoMsg = $('dzx-photo-m');
   if (arena) h.querySelector('.dzx-laps').style.display = 'none';
   h.classList.add('mode-' + game.mode);

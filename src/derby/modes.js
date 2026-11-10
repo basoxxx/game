@@ -125,6 +125,6 @@ export function arenaGoal(game, car) {
     if (K.holder === car) return { x: T.cx, z: T.cz, orbit: 4, slow: true };
     return { x: T.cx, z: T.cz };
   }
-  if (game.mode === 'ondate' && !game.player.out) return { target: game.player, attack: true };
+  if (game.mode === 'ondate' && !game.player.out && !car.isPlayer) return { target: game.player, attack: true };
   return null;
 }
