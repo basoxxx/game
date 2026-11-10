@@ -83,8 +83,8 @@ function scheme(g, p, L, region, seed) {
 // the texture stretch of that panel; top art: rot (rad), asp
 const SPEC = {
   formula: { num: { u: 0.93, t: 0.5, size: 120, asp: 0.5 }, title: { u: 0.475, t: 0.5, maxW: 330, size: 120, asp: 0.55 }, s2: { u: 0.19, t: 0.42, maxW: 250, size: 84 }, s3: { u: 0.72, t: 0.72, maxW: 110, size: 44, asp: 0.5 }, tech: { u: 0.79, du: 0.034, t: 0.5, size: 32, asp: 0.5 }, topNum: { u: 0.945, size: 84, rot: -Math.PI / 2, asp: 3.4 }, topTitle: { u: 0.835, size: 120, maxW: 210, asp: 0.26, rot: 0 }, low: 'paint' },
-  endurance: { num: { u: 0.575, t: 0.5, size: 128, asp: 0.8, mode: 'box' }, title: { u: 0.37, t: 0.5, maxW: 330, size: 96, asp: 0.8 }, s2: { u: 0.115, t: 0.6, maxW: 200, size: 64 }, s3: { u: 0.885, t: 0.5, maxW: 130, size: 46 }, tech: { u: 0.455, du: 0.028, t: 0.2, size: 26 }, topNum: { u: 0.83, size: 130, rot: -Math.PI / 2, asp: 1, mode: 'box' }, topTitle: { u: 0.2, size: 84, maxW: 320, rot: -Math.PI / 2 }, low: 'dark' },
-  gt: { num: { u: 0.49, t: 0.56, size: 132, asp: 0.9, mode: 'box' }, title: { u: 0.49, t: 0.15, maxW: 380, size: 50 }, s2: { u: 0.33, t: 0.6, maxW: 150, size: 60 }, s3: { u: 0.645, t: 0.62, maxW: 150, size: 50, boxed: true }, tech: { u: 0.61, du: 0.03, t: 0.3, size: 26 }, topNum: { u: 0.8, size: 150, rot: -Math.PI / 2, asp: 1, mode: 'box' }, topTitle: { u: 0.705, size: 70, maxW: 300, rot: -Math.PI / 2 }, low: 'dark' },
+  endurance: { num: { u: 0.575, t: 0.5, size: 128, asp: 0.8, mode: 'box', cls: '#d3101e' }, title: { u: 0.37, t: 0.5, maxW: 330, size: 96, asp: 0.8 }, s2: { u: 0.115, t: 0.6, maxW: 200, size: 64 }, s3: { u: 0.885, t: 0.5, maxW: 130, size: 46 }, tech: { u: 0.455, du: 0.028, t: 0.2, size: 26 }, topNum: { u: 0.83, size: 130, rot: -Math.PI / 2, asp: 1, mode: 'box', cls: '#d3101e' }, topTitle: { u: 0.2, size: 84, maxW: 320, rot: -Math.PI / 2 }, low: 'dark' },
+  gt: { num: { u: 0.49, t: 0.56, size: 132, asp: 0.9, mode: 'box', cls: '#14a04a' }, title: { u: 0.49, t: 0.15, maxW: 380, size: 50 }, s2: { u: 0.33, t: 0.6, maxW: 150, size: 60 }, s3: { u: 0.645, t: 0.62, maxW: 150, size: 50, boxed: true }, tech: { u: 0.61, du: 0.03, t: 0.3, size: 26 }, topNum: { u: 0.8, size: 150, rot: -Math.PI / 2, asp: 1, mode: 'box', cls: '#14a04a' }, topTitle: { u: 0.705, size: 70, maxW: 300, rot: -Math.PI / 2 }, low: 'dark' },
   rally: { num: { u: 0.5, t: 0.52, size: 112, asp: 1.1, mode: 'plate' }, title: { u: 0.5, t: 0.14, maxW: 400, size: 46 }, s2: { u: 0.29, t: 0.55, maxW: 190, size: 64 }, s3: { u: 0.655, t: 0.66, maxW: 130, size: 44, boxed: true }, tech: { u: 0.6, du: 0.03, t: 0.32, size: 24 }, topNum: null, topTitle: { u: 0.84, size: 100, maxW: 330, rot: -Math.PI / 2 }, low: 'dark' },
 };
 
@@ -120,7 +120,11 @@ export function liveryTexture(L, { number, sponsor, pattern = L.pattern ?? 1, ki
       const txt = String(number), size = o.size, mode = o.mode;
       g.font = `italic 900 ${size}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
       const tw = Math.max(size * 0.9, g.measureText(txt).width + size * 0.35);
-      if (mode === 'box') { g.fillStyle = '#f4f4f4'; rr(g, -tw / 2, -size * 0.56, tw, size * 1.12, size * 0.12); g.fill(); g.fillStyle = L.accent; g.fillRect(-tw / 2 + size * 0.06, size * 0.4, tw - size * 0.12, size * 0.1); g.fillStyle = '#0b0b0d'; g.fillText(txt, 0, -size * 0.04); }
+      if (mode === 'box' && o.cls) { // endurance number panel in the class colour, white edge and digits
+        g.fillStyle = '#f4f4f4'; rr(g, -tw / 2 - size * 0.06, -size * 0.62, tw + size * 0.12, size * 1.24, size * 0.16); g.fill();
+        g.fillStyle = o.cls; rr(g, -tw / 2, -size * 0.56, tw, size * 1.12, size * 0.12); g.fill();
+        g.fillStyle = '#ffffff'; g.fillText(txt, 0, size * 0.02);
+      } else if (mode === 'box') { g.fillStyle = '#f4f4f4'; rr(g, -tw / 2, -size * 0.56, tw, size * 1.12, size * 0.12); g.fill(); g.fillStyle = L.accent; g.fillRect(-tw / 2 + size * 0.06, size * 0.4, tw - size * 0.12, size * 0.1); g.fillStyle = '#0b0b0d'; g.fillText(txt, 0, -size * 0.04); }
       else if (mode === 'plate') { // rally door plate: number box + event plate
         g.fillStyle = '#f4f4f4'; rr(g, -tw / 2, -size * 0.56, tw, size * 1.12, size * 0.1); g.fill(); g.fillStyle = '#0b0b0d'; g.fillText(txt, 0, size * 0.02);
         g.fillStyle = '#0b0b0d'; rr(g, -tw / 2, -size * 1.0, tw, size * 0.38, 6); g.fill(); g.fillStyle = '#ffd400'; g.font = `900 ${size * 0.2}px ${FONT}`; g.fillText('RALLY APEX', 0, -size * 0.8);
@@ -225,11 +229,18 @@ export function finMat(L, number, driver, flip) {
 }
 // helmet livery on the sphere UVs (u = around, u .5 faces forward; v = 0 bottom .. 1 top):
 // base colour, crown design, side stripes in the team colours, number on the back
-export function helmetMat(base, L, number) {
-  return cached(['helm', base, L.primary, L.secondary, L.accent, number].join('|'), () => {
+// base: a colour, or the game's helmet data { c1, c2, c3, pattern } (the driver's own design:
+// c1 shell, c2 crown / main stripe, c3 accents) - then the team colours stay off the helmet
+export function helmetMat(helm, L, number) {
+  const D = helm && typeof helm === 'object' ? helm : null, base = D ? D.c1 || '#ffd400' : helm || '#ffd400';
+  return cached(['helm', base, D ? [D.c2, D.c3, D.pattern].join() : '', L.primary, L.secondary, L.accent, number].join('|'), () => {
     const w = 512, h = 256, [c, g] = canvas(w, h);
     g.fillStyle = base; g.fillRect(0, 0, w, h);
-    const a1 = L.primary.toLowerCase() === String(base).toLowerCase() ? L.secondary : L.primary;
+    const a1 = D ? D.c2 || '#ffffff' : L.primary.toLowerCase() === String(base).toLowerCase() ? L.secondary : L.primary;
+    if (D) L = { ...L, accent: D.c3 || '#111111' };
+    if (D && D.pattern % 2) { // alternative design: halo ring around the crown and a chin stripe
+      g.fillStyle = a1; g.fillRect(0, h * 0.2, w, h * 0.09); g.fillStyle = L.accent; g.fillRect(0, h * 0.3, w, h * 0.02); g.fillRect(0, h * 0.72, w, h * 0.05);
+    }
     g.fillStyle = a1; g.beginPath(); g.moveTo(0, 0); g.lineTo(w, 0); g.lineTo(w, h * 0.16);
     for (let k = 8; k >= 0; k--) { const x = (k / 8) * w; g.lineTo(x, h * (0.16 + 0.14 * Math.abs(Math.sin(k * 0.785 + 0.4)))); }
     g.closePath(); g.fill();

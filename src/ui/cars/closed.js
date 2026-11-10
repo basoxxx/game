@@ -2,8 +2,9 @@
 // Each has one continuous body shell with real wheel-arch openings (see hull() arches), a
 // glasshouse painted on the cabin shell, arch flares, aero kit, lamps and running gear.
 import * as THREE from 'three';
-import { MAT, mesh, far, at, box, cyl, sph, rod, blade, finishOf, endPanel, plate, slab, decalPlate, hull, shell, mouth, archFlare, sweptWing, spanSamples } from './core.js';
-import { liveryTexture, endplateMat, finMat, greenhouseMat, panelMat } from './livery.js';
+import { MAT, mesh, far, at, box, cyl, sph, rod, blade, finishOf, endPanel, tube, memo, plate, slab, decalPlate, hull, shell, mouth, archFlare, sweptWing, spanSamples } from './core.js';
+import { liveryTexture, endplateMat, finMat, greenhouseMat, panelMat, helmetMat } from './livery.js';
+import { steeringWheel } from './formula.js';
 import { wheel } from './wheels.js';
 
 const HEAD = () => MAT.light('#f4fbff', 3), TAIL = () => MAT.light('#ff2020', 3);
@@ -127,8 +128,51 @@ export function hypercar(L, opts) {
     car.add(at(box(0.6, 0.4, 0.02, dark), x, R + 0.06, s * 0.6));
   }
   car.userData.wheels = wheels;
+  cabin(car, L, opts, { x: 0.0, y: 0.77, z: 0.2, roof: 1.0, dash: 0.55, half: 0.4, ax: 0.75, ay: 0.68, rx: 0.15, rear: -0.7 });
   car.userData.lamps = { head: [[2.4, 0.48, 0.775], [2.4, 0.48, -0.775]], tail: [[-2.5, 0.665, 0.8], [-2.5, 0.665, -0.8], [-2.5, 0.665, 0.3], [-2.5, 0.665, -0.3]] };
   return car;
+}
+
+// Cabin for the cockpit camera (eye at x ~0.05, z +0.35, see race3d) and for a glimpse through
+// the screen: driver (suit, HANS, helmet), steering wheel with display and gloves, dashboard,
+// roll cage, roof liner (faces down only, so a camera above it still sees out), seat, and for
+// rally the co-driver with pace-note board. All parts reuse existing materials, so the merge pass
+// folds them into the car's draw calls.
+// c: { x: eye x, y: shoulder height, roof: roof-liner height, dash: dashboard x, half: cabin half width,
+//      ax / ay: windscreen base (A-pillar foot) x / y, rx: roof front x, rear: cabin rear x, co: co-driver }
+function cabin(car, L, opts, c) {
+  const dark = MAT.dark(), blk = MAT.rubber(), cage = MAT.metal('#3a3d44', 0.45), suit = MAT.matte(L.primary), glove = MAT.matte(L.secondary === '#ffffff' ? '#202226' : L.secondary);
+  const crew = (z, driver) => {
+    car.add(at(sph(0.2, suit, { ws: 12, hs: 8, sx: 0.75, sy: 0.55, sz: 0.95 }), c.x - 0.12, c.y - 0.06, z)); // shoulders / torso
+    car.add(at(box(0.3, 0.42, 0.42, dark), c.x - 0.3, c.y - 0.1, z, 0, 0, 0.2)); // bucket seat
+    const h = sph(0.125, helmetMat(opts.helmet, L, opts.number), { ws: 20, hs: 14, sx: 1.16 }); h.position.set(c.x - 0.02, c.y + 0.13, z); car.add(h);
+    const v = mesh(memo('visor', 0, () => new THREE.SphereGeometry(1.03, 22, 10, Math.PI - 0.95, 1.9, 1.2, 0.44)), MAT.visor()); v.position.copy(h.position); v.scale.copy(h.scale); car.add(v);
+    car.add(at(tube([[c.x - 0.02, c.y + 0.02, z + 0.12], [c.x - 0.12, c.y + 0.04, z + 0.1], [c.x - 0.16, c.y + 0.05, z], [c.x - 0.12, c.y + 0.04, z - 0.1], [c.x - 0.02, c.y + 0.02, z - 0.12]], 0.022, MAT.carbon(), { seg: 14, rad: 6 })));
+    if (driver) { h.userData.noFar = true; car.userData.helmetParts = [h, v]; } else { // co-driver: pace notes on the lap
+      car.add(at(box(0.16, 0.012, 0.22, MAT.matte('#e8e8e2')), c.x + 0.22, c.y - 0.2, z, 0, 0, 0.5));
+      for (const s of [1, -1]) car.add(rod([c.x - 0.1, c.y - 0.05, z + s * 0.16], [c.x + 0.2, c.y - 0.18, z + s * 0.08], 0.03, suit, 6));
+    }
+  };
+  const dz = c.z ?? 0.35; crew(dz, true); if (c.co) crew(-dz, false);
+  // the driver's eye point (cockpit camera), car-local
+  car.userData.eye = [c.x + 0.02, c.y + 0.16, dz];
+  const sw = steeringWheel(MAT.carbon(), glove); sw.position.set(c.x + 0.4, c.y - 0.12, dz); sw.rotation.z = 0.32; car.add(sw);
+  // dashboard with the binnacle and a switch panel in the middle
+  car.add(at(box(0.32, 0.1, c.half * 1.9, dark), c.dash, c.y - 0.12, 0, 0, 0, 0.25));
+  car.add(at(box(0.08, 0.1, 0.24, blk), c.dash - 0.12, c.y - 0.04, dz, 0, 0, 0.5));
+  car.add(at(box(0.04, 0.16, 0.2, MAT.carbon()), c.dash - 0.12, c.y - 0.2, 0, 0, 0, 0.3));
+  for (let k = 0; k < 6; k++) car.add(at(box(0.012, 0.014, 0.014, MAT.band(['#e10600', '#18e06a', '#ffd400', '#4fc3ff'][k % 4])), c.dash - 0.15, c.y - 0.15 + (k % 2) * 0.05, -0.05 + Math.floor(k / 2) * 0.05));
+  // roll cage: A-pillar tubes, roof hoops, diagonal, door bars
+  for (const s of [1, -1]) {
+    car.add(rod([c.ax, c.ay, s * c.half * 0.9], [c.rx, c.roof - 0.02, s * c.half * 0.74], 0.015, cage));
+    car.add(rod([c.rx, c.roof - 0.02, s * c.half * 0.72], [c.rear, c.roof - 0.04, s * c.half * 0.72], 0.022, cage));
+    car.add(rod([c.x - 0.25, c.ay - 0.05, s * c.half * 0.95], [c.x - 0.25, c.roof - 0.03, s * c.half * 0.72], 0.022, cage));
+    car.add(rod([c.ax + 0.05, c.ay - 0.12, s * c.half * 0.95], [c.x - 0.3, c.ay - 0.08, s * c.half * 0.95], 0.02, cage));
+  }
+  car.add(rod([c.x - 0.25, c.roof - 0.03, c.half * 0.72], [c.x - 0.25, c.roof - 0.03, -c.half * 0.72], 0.022, cage));
+  car.add(rod([c.x - 0.25, c.roof - 0.03, c.half * 0.72], [c.rear, c.ay - 0.1, -c.half * 0.7], 0.02, cage));
+  // roof liner: one-sided, facing down
+  const ln = new THREE.Mesh(memo('liner', 0, () => new THREE.PlaneGeometry(1, 1).rotateX(Math.PI / 2)), dark); ln.scale.set(c.x - 0.3 - c.rx + 0.4, 1, c.half * 1.5); ln.position.set((c.rx + c.x - 0.3) / 2 - 0.1, c.roof - 0.045, 0); car.add(ln);
 }
 
 // shared running gear for the production-based cars
@@ -213,6 +257,7 @@ export function gt(L, opts) {
   car.add(rod([-0.7, 1.22, 0.25], [-0.78, 1.38, 0.25], 0.005, blk)); car.add(at(sph(0.04, blk, { ws: 8, hs: 6, sy: 0.45 }), -0.2, 1.23, 0));
   car.add(blade([0.84, 0.86, 0.05], [0.4, 1.06, 0.3], 0.025, 0.012, blk));
   addWheels(car, [[XF, TZ], [XF, -TZ], [XR, TZ], [XR, -TZ]], R, 0.3, opts.gtTyre || '#ffd400', { kind: 'gt', rim: '#23262b', rimFrac: 0.71, caliper: L.accent }, [0.6, 0.36]);
+  cabin(car, L, opts, { x: -0.05, y: 0.92, z: 0.35, roof: 1.17, dash: 0.6, half: 0.7, ax: 0.85, ay: 0.82, rx: 0.15, rear: -0.95 });
   car.userData.lamps = { head: [[2.14, 0.6, 0.66], [2.14, 0.6, -0.66]], tail: [[-2.3, 0.76, 0.55], [-2.3, 0.76, -0.55]] };
   return car;
 }
@@ -298,6 +343,7 @@ export function rally(L, opts) {
     for (const z of [-0.3, -0.1, 0.1, 0.3]) { car.add(far(at(cyl(0.085, 0.085, 0.03, MAT.light('#f6fbff', 2.4), { seg: 16, axis: 'x' }), 2.0, 0.93, z, 0, 0, -0.25 - Math.PI / 2))); }
   }
   addWheels(car, [[XF, TZ], [XF, -TZ], [XR, TZ], [XR, -TZ]], R, 0.24, opts.rallyTyre || '#c9c9c9', { kind: 'rally', rim: '#eceef0', rimFrac: 0.6, tread: 'rally', caliper: '#c8102e' }, [0.6, 0.4]);
+  cabin(car, L, opts, { x: 0.0, y: 1.06, z: 0.35, roof: 1.38, dash: 0.6, half: 0.7, ax: 0.85, ay: 0.97, rx: 0.25, rear: -1.0, co: true });
   car.userData.lamps = { head: [[2.05, 0.72, 0.6], [2.05, 0.72, -0.6], ...(opts.night ? [[2.05, 0.93, 0.2], [2.05, 0.93, -0.2]] : [])], tail: [[-1.94, 0.88, 0.74], [-1.94, 0.88, -0.74]] };
   return car;
 }

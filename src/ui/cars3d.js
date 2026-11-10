@@ -131,7 +131,7 @@ function collectFar(car, opts) {
     vc.push({ geo: memo('farRim', [rimR, ww], () => mergeGeometries([new THREE.CircleGeometry(rimR, 12).translate(0, 0, ww / 2 + 0.006), new THREE.CircleGeometry(rimR, 12).rotateY(Math.PI).translate(0, 0, -ww / 2 - 0.006)])), rel: m, col: rimCol });
   }
   const h = car.userData.helmetParts?.[0];
-  if (h) vc.push({ geo: memo('farHelm', 0, () => new THREE.SphereGeometry(1, 8, 6)), rel: rel(h), col: new THREE.Color(opts.helmet || '#ffd400') });
+  if (h && !h.userData.noFar) vc.push({ geo: memo('farHelm', 0, () => new THREE.SphereGeometry(1, 8, 6)), rel: rel(h), col: new THREE.Color((typeof opts.helmet === 'object' ? opts.helmet?.c1 : opts.helmet) || '#ffd400') });
   return { vc, tex };
 }
 function attachFar(car, { vc, tex }) {

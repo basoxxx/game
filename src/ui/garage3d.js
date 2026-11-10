@@ -21,7 +21,10 @@ const reduceMotion = () => document.documentElement.classList.contains('reduce-m
 const lowGfx = () => getSettings().gfx === 'low';
 let _gl = null;
 export function stageAvailable() {
-  if (_gl == null) { try { const c = document.createElement('canvas'); _gl = !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl'))); } catch { _gl = false; } }
+  if (_gl == null) {
+    // probe once and release the context right away (browsers cap live contexts at ~16)
+    try { let c = document.createElement('canvas'); const gl = window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl')); _gl = !!gl; gl?.getExtension('WEBGL_lose_context')?.loseContext(); c.width = c.height = 1; c = null; } catch { _gl = false; }
+  }
   return _gl;
 }
 // live 3D scenes follow the "Vista 3D" setting; still renders only need WebGL
@@ -550,13 +553,16 @@ function warmUp(host) {
   const r = ST.r, scene = ST.scene, gen = (ST.gen = (ST.gen || 0) + 1);
   const t0 = performance.now();
   const seen = new Set(), list = [];
-  scene.traverse((o) => { if (!o.isMesh || !o.material) return; const k = [].concat(o.material).map((m) => m.uuid).join(); if (!seen.has(k)) { seen.add(k); list.push(o); } });
   const tick = () => new Promise((res) => setTimeout(res, 0));
   (async () => {
     try {
       ST.cam.aspect = Math.max(1, host.clientWidth) / Math.max(1, host.clientHeight); ST.cam.updateProjectionMatrix();
       // theme first: the reflection probe sets scene.environment, which is part of every program
+      await tick(); if (ST.gen !== gen || !ST.r) return;
+      if (ST.pendingCar) { ST.pendingCar(); ST.pendingCar = null; } await tick();
+      if (ST.gen !== gen || !ST.r) return;
       applyTheme(ST.theme); await tick();
+      scene.traverse((o) => { if (!o.isMesh || !o.material) return; const k = [].concat(o.material).map((m) => m.uuid).join(); if (!seen.has(k)) { seen.add(k); list.push(o); } });
       for (const o of list) {
         if (ST.gen !== gen || !ST.r) return;
         try { r.compile(o, ST.cam, scene); for (const m of [].concat(o.material)) for (const k of ['map', 'normalMap', 'roughnessMap', 'bumpMap']) if (m[k]?.isTexture && !m[k].userData.up) { r.initTexture(m[k]); m[k].userData.up = 1; } } catch {}
@@ -569,7 +575,18 @@ function warmUp(host) {
         ST.comp = makeComposer(r, ST.scene, ST.cam, { bloom: 0.12, low: false, ao: false, grade: true, filter: true, dof: true });
       }
       if (!ST.comp) applyFilterSettings(r.domElement); else applyFilterSettings(ST.comp);
+      // shader links and texture uploads run in the GPU process; a fence polled without
+      // blocking lets the first frame wait for them instead of freezing the page
+      try {
+        const gl = r.getContext();
+        if (gl.fenceSync) {
+          const fs = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0); gl.flush();
+          for (let i = 0; i < 1200 && gl.clientWaitSync(fs, 0, 0) === gl.TIMEOUT_EXPIRED; i++) { await new Promise((res) => setTimeout(res, 50)); if (ST.gen !== gen || !ST.r) return; }
+          gl.deleteSync(fs);
+        }
+      } catch {}
       ST.ready = true; ST.warmMs = Math.round(performance.now() - t0); ST.tReady = Math.round(performance.now());
+      if (ST.pendingCar) { ST.pendingCar(); ST.pendingCar = null; }
     } catch (e) { console.warn('stage warm-up', e); ST.ready = true; }
     finally { ST.warming = false; }
   })();
@@ -588,7 +605,9 @@ export function mountStage(host, opts = {}) {
     const L = { primary: '#e10600', secondary: '#ffffff', accent: '#111111', pattern: 1, ...opts.livery };
     const team = opts.team || {};
     const th = { accent: opts.accent || accentOf([L.primary, L.secondary, L.accent]), second: lum(L.secondary) > 0.04 ? L.secondary : '#ffffff', name: team.name || 'Apex Dynasty', short: team.short || 'APX', box: opts.box || opts.number || 1, series: opts.series || '' };
-    setCar(opts.category || 'formula', L, opts);
+    // first bring-up: the car is built inside the warm-up (after the menu has painted)
+    const carNow = () => setCar(opts.category || 'formula', L, opts);
+    if (ST.ready) carNow(); else ST.pendingCar = carNow;
     ST.theme = th;
     if (ST.ready) applyTheme(th); else warmUp(host);
     if (document.fonts?.status !== 'loaded') document.fonts?.ready.then(() => { if (ST.scene && ST.host && ST.ready) applyTheme(ST.theme); });

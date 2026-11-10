@@ -311,7 +311,7 @@ function hullRaw(sections, { seg = 48, around = 40, u0 = 0, u1 = 1, capFront = t
 // a body shell: full-detail hull near, a coarse one in the distance LOD
 export function shell(sections, opts, m, z = 0) {
   const o = mesh(hull(sections, opts), m); o.position.z = z;
-  const lo = { ...opts, seg: Math.max(6, Math.round((opts.seg || 48) / 4)), around: 12 }; if (opts.arches) lo.archN = 5;
+  const lo = { ...opts, seg: Math.max(6, Math.round((opts.seg || 48) / 4)), around: 12, capFront: true, capRear: true }; if (opts.arches) lo.archN = 5;
   o.userData.far = hull(sections, lo);
   return o;
 }
@@ -334,7 +334,7 @@ export function endPanel(sections, opts, front, m, bulge = 0.05, rings = 6) {
     const g2 = new THREE.BufferGeometry(); g2.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g2.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g2.setIndex(idx); g2.computeVertexNormals();
     g2.userData.box = { z0, z1, y0, y1, x }; return g2;
   });
-  return far(mesh(g, m));
+  return mesh(g, m); // near only: the far hull closes its own ends (see shell())
 }
 // the dark mouth of an open-ended hull (inlets): the end section as a flat disc
 export function mouth(sections, opts, front, m, inset = 0) {
