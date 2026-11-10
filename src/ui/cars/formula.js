@@ -1,7 +1,7 @@
 // Formula single-seaters: the 2022+ ground-effect car (wheel covers, wake deflectors,
 // multi-element wings) and the simpler junior-formula car (opts.jr).
 import * as THREE from 'three';
-import { MAT, mesh, far, at, box, cyl, sph, rod, blade, tube, plate, slab, decalPlate, hull, shell, mouth, sweptWing, spanSamples, memo, canvas, canvasTex, cached } from './core.js';
+import { MAT, mesh, far, at, box, cyl, sph, rod, blade, finishOf, tube, plate, slab, decalPlate, hull, shell, mouth, sweptWing, spanSamples, memo, canvas, canvasTex, cached } from './core.js';
 import { liveryTexture, endplateMat, finMat, helmetMat } from './livery.js';
 import { wheel } from './wheels.js';
 
@@ -46,7 +46,7 @@ export function formula(L, opts) {
       },
     },
   });
-  const pri = MAT.paint(L.primary), sec = MAT.paint(L.secondary), acc = MAT.paint(L.accent), cf = MAT.carbon(), cg = MAT.carbonGloss(), blk = MAT.rubber(), dark = MAT.dark();
+  const pri = MAT.paint(L.primary, finishOf(L)), sec = MAT.paint(L.secondary, finishOf(L)), acc = MAT.paint(L.accent, finishOf(L)), cf = MAT.carbon(), cg = MAT.carbonGloss(), blk = MAT.rubber(), dark = MAT.dark();
   const XF = 1.8, XR = -1.8;
   // survival cell + nose
   car.add(shell([
@@ -89,6 +89,9 @@ export function formula(L, opts) {
   car.add(tube([[0.12, 0.69, 0.17], [-0.2, 0.715, 0.235], [-0.5, 0.75, 0.2], [-0.62, 0.79, 0], [-0.5, 0.75, -0.2], [-0.2, 0.715, -0.235], [0.12, 0.69, -0.17]], 0.036, blk, { seg: 28, rad: 8 }));
   car.add(at(sph(0.2, MAT.matte(L.primary), { ws: 14, hs: 10, sx: 0.8, sy: 0.5, sz: 1 }), -0.36, 0.66, 0));
   helmet(car, -0.3, 0.775, 0, opts.helmet, L, opts.number);
+  // HANS device behind the helmet, shoulder belts over the suit (team colours)
+  { const hans = tube([[-0.25, 0.69, 0.12], [-0.34, 0.705, 0.135], [-0.425, 0.725, 0.07], [-0.44, 0.73, 0], [-0.425, 0.725, -0.07], [-0.34, 0.705, -0.135], [-0.25, 0.69, -0.12]], 0.024, cf, { seg: 20, rad: 6 }); car.add(hans); car.userData.helmetParts.push(hans);
+    for (const s of [1, -1]) car.add(rod([-0.42, 0.7, s * 0.09], [-0.15, 0.6, s * 0.06], 0.012, MAT.matte(L.secondary === '#ffffff' ? '#c9ccd2' : '#2a2c31'), 6)); }
   const sw = steeringWheel(cf, MAT.matte(L.primary === '#ffffff' ? '#202226' : L.secondary)); sw.position.set(0.02, 0.705, 0); sw.rotation.z = 0.4; car.add(sw);
   // halo with its centre strut
   car.add(far(tube([[-0.66, 0.7, 0.275], [-0.42, 0.865, 0.275], [-0.08, 0.9, 0.2], [0.2, 0.875, 0], [-0.08, 0.9, -0.2], [-0.42, 0.865, -0.275], [-0.66, 0.7, -0.275]], 0.028, cg, { seg: 44, rad: 10 })));
@@ -163,5 +166,6 @@ export function formula(L, opts) {
   car.userData.wheels = wheels;
   // lamp positions (car-local) for the race view's glow / beam effects
   car.userData.lamps = { head: [], tail: [[-2.5, 0.365, 0]], rain: true };
+  car.userData.eye = [-0.36, 0.9, 0]; // driver's eye point (cockpit camera), car-local
   return car;
 }
