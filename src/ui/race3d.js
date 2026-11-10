@@ -1059,8 +1059,21 @@ export class Race3D {
     const fence = new THREE.MeshStandardMaterial({ map: fenceTex, alphaTest: 0.35, transparent: false, metalness: 0.6, roughness: 0.5, side: THREE.DoubleSide });
     // Tecpro zones: outside of corners
     const tec = new Uint8Array(N);
-    for (const cn of this.geo.corners) { if (cn.r > 260) continue; const span = Math.min(36, Math.max(12, Math.round(cn.r / 6))); for (let q = -Math.round(span * 0.8); q <= span; q++) tec[(cn.i + q + N) % N] = cn.dir > 0 ? 2 : 1; }
+    // tyre walls (bolted stacks behind a conveyor belt) instead of Tecpro at some older corners
+    const tyreZ = new Uint8Array(N);
+    for (const cn of this.geo.corners) { if (cn.r > 260) continue; const span = Math.min(36, Math.max(12, Math.round(cn.r / 6))), ty = (cn.i * 7 + N) % 3 === 0; for (let q = -Math.round(span * 0.8); q <= span; q++) { const j = (cn.i + q + N) % N; tec[j] = cn.dir > 0 ? 2 : 1; tyreZ[j] = ty ? 1 : 0; } }
     const tecMatA = new THREE.MeshStandardMaterial({ map: canvasTex(256, 64, (c, w, h) => { const cols = ['#1f4fd1', '#d8262d']; for (let k = 0; k < 4; k++) { c.fillStyle = cols[k % 2]; c.fillRect(k * w / 4, 0, w / 4, h); c.fillStyle = 'rgba(255,255,255,0.12)'; c.fillRect(k * w / 4, 0, 3, h); } c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(0, h - 6, w, 6); }), roughness: 0.75 });
+    // tyre wall: four rows of tyres strapped together behind a red / white conveyor belt that
+    // stops short of the ground, so the bottom row shows
+    const tyreTex = canvasTex(256, 128, (c, w, h) => {
+      c.fillStyle = '#121214'; c.fillRect(0, 0, w, h);
+      for (let r = 0; r < 4; r++) for (let k = 0; k < 8; k++) { const x = (k + 0.5 + (r % 2) * 0.5) * w / 8, y = h - (r + 0.5) * h / 4; const g = c.createRadialGradient(x, y, 2, x, y, w / 16); g.addColorStop(0, '#050506'); g.addColorStop(0.45, '#0b0b0c'); g.addColorStop(0.55, '#2a2a2c'); g.addColorStop(1, '#151517'); c.fillStyle = g; c.beginPath(); c.arc(x, y, w / 16 - 1, 0, 7); c.fill(); }
+      for (let k = 0; k < 8; k++) { c.fillStyle = k % 2 ? '#f1f1ef' : '#d0141b'; c.fillRect(k * w / 8, 0, w / 8, h * 0.74); }
+      c.fillStyle = 'rgba(0,0,0,0.25)'; for (let k = 0; k < 8; k++) c.fillRect(k * w / 8, 0, 2, h * 0.74);
+      c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, h * 0.72, w, 3);
+      for (let k = 0; k < 60; k++) { c.fillStyle = `rgba(40,30,20,${Math.random() * 0.25})`; c.fillRect(Math.random() * w, h * (0.45 + Math.random() * 0.3), 3 + Math.random() * 20, 2 + Math.random() * 8); }
+    });
+    const tyreMat = new THREE.MeshStandardMaterial({ map: tyreTex, roughness: 0.8, side: THREE.DoubleSide });
     for (const side of [1, -1]) {
       const tag = side > 0 ? 1 : 2; // a left-hand corner (dir>0) has its outside on the right (-)
       if (street > 0.7) {
@@ -1073,8 +1086,9 @@ export class Race3D {
         // guard-rail: two steel beams on posts
         this.barrierStrip(side, 0.42, 0.74, steel, { filter: (i) => !isTec(i), inset: 0.05, vRepeat: 4 });
         this.barrierStrip(side, 0.8, 1.1, steel, { filter: (i) => !isTec(i), inset: 0.05, vRepeat: 4 });
-        // Tecpro blocks where cars arrive at speed
-        this.barrierStrip(side, 0, 1.2, tecMatA, { filter: isTec, vRepeat: 8, inset: -0.4 });
+        // Tecpro blocks where cars arrive at speed, tyre walls at some corners
+        this.barrierStrip(side, 0, 1.2, tecMatA, { filter: (i) => isTec(i) && !tyreZ[i], vRepeat: 8, inset: -0.4 });
+        this.barrierStrip(side, 0, 1.05, tyreMat, { filter: (i) => isTec(i) && !!tyreZ[i], vRepeat: 6, inset: -0.9 });
       }
       // catch fence
       this.barrierStrip(side, 1.15, 4.4, fence, { vRepeat: 1.6, inset: 0.6 });
@@ -2129,7 +2143,7 @@ export class Race3D {
     const F = this.pitBack, bw = ds * 3;
     const d = new THREE.Object3D();
     const frame = (q) => { const i = ((Math.round(q) % N) + N) % N; this.placeAt(d, q, 0, this.geo.h ? this.geo.h[i] : 0); d.updateMatrix(); return d.matrix.clone(); };
-    const G = { shell: [], glass: [], roof: [], vc: [], glow: [], art: [], head: [], screen: [], mark: [], bal: [] };
+    const G = { shell: [], glass: [], roof: [], vc: [], glow: [], art: [], head: [], screen: [], mark: [], bal: [], pod: [] };
     const col = new THREE.Color();
     const put = (list, geo, M, color) => {
       for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(k)) geo.deleteAttribute(k);
@@ -2297,6 +2311,27 @@ export class Race3D {
         this.scene.add(m);
       }
     }
+    // ---- podium: a balcony cantilevered over the pit lane from the middle of the pit building,
+    // three steps, sponsor backdrop, canopy on two columns
+    let podTex = null;
+    if (bays.length > 4) {
+      const qc = bays[Math.floor(bays.length / 2)].q, M = frame(qc), z0 = F - 2.9;
+      put(G.shell, box(13, 0.45, 4.6, 0, 5.35, z0 + 0.6), M);                       // deck
+      put(G.vc, box(13, 0.08, 0.06, 0, 6.6, z0 - 1.66), M, '#d9dde2');               // handrail
+      put(G.bal, box(13, 1.05, 0.03, 0, 6.1, z0 - 1.66), M);                         // glass front
+      for (const [x, h] of [[0, 0.95], [-2.4, 0.62], [2.4, 0.4]]) { put(G.vc, box(2.1, h, 1.6, x, 5.58 + h / 2, z0 + 1.2), M, '#f4f4f2'); put(G.vc, box(2.1, 0.08, 1.62, x, 5.58 + h, z0 + 1.2), M, '#c8102e'); }
+      put(G.pod, tilePlane(13, 3.4, 0, 7.4, z0 + 2.8, 0, 1, 1), M);                   // backdrop
+      put(G.shell, box(14, 0.3, 5.4, 0, 9.4, z0 + 0.6), M);                          // canopy
+      for (const x of [-6.2, 6.2]) put(G.shell, box(0.35, 4.0, 0.35, x, 7.45, z0 - 1.5), M);
+      podTex = canvasTex(1024, 256, (c, w, h) => {
+        const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0b1020'); g.addColorStop(1, '#1b2340'); c.fillStyle = g; c.fillRect(0, 0, w, h);
+        const br = ['APEX DYNASTY', 'ROLEXA', 'PIRELLO', 'DHX', 'ARAMCORE', 'HEINEKAN 0.0'];
+        for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) { c.fillStyle = (r + k) % 3 ? '#ffffff' : '#ffd400'; c.font = 'italic 900 30px "Exo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(br[(r * 4 + k) % br.length], (k + 0.5 + (r % 2) * 0.25) * w / 4, (r + 0.5) * h / 4); }
+        c.fillStyle = '#e10600'; c.fillRect(0, h - 10, w, 10);
+      });
+      podTex.wrapS = podTex.wrapT = THREE.ClampToEdgeWrapping;
+      this.obstacles?.push((() => { this.placeAt(d, qc, z0); return { x: d.position.x, z: d.position.z, r: 8, h: 10 }; })());
+    }
     // ---- merge and add
     const shellMat = triMat('concrete_wall_008', { scale: 0.22, color: 0xe9ebee, roughness: 0.9, metalness: 0.05, low: this.low });
     // first-floor glazing: tinted panes with mullions and transoms (lit offices at night)
@@ -2323,7 +2358,7 @@ export class Race3D {
     const out = [
       [G.shell, shellMat, true], [G.glass, glassMat, false], [G.roof, roofMat, true], [G.vc, vcMat, true],
       [G.glow, new THREE.MeshBasicMaterial({ color: 0xfff7e8 }), false], [G.bal, new THREE.MeshStandardMaterial({ color: 0xa9c4d2, transparent: true, opacity: 0.32, roughness: 0.04, metalness: 0.2, depthWrite: false }), false], [G.art, (this._pitArt = lit(artTex, this.night ? 0.55 : 0.32)), false],
-      [G.head, lit(headTex, this.night ? 0.6 : 0.2), false], [G.screen, new THREE.MeshBasicMaterial({ map: scrTex }), false],
+      [G.head, lit(headTex, this.night ? 0.6 : 0.2), false], [G.pod, podTex ? lit(podTex, this.night ? 0.6 : 0.15) : null, false], [G.screen, new THREE.MeshBasicMaterial({ map: scrTex }), false],
     ];
     for (const [list, mat, cast] of out) {
       if (!list.length) continue;
