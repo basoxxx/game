@@ -14,6 +14,8 @@ export const PERSONALITIES = {
   prudente: { aggr: 0.05, pace: 0.962, brakeTraffic: 1, ram: 0, lean: 0 },
   equilibrato: { aggr: 0.35, pace: 0.958, brakeTraffic: 0.5, ram: 0.3, lean: 0.55 },
   aggressivo: { aggr: 0.85, pace: 0.956, brakeTraffic: 0, ram: 1, lean: 1 },
+  // the rival: quick, hard but not reckless, and it has it in for one driver (see grudge below)
+  rivale: { aggr: 0.6, pace: 0.964, brakeTraffic: 0.2, ram: 0.6, lean: 0.85 },
 };
 
 export function initAI(car, idx) {
@@ -40,6 +42,8 @@ export function aiInput(game, car, dt) {
   if (!car.ai) initAI(car, car.isPlayer ? 0 : car.num);
   const A = car.ai, k = kin(car);
   A.stuckClock += dt; if (A.stuckClock > 15) { A.stuckClock = 0; A.stuckN = 0; }
+  // grudges: whoever hit this driver hard is remembered for a while and gets paid back (DerbyGame.applyDamage sets it)
+  if (A.grudgeT > 0) { A.grudgeT -= dt; if (A.grudgeT <= 0 || A.grudge?.out) A.grudge = null; }
   // reversing out of trouble
   if (A.revT > 0) { A.revT -= dt; return { thr: 0, brk: 1, st: A.revSt, hb: 0, nitro: 0 }; }
   const out = game.track.arena ? derbyAI(game, car, A, k, dt) : game.track.stunt ? stuntAI(game, car, A, k, dt) : raceAI(game, car, A, k, dt);
@@ -81,14 +85,15 @@ function raceAI(game, car, A, k, dt) {
     if (Math.abs(ax) > 40 || Math.abs(lat) > 12) continue;
     const ov = o.body.linvel(), oSpeed = ov.x * k.fwd.x + ov.z * k.fwd.z;
     const ofwdDot = (o.dyn?.fwd ? o.dyn.fwd.x * k.fwd.x + o.dyn.fwd.z * k.fwd.z : 1);
+    const gr = A.grudge === o && !car.isPlayer ? 2.6 : 1, ramP = gr > 1 ? Math.max(P.ram, 0.45) : P.ram;
     // T-bone opportunity: a car crossing our path (figure-eight crossing, spun cars)
-    if (P.ram > 0 && A.ramCool <= 0 && ax > 6 && ax < 30 && Math.abs(ofwdDot) < 0.55 && Math.random() < P.ram * 0.25) {
+    if (ramP > 0 && A.ramCool <= 0 && ax > 6 && ax < 30 && Math.abs(ofwdDot) < 0.55 && Math.random() < ramP * 0.25 * gr) {
       const t = Math.min(1.4, ax / Math.max(10, k.speed));
       const ix = op.x + ov.x * t, iz = op.z + ov.z * t;
       if (Math.abs(game.lateralOf(ix, iz, i)) < hw + 1) { A.ram = { o, kind: 'tbone' }; A.ramT = 1.6; A.ramCool = 9 + Math.random() * 6; }
     }
     // pit manoeuvre: tap the rear corner of the car just ahead and send it into the scenery
-    if (P.ram > 0 && A.ramCool <= 0 && ax > 3 && ax < 14 && Math.abs(lat) < 3.5 && ofwdDot > 0.7 && k.speed > oSpeed - 1 && Math.random() < P.ram * (o.isPlayer ? 0.3 : 0.15)) { A.ram = { o, kind: 'pit', sgn: lat > 0 ? 1 : -1 }; A.ramT = 1.4; A.ramCool = 7 + Math.random() * 6; }
+    if (ramP > 0 && A.ramCool <= 0 && ax > 3 && ax < 14 && Math.abs(lat) < 3.5 && ofwdDot > 0.7 && k.speed > oSpeed - 1 && Math.random() < ramP * gr * (o.isPlayer ? 0.3 : 0.15)) { A.ram = { o, kind: 'pit', sgn: lat > 0 ? 1 : -1 }; A.ramT = 1.4; A.ramCool = 7 + Math.random() * 6; }
     // car ahead in our lane
     if (ax > 2 && ax < 12 + k.speed * 0.45 && Math.abs(lat) < 2.6 && ofwdDot > 0.3) {
       if (k.speed > oSpeed + 0.5 || ax < 8) {
@@ -177,7 +182,7 @@ function derbyAI(game, car, A, k, dt) {
       if (o === car || o.out) continue;
       const op = o.body.translation(); let s = Math.hypot(op.x - k.p.x, op.z - k.p.z);
       const mob = game.cars.filter((c) => c !== car && c.ai?.target === o && !c.out).length;
-      s += mob * 16 - (100 - o.hp) * 0.18 + (o === A.target ? -6 : 0) + Math.random() * 8;
+      s += mob * 16 - (100 - o.hp) * 0.18 + (o === A.target ? -6 : 0) + Math.random() * 8 - (o === A.grudge ? 28 : 0);
       if (s < bs) { bs = s; best = o; }
     }
     A.target = best;
