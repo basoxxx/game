@@ -6,7 +6,7 @@ import { esc, bar } from '../ui/dom.js';
 import { S } from '../engine/state.js';
 import { atrFactor, costCap, capSpent, cat, playerTeam, teamDrivers, partRanking, fmtM, rdSlots, rdCost, RD_TIERS, RD_APPROACH, rushProject, rushCost, startProject, partName, applyConcept, changeEngine, overallCarRanking, projectForecast } from '../engine/season.js';
 import { ensureDepth, eraInfo, setEraPolicy, ERA_POLICY, corrLabel, corrCost, corrCampaign, suspectList, revertSuspect, insistSuspect, insistChance, tokenInfo, tokenCost, tokenParts, kitsEnabled, KITS, kitCost, kitTracks, kitFit, buyKit, PU_MODES, setPuMode, supplierList, puDeal, puSeasonCost, puBreakFee, signPuDeal, PU_TIERS, rulesInForce, setPolicy, aiTrend, basePart, techBase } from '../engine/depth.js';
-import { getTrack } from '../engine/world.js';
+import { getTrack, driverOverall as driverOverallC } from '../engine/world.js';
 import { traitInfo } from '../engine/dynasty.js';
 import '../styles/career.css';
 import { ENGINE_SUPPLIERS } from '../data/teams.js';
@@ -15,11 +15,12 @@ import { sfx } from '../ui/audio.js';
 import { mountStage, stageEnabled, partPositions } from '../ui/garage3d.js';
 import { radarChart } from '../ui/charts.js';
 import { teamColor } from '../app.js';
+import { strategyRoom, FACILITY_PERKS } from '../engine/career5.js';
 let garage = null, show3d = true;
 
 const PALETTE = ['#e10600', '#d40000', '#ff8000', '#ffd400', '#cedc00', '#22d37a', '#00594f', '#00d2be', '#00c2ff', '#005aff', '#1b2a6b', '#0a2a66', '#9b30ff', '#ff4fa3', '#ffffff', '#c0c0c0', '#6b6b6b', '#1a1a1a', '#6b3e1e', '#c9a227'];
 const PATTERNS = ['Classica', 'Banda', 'Bicolore', 'Frecce', 'Sfumata', 'Retrò'];
-let tab = 'dev';
+let tab = 'plan';
 let devTarget = 'now';
 let devApproach = 'std';
 
@@ -33,7 +34,7 @@ registerScreen({
     const C = cat(st);
     const ds = teamDrivers(st, t);
     ensureDepth(st);
-    const tabs = [['dev', 'Sviluppo R&D'], ['regs', 'Regolamento & PU'], ['design', 'Progetto & Livrea'], ['compare', 'Confronto']];
+    const tabs = [['plan', 'Sala strategica'], ['dev', 'Sviluppo'], ['regs', 'Regole & PU'], ['design', 'Progetto'], ['compare', 'Confronto']];
     const rank = overallCarRanking(st).indexOf(t.id) + 1;
     return `<div class="screen-title"><div><div class="sub">${esc(t.name)} · Vettura ${st.season}</div><h1>Centro Tecnico</h1></div><div class="tabs">${tabs.map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="tab" data-t="${k}">${n}</div>`).join('')}</div></div>
     <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px" class="anim-in">
@@ -52,7 +53,7 @@ registerScreen({
         <div class="tiny muted mt16">La barra chiara indica il miglior valore in griglia.</div>
       </div>
     </div>
-    <div class="mt16 anim-in">${tab === 'dev' ? devTab(st, t, C) : tab === 'regs' ? regsTab(st, t, C) : tab === 'design' ? designTab(st, t, C) : compareTab(st, t, C)}</div>`;
+    <div class="mt16 anim-in">${tab === 'plan' ? planTab(st, t, C) : tab === 'dev' ? devTab(st, t, C) : tab === 'regs' ? regsTab(st, t, C) : tab === 'design' ? designTab(st, t, C) : compareTab(st, t, C)}</div>`;
   },
   mount() {
     coach('car', 'Centro Tecnico', 'Avvia progetti R&D sui componenti chiave dei prossimi circuiti. Più un componente è sviluppato, minore è il guadagno: a volte conviene migliorare i punti deboli.');
@@ -117,6 +118,66 @@ registerScreen({
     customcolor(el) { const t = playerTeam(S()); t.car.livery[el.dataset.k] = el.value; if (el.dataset.k === 'primary') t.colors[0] = el.value; App.refresh(); },
   },
 });
+
+// ---- Sala strategica: this season's choices on one page, with forecasts and the rivals' situation ----
+function planTab(st, t, C) {
+  const R = strategyRoom(st);
+  const P = st.dp;
+  const ord = (n) => `${n}°`;
+  const cls = (a, b) => (a <= b ? 'good' : a <= b + 1 ? 'warn' : 'bad');
+  const kpi = (lbl, v, note, c = '') => `<div class="card sr-kpi"><div class="tiny upper muted">${lbl}</div><div class="sr-big ${c}">${v}</div><div class="tiny muted">${note}</div></div>`;
+  const todo = R.todo.length ? R.todo.map((x) => `<div class="sr-todo ${x.warn ? 'warn' : ''}"><span>${esc(x.t)}</span>${x.tab ? `<button class="btn sm ghost" data-a="tab" data-t="${x.tab}">Apri</button>` : x.nav ? `<button class="btn sm ghost" data-a="nav" data-to="${x.nav}">Apri</button>` : ''}</div>`).join('') : '<div class="small muted">Nessuna scelta urgente: la stagione procede secondo i piani.</div>';
+  const D = R.dev;
+  const capCard = D.cap ? `<div class="mt8"><div class="row between tiny"><span class="muted">Budget cap</span><span class="${D.capProj > D.cap ? 'bad' : ''}">${fmtM(D.spent)} spesi · proiezione ${fmtM(D.capProj)} / ${fmtM(D.cap)}</span></div>${bar(Math.min(100, (D.spent / D.cap) * 100), D.capProj > D.cap ? 'red' : 'green', Math.min(100, (D.capProj / D.cap) * 100))}</div>` : '';
+  const tok = D.tokens ? `<div class="row between tiny mt8"><span class="muted">Gettoni motore</span><span class="${D.tokens.frozen || D.tokens.left <= 1 ? 'warn' : ''}">${D.tokens.frozen ? 'Sviluppo congelato' : `${D.tokens.left}/${D.tokens.total} rimasti`}</span></div>` : '';
+  const dev = `<div class="panel"><div class="panel-head"><h3>${icon('factory', 'ico', 'style="width:15px"')} Piano di sviluppo</h3><button class="btn sm ghost" data-a="tab" data-t="dev">R&amp;D</button></div>
+    <div class="row between tiny"><span class="muted">Slot R&amp;D</span><span class="${D.used < D.slots ? 'warn' : 'good'}">${D.used}/${D.slots} in uso</span></div>${capCard}${tok}
+    <div class="tiny upper muted mt16">Priorità per i circuiti rimasti</div>
+    ${D.prio.map((p, i) => `<div class="sr-prio"><b>${i + 1}</b><span>${esc(p.name)}</span><em class="${p.gap > 3 ? 'bad' : p.gap > 1 ? 'warn' : 'good'}">${p.gap <= 0.05 ? 'riferimento' : '-' + p.gap.toFixed(1) + ' dal migliore'}</em></div>`).join('')}
+    ${D.nextYear ? `<div class="tiny muted mt8">Già pronto per il ${st.season + 1}: ${Object.entries(D.nextYear).map(([k, v]) => `${esc(partName(st, k))} +${v}`).join(' · ')}</div>` : ''}
+    <div class="tiny muted mt8">La priorità pesa il distacco dal migliore, quanto conta il componente nei circuiti rimasti e i rendimenti decrescenti.</div></div>`;
+  const E = R.era;
+  const era = `<div class="panel"><div class="panel-head"><h3>${icon('rules', 'ico', 'style="width:15px"')} Regolamento e motore</h3><button class="btn sm ghost" data-a="tab" data-t="regs">Regolamento &amp; PU</button></div>
+    ${E.left <= 1 ? `<div class="small"><b>${esc(E.nextName)}</b> dal ${E.next}. Linea attuale: <b>${esc(E.pol.name)}</b>.</div>
+      <div class="grid3 mt8"><div><div class="tiny muted">Preparazione</div><b>${Math.round(E.prep * 100)}% → ${Math.round(E.proj * 100)}%</b></div><div><div class="tiny muted">Stima nuova vettura</div><b class="${E.swing >= 0.5 ? 'good' : E.swing <= -0.5 ? 'bad' : ''}">${E.swing >= 0 ? '+' : ''}${E.swing}</b></div><div><div class="tiny muted">Sviluppo ${st.season}</div><b>${Math.round(E.pol.dev * 100)}%</b></div></div>
+      <div class="tiny muted mt8">${E.canSet ? 'Più anticipi, più rinunci a punti quest’anno e più parti avanti nel ' + E.next + '. Puoi cambiare linea fino al 70% della stagione.' : 'La linea è ormai bloccata.'}</div>`
+      : `<div class="small">Regole stabili fino al ${E.next - 1}: il prossimo cambio verrà annunciato con una stagione di anticipo (${E.next - st.season === 2 ? 'l’anno prossimo' : `tra ${E.next - st.season - 1} stagioni`}). Gli investimenti in struttura pagano di più nelle ere stabili.</div>`}
+    ${R.pu ? `<div class="sr-sep"></div>${R.pu.works ? '<div class="small">Costruttore ufficiale: power unit tua, sviluppo motore al 100%.</div>' : `<div class="small">Power unit: <b>${esc(supName(R.pu.sup))}</b> (${esc(R.pu.T.name.toLowerCase())}) fino al ${R.pu.until} · ${R.pu.rank}ª su ${R.pu.of} per potenza${R.pu.best && R.pu.rank > 1 ? ` · la migliore è ${esc(R.pu.best.name)} (${R.pu.best.power})` : ''}.</div><div class="tiny muted">${st.round === 0 ? 'Pre-stagione: è il momento di rinegoziare o cambiare fornitore.' : 'I contratti si firmano in pre-stagione.'}</div>`}` : ''}</div>`;
+  const myBest = Math.max(0, ...teamDrivers(st, t).map((d) => driverOverallC(d, st.category)));
+  const riv = `<div class="panel flush"><div class="panel-head" style="padding:14px 16px 0"><h3>Rivali diretti</h3><span class="small muted">Le conseguenze delle tue scelte si misurano qui</span></div><table class="tbl"><thead><tr><th>Team</th><th class="right">Punti / distacco</th><th class="right">Vettura</th><th>Tendenza</th><th>Nuove regole</th><th class="right">Miglior pilota</th></tr></thead><tbody>
+    <tr class="me"><td><b>${esc(t.name)}</b> <span class="muted">${ord(R.pos)}</span></td><td class="right mono">${R.myPts}</td><td class="right mono">${avgPart(t).toFixed(1)} <span class="muted">(${overallCarRanking(st).indexOf(t.id) + 1}ª)</span></td><td class="muted">—</td><td class="tiny">${E.left <= 1 ? esc(E.pol.name) : '—'}</td><td class="right mono">${myBest}</td></tr>
+    ${R.rivals.map((x) => `<tr><td><b>${esc(x.name)}</b></td><td class="right mono ${x.gap > 0 ? 'bad' : 'good'}">${x.gap > 0 ? '+' : ''}${x.gap}</td><td class="right mono">${x.car.toFixed(1)} <span class="muted">(${x.carRank}ª)</span></td><td class="tiny ${x.trend.cls}">${x.trend.arrow} ${x.trend.label}</td><td class="tiny muted">${E.left <= 1 && x.prep != null ? (x.prep >= 0.55 ? 'Già sul nuovo progetto' : x.prep <= 0.35 ? 'Spinge sul presente' : 'Transizione') : '—'}</td><td class="right mono">${x.drv}</td></tr>`).join('')}
+  </tbody></table></div>`;
+  const mk = `<div class="panel"><div class="panel-head"><h3>${icon('users', 'ico', 'style="width:15px"')} Mercato e accademia</h3><button class="btn sm ghost" data-a="nav" data-to="market">Mercato</button></div>
+    <div class="sr-time">${R.silly.map((x) => `<div class="${x.done ? 'done' : ''}"><b>R${x.round}</b><span>${esc(x.t)}</span></div>`).join('')}</div>
+    ${R.market.map((m) => `<div class="row between small mt8" style="gap:8px"><span><b>${esc(m.name)}</b> <span class="muted">${m.ov} · ${m.contract <= 1 ? 'in scadenza' : 'contratto ' + m.contract + ' anni'}${m.clause ? ` · clausola ${fmtM(m.clause)}` : ''}</span></span><span class="${m.leaving ? 'bad' : m.offer ? 'warn' : m.morale < 55 ? 'warn' : 'muted'}">${m.leaving ? `parte per ${esc(m.leaving)}` : m.offer ? `offerta ${esc(m.offer.team)} ${fmtM(m.offer.salary)} · ${m.offer.lean > 0 ? "tentato di andare" : "per ora preferisce restare"}` : `morale ${m.morale}`}</span></div>`).join('')}
+    <div class="sr-sep"></div>
+    <div class="small">Accademia: ${R.acad.n}/${R.acad.slots} junior${R.acad.best ? ` · il migliore è ${esc(R.acad.best.name)} (${R.acad.best.ov})` : ''}${R.acad.loanOpen ? ' · <span class="info">finestra prestiti aperta</span>' : ''}</div>
+    <div class="tiny muted">I titolari in scadenza possono ricevere offerte dai rivali da metà stagione: rinnova prima, o blindali con una clausola quando una storia te ne dà l’occasione.</div></div>`;
+  const S = R.story;
+  const story = `<div class="panel"><div class="panel-head"><h3>${icon('star', 'ico', 'style="width:15px"')} Storie della stagione</h3>${S.active ? `<span class="chip warn">${esc(S.active.name)} · capitolo ${S.active.step + 1}/${S.active.steps}</span>` : ''}</div>
+    ${S.active ? `<div class="small">${S.active.inRounds ? `Il prossimo capitolo arriva tra ${S.active.inRounds} ${S.active.inRounds === 1 ? 'evento' : 'eventi'}.` : 'Il prossimo capitolo è in arrivo.'}</div>` : ''}
+    ${S.log.slice(0, 5).map((l) => `<div class="world-item"><span class="yr">${l.s}</span><span><b>${esc(l.title)}</b><br><span class="tiny muted">${esc(l.choice)}${l.out ? ' → ' + esc(l.out) : ''}</span></span></div>`).join('') || '<div class="small muted">Nessuna storia ancora: acquisizioni, campioni scontenti, scandali tecnici, rivelazioni, faide e finali di campionato nascono da quello che succede in pista e nel paddock.</div>'}
+    ${S.fx.length ? `<div class="tiny upper muted mt8">Effetti che durano</div>${S.fx.slice(0, 4).map((f) => `<div class="tiny">• ${esc(f.text)} <span class="muted">(${f.s})</span></div>`).join('')}` : ''}</div>`;
+  const tog = (k, label, desc) => `<div class="row between" style="padding:7px 0;border-bottom:1px solid var(--line);gap:10px"><div><b class="small">${label}</b><div class="tiny muted">${desc}</div></div><button class="btn sm ${P.pol[k] ? 'active' : ''}" data-a="pol" data-k="${k}">${P.pol[k] ? 'Attivo' : 'Disattivo'}</button></div>`;
+  const pol = `<div class="panel"><div class="panel-head"><h3>Deleghe</h3><span class="small muted">Le scelte di routine, gestite dallo staff</span></div>
+    ${tog('autoDev', 'Sviluppo di routine', 'Il direttore tecnico riempie gli slot R&D liberi con aggiornamenti di base sul componente più utile.')}
+    ${tog('digest', 'Notiziario settimanale', 'Le comunicazioni minori di ogni evento arrivano in un solo messaggio.')}
+    ${tog('minorVote', 'Voti irrilevanti al delegato', 'In Commissione decidi tu solo quando la proposta ci tocca davvero.')}
+    ${tog('autoVote', 'Delega tutti i voti', 'Il delegato vota sempre secondo l’interesse della squadra, senza lobby.')}
+    ${kitsEnabled(st) ? tog('autoKit', 'Pacchetti per circuito automatici', 'Ordinati quando restano almeno due piste adatte e c’è margine sul cap.') : ''}
+    ${tog('autoRevert', 'Ritiro automatico dei pacchetti difettosi', 'Un pezzo che peggiora la vettura viene smontato subito.')}
+    ${tog('noBets', 'Niente scommesse tra team principal', 'Le sfide pubbliche vengono declinate in privato, senza ripercussioni.')}</div>`;
+  const fac = `<div class="panel"><div class="panel-head"><h3>Strutture: vantaggi unici</h3><button class="btn sm ghost" data-a="nav" data-to="finance">Strutture</button></div><div class="sr-perks">${Object.entries(FACILITY_PERKS).map(([k, list]) => `<div><b class="small">${esc(facName(k))} <span class="muted">Lv${t.facilities[k] || 1}</span></b>${list.map((p) => `<div class="tiny ${(t.facilities[k] || 1) >= p.lvl ? 'good' : 'muted'}">${(t.facilities[k] || 1) >= p.lvl ? '✓' : `Lv${p.lvl}`} ${esc(p.name)}: ${esc(p.desc)}</div>`).join('')}</div>`).join('')}</div></div>`;
+  return `<div class="grid4 mb16 sr-kpis">${kpi('Classifica costruttori', ord(R.pos), `obiettivo del consiglio: ${ord(R.target)}`, cls(R.pos, R.target))}${kpi('Proiezione a fine stagione', ord(st.round ? R.projPos : R.exp), st.round ? 'al ritmo di punti attuale' : 'stima sulla forza del pacchetto', cls(st.round ? R.projPos : R.exp, R.target))}${kpi('Forza del pacchetto', ord(R.exp), 'vettura + piloti sui prossimi circuiti', cls(R.exp, R.target))}${kpi('Eventi rimasti', R.left, `su ${st.calendar.length}`)}</div>
+    <div class="panel mb16"><div class="panel-head"><h3>Da decidere</h3><span class="small muted">Le scelte di questa stagione che cambiano il risultato</span></div><div class="sr-todos">${todo}</div></div>
+    <div class="grid2 mb16">${dev}${era}</div>
+    <div class="mb16">${riv}</div>
+    <div class="grid2 mb16">${mk}${story}</div>
+    <div class="grid2">${pol}${fac}</div>`;
+}
+function supName(id) { return ENGINE_SUPPLIERS.find((e) => e.id === id)?.name || id; }
+function facName(k) { return { factory: 'Fabbrica', windtunnel: 'Galleria del Vento', simulator: 'Simulatore', pitcrew: 'Centro Pit Crew', academy: 'Accademia', hospitality: 'Hospitality' }[k] || k; }
 
 function devTab(st, t, C) {
   const slots = rdSlots(t, st);
@@ -192,7 +253,7 @@ function regsTab(st, t, C) {
       <table class="tbl"><thead><tr><th>Costruttore</th><th class="right">Potenza</th><th class="right">Affidabilità</th><th>Tendenza</th><th>Squadre</th><th class="right">Cliente</th><th class="right">Partner</th></tr></thead><tbody>${supplierList(st).map((x) => `<tr class="${t.engine === x.id ? 'me' : ''}"><td><b>${esc(x.name)}</b>${x.works ? `<div class="tiny muted">${esc(x.works)}</div>` : ''}</td><td class="right mono">${x.power.toFixed(1)}</td><td class="right mono">${x.rel.toFixed(1)}</td><td class="${x.trend > 0 ? 'good' : x.trend < 0 ? 'bad' : 'muted'}">${x.trend > 0 ? '▲ in crescita' : x.trend < 0 ? '▼ in calo' : '■ stabile'}</td><td class="tiny muted">${x.teams.map(esc).join(' ')}</td>
         <td class="right">${d.works ? '' : `<button class="btn sm" data-a="pudeal" data-id="${x.id}" data-tier="customer" data-y="1" ${pre ? '' : 'disabled'}>${fmtM(puSeasonCost(st, x.id, 'customer'))}</button>`}</td><td class="right">${d.works ? '' : `<button class="btn sm" data-a="pudeal" data-id="${x.id}" data-tier="partner" data-y="2" ${pre ? '' : 'disabled'}>${fmtM(puSeasonCost(st, x.id, 'partner'))}</button>`}</td></tr>`).join('')}</tbody></table>
       <div class="tiny muted mt8">${d.works ? 'La power unit è tua: sviluppo motore al 100% e 2 gettoni di omologazione in più. In cambio, se il progetto è sbagliato non puoi cambiare fornitore.' : `<b>Cliente</b> (1 stagione): ${PU_TIERS.customer.desc} <b>Partner</b> (2 stagioni, da status Outsider): ${PU_TIERS.partner.desc} Ogni inverno i costruttori evolvono la power unit: la tendenza indica chi ha guadagnato o perso cavalli. ${pre ? `Cambiare fornitore prima della scadenza costa una penale (${fmtM(puBreakFee(st))}).` : 'I contratti si firmano solo in pre-stagione.'}`}</div></div>` : '';
-  const rules = `<div class="panel"><div class="panel-head"><h3>Regole in vigore e deleghe</h3><span class="small muted">La Commissione vota due proposte a stagione</span></div><div class="grid2"><div>${rulesInForce(st).map((r) => `<div class="row between small" style="padding:7px 0;border-bottom:1px solid var(--line)"><span class="muted">${r.k}</span><b class="${r.mod ? 'info' : ''}">${esc(r.v)}</b></div>`).join('')}</div><div>${tog('autoRevert', 'Ritiro automatico dei pacchetti difettosi', 'Se un pezzo nuovo peggiora la vettura, la fabbrica torna subito alla vecchia specifica.')}${tog('autoVote', 'Delega il voto in Commissione', 'Il delegato vota secondo l’interesse della squadra, senza lobby e senza interpellarti.')}</div></div></div>`;
+  const rules = `<div class="panel"><div class="panel-head"><h3>Regole in vigore e deleghe</h3><span class="small muted">La Commissione vota due proposte a stagione</span></div><div class="grid2"><div>${rulesInForce(st).map((r) => `<div class="row between small" style="padding:7px 0;border-bottom:1px solid var(--line)"><span class="muted">${r.k}</span><b class="${r.mod ? 'info' : ''}">${esc(r.v)}</b></div>`).join('')}</div><div>${tog('autoRevert', 'Ritiro automatico dei pacchetti difettosi', 'Se un pezzo nuovo peggiora la vettura, la fabbrica torna subito alla vecchia specifica.')}${tog('autoVote', 'Delega il voto in Commissione', 'Il delegato vota secondo l’interesse della squadra, senza lobby e senza interpellarti.')}${kitsEnabled(st) ? tog('autoKit', 'Pacchetti per circuito automatici', 'Ordinati dal responsabile di produzione quando restano almeno due piste adatte.') : ''}</div></div></div>`;
   const tb = techBase(st, t); const allB = Object.values(st.teams).map((x) => techBase(st, x)).sort((a, b) => b - a);
   const base = `<div class="panel mb16"><div class="panel-head"><h3>Base tecnica della squadra</h3><span class="chip">${allB.indexOf(tb) + 1}ª su ${allB.length}</span></div><div class="grid3"><div class="card"><div class="tiny upper muted">Livello strutturale</div><div style="font-family:var(--display);font-weight:900;font-size:26px">${tb.toFixed(1)}</div>${bar(tb, 'blue', allB[0])}<div class="tiny muted mt8">La barra chiara è la squadra meglio strutturata (${allB[0].toFixed(1)}).</div></div><div class="card" style="grid-column:span 2"><div class="small" style="line-height:1.55;color:var(--text2)">Ogni inverno la nuova vettura riparte a metà strada tra quella vecchia e questo livello: lo sviluppo di una stagione ti porta sopra, ma solo <b>budget, Fabbrica, Galleria del Vento, Simulatore e un grande Direttore Tecnico</b> alzano il punto a cui torni. Chi domina senza struttura dura una stagione; chi ha struttura resta in alto per anni.</div><div class="row wrap gap6 mt8 tiny"><span class="chip">Fabbrica Lv${t.facilities.factory}</span><span class="chip">Galleria Lv${t.facilities.windtunnel}</span><span class="chip">Simulatore Lv${t.facilities.simulator}</span><span class="chip">Direttore Tecnico ${st.staff[t.staff.td]?.rating || '—'}</span><span class="chip">Budget ${fmtM(t.baseBudget)}</span></div></div></div></div>`;
   void aiTrend; void basePart; void C;

@@ -293,3 +293,27 @@
 .world-item .yr{font-family:var(--display);font-weight:800;color:var(--muted);min-width:42px}
 .form-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:var(--muted)}
 .form-dot.good{background:var(--good)}.form-dot.warn{background:var(--warn)}.form-dot.bad{background:var(--bad)}
+
+/* ---- v5: Sala strategica, storie, premi ---- */
+.sr-kpi{min-width:0}
+.sr-big{font-family:var(--display);font-weight:900;font-style:italic;font-size:30px;line-height:1.1}
+.sr-todos{display:flex;flex-direction:column;gap:6px}
+.sr-todo{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 12px;border-left:3px solid var(--info,#3aa0ff);background:rgba(255,255,255,.03);font-size:13px;min-width:0}
+.sr-todo span{min-width:0;overflow-wrap:anywhere}
+.sr-todo.warn{border-left-color:var(--warn)}
+.sr-prio{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px}
+.sr-prio b{font-family:var(--display);color:var(--muted)}
+.sr-prio em{font-style:normal;font-size:12px}
+.sr-sep{height:1px;background:var(--line);margin:12px 0}
+.sr-time{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.sr-time>div{padding:6px 8px;border:1px solid var(--line2);border-radius:6px;font-size:11px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.sr-time>div b{font-family:var(--display);font-size:13px}
+.sr-time>div span{color:var(--text2);overflow-wrap:anywhere}
+.sr-time>div.done{opacity:.45}
+.sr-perks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px}
+.sr-perks>div{min-width:0}
+.aw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.aw-card{padding:12px 14px;background:var(--s2);border:1px solid var(--line);min-width:0}
+.aw-card.mine{border-color:var(--good)}
+.aw-card b{display:block;font-family:var(--display);font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:1100px){.sr-time{grid-template-columns:repeat(2,minmax(0,1fr))}.sr-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}

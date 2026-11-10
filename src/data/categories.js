@@ -132,5 +132,6 @@ export const SURFACES = {
 export const DIFFICULTY = {
   easy: { name: 'Facile', budget: 1.35, aiDev: 0.8, desc: 'Più budget, rivali meno aggressivi nello sviluppo.' },
   normal: { name: 'Normale', budget: 1, aiDev: 1, desc: 'L’esperienza bilanciata.' },
-  hard: { name: 'Leggenda', budget: 0.8, aiDev: 1.25, desc: 'Budget ridotto e AI spietata.' },
+  hard: { name: 'Difficile', budget: 0.85, aiDev: 1.2, desc: 'Budget ridotto, rivali più rapidi nello sviluppo, consiglio più esigente.' },
+  legend: { name: 'Leggenda', budget: 0.75, aiDev: 1.4, desc: 'AI spietata, premi e diritti commerciali ridotti del 14%, obiettivi altissimi.' },
 };

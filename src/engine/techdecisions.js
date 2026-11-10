@@ -1,6 +1,7 @@
 // Seasonal technical decisions: regulation interpretation (pre-season), mid-season upgrade
 // package, and the "this year or next year" fork. Each one is a pending choice shown in the hub.
 import { rand, pick, clamp, chance } from './rng.js';
+import { noteModal, commit } from './career5.js';
 import { cat, playerTeam, addFinance, addNews, addMail, fmtM, partRanking } from './season.js';
 
 const bump = (t, id, v) => { if (t.car.parts[id] != null) t.car.parts[id] = clamp(+(t.car.parts[id] + v).toFixed(1), 30, 99.5); };
@@ -91,5 +92,6 @@ export function resolveTechDecision(st, i) {
   st.techLog.length = Math.min(st.techLog.length, 24);
   addMail(st, { from: pt.from, icon: 'car', type: 'info', subject: pt.title, body: `${pt.text}\n\nDecisione: ${pt.a[i].t}. Risultato: ${out}.` });
   st.pendingTech = null;
+  noteModal(st); commit(st);
   return out;
 }

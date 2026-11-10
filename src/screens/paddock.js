@@ -7,7 +7,10 @@ import { S } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { cat, playerTeam, standings, fmtM } from '../engine/season.js';
 import { ensureDynasty, pressIssues, TP_PERSONAS, STATUS, MANDATES, statusInfo, relLabel, relColor, principal, strengthRanking, statusIdx } from '../engine/dynasty.js';
-import { ensureDepth, eraInfo, rulesInForce, voteHistory, worldEvents, rumourList, rumourStat, aiTrend, setPolicy } from '../engine/depth.js';
+import { ensureDepth, eraInfo, rulesInForce, voteHistory, worldEvents, rumourList, rumourStat, aiTrend, setPolicy, sourceStats, RUMOUR_SOURCES } from '../engine/depth.js';
+import { setIronman, isIronman, diffOf, storyInfo } from '../engine/career5.js';
+import { legacyInfo } from '../engine/legacy.js';
+import { sfx } from '../ui/audio.js';
 import { avgPart } from '../engine/world.js';
 import { pressArt, portraitSVG, principalCard, relMeter, statusEmblem, statusLadder, teamCol, boardTable } from './career-ui.js';
 
@@ -27,6 +30,9 @@ registerScreen({
     ptab(el) { tab = el.dataset.t; App.refresh(); },
     issue(el) { issueKey = el.dataset.k; App.refresh(); },
     wpol(el) { const st = S(); setPolicy(st, el.dataset.k, !st.dp.pol[el.dataset.k]); App.refresh(); },
+    ironman() {
+      App.confirm('Attivare la modalità Ironman?', 'Un solo salvataggio, scritto dopo ogni decisione e ogni evento: non potrai più ricaricare per cambiare una scelta. È irreversibile per questa carriera.', () => { const r = setIronman(S()); if (!r.ok) { App.toast('Impossibile', r.msg, 'bad'); sfx.bad(); return; } sfx.ok(); App.toast('Ironman attivo', 'Ogni scelta ora è definitiva.', 'good'); App.refresh(); }, 'Attiva Ironman', true);
+    },
   },
 });
 
@@ -54,8 +60,9 @@ function worldTab(st) {
         ${votes.length ? votes.slice(0, 6).map((v) => `<div class="vote-row"><div><b class="small">${esc(v.title)}</b><div class="tiny muted">${v.season} · abbiamo votato ${v.my === 'yes' ? 'sì' : 'no'}${v.lobby ? ` con lobby (${v.swung} voti spostati)` : ''}</div></div><span class="chip ${v.pass === (v.my === 'yes') ? 'good' : 'bad'}">${v.pass ? 'Approvata' : 'Bocciata'} ${v.yes}-${v.total - v.yes}</span></div>`).join('') : '<div class="small muted">Nessuna votazione finora.</div>'}
       </div>
       <div class="panel"><div class="panel-head"><h3>Voci di mercato</h3><span class="chip" data-tip="Quante voci dell’anno prima si sono rivelate vere">${rs.tot ? `Attendibilità storica ${Math.round((rs.ok / rs.tot) * 100)}%` : 'Attendibilità: da verificare'}</span></div>
-        ${rum.length ? rum.map((r) => `<div class="world-item"><span class="yr">${r.s}</span><span class="grow">${esc(r.name)} <span class="muted">(${esc(r.from)})</span> → <b>${esc(r.toName)}</b></span>${r.ok == null ? '<span class="chip tiny">In attesa</span>' : r.ok ? '<span class="chip tiny good">Confermata</span>' : '<span class="chip tiny bad">Bufala</span>'}</div>`).join('') : '<div class="small muted">Il mercato dorme: le voci iniziano a girare da metà stagione.</div>'}
-        <div class="tiny muted mt8">Alcune voci nascono da trattative vere, altre sono fumo. A inizio stagione scopri quali erano fondate.</div>
+        <div class="row wrap gap6 mb8">${Object.values(sourceStats(st)).map((x) => `<span class="chip tiny" data-tip="Voci verificate di questa fonte">${esc(x.name)}: ${x.pct == null ? 'attendibilità ' + x.rel.toLowerCase() : x.pct + '% vere su ' + x.n}</span>`).join('')}</div>
+        ${rum.length ? rum.map((r) => `<div class="world-item"><span class="yr">${r.s}</span><span class="grow">${esc(r.name)} <span class="muted">(${esc(r.from)})</span> → <b>${esc(r.toName)}</b>${r.src ? ` <span class="tiny muted">· ${esc(RUMOUR_SOURCES.find((x) => x.id === r.src)?.name || '')}</span>` : ''}</span>${r.ok == null ? '<span class="chip tiny">In attesa</span>' : r.ok ? '<span class="chip tiny good">Confermata</span>' : '<span class="chip tiny bad">Bufala</span>'}</div>`).join('') : '<div class="small muted">Il mercato dorme: le voci iniziano a girare da metà stagione.</div>'}
+        <div class="tiny muted mt8">Alcune voci nascono da trattative vere, altre sono fumo: le fonti interne ci prendono quasi sempre, i tabloid raramente. A inizio stagione scopri quali erano fondate.</div>
       </div>
     </div>
     <div class="col gap16">
@@ -156,6 +163,7 @@ function boardTab(st) {
       <div class="panel"><div class="panel-head"><h3>Promesse in corso</h3><span class="small muted">Mantenute ${D.stats.promisesKept} · tradite ${D.stats.promisesBroken}</span></div>
         ${D.promises.length ? D.promises.map((p) => `<div class="card mb8" style="box-shadow:inset 3px 0 0 var(--warn)"><b>${esc(p.t)}</b><div class="tiny muted">${p.until != null ? `Scadenza: round ${p.until + 1}` : 'Fine stagione'}</div></div>`).join('') : '<div class="small muted">Nessuna promessa attiva. Il consiglio ti convoca a inizio e a metà stagione.</div>'}
       </div>
+      ${careerCard(st)}
       <div class="panel"><div class="panel-head"><h3>Andamento della fiducia</h3></div>${L.length ? sparkline(L.map((x) => x.conf), 0, 100, 'var(--warn)') : '<div class="small muted">Disponibile dopo il primo evento.</div>'}</div>
     </div>
   </div>`;
@@ -166,4 +174,20 @@ function sparkline(vals, lo, hi, col) {
   const n = Math.max(2, vals.length);
   const pts = vals.map((v, i) => `${(i / (n - 1)) * w},${h - ((v - lo) / (hi - lo)) * (h - 8) - 4}`).join(' ');
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" class="chart"><line x1="0" x2="${w}" y1="${h - (50 / 100) * (h - 8) - 4}" y2="${h - (50 / 100) * (h - 8) - 4}" class="ch-grid"/><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="3" stroke-linejoin="round"/></svg>`;
+}
+
+// Manager career: reputation that follows you between teams and categories, difficulty, Ironman
+function careerCard(st) {
+  const L = legacyInfo(st); const c = st.career || {}; const D = diffOf(st);
+  const rep = Math.round(c.reputation || 0);
+  const titles = (c.trophies || []).length;
+  const teamsRun = new Set((c.history || []).map((h) => `${h.category}:${h.teamId}`)).size;
+  const S = storyInfo(st);
+  return `<div class="panel"><div class="panel-head"><h3>${icon('trophy')} La tua carriera</h3><span class="chip">${esc(L.tier)}</span></div>
+    <div class="grid3"><div class="kpi"><b>${rep}</b><span>Reputazione manager</span></div><div class="kpi"><b>${titles}</b><span>Titoli</span></div><div class="kpi"><b>${teamsRun || 1}</b><span>Squadre guidate</span></div></div>
+    <div class="tiny muted mt8">La reputazione viaggia con te: decide le offerte di lavoro a fine stagione, anche in altre categorie. Punteggio eredità ${L.score}${L.next ? ` · prossimo rango «${esc(L.next.name)}» a ${L.next.min}` : ''}.</div>
+    ${S.fx.length ? `<div class="tiny upper muted mt16">Eredità delle storie</div>${S.fx.slice(0, 3).map((f) => `<div class="tiny">• ${esc(f.text)} <span class="muted">(${f.s})</span></div>`).join('')}` : ''}
+    <div class="vote-row mt8"><div><b class="small">Difficoltà: ${esc(D.name)}</b><div class="tiny muted">Sviluppo AI ×${(D.ai / 1.15).toFixed(2)} · premi e diritti ×${D.econ.toFixed(2)} · obiettivi ${D.target < 0 ? 'più alti' : D.target > 0 ? 'più bassi' : 'standard'}</div></div></div>
+    <div class="vote-row"><div><b class="small">Modalità Ironman</b><div class="tiny muted">${isIronman(st) ? `Attiva dal ${st.ironman.since}: un solo salvataggio, scritto dopo ogni scelta.` : 'Un solo salvataggio, aggiornato dopo ogni decisione: nessun ripensamento. Si attiva in pre-stagione.'}</div></div>${isIronman(st) ? '<span class="chip good">Attiva</span>' : `<button class="btn sm" data-a="ironman" ${st.round === 0 ? '' : 'disabled'}>Attiva</button>`}</div>
+  </div>`;
 }

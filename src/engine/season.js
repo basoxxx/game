@@ -11,6 +11,7 @@ import { postRaceComponents } from './components.js';
 import { processStewards } from './stewards.js';
 import { updateLegacy, recordCareerRace, legacyInfo } from './legacy.js';
 import { juniorGraduation, ensureDepth, eraDevMult, winterCars, tokenCheck, tokenSpend, puDevFactor, leaderDrag, corrRoll, afterProject, aiDevFactor, ptsPenalty, capAudit, depthPostRound, depthEndSeason, depthNewSeason, queueStaff, recordRetirement, clearTrackMods, applyTrackMods, basePart } from './depth.js';
+import { diffOf, hasFacPerk, career5PostRound, career5NewSeason, careerAwards } from './career5.js';
 import { invLevel, dynPostRound, dynEndSeason, dynNewSeason, teamTrait, facilityCap, STATUS, statusIdx, repSpan, strengthRanking, principalReact } from './dynasty.js';
 
 export const fmtM = (v) => `${v < 0 ? '-' : ''}€${Math.abs(v).toFixed(Math.abs(v) >= 100 ? 0 : 1)}M`;
@@ -89,7 +90,7 @@ export function startProject(state, partId, tier, nextYear = false, approach = '
   return { ok: true };
 }
 // Overtime: pay to bring a running project forward by one event (riskier: rushed parts fail more often)
-export function rushCost(state, proj) { return +(rdCost(state, proj.tier) * 0.45).toFixed(2); }
+export function rushCost(state, proj) { return +(rdCost(state, proj.tier) * 0.45 * (hasFacPerk(playerTeam(state), 'factory', 4) ? 0.7 : 1)).toFixed(2); }
 export function rushProject(state, projId) {
   const t = playerTeam(state);
   const p = t.projects.find((x) => x.id === projId);
@@ -180,7 +181,7 @@ export function projectForecast(state, partId, tier, approach = 'std', nextYear 
 }
 
 function aiDevelopment(state, team) {
-  const diff = { easy: 0.85, normal: 1.15, hard: 1.45 }[state.difficulty] || 1.15;
+  const diff = diffOf(state).ai;
   const C = cat(state);
   const td = state.staff[team.staff.td];
   const all = Object.values(state.teams);
@@ -284,7 +285,7 @@ export function applyRoundResults(state, results) {
   // ----- finances for player -----
   const n = state.calendar.length;
   const repF = 0.7 + pt.rep / 300;
-  const commercial = +(pt.baseBudget * 0.46 / n * repF * (!state.quick && statusIdx(state) >= 4 ? 1.08 : 1)).toFixed(2);
+  const commercial = +(pt.baseBudget * 0.46 / n * repF * (!state.quick && statusIdx(state) >= 4 ? 1.08 : 1) * diffOf(state).econ).toFixed(2);
   addFinance(state, `Diritti commerciali – ${track.name}`, commercial);
   const myRes = results.classification.filter((r) => r.teamId === pt.id);
   const bestPos = Math.min(...myRes.map((r) => (r.status === 'dnf' ? 99 : r.pos)));
@@ -404,7 +405,7 @@ export function applyRoundResults(state, results) {
   state.weekend = null;
   if (pt.money < 0) addMail(state, { from: 'Direttore Finanziario', type: 'bad', icon: 'money', subject: 'Conti in rosso!', body: 'Il nostro bilancio è negativo. Il consiglio è preoccupato: riduci le spese di sviluppo o trova nuovi sponsor.' });
   if (pt.money < 0) state.board.confidence = clamp(state.board.confidence - 4, 0, 100);
-  if (!state.quick) { try { depthPostRound(state, results, track); } catch (e) { console.warn('depth round', e); } dynPostRound(state, results, track); }
+  if (!state.quick) { try { depthPostRound(state, results, track); } catch (e) { console.warn('depth round', e); } dynPostRound(state, results, track); try { career5PostRound(state); } catch (e) { console.warn('career5 round', e); } }
 }
 
 // Board ultimatum: when confidence collapses mid-season the board sets a short-term points target
@@ -573,7 +574,7 @@ export function seasonSummary(state) {
 export function prizeFor(state, pos) {
   const C = cat(state); const n = Object.keys(state.teams).length;
   const mid = C.prizeTop - ((n - 1) / 2) * C.prizeStep;
-  return +(Math.max(C.prizeStep * 0.5, mid + ((n - 1) / 2 - (pos - 1)) * C.prizeStep * (state.dp?.rules?.prizeMul ?? 1))).toFixed(1);
+  return +(Math.max(C.prizeStep * 0.5, mid + ((n - 1) / 2 - (pos - 1)) * C.prizeStep * (state.dp?.rules?.prizeMul ?? 1)) * diffOf(state).econ).toFixed(1);
 }
 export function endSeason(state) {
   const C = cat(state);
@@ -628,6 +629,7 @@ export function endSeason(state) {
   if (podK && state.drivers[podK[0]]) awards.push({ name: 'Più podi', who: state.drivers[podK[0]].name, team: state.teams[state.drivers[podK[0]].teamId]?.name, note: `${podK[1].podiums} podi`, icon: 'trophy' });
   const mostR = Object.values(state.records || {}).filter((r) => r.season === state.season).length;
   awards.push({ name: 'Manager dell’anno', who: (sum.teamPos <= sum.target ? state.playerName : state.teams[sum.st.teams[0].id].principal), team: sum.teamPos <= sum.target ? pt.name : state.teams[sum.st.teams[0].id].name, icon: 'board' });
+  if (!state.quick) { try { awards.push(...careerAwards(state, sum)); } catch (e) { console.warn('awards', e); } }
   sum.awards = awards;
   state.champions ||= [];
   state.champions.push({ season: state.season, category: state.category, driver: sum.champ.name, dTeam: sum.champTeam.name, team: sum.constructors.name, mine: sum.champ.teamId === pt.id || sum.st.teams[0].id === pt.id, records: mostR });
@@ -719,11 +721,11 @@ export function newSeason(state) {
   const prevTarget = state.board.target;
   // expectations follow last year's result and this year's package (car + drivers), never jumping more than 2 places
   const base = Math.round(last * 0.55 + sRank * 0.45 - (last < prevTarget - 1 ? 0.5 : 0));
-  state.board.target = clamp(Math.max(base, prevTarget - 2) + (state.difficulty === 'easy' ? 1 : state.difficulty === 'hard' ? -1 : 0), 1, ranking.length);
+  state.board.target = clamp(Math.max(base, prevTarget - 2) + diffOf(state).target, 1, ranking.length);
   if (state.board.confidence < 30) state.board.confidence = 30;
   state.seasonStartRank = ranking.indexOf(pt.id) + 1;
   state.objectives = makeObjectives(state);
-  if (!state.quick) { try { depthNewSeason(state, winter); } catch (e) { console.warn('depth new season', e); } dynNewSeason(state); }
+  if (!state.quick) { try { depthNewSeason(state, winter); } catch (e) { console.warn('depth new season', e); } dynNewSeason(state); try { career5NewSeason(state); } catch (e) { console.warn('career5 new season', e); } }
   addMail(state, { from: 'Consiglio di Amministrazione', icon: 'board', type: 'info', subject: `Obiettivi stagione ${state.season}`, body: `Benvenuto nella stagione ${state.season}. Il consiglio si aspetta almeno il ${state.board.target}° posto nel campionato costruttori. Progetta la nuova vettura nel Centro Tecnico prima del primo evento.` });
 }
 

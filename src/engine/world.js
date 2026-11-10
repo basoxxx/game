@@ -147,7 +147,7 @@ function teamFromData(td, cat, diff, isPlayer) {
   const lvl = td.base > 86 ? 4 : td.base > 80 ? 3 : td.base > 74 ? 2 : 2;
   for (const k of Object.keys(FACILITIES)) fac[k] = clamp(lvl + randInt(-1, 1), 1, 5);
   let budget = td.budget; // budgets are already in category scale
-  if (isPlayer) budget *= DIFFICULTY[diff].budget;
+  if (isPlayer) budget *= (DIFFICULTY[diff] || DIFFICULTY.normal).budget;
   return {
     id: td.id, name: td.name, short: td.short, colors: td.colors.slice(), engine: td.engine || null, works: !!td.works,
     rep: td.rep, money: Math.round(budget * 0.55 * 10) / 10, baseBudget: td.budget, principal: td.principal, hq: td.hq,
@@ -240,7 +240,7 @@ export function createWorld({ playerName, category, teamId, difficulty, seasonLe
   // Board expectation based on car ranking
   let ranking = Object.values(state.teams).sort((a, b) => avgPart(b) - avgPart(a)).map((t) => t.id);
   try { ranking = strengthRanking(state); } catch {}
-  state.board.target = clamp(ranking.indexOf(teamId) + 1 + (difficulty === 'easy' ? 1 : difficulty === 'hard' ? -1 : 0), 1, ranking.length);
+  state.board.target = clamp(ranking.indexOf(teamId) + 1 + ({ easy: 1, hard: -1, legend: -1 }[difficulty] || 0), 1, ranking.length);
   state.board.confidence = 70;
   state.career.level = 1; state.career.xp = 0; state.career.points = 1; state.career.perks = [];
   return state;

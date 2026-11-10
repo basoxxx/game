@@ -4,6 +4,7 @@ import { icon } from '../ui/icons.js';
 import { helmetSVG, teamBadge, carSVG, flagSVG } from '../ui/art.js';
 import { esc, bar, pageHead } from '../ui/dom.js';
 import { S, setState, saveGame } from '../engine/state.js';
+import { career5TeamSwitch, recordsChase, storyInfo } from '../engine/career5.js';
 import { createWorld } from '../engine/world.js';
 import { cat, playerTeam, endSeason, newSeason, jobOffers, fmtM, addMail, unlock } from '../engine/season.js';
 import { CATEGORIES } from '../data/categories.js';
@@ -39,7 +40,8 @@ registerScreen({
         <div class="panel"><div class="tiny upper muted">La tua stagione</div><div style="font-family:var(--display);font-weight:900;font-size:44px;font-style:italic" class="${ok ? 'good' : 'bad'}">${sm.teamPos}°</div><div class="muted">Obiettivo: ${sm.target}° · Premio: <b>${fmtM(sm.prize)}</b></div>${sm.legacy ? `<div class="small mt8">Eredità: <b>${sm.legacy.score}</b>${sm.legacy.gained > 0 ? ` <span class="good">(+${sm.legacy.gained})</span>` : ''} · ${esc(sm.legacy.tier)}</div>` : ''}</div>
       </div>
       ${sm.owner ? `<div class="grid2 mt16 anim-in"><div class="panel" style="border-left:3px solid ${sm.owner.ok ? 'var(--good)' : 'var(--bad)'}"><div class="tiny upper muted">La proprietà · ${esc(sm.owner.name)}</div><b>${esc(sm.owner.goal)}</b><div class="small mt8 ${sm.owner.ok ? 'good' : 'bad'}">${esc(sm.owner.now)} · ${sm.owner.ok ? `obiettivo centrato: premio ${fmtM(sm.owner.reward)}, fiducia +6` : 'obiettivo mancato: fiducia -5'}</div></div><div class="panel"><div class="tiny upper muted">Tifosi</div><b>${sm.fans.fans >= 1000 ? (sm.fans.fans / 1000).toFixed(2).replace('.', ',') + ' milioni' : sm.fans.fans + ' mila'}</b><div class="small mt8 ${sm.fans.growth >= 0 ? 'good' : 'bad'}">${sm.fans.growth >= 0 ? '+' : ''}${sm.fans.growth.toFixed(1)}% in stagione · merchandising ${fmtM(sm.fans.season)}</div></div></div>` : ''}
-      ${sm.awards?.length ? `<div class="panel mt16 anim-in"><div class="panel-head"><h3>Gala di fine stagione · Premi</h3></div><div class="grid4">${sm.awards.map((a, i) => `<div class="card" style="text-align:center;animation:rise .5s ${0.2 + i * 0.15}s both">${icon(a.icon, 'ico', 'style="width:34px;height:34px;color:var(--gold)"')}<div class="tiny upper muted mt8">${esc(a.name)}</div><div style="font-family:var(--display);font-weight:900;font-size:18px">${esc(a.who)}</div><div class="small muted">${esc(a.team || '')}${a.note ? ' · ' + esc(a.note) : ''}</div></div>`).join('')}</div></div>` : ''}
+      ${sm.awards?.length ? `<div class="panel mt16 anim-in"><div class="panel-head"><h3>Gala di fine stagione · Premi</h3></div><div class="grid4">${sm.awards.map((a, i) => `<div class="card ${a.mine ? 'sel' : ''}" style="text-align:center;animation:rise .5s ${0.2 + i * 0.15}s both">${icon(a.icon, 'ico', 'style="width:34px;height:34px;color:var(--gold)"')}<div class="tiny upper muted mt8">${esc(a.name)}</div><div style="font-family:var(--display);font-weight:900;font-size:18px">${esc(a.who)}</div><div class="small muted">${esc(a.team || '')}${a.note ? ' · ' + esc(a.note) : ''}</div></div>`).join('')}</div></div>` : ''}
+      ${chasePanel(st)}
       ${reviewPanel(st, sm)}
       ${investPanel(st, sm)}
       <div class="panel mt16 ${sm.fired ? '' : ''}"><div class="panel-head"><h3>Verdetto del Consiglio</h3><span class="chip ${st.board.confidence < 30 ? 'bad' : st.board.confidence > 65 ? 'good' : 'warn'}">Fiducia ${st.board.confidence}%</span></div>
@@ -63,11 +65,12 @@ registerScreen({
           const nt = st.teams[o.teamId]; nt.isPlayer = true; nt.principal = st.playerName; st.playerTeam = nt.id;
           st.board.confidence = 65;
           if (st.dyn) { st.dyn.plan = null; st.dyn.statusMax = null; st.dyn.promises = []; st.dyn.mandate = 'growth'; delete st.dyn.principals[nt.id]; }
+          career5TeamSwitch(st);
           newSeason(st);
         } else {
           const career = st.career; const ach = st.achievements;
           const ns = createWorld({ playerName: st.playerName, category: o.category, teamId: o.teamId, difficulty: st.difficulty, seasonLength: st.seasonLength, raceLength: st.raceLength });
-          ns.season = st.season + 1; ns.career = career; ns.achievements = ach; ns.slot = st.slot;
+          ns.season = st.season + 1; ns.career = career; ns.achievements = ach; ns.slot = st.slot; if (st.ironman) ns.ironman = st.ironman;
           addMail(ns, { from: 'Consiglio di Amministrazione', icon: 'board', type: 'info', subject: `Benvenuto in ${ns.teams[o.teamId].name}`, body: `Una nuova sfida in ${CATEGORIES[o.category].full}! Il consiglio si aspetta il ${ns.board.target}° posto.` });
           setState(ns);
           unlock(ns, 'switch', 'Giramondo', 'Cambia categoria durante la carriera.');
@@ -158,4 +161,15 @@ function reportCards(st, sm) {
   }
   if (!rows.length) return '';
   return `<div class="mt16"><div class="tiny upper muted mb8">Le pagelle dei tuoi piloti</div><div class="grid4">${rows.slice(0, 4).map((x) => `<div class="card row" style="gap:12px">${helmet3D(x.d.helmet, 46)}<div class="grow" style="min-width:0"><b style="font-family:var(--display);font-size:17px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${esc(x.d.name)}</b><div class="tiny muted">${x.pos ? x.pos + '° · ' : ''}${x.pts} pt · migliore ${x.best ? 'P' + x.best : '—'}</div><div class="tiny" style="color:${+x.grade[0] >= 8 ? 'var(--good)' : +x.grade[0] >= 6 ? 'var(--warn)' : 'var(--bad)'};font-weight:700">${x.grade[1]}</div></div><div class="verdict-big" style="font-size:46px;color:${+x.grade[0] >= 8 ? 'var(--good)' : +x.grade[0] >= 6 ? 'var(--text)' : 'var(--bad)'}">${x.grade[0]}</div></div>`).join('')}</div></div>`;
+}
+
+// ---------- records chase: who is about to rewrite the history books ----------
+function chasePanel(st) {
+  let list = [], story = [];
+  try { list = recordsChase(st); } catch { list = []; }
+  try { story = storyInfo(st).log.filter((l) => l.s === st.season); } catch { story = []; }
+  const sp = story.length ? `<div class="panel mt16 anim-in"><div class="panel-head"><h3>${icon('star', 'ico', 'style="width:16px"')} Le storie della stagione</h3><span class="small muted">Le tue scelte fuori dalla pista</span></div>${story.slice().reverse().map((l) => `<div class="world-item"><span class="yr">R${l.r + 1}</span><span><b>${esc(l.title)}</b><br><span class="tiny muted">${esc(l.choice)}${l.out ? ' → ' + esc(l.out) : ''}</span></span></div>`).join('')}</div>` : '';
+  if (!list.length) return sp;
+  return `<div class="panel mt16 anim-in"><div class="panel-head"><h3>${icon('medal', 'ico', 'style="width:16px"')} Caccia ai record</h3><span class="small muted">Statistiche di tutte le epoche</span></div>
+    <div class="grid2">${list.map((r) => `<div class="card small ${r.mine ? 'sel' : ''}">${esc(r.text)}${r.mine ? ' <span class="chip tiny good">Tuo pilota</span>' : ''}</div>`).join('')}</div></div>${sp}`;
 }
