@@ -632,7 +632,7 @@ export class DerbyGame {
         if (inp.thr > 0) {
           const tq = 0.82 + 0.3 * Math.sin(Math.min(1, frac) * Math.PI * 0.85);
           const gm = 1.5 - 0.6 * (car.gear - 1) / Math.max(1, G - 1);
-          force = inp.thr * 8200 * s.power * (mass / 1450) ** 0.6 * gm * tq * Math.max(0, Math.min(1, (1 - aF / vmax) * 7)) * (car.rubber || 1);
+          force = inp.thr * 8200 * s.power * (mass / 1450) ** 0.3 * gm * tq * Math.max(0, Math.min(1, (1 - aF / vmax) * 7)) * (car.rubber || 1);
           if (car.shiftT > 0) force *= 0.3;
           force *= car.engK ?? 1;
           if (aF < 6 && car.gear === 1) rpmT = Math.max(rpmT, 0.35 + inp.thr * 0.35); // clutch slip at launch
@@ -663,7 +663,7 @@ export class DerbyGame {
       // 4x4: 40/60 torque split front/rear (stable, but still lets the tail help on the throttle)
       const share = drive === 'awd' ? (front ? 0.2 : 0.3) : 0.5;
       vc.setWheelEngineForce(i, driven && !car.wheelLost[i] ? force * share : 0);
-      vc.setWheelBrake(i, inp.hold ? brake : brake * (front ? 0.62 : 0.38) + (hbOn && !front ? 24 : 0));
+      vc.setWheelBrake(i, inp.hold ? brake : brake * (front ? 0.62 : 0.38) + (hbOn && !front ? 16 : 0));
       const sf = car.surf[i];
       let g = s.grip * sf.g * (front ? (s.frontGrip || 1) : (s.rearGrip || 1));
       g *= front ? 1 + brakingLoad * 0.2 - accLoad * 0.06 : 1 - brakingLoad * 0.14 + accLoad * 0.05;
@@ -714,7 +714,7 @@ export class DerbyGame {
         else if (car.driftT > 0) { car.driftEnd = (car.driftEnd || 0) + dt; if (car.driftEnd > 0.35) { this.longDrift = Math.max(this.longDrift || 0, car.driftT); if (car.driftT > 1.1) { const pts = this.combo(Math.round(car.driftPts / 10) * 10); car.score += pts; this.message(car.driftT > 2.6 ? 'SUPER DERAPATA!' : 'DERAPATA!', 'bonus', `${car.driftT.toFixed(1).replace('.', ',')} s · +${pts} punti`); } car.driftT = 0; car.driftPts = 0; } }
       }
       // handbrake helps rotate the car into a power slide; yaw rate is capped so slides stay catchable
-      if (hbOn && speed > 6) { const tq = inp.st * (s.hbYaw || 1) * H.hbYaw * mass * 3.8 * Math.min(1, speed / 12); b.addTorque({ x: up.x * tq, y: up.y * tq, z: up.z * tq }, true); }
+      if (hbOn && speed > 6) { const tq = inp.st * (s.hbYaw || 1) * H.hbYaw * mass * 2.6 * Math.min(1, speed / 12); b.addTorque({ x: up.x * tq, y: up.y * tq, z: up.z * tq }, true); }
       const yawMax = H.yawMax + (hbOn ? 0.8 : 0);
       if (Math.abs(av.y) > yawMax) { const tq = -Math.sign(av.y) * (Math.abs(av.y) - yawMax) * mass * 6; b.addTorque({ x: 0, y: tq, z: 0 }, true); }
       // arcade grip: the velocity slowly follows the nose while sliding (keeps drifts predictable)
@@ -852,6 +852,8 @@ export class DerbyGame {
   playerStunts(car, dt) {
     const d = car.dyn; if (!d) return;
     this.topSpeed = Math.max(this.topSpeed || 0, d.speed);
+    // controller texture: rough verges buzz, a bent wheel shimmies, a burning engine shakes
+    if (this.pad) { this._rbT = (this._rbT || 0) - dt; if (this._rbT <= 0) { this._rbT = 0.12; const s = Math.min(1, d.speed / 25), rough = ['grass', 'gravel', 'mud'].includes(car.surfK) ? 1 : 0; const weak = rough * 0.12 * s + Math.abs(car.wobble || 0) * 6 * s + (car.fireT > 0 ? 0.25 : 0); if (weak > 0.03) this.rumble(car.fireT > 0 ? 0.15 : 0, weak, 140); } }
     // near miss: another car passes within a hand's breadth (1.9-3.2 m centre to centre, side by side) without contact
     if (d.speed > 12 && car.hp > 0) {
       const p = car.body.translation(); car._nm ||= new Map();
@@ -1352,7 +1354,7 @@ export class DerbyGame {
       const stuntHold = this.mode === 'stunt' && this.stunt.phase === 'hold';
       let inp = !racing || stuntHold ? { thr: (this.state === 'countdown' || stuntHold) && car.isPlayer ? pin.thr : Math.random() < 0.02 ? 1 : 0, brk: 0, st: 0, hb: 0, nitro: 0, hold: 1 } : car.isPlayer && !(this.state === 'finished') ? pin : this.aiInput(car, dt);
       if (car.stunT > 0) car.stunT -= dt;
-      if (car.wreckT > 0) { car.wreckT -= dt; inp = { thr: 0, brk: 1, st: 0, hb: 0, nitro: 0 }; if (car.wreckT <= 0) { car.hp = 45; car.burnT = 0; car.zoneDmg = null; car.heat = 0; car.hotT = 0; for (const w of car.mesh.userData.wheels) { w.userData.bent = 0; w.userData.toe = 0; w.rotation.x = 0; } this.repairWheels(car); this.respawn(car); } }
+      if (car.wreckT > 0) { car.wreckT -= dt; inp = { thr: 0, brk: 1, st: 0, hb: 0, nitro: 0 }; if (car.wreckT <= 0) { car.hp = 45; car.burnT = 0; car.zoneDmg = null; car.heat = 0; car.hotT = 0; car.fireT = 0; car.hotN = 0; for (const w of car.mesh.userData.wheels) { w.userData.bent = 0; w.userData.toe = 0; w.rotation.x = 0; } this.repairWheels(car); this.respawn(car); } }
       car.dyn = this.drive(car, inp, dt);
       if (car.ghostT > 0) {
         car.ghostT -= dt;
