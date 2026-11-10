@@ -1209,7 +1209,7 @@ export class Race3D {
         if (C.park(bi, bj) || items.some((it) => it.bi === bi && it.bj === bj)) continue;
         [tx, tz] = C.fromG(bi + 0.5, bj + 0.5); rot = -C.th;
         if (this.seaMask?.(tx, tz) || !this.clearOfTrack(tx, tz, this.TW / 2 + 30 + wd)) continue;
-        items.push({ x: tx, z: tz, w: Math.min(wd, 58), dp: Math.min(dp, 58), h, y: -3, rot, t: tints[Math.floor(Math.random() * tints.length)], bi, bj, s: Math.random() < 0.5 ? 2 : 0 });
+        items.push({ x: tx, z: tz, w: Math.min(wd, 58), dp: Math.min(dp, 58), h, y: (this.hillH ? this.hillH(tx, tz) : 0) - 3, rot, t: tints[Math.floor(Math.random() * tints.length)], bi, bj, s: Math.random() < 0.5 ? 2 : 0 });
         k++; continue;
       }
       items.push({ x: tx, z: tz, w: wd, dp, h, y: this.hillH ? this.hillH(px, pz) - 3 : -3, rot, t: tints[Math.floor(Math.random() * tints.length)] });
@@ -1241,7 +1241,7 @@ export class Race3D {
           if ((this.obstacles || []).some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.r + rad) ** 2)) continue;
           const h = 10 + (tall > 0.7 ? 18 + Math.random() * 30 : Math.random() * 16) + Math.floor(Math.random() * 3) * 3.4;
           const st = tall > 0.7 ? (Math.random() < 0.5 ? 1 : 2) : (Math.random() < 0.25 ? 1 : 3);
-          items.push({ x: px, z: pz, w: Math.max(8, wd), dp, h, y: -0.5, rot: -C.th, t: [0xd8cfc0, 0xc9c2b6, 0xe6dccb, 0xe0d6c4, 0xd2c3ae, 0xb8bec6][Math.floor(Math.random() * 6)], s: st });
+          items.push({ x: px, z: pz, w: Math.max(8, wd), dp, h, y: (this.hillH ? this.hillH(px, pz) : 0) - 0.5, rot: -C.th, t: [0xd8cfc0, 0xc9c2b6, 0xe6dccb, 0xe0d6c4, 0xd2c3ae, 0xb8bec6][Math.floor(Math.random() * 6)], s: st });
           cnt++;
         }
       }
@@ -1338,7 +1338,14 @@ export class Race3D {
     // keep a clear line of sight between every TV camera and the track
     const N0 = this.geo.N; const sight = (this.tvCams || []).flatMap((c) => [0, -15, -30].map((d) => { const j = (c.i + d + N0) % N0; return { x0: c.pos.x, z0: c.pos.z, x1: this.geo.x[j], z1: this.geo.y[j] }; }));
     const blocksCam = (px, pz) => sight.some((v) => { const dx = v.x1 - v.x0, dz = v.z1 - v.z0; const L2 = dx * dx + dz * dz || 1; const t = Math.max(-0.4, Math.min(1, ((px - v.x0) * dx + (pz - v.z0) * dz) / L2)); const qx = v.x0 + dx * t, qz = v.z0 + dz * t; return (px - qx) ** 2 + (pz - qz) ** 2 < 26 * 26; });
-    const ok = (px, pz, r) => !this.seaMask?.(px, pz) && this.clearOfTrack(px, pz, W / 2 + 7 + r) && !blocksCam(px, pz) && !this.obstacles.some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.r + r) ** 2);
+    // in the town, trees grow in the parks and as avenues along the pavements, never in the blocks
+    const C = this.city, cR = this.hillR0 ? this.hillR0 + 260 + 96 : 0;
+    const cityOK = (px, pz) => {
+      if (!C || !cR || Math.hypot(px - this.hillC[0], pz - this.hillC[1]) > cR) return true;
+      const [u, v] = C.toG(px, pz), i = Math.floor(u), j = Math.floor(v), fx = (u - i) * C.B, fz = (v - j) * C.B, ed = Math.min(fx, fz, C.B - fx, C.B - fz);
+      return C.park(i, j) ? ed > C.RW / 2 + 2 : ed > C.RW / 2 + 1.2 && ed < C.RW / 2 + 3.6;
+    };
+    const ok = (px, pz, r) => !this.seaMask?.(px, pz) && cityOK(px, pz) && this.clearOfTrack(px, pz, W / 2 + 7 + r) && !blocksCam(px, pz) && !this.obstacles.some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.r + r) ** 2);
     let guard = 0;
     while (items.length < target && guard++ < target * 6) {
       const i = Math.floor(Math.random() * N); const side = Math.random() < 0.5 ? 1 : -1;
@@ -1365,7 +1372,7 @@ export class Race3D {
         const a = Math.random() * 6.283; const r = this.hillR0 + 30 + Math.random() ** 1.8 * 900;
         const cl = 0.5 + 0.5 * Math.sin(a * 9 + r * 0.004) * Math.cos(a * 4 - r * 0.002); if (Math.random() > cl * cl * cl) continue;
         const px = cx + Math.cos(a) * r, pz = cz + Math.sin(a) * r;
-        if (this.seaMask?.(px, pz) || (this.coastK && this.coastK(px, pz) < 0.4)) continue;
+        if (this.seaMask?.(px, pz) || (this.coastK && this.coastK(px, pz) < 0.4) || !cityOK(px, pz)) continue;
         const meta = conif[Math.floor(Math.random() * conif.length)];
         const h = (meta.kind === 'conifer' ? 14 : meta.kind === 'desert' ? 6 : 9) * (0.8 + Math.random() * 0.6);
         const v = 0.8 + Math.random() * 0.25;
