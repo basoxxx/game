@@ -985,7 +985,7 @@ export class DerbyGame {
     this.hud.root.appendChild(el); setTimeout(() => el.classList.remove('on'), 4200); setTimeout(() => el.remove(), 4800);
   }
   startPodium(pd) {
-    this.state = 'podium'; this.hud.root.classList.add('replaying');
+    this.state = 'podium'; this.hud.root.classList.add('podium');
     const P = this.player, base = P.mesh.position.clone(), T = this.terrain; base.y = T.heightAt(base.x, base.z);
     const others = this.cars.filter((c) => c !== P && c !== this.rival);
     const meshOf = (row) => (row.me ? P.mesh : row.rv && this.rival ? this.rival.mesh : (others.shift() || this.cars[1])?.mesh);
@@ -1006,13 +1006,13 @@ export class DerbyGame {
     try { sfx.win(); } catch {} this.snd?.crowd?.(1);
   }
   endPodium() {
-    if (this.state !== 'podium') return; window.removeEventListener('keydown', this._podKey); this.podiumEl?.remove(); this.hud.root.classList.remove('replaying');
+    if (this.state !== 'podium') return; window.removeEventListener('keydown', this._podKey); this.podiumEl?.remove(); this.hud.root.classList.remove('podium');
     this.state = 'finished'; for (const c of this.cars) c.mesh.visible = !c.removed; this.camPos = null; this.hud.results.classList.add('on');
     setTimeout(() => this.hud?.results.querySelector('.btn.primary')?.focus?.({ preventScroll: true }), 300);
   }
   podiumFrame(dt) {
-    const S = this.podium; S.t += dt; const b = S.base, a = S.t * 0.35;
-    this.camera.position.set(b.x + Math.cos(a) * 12, b.y + 4.2, b.z + Math.sin(a) * 12); this.camera.lookAt(b.x, b.y + 1.6, b.z); this.camera.fov = 48; this.camera.updateProjectionMatrix();
+    const S = this.podium; S.t += dt; const b = S.base, a = Math.sin(S.t * 0.3) * 0.55; // the cars face -z: sway the camera in front of the podium
+    this.camera.position.set(b.x + Math.sin(a) * 13, b.y + 3.6, b.z - Math.cos(a) * 13); this.camera.lookAt(b.x, b.y + 1.4, b.z); this.camera.fov = 48; this.camera.updateProjectionMatrix();
     const gp = navigator.getGamepads?.()?.find?.((g) => g); if (gp?.buttons[0]?.pressed && S.t > 1) this.endPodium();
     for (let k = 0; k < 4; k++) { const c = [[1, 0.2, 0.2], [1, 0.85, 0.2], [0.2, 0.6, 1], [0.3, 1, 0.4]][k]; this.chips.emit(b.x + (Math.random() - 0.5) * 12, b.y + 9, b.z + (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 2, -1, (Math.random() - 0.5) * 2, 3, 0.18, c[0], c[1], c[2], 1); }
     this.chips.update(dt); this.smoke.update(dt); this.fire.update(dt); this.fxFrame(dt, false);
