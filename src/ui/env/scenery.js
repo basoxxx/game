@@ -181,7 +181,7 @@ export function buildDecals(r3, street) {
   for (let k = 0; k < nP; k++) {
     const i0 = Math.floor(Math.random() * N), len = 5 + Math.floor(Math.random() * 22), fresh = Math.random() < 0.6;
     const full = Math.random() < 0.45, a = full ? -W / 2 + 0.45 : Math.random() < 0.5 ? -W / 2 + 0.45 : rnd(-1.5, 1.5), b = full ? W / 2 - 0.45 : a < -W / 4 ? rnd(-1, 2.5) : W / 2 - 0.45;
-    const tone = fresh ? [0.02, 0.02, 0.025, rnd(0.2, 0.36)] : [0.62, 0.61, 0.6, rnd(0.07, 0.13)];
+    const tone = fresh ? [0.02, 0.02, 0.025, rnd(0.2, 0.36)] : [0.62, 0.61, 0.6, rnd(0.035, 0.07)];
     strip(i0, i0 + len, a, b, tone, 0.047);
     const seam = [0.015, 0.015, 0.018, 0.5];
     for (const o of [a, b]) if (Math.abs(o) < W / 2 - 0.6) strip(i0, i0 + len, o - 0.05, o + 0.05, seam, 0.049);
@@ -328,11 +328,11 @@ export function buildRallyExtras(r3, near, surf, look) {
   const mAt = (x, y, z, ry, sx, sy = sx, sz = sx, rx = 0) => { d.position.set(x, y, z); d.rotation.set(rx, ry, rx * 0.7); d.scale.set(sx, sy, sz); d.updateMatrix(); return d.matrix.clone(); };
   // rocks: boulders by the road, outcrops and crags further back
   {
-    const rg = new THREE.IcosahedronGeometry(1, 1), p = rg.attributes.position, seen = new Map();
+    const rg = new THREE.IcosahedronGeometry(1, 0), p = rg.attributes.position, seen = new Map();
     for (let i = 0; i < p.count; i++) { const k = p.getX(i).toFixed(3) + p.getY(i).toFixed(3) + p.getZ(i).toFixed(3); if (!seen.has(k)) seen.set(k, 0.72 + Math.random() * 0.5); const s = seen.get(k); p.setXYZ(i, p.getX(i) * s, p.getY(i) * s * 0.8, p.getZ(i) * s); }
     rg.computeVertexNormals();
     const list = [], cols = [], base = new THREE.Color(look.rock), c = new THREE.Color();
-    const n = Math.round(N * 0.9 * look.rocks * (low ? 0.3 : 1));
+    const n = Math.round(N * 0.5 * look.rocks * (low ? 0.3 : 1));
     for (let k = 0; k < n; k++) {
       const i = Math.floor(Math.random() * N), side = Math.random() < 0.5 ? 1 : -1, big = Math.random() < 0.16;
       const s = big ? rnd(3, 9) : rnd(0.3, 1.5), off = W / 2 + (big ? rnd(13, 90) : 2.6 + Math.random() ** 2 * 26) + s;
@@ -341,7 +341,7 @@ export function buildRallyExtras(r3, near, surf, look) {
       const v = rnd(0.75, 1.1); c.copy(base).multiplyScalar(v); if (surf === 'snow' && Math.random() < 0.7) c.lerp(new THREE.Color(0xf2f6fa), 0.75); cols.push('#' + c.getHexString());
     }
     const rm = low ? new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }) : pbr('rocky_trail', { color: 0xffffff, repeat: [1.5, 1.5] }); rm.flatShading = true;
-    instanced(scene, rg, rm, list, { colors: cols });
+    instanced(scene, rg, rm, list, { colors: cols, shadow: false });
   }
   // log piles in the forests, marker poles on snow, huts and barns
   if (look.logs) {

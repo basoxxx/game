@@ -3426,7 +3426,9 @@ export class Race3D {
       if (this._camCar !== focus) { this._cut = true; this._tvHold = 99; }
       else if (dt > 0) {
         const mv = Math.hypot(p.x - lp.x, p.z - lp.z);
-        if (mv > 40 + Math.max(spd0, 30) * (this._simK || 1) * dt * 3) { this._cut = true; this._tvHold = 99; }
+        // a jump is a move far beyond the previous frame's (steady fast-forward motion is not one)
+        const jump = mv > 60 + 3 * (this._mvPrev || 0); this._mvPrev = mv;
+        if (jump) { this._cut = true; this._tvHold = 99; }
         else { const v = mv / dt; this._vVis = (this._vVis || 0) + (v - (this._vVis || 0)) * 0.3; if (spd0 > 8) { const k = Math.max(1, Math.min(64, v / spd0)); this._simK = (this._simK || 1) + (k - (this._simK || 1)) * 0.2; } }
       }
       lp.copy(p);
@@ -3458,6 +3460,8 @@ export class Race3D {
       const tl = inG ? this.pose(i, this.pitGarage - 0.8) : null;
       look = inG ? new THREE.Vector3(tl.x, (tl.y || 0) + 0.9, tl.z) : target.clone().add(new THREE.Vector3(0, 0.6, 0));
       fov = inG ? 46 : 40;
+      // the car is still far down the pit lane (long pit entries): follow it until it nears its box
+      if (!inG && pos.distanceTo(target) > 110) { pos = target.clone().addScaledVector(fwd, -8).add(new THREE.Vector3(0, 3.4, 0)); fov = 55; }
     } else if (this.camMode === 'chase') {
       // camera on a soft spring: it lags behind the car's yaw so corners show the car turning
       if (!this._chaseFwd || this._cut) this._chaseFwd = fwd.clone();
