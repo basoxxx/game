@@ -57,7 +57,7 @@ export function hypercar(L, opts) {
     { x: 1.55, top: 0.45, bot: 0.07, belt: 0.1, w: 0.995, wt: 0.62, wb: 0.97, n: 4 },
     { x: 2.3, top: 0.3, bot: 0.08, belt: 0.11, w: 0.95, wt: 0.66, wb: 0.93, n: 3.4 },
     { x: 2.55, top: 0.19, bot: 0.1, belt: 0.13, w: 0.8, wt: 0.6, wb: 0.8, n: 3 },
-  ], bodyO = { u0: 0, u1: 1, seg: 64, around: 48, capRear: false, arches: [{ x: XF, y: R, r: 0.425, zin: 0.62 }, { x: XR, y: R, r: 0.425, zin: 0.62 }] };
+  ], bodyO = { u0: 0, u1: 1, seg: 64, around: 48, capRear: false, panel: true, arches: [{ x: XF, y: R, r: 0.425, zin: 0.62 }, { x: XR, y: R, r: 0.425, zin: 0.62 }] };
   car.add(shell(body, bodyO, paint));
   // tail: full-width light bar over the open diffuser exit, sponsor between
   car.add(endPanel(body, bodyO, false, panelMat(L, { lamps: [[0.03, 0.83, 0.97, 0.9, 3]], grille: [[0.09, 0.0, 0.91, 0.6, 18]], text: [0.5, 0.72, 46], seams: [[0, 0.8, 1, 0.8]] }, opts.sponsor), 0.035));
@@ -128,7 +128,7 @@ export function hypercar(L, opts) {
     car.add(at(box(0.6, 0.4, 0.02, dark), x, R + 0.06, s * 0.6));
   }
   car.userData.wheels = wheels;
-  cabin(car, L, opts, { x: 0.0, y: 0.77, z: 0.2, roof: 1.0, dash: 0.55, half: 0.4, ax: 0.75, ay: 0.68, rx: 0.15, rear: -0.7 });
+  cabin(car, L, opts, { cage: false, x: 0.0, y: 0.77, z: 0.2, roof: 1.0, dash: 0.55, half: 0.4, ax: 0.75, ay: 0.68, rx: 0.15, rear: -0.7 });
   car.userData.lamps = { head: [[2.4, 0.48, 0.775], [2.4, 0.48, -0.775]], tail: [[-2.5, 0.665, 0.8], [-2.5, 0.665, -0.8], [-2.5, 0.665, 0.3], [-2.5, 0.665, -0.3]] };
   return car;
 }
@@ -164,10 +164,10 @@ function cabin(car, L, opts, c) {
   for (let k = 0; k < 6; k++) car.add(at(box(0.012, 0.014, 0.014, MAT.band(['#e10600', '#18e06a', '#ffd400', '#4fc3ff'][k % 4])), c.dash - 0.15, c.y - 0.15 + (k % 2) * 0.05, -0.05 + Math.floor(k / 2) * 0.05));
   // roll cage: A-pillar tubes, roof hoops, diagonal, door bars
   for (const s of [1, -1]) {
-    car.add(rod([c.ax, c.ay, s * c.half * 0.9], [c.rx, c.roof - 0.02, s * c.half * 0.74], 0.015, cage));
+    if (c.cage !== false) car.add(rod([c.ax, c.ay, s * c.half * 0.9], [c.rx, c.roof - 0.02, s * c.half * 0.74], 0.015, cage));
     car.add(rod([c.rx, c.roof - 0.02, s * c.half * 0.72], [c.rear, c.roof - 0.04, s * c.half * 0.72], 0.022, cage));
     car.add(rod([c.x - 0.25, c.ay - 0.05, s * c.half * 0.95], [c.x - 0.25, c.roof - 0.03, s * c.half * 0.72], 0.022, cage));
-    car.add(rod([c.ax + 0.05, c.ay - 0.12, s * c.half * 0.95], [c.x - 0.3, c.ay - 0.08, s * c.half * 0.95], 0.02, cage));
+    if (c.cage !== false) car.add(rod([c.ax + 0.05, c.ay - 0.12, s * c.half * 0.95], [c.x - 0.3, c.ay - 0.08, s * c.half * 0.95], 0.02, cage));
   }
   car.add(rod([c.x - 0.25, c.roof - 0.03, c.half * 0.72], [c.x - 0.25, c.roof - 0.03, -c.half * 0.72], 0.022, cage));
   car.add(rod([c.x - 0.25, c.roof - 0.03, c.half * 0.72], [c.rear, c.ay - 0.1, -c.half * 0.7], 0.02, cage));
@@ -216,7 +216,7 @@ export function gt(L, opts) {
     { x: 1.42, top: 0.8, bot: 0.15, belt: 0.29, w: 0.97, wt: 0.82, wb: 0.9, n: 5.5 },
     { x: 2.1, top: 0.64, bot: 0.16, belt: 0.3, w: 0.9, wt: 0.72, wb: 0.88, n: 4 },
     { x: 2.35, top: 0.5, bot: 0.2, belt: 0.31, w: 0.78, wt: 0.6, wb: 0.76, n: 3.6 },
-  ], bodyO = { u0: 0, u1: 1, seg: 64, around: 48, capRear: false, capFront: false, arches: [{ x: XF, y: R, r: 0.39, zin: 0.6 }, { x: XR, y: R, r: 0.395, zin: 0.6 }] };
+  ], bodyO = { u0: 0, u1: 1, seg: 64, around: 48, capRear: false, capFront: false, panel: true, arches: [{ x: XF, y: R, r: 0.39, zin: 0.6 }, { x: XR, y: R, r: 0.395, zin: 0.6 }] };
   car.add(shell(body, bodyO, paint));
   // tail: lamp clusters joined by a light bar, diffuser opening; nose: honeycomb grille, side intakes
   car.add(endPanel(body, bodyO, false, panelMat(L, { lamps: [[0.03, 0.7, 0.36, 0.88, 6], [0.64, 0.7, 0.97, 0.88, 6], [0.36, 0.77, 0.64, 0.81, 2]], grille: [[0.1, 0.0, 0.9, 0.34, 14]], text: [0.5, 0.56, 50], hooks: [[0.84, 0.42]], seams: [[0.02, 0.4, 0.98, 0.4]] }, opts.sponsor), 0.03));
@@ -292,7 +292,7 @@ export function rally(L, opts) {
     { x: 1.35, top: 0.92, bot: 0.26, belt: 0.4, w: 0.91, wt: 0.78, wb: 0.86, n: 4.5 },
     { x: 1.95, top: 0.79, bot: 0.28, belt: 0.41, w: 0.85, wt: 0.7, wb: 0.82, n: 4 },
     { x: 2.15, top: 0.69, bot: 0.34, belt: 0.44, w: 0.74, wt: 0.6, wb: 0.72, n: 3.6 },
-  ], bodyO = { u0: 0, u1: 1, seg: 64, around: 48, capRear: false, capFront: false, arches: [{ x: XF, y: R, r: 0.425, zin: 0.58 }, { x: XR, y: R, r: 0.425, zin: 0.58 }] };
+  ], bodyO = { u0: 0, u1: 1, seg: 64, around: 48, capRear: false, capFront: false, panel: true, arches: [{ x: XF, y: R, r: 0.425, zin: 0.58 }, { x: XR, y: R, r: 0.425, zin: 0.58 }] };
   car.add(shell(body, bodyO, paint));
   // tailgate: tall lamp clusters, rally plate, diffuser; nose: big grille with the front plate
   car.add(endPanel(body, bodyO, false, panelMat(L, { lamps: [[0.02, 0.58, 0.15, 0.98, 6], [0.85, 0.58, 0.98, 0.98, 6]], grille: [[0.14, 0.0, 0.86, 0.3, 12]], plate: [0.5, 0.5, 0.34], text: [0.5, 0.8, 44], hooks: [[0.1, 0.4]], seams: [[0.16, 0.66, 0.84, 0.66]] }, opts.sponsor, opts.number), 0.05));

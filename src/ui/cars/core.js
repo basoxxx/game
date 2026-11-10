@@ -311,7 +311,7 @@ function hullRaw(sections, { seg = 48, around = 40, u0 = 0, u1 = 1, capFront = t
 // a body shell: full-detail hull near, a coarse one in the distance LOD
 export function shell(sections, opts, m, z = 0) {
   const o = mesh(hull(sections, opts), m); o.position.z = z;
-  const lo = { ...opts, seg: Math.max(6, Math.round((opts.seg || 48) / 4)), around: 12, capFront: true, capRear: true }; if (opts.arches) lo.archN = 5;
+  const lo = { ...opts, seg: Math.max(6, Math.round((opts.seg || 48) / 4)), around: 12, capFront: opts.panel || opts.capFront, capRear: opts.panel || opts.capRear }; if (opts.arches) lo.archN = 5;
   o.userData.far = hull(sections, lo);
   return o;
 }
