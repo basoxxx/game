@@ -20,6 +20,7 @@ lazyScreens({
   howto: () => import('./screens/howto.js'),
   quickrace: () => import('./screens/quickrace.js'),
   challenges: () => import('./screens/challenges.js'),
+  ...Object.fromEntries(['mode-champ', 'mode-champ-new', 'mode-tp', 'mode-daily', 'mode-debrief'].map((id) => [id, () => import('./screens/challenges.js')])),
   derby: () => import('./screens/derby.js'),
   weekend: () => import('./screens/weekend.js'),
   rally: () => import('./screens/rallyweekend.js'),
