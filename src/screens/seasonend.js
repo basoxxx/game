@@ -4,7 +4,7 @@ import { icon } from '../ui/icons.js';
 import { helmetSVG, teamBadge, carSVG, flagSVG } from '../ui/art.js';
 import { esc, bar, pageHead } from '../ui/dom.js';
 import { S, setState, saveGame } from '../engine/state.js';
-import { career5TeamSwitch, recordsChase } from '../engine/career5.js';
+import { career5TeamSwitch, recordsChase, storyInfo } from '../engine/career5.js';
 import { createWorld } from '../engine/world.js';
 import { cat, playerTeam, endSeason, newSeason, jobOffers, fmtM, addMail, unlock } from '../engine/season.js';
 import { CATEGORIES } from '../data/categories.js';
@@ -165,9 +165,11 @@ function reportCards(st, sm) {
 
 // ---------- records chase: who is about to rewrite the history books ----------
 function chasePanel(st) {
-  let list = [];
+  let list = [], story = [];
   try { list = recordsChase(st); } catch { list = []; }
-  if (!list.length) return '';
+  try { story = storyInfo(st).log.filter((l) => l.s === st.season); } catch { story = []; }
+  const sp = story.length ? `<div class="panel mt16 anim-in"><div class="panel-head"><h3>${icon('star', 'ico', 'style="width:16px"')} Le storie della stagione</h3><span class="small muted">Le tue scelte fuori dalla pista</span></div>${story.slice().reverse().map((l) => `<div class="world-item"><span class="yr">R${l.r + 1}</span><span><b>${esc(l.title)}</b><br><span class="tiny muted">${esc(l.choice)}${l.out ? ' → ' + esc(l.out) : ''}</span></span></div>`).join('')}</div>` : '';
+  if (!list.length) return sp;
   return `<div class="panel mt16 anim-in"><div class="panel-head"><h3>${icon('medal', 'ico', 'style="width:16px"')} Caccia ai record</h3><span class="small muted">Statistiche di tutte le epoche</span></div>
-    <div class="grid2">${list.map((r) => `<div class="card small ${r.mine ? 'sel' : ''}">${esc(r.text)}${r.mine ? ' <span class="chip tiny good">Tuo pilota</span>' : ''}</div>`).join('')}</div></div>`;
+    <div class="grid2">${list.map((r) => `<div class="card small ${r.mine ? 'sel' : ''}">${esc(r.text)}${r.mine ? ' <span class="chip tiny good">Tuo pilota</span>' : ''}</div>`).join('')}</div></div>${sp}`;
 }

@@ -195,7 +195,7 @@ export function winterCars(st) {
     for (const t of teams) {
       let v = t.car.parts[p.id];
       const anchor = anchors[t.id];
-      if (!isEra) { const w = t.isPlayer ? 0.18 + dominance(st) * 0.04 : 0.28; v = v * (1 - w) + anchor * w + rand(-1.5, 1.5) + luck[t.id]; }
+      if (!isEra) { const w = t.isPlayer ? 0.15 + dominance(st) * 0.05 : 0.28; v = v * (1 - w) + anchor * w + rand(-1.5, 1.5) + luck[t.id]; }
       else if (p.id === 'reliability') v = mean - 3 + (v - mean) * 0.7 + rand(-2, 2);
       else {
         const f = focus.includes(p.id);

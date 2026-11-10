@@ -227,7 +227,7 @@ export function storyMaybeDecision(st) {
     const A = ARCS[id]; if ((S.done[id] || -99) === st.season) continue;
     const data = A.start(st); if (data) { S.done[id] = st.season; S.active = { arc: id, step: 0, data, at: st.round, season: st.season }; st.pendingDyn = { kind: 'story', arc: id, step: 0 }; return true; }
   }
-  if (st.round < 2 || st.round > n - 3 || modalLoad(st) >= 1 || !chance(0.22)) return false;
+  if (st.round < 2 || st.round > n - 3 || modalLoad(st) >= 1 || !chance(0.35)) return false;
   for (const id of Object.keys(ARCS).sort(() => Math.random() - 0.5)) {
     const A = ARCS[id]; if (A.late || st.round < A.min) continue;
     if (st.season - (S.done[id] ?? -99) < A.cool) continue;
@@ -346,6 +346,11 @@ export function strategyRoom(st) {
     acad: { n: acad.length, slots: academySlots(pt), best: bestJ ? { name: bestJ.name, ov: driverOverall(bestJ, C2) } : null, worst: worst ? { name: worst.name, ov: driverOverall(worst, C2) } : null, loanOpen },
     market, silly, todo, story: storyInfo(st), pol: P.pol,
   };
+}
+
+// Small descriptor for the hub/sidebar (UI agent): how many strategic choices are open and the top two
+export function strategyBadge(st) {
+  try { const R = strategyRoom(st); return { count: R.todo.length, warn: R.todo.filter((x) => x.warn).length, items: R.todo.slice(0, 2).map((x) => ({ text: x.t, screen: x.nav || 'car', params: x.nav ? {} : { tab: 'plan' } })), story: R.story.active ? { name: R.story.active.name, inRounds: R.story.active.inRounds } : null, link: { screen: 'car', params: { tab: 'plan' }, label: 'Sala strategica' } }; } catch { return { count: 0, warn: 0, items: [], story: null, link: { screen: 'car', params: { tab: 'plan' }, label: 'Sala strategica' } }; }
 }
 
 // =====================================================================================

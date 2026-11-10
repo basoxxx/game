@@ -34,7 +34,7 @@ registerScreen({
     const C = cat(st);
     const ds = teamDrivers(st, t);
     ensureDepth(st);
-    const tabs = [['plan', 'Sala strategica'], ['dev', 'Sviluppo R&D'], ['regs', 'Regolamento & PU'], ['design', 'Progetto & Livrea'], ['compare', 'Confronto']];
+    const tabs = [['plan', 'Sala strategica'], ['dev', 'Sviluppo'], ['regs', 'Regole & PU'], ['design', 'Progetto'], ['compare', 'Confronto']];
     const rank = overallCarRanking(st).indexOf(t.id) + 1;
     return `<div class="screen-title"><div><div class="sub">${esc(t.name)} · Vettura ${st.season}</div><h1>Centro Tecnico</h1></div><div class="tabs">${tabs.map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="tab" data-t="${k}">${n}</div>`).join('')}</div></div>
     <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px" class="anim-in">
@@ -168,7 +168,7 @@ function planTab(st, t, C) {
     ${tog('autoRevert', 'Ritiro automatico dei pacchetti difettosi', 'Un pezzo che peggiora la vettura viene smontato subito.')}
     ${tog('noBets', 'Niente scommesse tra team principal', 'Le sfide pubbliche vengono declinate in privato, senza ripercussioni.')}</div>`;
   const fac = `<div class="panel"><div class="panel-head"><h3>Strutture: vantaggi unici</h3><button class="btn sm ghost" data-a="nav" data-to="finance">Strutture</button></div><div class="sr-perks">${Object.entries(FACILITY_PERKS).map(([k, list]) => `<div><b class="small">${esc(facName(k))} <span class="muted">Lv${t.facilities[k] || 1}</span></b>${list.map((p) => `<div class="tiny ${(t.facilities[k] || 1) >= p.lvl ? 'good' : 'muted'}">${(t.facilities[k] || 1) >= p.lvl ? '✓' : `Lv${p.lvl}`} ${esc(p.name)}: ${esc(p.desc)}</div>`).join('')}</div>`).join('')}</div></div>`;
-  return `<div class="grid4 mb16 sr-kpis">${kpi('Classifica costruttori', ord(R.pos), `obiettivo del consiglio: ${ord(R.target)}`, cls(R.pos, R.target))}${kpi('Proiezione a fine stagione', ord(R.projPos), 'al ritmo di punti attuale', cls(R.projPos, R.target))}${kpi('Forza del pacchetto', ord(R.exp), 'vettura + piloti sui prossimi circuiti', cls(R.exp, R.target))}${kpi('Eventi rimasti', R.left, `su ${st.calendar.length}`)}</div>
+  return `<div class="grid4 mb16 sr-kpis">${kpi('Classifica costruttori', ord(R.pos), `obiettivo del consiglio: ${ord(R.target)}`, cls(R.pos, R.target))}${kpi('Proiezione a fine stagione', ord(st.round ? R.projPos : R.exp), st.round ? 'al ritmo di punti attuale' : 'stima sulla forza del pacchetto', cls(st.round ? R.projPos : R.exp, R.target))}${kpi('Forza del pacchetto', ord(R.exp), 'vettura + piloti sui prossimi circuiti', cls(R.exp, R.target))}${kpi('Eventi rimasti', R.left, `su ${st.calendar.length}`)}</div>
     <div class="panel mb16"><div class="panel-head"><h3>Da decidere</h3><span class="small muted">Le scelte di questa stagione che cambiano il risultato</span></div><div class="sr-todos">${todo}</div></div>
     <div class="grid2 mb16">${dev}${era}</div>
     <div class="mb16">${riv}</div>
