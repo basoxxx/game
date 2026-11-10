@@ -36,7 +36,7 @@ export function briefing(sc, { kind = 'scenario', extra = '' } = {}) {
     s.rally?.rallyGap != null ? `${icon('hourglass')} ${s.rally.rallyGap} s dal leader` : '',
     s.rally?.stagesKeep ? `${icon('map')} ${s.rally.stagesKeep === 1 ? 'Ultima prova' : `Ultime ${s.rally.stagesKeep} prove`}` : '',
     s.rally?.spares != null ? `${icon('tyre')} ${s.rally.spares} ruote di scorta` : '',
-    s.laps ? `${icon('chequered')} ${s.laps} giri` : '',
+    s.laps ? `${icon('chequered')} Gara breve (max ${s.laps} giri)` : '',
     s.myTyre ? `${icon('tyre')} Gomme ${s.myTyre === 'inter' ? 'intermedie' : s.myTyre}` : '',
     s.myWear ? `${icon('tyre')} Gomme usurate al ${Math.round(s.myWear * 100)}%` : '',
     s.myDamage || s.rally?.rallyDamage ? `${icon('wrench')} Vettura danneggiata` : '',

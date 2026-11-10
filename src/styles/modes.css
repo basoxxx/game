@@ -1,5 +1,7 @@
 /* ======================= GAME MODES (v5) ======================= */
 .md-screen { padding-bottom: 40px; }
+:where(.md-screen, .md-brief) .ico { width: 18px; height: 18px; flex: none; }
+.md-cer-head .hh-eyebrow { justify-content: center; display: flex; align-items: center; gap: 8px; }
 .md-stars { display: inline-flex; gap: 2px; font-size: 17px; line-height: 1; }
 .md-stars i { font-style: normal; color: var(--s4); }
 .md-stars i.on { color: var(--gold); text-shadow: 0 0 10px color-mix(in srgb, var(--gold) 45%, transparent); }
