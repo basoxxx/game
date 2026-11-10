@@ -657,39 +657,45 @@ export class Race3D {
     const X0 = bx0 - M, Z0 = bz0 - M, X1 = bx1 + M, Z1 = bz1 + M;
     const G = this.low ? 110 : 220; const cellW = Math.max((X1 - X0) / G, (Z1 - Z0) / Math.max(20, Math.round(G * (Z1 - Z0) / (X1 - X0))));
     const sm = (a, b, t) => { const u = Math.max(0, Math.min(1, (t - a) / (b - a))); return u * u * (3 - 2 * u); };
-    const terrH = (x, z) => {
+    const terrH = (x, z, hi = -1, hd = 0) => {
       const edge = Math.max(sm(X0 + M * 0.8, X0, x), sm(X1 - M * 0.8, X1, x), sm(Z0 + M * 0.8, Z0, z), sm(Z1 - M * 0.8, Z1, z));
       let T = hAvg + 7 * Math.sin(x * 0.004 + ph[0]) * Math.cos(z * 0.0035 + ph[1]) + 3 * Math.sin(x * 0.011 + z * 0.009 + ph[2]);
       T = T + (hMin - 2.5 - T) * edge;
-      const [d2, i] = near(x, z); if (i < 0) return T;
-      const d = Math.sqrt(d2); const w = sm(W / 2 + 2.5 + cellW * 1.3, 90, d);
-      // beyond the verges the land rises into ridges and drops into hollows (valley roads, hillsides)
+      let [d2, i] = near(x, z); let d = Math.sqrt(d2);
+      if (i < 0) { if (hi < 0) { i = nearFar(x, z); if (i < 0) return T; d = Math.hypot(gx[i] - x, gz[i] - z); } else { i = hi; d = hd; } }
+      // the land follows the road's own height nearby and eases to the rolling ground far away;
+      // beyond the verges it rises into ridges and drops into hollows (valley roads, hillsides)
+      const w = sm(W / 2 + 2.5, 60, d), wf = sm(120, 520, d);
       const ridge = Math.sin(x * 0.0085 + ph[4]) * Math.cos(z * 0.0075 + ph[5]) + 0.45 * Math.sin((x - z) * 0.019 + ph[2]);
-      const rel = RL.relief * sm(34, 230, d) * (0.25 + Math.max(-0.45, ridge)) * (1 - edge);
-      return gh[i] - 0.3 + (T + rel + 2.5 * sm(10, 40, d) * (1 - edge) - (gh[i] - 0.3)) * w;
+      const rel = RL.relief * sm(30, 220, d) * (0.25 + Math.max(-0.45, ridge)) * (1 - edge);
+      const base = gh[i] - 0.3;
+      return base + (rel + 2.5 * sm(10, 40, d)) * w + (T - base) * wf;
     };
+    // coarse lookup for points far from the road (props on the hills, cameras)
+    const nearFar = (x, z) => { let b = Infinity, bi = -1; for (let i = 0; i < N; i += 6) { const d = (gx[i] - x) ** 2 + (gz[i] - z) ** 2; if (d < b) { b = d; bi = i; } } return b < 1.2e6 ? bi : -1; };
     this.terrH = terrH;
     {
-      const nx = G, nz = Math.max(20, Math.round(G * (Z1 - Z0) / (X1 - X0)));
-      const pos = new Float32Array((nx + 1) * (nz + 1) * 3), uv = new Float32Array((nx + 1) * (nz + 1) * 2), idx = [];
-      for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
-        const x = X0 + (X1 - X0) * i / nx, z = Z0 + (Z1 - Z0) * j / nz, k = j * (nx + 1) + i;
-        pos[k * 3] = x; pos[k * 3 + 1] = terrH(x, z); pos[k * 3 + 2] = z; uv[k * 2] = x / 21; uv[k * 2 + 1] = z / 21;
-        if (i < nx && j < nz) idx.push(k, k + nx + 1, k + 1, k + 1, k + nx + 1, k + nx + 2);
+      // terrain corridor: cross-sections along the road (fine by the verges, coarse further out),
+      // every vertex on the same height function, so the land hugs the road on stages of any
+      // length (a uniform grid over a 20 km stage is far too coarse to follow it)
+      const offs = [3.4, 6, 10, 17, 28, 45, 70, 105, 150, 210, 290, 420, 900], st = this.low ? 2 : 1;
+      const lat = [...offs.slice().reverse().map((o) => -o), ...offs], P = lat.length, rows = Math.floor((N - 1) / st) + 1;
+      const pos = new Float32Array(rows * P * 3), uv = new Float32Array(rows * P * 2), idx = [];
+      for (let r = 0; r < rows; r++) {
+        const i = Math.min(N - 1, r * st), nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
+        lat.forEach((o, q) => {
+          const x = gx[i] + nx * o, z = gz[i] + nz * o, k = r * P + q;
+          pos[k * 3] = x; pos[k * 3 + 1] = Math.abs(o) > 500 ? hMin - 3.2 : terrH(x, z, i, Math.abs(o)); pos[k * 3 + 2] = z; uv[k * 2] = x / 21; uv[k * 2 + 1] = z / 21;
+          if (r < rows - 1 && q < P - 1 && !(o < 0 && lat[q + 1] > 0)) idx.push(k, k + 1, k + P, k + 1, k + P + 1, k + P);
+        });
       }
+      // under the road: one quad per row between the two inner edges, just below the verge
+      for (let r = 0; r < rows - 1; r++) { const k = r * P + offs.length - 1; idx.push(k, k + 1, k + P, k + 1, k + P + 1, k + P); }
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
       const tm = this.low ? new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (c, w, h) => noise(c, w, h, groundCol, 255, 12000, 3), [1, 1]), roughness: 1 })
         : detailPatch(pbr(surf === 'snow' ? 'snow_02' : 'aerial_grass_rock', { color: RL.ground }), { macro: 0.32, macroScale: 0.018, tint: RL.tint, tintAmt: RL.tintAmt, key: 'stage' });
       const terr = new THREE.Mesh(g, tm); terr.receiveShadow = true; this.scene.add(terr);
-      // height of the rendered (triangulated) terrain: props and spectators stand on what is drawn,
-      // not on the smooth function the grid samples (they differ by up to a metre near the road)
-      this.groundH = (x, z) => {
-        const fx0 = (x - X0) / (X1 - X0) * nx, fz0 = (z - Z0) / (Z1 - Z0) * nz;
-        if (fx0 < 0 || fz0 < 0 || fx0 >= nx || fz0 >= nz) return terrH(x, z);
-        const i = Math.floor(fx0), j = Math.floor(fz0), fx = fx0 - i, fz = fz0 - j, k = j * (nx + 1) + i;
-        const h00 = pos[k * 3 + 1], h10 = pos[(k + 1) * 3 + 1], h01 = pos[(k + nx + 1) * 3 + 1], h11 = pos[(k + nx + 2) * 3 + 1];
-        return fx + fz <= 1 ? h00 + fx * (h10 - h00) + fz * (h01 - h00) : h11 + (1 - fx) * (h01 - h11) + (1 - fz) * (h10 - h11);
-      };
+      this.groundH = (x, z) => terrH(x, z);
     }
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(30000, 30000), this.low ? new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (c, w, h) => noise(c, w, h, groundCol, 255, 12000, 3), [600, 600]), roughness: 1 }) : detailPatch(pbr(surf === 'snow' ? 'snow_02' : 'aerial_grass_rock', { repeat: [3000, 3000], color: RL.ground }), { macro: 0.2, macroScale: 0.01 }));
     ground.rotation.x = -Math.PI / 2; ground.position.set((bx0 + bx1) / 2, hMin - 3, (bz0 + bz1) / 2); ground.receiveShadow = true;
@@ -3420,7 +3426,9 @@ export class Race3D {
       if (this._camCar !== focus) { this._cut = true; this._tvHold = 99; }
       else if (dt > 0) {
         const mv = Math.hypot(p.x - lp.x, p.z - lp.z);
-        if (mv > 40 + Math.max(spd0, 30) * (this._simK || 1) * dt * 3) { this._cut = true; this._tvHold = 99; }
+        // a jump is a move far beyond the previous frame's (steady fast-forward motion is not one)
+        const jump = mv > 60 + 3 * (this._mvPrev || 0); this._mvPrev = mv;
+        if (jump) { this._cut = true; this._tvHold = 99; }
         else { const v = mv / dt; this._vVis = (this._vVis || 0) + (v - (this._vVis || 0)) * 0.3; if (spd0 > 8) { const k = Math.max(1, Math.min(64, v / spd0)); this._simK = (this._simK || 1) + (k - (this._simK || 1)) * 0.2; } }
       }
       lp.copy(p);
@@ -3452,6 +3460,8 @@ export class Race3D {
       const tl = inG ? this.pose(i, this.pitGarage - 0.8) : null;
       look = inG ? new THREE.Vector3(tl.x, (tl.y || 0) + 0.9, tl.z) : target.clone().add(new THREE.Vector3(0, 0.6, 0));
       fov = inG ? 46 : 40;
+      // the car is still far down the pit lane (long pit entries): follow it until it nears its box
+      if (!inG && pos.distanceTo(target) > 110) { pos = target.clone().addScaledVector(fwd, -8).add(new THREE.Vector3(0, 3.4, 0)); fov = 55; }
     } else if (this.camMode === 'chase') {
       // camera on a soft spring: it lags behind the car's yaw so corners show the car turning
       if (!this._chaseFwd || this._cut) this._chaseFwd = fwd.clone();
