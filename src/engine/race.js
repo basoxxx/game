@@ -1535,7 +1535,7 @@ export class CircuitSim {
       // the passing car keeps its own pace: the passed car drops back instead (no teleport forward)
       a.dist = Math.min(a.dist, b.dist) - 0.0012; moved.add(a); moved.add(b);
       [order[i - 1], order[i]] = [b, a];
-      gains.push([b, a, i]); if (start) { b.pstat.start++; a.pstat.start--; } else { b.pstat.sc++; a.pstat.sc--; }
+      gains.push([b, a, i]); if (!start) { b.pstat.sc++; a.pstat.sc--; }
       if (b.restart === 'attack' && chance(0.06)) { a.damage += rand(0.2, 0.6); this.log(`⚠ Contatto alla ripartenza tra ${db.name} e ${da.name}!`, 'warn', b.key, a.isPlayer || b.isPlayer); this.investigate(b, a, false); }
     }
     for (const [b, a, i] of gains) if (i <= 8 || a.isPlayer || b.isPlayer) { this.log(`⇄ ${start ? 'Partenza' : 'Ripartenza'}: ${this.driver(b).name} ${start ? 'scatta meglio di' : 'infila'} ${this.driver(a).name} per la P${i}!`, 'overtake', b.key, a.isPlayer || b.isPlayer); this.onOvertake?.(b, a); }
@@ -1689,15 +1689,16 @@ export class CircuitSim {
     c._briefLap = c.lap; this._briefT = this.time; if (threat) c._threatTold = true; else if (tB == null || tB > 0) c._threatTold = false;
     const nm = (x) => this.driver(x).name.split(' ').pop();
     const bits = [];
-    if (gA != null && gA < 30) bits.push(tA != null && Math.abs(tA) >= 0.08 ? `${gA.toFixed(1)}s da ${nm(ah)}, ${tA < 0 ? `recuperi ${(-tA).toFixed(1)}s al giro${gA / -tA < this.laps - c.dist ? `: a tiro in ~${Math.max(1, Math.round((gA - 0.8) / -tA))} giri` : ', non basta per prenderlo'}` : `perdi ${tA.toFixed(1)}s al giro`}` : `${gA.toFixed(1)}s da ${nm(ah)}`);
+    if (gA != null && gA < 0.35) bits.push(`in scia a ${nm(ah)}`);
+    else if (gA != null && gA < 30) bits.push(tA != null && Math.abs(tA) >= 0.08 ? `${gA.toFixed(1)}s da ${nm(ah)}, ${tA < 0 ? `recuperi ${(-tA).toFixed(1)}s al giro${gA / -tA < this.laps - c.dist ? `: a tiro in ~${Math.max(1, Math.round((gA - 0.8) / -tA))} giri` : ', non basta per prenderlo'}` : `perdi ${tA.toFixed(1)}s al giro`}` : `${gA.toFixed(1)}s da ${nm(ah)}`);
     else if (!ah) bits.push(gB != null ? `In testa con ${gB.toFixed(1)}s` : 'In testa');
-    if (gB != null && gB < 30 && (threat || gB < 1.5)) bits.push(`${nm(bh)} dietro a ${gB.toFixed(1)}s${tB != null && tB < -0.08 ? `, ti mangia ${(-tB).toFixed(1)}s al giro` : ''}`);
+    if (gB != null && gB < 30 && (threat || gB < 1.5)) bits.push(`${nm(bh)} ${gB < 0.35 ? 'attaccato al cambio' : `dietro a ${gB.toFixed(1)}s`}${tB != null && tB < -0.08 ? `, ti mangia ${(-tB).toFixed(1)}s al giro` : ''}`);
     const fc = this.tyreForecast(c);
     if (fc && !COMPOUNDS[c.tyre].wet) {
       const plan = this.remainingPlan(c); const stopIn = plan.length > 1 ? plan[0].laps : null;
       let t = `gomme ${COMPOUNDS[c.tyre].short}: ~${Math.round(fc.laps)} giri utili (${fc.lo}-${fc.hi})`;
       if (stopIn != null && fc.lo < stopIn - 1) t += `, meno dei ${stopIn} del piano: valuta di anticipare`;
-      else if (stopIn == null && !fc.toFlag) t += ', non arrivano in fondo';
+      else if (stopIn == null && !fc.toFlag && !this.endurance) t += ', non arrivano in fondo';
       bits.push(t);
     }
     if (!this.endurance) { const fm = this.fuelMargin(c); if (fm != null && fm < 0.3) bits.push(`benzina ${fm >= 0 ? '+' : ''}${fm.toFixed(1)} giri`); }
@@ -1772,6 +1773,8 @@ export class CircuitSim {
         if (c.hot >= 3) { c.hot = 0; c.age += this.life(c) * 0.035; c.blisters = (c.blisters || 0) + 1; if (c.isPlayer) this.log(`📻 Ingegnere a ${first}: «Blistering: le gomme sono surriscaldate${c.dirty ? ' in aria sporca' : ''}, stiamo bruciando vita utile. Gestisci o esci dalla scia.»`, 'radio', c.key, true); }
       } else c.hot = 0;
     }
+    // opening lap: the start (launch, turn 1, lap-one passes) is judged as grid -> position at the end of lap 1
+    if (c.lap === 1 && c.pstat) { c.pstat.start = c.grid - c.pos; c.pstat.made = 0; c.pstat.lost = 0; }
     if (c._pitPos0 != null && c.lap >= c._pitLap + 2) { c.pstat.pit += c._pitPos0 - c.pos; c._pitPos0 = null; }
     // confidence drifts back to neutral, faster when the driver can breathe (Gestione); pressure builds with a car on the gearbox
     { const bh = this.cars.find((x) => x.status === 'running' && x.pos === c.pos + 1);
@@ -1990,14 +1993,14 @@ export class CircuitSim {
             [order[i - 1], order[i]] = [b, a];
             const how = pick(['bloccaggio in staccata', 'va lungo in curva', 'sbaglia la cambiata in uscita', 'finisce sul cordolo e perde trazione']);
             a.ledger.err += loss; if (how === 'bloccaggio in staccata') this.flatSpot(a);
-            this.shake(a, -0.3); this.shake(b, 0.1); b.pstat.made++; a.pstat.lost++;
+            this.shake(a, -0.3); this.shake(b, 0.1); if (Math.abs(a.dist - b.dist) < 0.5) { b.pstat.made++; a.pstat.lost++; }
             if (a.isPlayer || b.isPlayer || i <= 8) { this.log(`⚠ ${da.name} sotto pressione: ${how}! ${db.name} passa per la P${i}.`, 'overtake', b.key, a.isPlayer || b.isPlayer); this.comment(`Errore di ${da.name}: ${how}, e ${db.name} non perdona!`, b.key, a.isPlayer || b.isPlayer); this.pushTV({ kind: 'pass', key: b.key, other: a.key, pos: i, err: true }); this.onOvertake?.(b, a); }
             if (a.isPlayer && chance(0.5)) this.log(`📻 ${da.name.split(' ')[0]}: «${pick(['Ho bloccato l’anteriore, scusate!', 'Non avevo più grip dietro...', 'Mi sono innervosito, errore mio.'])}»`, 'radio', a.key, true);
             continue;
           }
           const p = clamp(duel.pBonus + 0.05 + this.track.ovt * 0.42 + (paceDiff / this.ls) * 0.3 + (db.attrs.race - da.attrs.race) / 110 + (b.drs ? (b.train ? 0.03 : 0.1) : 0) + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.16 : 0) - (a.ersMode === 'deploy' ? 0.1 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.12 : 0) + (b.attackUntil > this.time ? 0.12 : 0) - (a.defendUntil > this.time ? 0.18 : 0) + (a.yieldUntil > this.time ? 0.6 : 0) + (b.conf || 0) * 0.04 - (a.conf || 0) * 0.03, 0.02, 0.95);
           if (chance(p)) {
-            this.shake(b, 0.12); this.shake(a, -0.07); b.pstat.made++; a.pstat.lost++;
+            this.shake(b, 0.12); this.shake(a, -0.07); if (Math.abs(a.dist - b.dist) < 0.5) { b.pstat.made++; a.pstat.lost++; }
             // lap times stay realistic: the attacker never jumps forward, the defender loses the time
             a.dist = Math.min(a.dist, b.dist) - 0.0012;
             [order[i - 1], order[i]] = [b, a];
