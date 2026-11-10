@@ -3732,8 +3732,11 @@ export class Race3D {
     } else if (this.camMode === 'cockpit') {
       m.updateMatrixWorld();
       const formula = this.category === 'formula' || this.category === 'junior';
-      pos = m.localToWorld(new THREE.Vector3(formula ? -0.36 : 0.05, formula ? 0.9 : 1.05, formula ? 0 : 0.35));
-      look = m.localToWorld(new THREE.Vector3(30, formula ? -0.6 : 0.8, formula ? 0 : 0.35));
+      // driver's eye point from the car model when it provides one (local coords, +x forward)
+      const eye = m.userData?.eye;
+      const ex = eye ? eye.x : formula ? -0.36 : 0.05, ey = eye ? eye.y : formula ? 0.9 : 1.05, ez = eye ? eye.z : formula ? 0 : 0.35;
+      pos = m.localToWorld(new THREE.Vector3(ex, ey, ez));
+      look = m.localToWorld(new THREE.Vector3(30, ey - (formula ? 1.5 : 0.25), ez));
       fov = 70 + Math.min(8, spd * 0.08);
     } else if (this.camMode === 'onboard') {
       // formula: T-cam above the airbox; closed cars: bonnet camera ahead of the windscreen

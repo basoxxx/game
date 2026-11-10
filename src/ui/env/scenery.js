@@ -64,10 +64,19 @@ export function buildCoast(r3, biome, street) {
     const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 })); m.position.set(cx + Math.cos(a) * 5200, -40, cz + Math.sin(a) * 5200); r3.scene.add(m);
   }
   if (!biome.sea) return;
-  const a = biome.sea.a * Math.PI / 180, dx = Math.cos(a), dz = Math.sin(a);
-  let D = -1e9; const { N, x, y } = r3.geo;
+  // the coast bearing is a preference only: layouts may be rotated / mirrored, so the side is
+  // chosen from the geometry at runtime (within +-75 deg of the preference, the flank where the
+  // circuit reaches least far out, i.e. its long side), and the shore is always placed beyond the
+  // farthest track sample in that direction, so the sea can never cover the track
+  const { N, x, y } = r3.geo, a0 = biome.sea.a * Math.PI / 180, ext = Math.hypot(x1 - x0, y1 - y0);
+  const reach = (ang) => { const ux = Math.cos(ang), uz = Math.sin(ang); let m = -1e9; for (let i = 0; i < N; i += 2) m = Math.max(m, (x[i] - cx) * ux + (y[i] - cz) * uz); return m; };
+  let a = a0, best = Infinity;
+  for (let k = -5; k <= 5; k++) { const ang = a0 + k * Math.PI / 12, sc = reach(ang) + Math.abs(k) * 0.06 * ext; if (sc < best) { best = sc; a = ang; } }
+  const dx = Math.cos(a), dz = Math.sin(a);
+  let D = -1e9;
   for (let i = 0; i < N; i++) D = Math.max(D, (x[i] - cx) * dx + (y[i] - cz) * dz);
-  D += street > 0.7 ? 70 : 150;
+  D += street > 0.7 ? Math.max(70, (r3.pitBack || 20) + 40) : 150;
+  r3.seaDir = a;
   const proj = (px, pz) => (px - cx) * dx + (pz - cz) * dz, latOf = (px, pz) => -(px - cx) * dz + (pz - cz) * dx;
   // natural coastline: bays and headlands only ever push the shore out to sea (never towards
   // the circuit); harbour fronts (street circuits) stay straighter
