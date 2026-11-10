@@ -160,7 +160,7 @@ export class DecisionHub {
     const left = Math.max(0, it.until - c.now());
     const f = Math.max(0, Math.min(1, left / (it.span || left || 1)));
     const real = c.paused ? null : left / Math.max(1, c.speed);
-    return `<div class="dec-time"><span data-dec-left="${it.id}">${c.paused && modal ? `${icon('pause')} In pausa · ` : ''}${mmss(left)} ${unit}${real != null ? ` · ~${Math.ceil(real)}s` : ''}</span><span class="muted">poi decide l’ingegnere: <b>${esc(it.options[it.def ?? 0]?.label || '')}</b></span></div><div class="dec-bar"><i data-dec-bar="${it.id}" style="width:${(f * 100).toFixed(1)}%"></i></div>`;
+    return `<div class="dec-time"><span data-dec-left="${it.id}">${c.paused && modal ? `${icon('pause')} In pausa · ` : ''}${mmss(left)} ${unit}${real != null ? ` · ~${Math.ceil(real)}s` : ''}</span><span class="muted">poi decide ${this.o.advisor === 'copilota' ? 'il copilota' : 'l’ingegnere'}: <b>${esc(it.options[it.def ?? 0]?.label || '')}</b></span></div><div class="dec-bar"><i data-dec-bar="${it.id}" style="width:${(f * 100).toFixed(1)}%"></i></div>`;
   }
   modalHTML(it) {
     const col = it.color || 'var(--team)';
@@ -169,7 +169,7 @@ export class DecisionHub {
       <div class="m-eyebrow" style="color:${col}">${esc(it.eyebrow || 'Decisione')} · ${mode === 'slow' ? 'gioco rallentato a 1x' : 'gioco in pausa'}${this.items.length > 1 ? ` · altre ${this.items.length - 1} in coda` : ''}</div>
       <div class="m-title">${esc(it.title)}</div>
       <div class="dec-text">${esc(it.text || '')}</div>
-      <div class="col gap6 mt16">${it.options.map((o, i) => `<div class="opt ${i === (it.def ?? 0) ? 'rec' : ''}" tabindex="0" role="button" data-a="dec" data-id="${it.id}" data-i="${i}"><div class="row between"><b>${esc(o.label)}</b><span class="row gap6">${i === (it.def ?? 0) ? '<span class="chip tiny dec-rec">Consiglio ingegnere</span>' : ''}<span class="kbd">${i + 1}</span></span></div>${o.desc ? `<div class="small muted mt8">${esc(o.desc)}</div>` : ''}</div>`).join('')}</div>
+      <div class="col gap6 mt16">${it.options.map((o, i) => `<div class="opt ${i === (it.def ?? 0) ? 'rec' : ''}" tabindex="0" role="button" data-a="dec" data-id="${it.id}" data-i="${i}"><div class="row between"><b>${esc(o.label)}</b><span class="row gap6">${i === (it.def ?? 0) ? `<span class="chip tiny dec-rec">Consiglio ${this.o.advisor || 'ingegnere'}</span>` : ''}<span class="kbd">${i + 1}</span></span></div>${o.desc ? `<div class="small muted mt8">${esc(o.desc)}</div>` : ''}</div>`).join('')}</div>
       ${this.timerHTML(it, true)}
       <div class="row between mt8 dec-foot"><span class="tiny muted">Tasti 1-${it.options.length} · Invio = consiglio · Spazio riprende/ferma il gioco</span><button class="btn sm ghost" data-a="dec-cfg">${icon('settings')} Opzioni decisioni</button></div></div>`;
   }
@@ -215,8 +215,10 @@ export class DecisionHub {
     }
   }
   toggleCfg() { this.cfgOpen = !this.cfgOpen; this.render(true); }
-  setMode(v) { if (DEC_MODES[v]) setSettings({ decMode: v }); this.o.onCfg?.(); this.render(true); }
-  toggleMinor() { setSettings({ decMinorAuto: !this.cfg.minorAuto }); this.o.onCfg?.(); this.render(true); }
+  // switching to an automatic mode answers what is still open
+  sweep() { const cfg = this.cfg; for (const it of this.items.slice()) if (!it.engine && (cfg.mode === 'engineer' || (cfg.minorAuto && it.prio === 1)) && !(it.valid && it.valid())) { const cur = this.cur === it; this.finish(it, it.def ?? 0, 'engineer'); if (cur) this.closeModal(); } }
+  setMode(v) { if (DEC_MODES[v]) setSettings({ decMode: v }); this.o.onCfg?.(); this.sweep(); this.render(true); }
+  toggleMinor() { setSettings({ decMinorAuto: !this.cfg.minorAuto }); this.o.onCfg?.(); this.sweep(); this.render(true); }
   // shared actions for the screens' action maps
   actions() {
     return {

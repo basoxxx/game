@@ -310,7 +310,7 @@ function mountRun() {
   rallyViewBtns();
   if (X.view3d) rallyEnable3D(X.view3d);
   X.hub = new DecisionHub({
-    host: () => document.getElementById('decision'), stack: () => document.getElementById('dec-stack'), unit: 'di prova', stage: () => X.ev?.stageIdx,
+    host: () => document.getElementById('decision'), stack: () => document.getElementById('dec-stack'), unit: 'di prova', advisor: 'copilota', stage: () => X.ev?.stageIdx,
     clock: { get speed() { return X.speed; }, set speed(v) { X.speed = v; }, get paused() { return X.paused; }, set paused(v) { X.paused = v; X.last = performance.now(); }, now: () => X.t },
     onSpeed: speedUI, onOpen: (it) => { if (it.focus) { X.focus = it.focus; X.userFocus = true; } }, onClose: () => { X.last = performance.now(); },
     note: (title, text) => X.ev?.pushLog(`${title}: ${text}`, 'info', null),
