@@ -1285,7 +1285,7 @@ export class Race3D {
           vSt = aSt;
           vec3 tsc = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
           vTw = vec4(uv.x * (abs(normal.x) > 0.5 ? tsc.z : tsc.x), position.y * tsc.y, normal.y, instanceMatrix[3].x * 0.011 + instanceMatrix[3].z * 0.017);`);
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec4 vTw; uniform float uNight;\nfloat th(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }')
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec4 vTw; varying float vSt; uniform float uNight;' + (facT ? ' uniform sampler2D tFac1, tFac2;' : '') + '\nfloat th(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }')
         .replace('#include <map_fragment>', `#include <map_fragment>
           float roofT = step(0.5, vTw.z);
           float fl = fract(vTw.y / 3.8), cl = fract(vTw.x / 1.6);
