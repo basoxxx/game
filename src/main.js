@@ -1,48 +1,43 @@
 import './styles/main.css';
-import { App } from './app.js';
+import { App, lazyScreens, preloadScreens } from './app.js';
+// first paint needs only the shell + the main menu (and the intro on a first launch)
 import './screens/menu.js';
-import './screens/newgame.js';
-import './screens/hub.js';
-import './screens/info.js';
-import './screens/car.js';
-import './screens/team.js';
-import './screens/weekend.js';
-import './screens/rallyweekend.js';
-import './screens/results.js';
-import './screens/seasonend.js';
-import './screens/quickrace.js';
-import './screens/challenges.js';
-import './screens/derby.js';
-import './screens/howto.js';
 import { shouldShowIntro } from './screens/intro.js';
 import * as Audio from './ui/audio.js';
-const audioDebug = Audio.audioDebug;
 import { S, saveGame } from './engine/state.js';
+import { ensureQuality } from './ui/quality.js';
+import { loadStage } from './ui/stage3d.js';
+import { gfxTier } from './ui/quality.js';
+const audioDebug = Audio.audioDebug;
+
+// Everything else is code-split and arrives on demand (and on idle, right after the menu is up).
+// Screens that import each other share a loader. A screen id that is not listed here and not
+// registered eagerly makes the router load every group before giving up.
+const career = () => Promise.all([import('./screens/hub.js'), import('./screens/info.js'), import('./screens/car.js'), import('./screens/team.js'), import('./screens/results.js'), import('./screens/seasonend.js')]);
+lazyScreens({
+  newgame: () => import('./screens/newgame.js'),
+  settings: () => import('./screens/settings.js'),
+  howto: () => import('./screens/howto.js'),
+  quickrace: () => import('./screens/quickrace.js'),
+  challenges: () => import('./screens/challenges.js'),
+  derby: () => import('./screens/derby.js'),
+  weekend: () => import('./screens/weekend.js'),
+  rally: () => import('./screens/rallyweekend.js'),
+  ...Object.fromEntries(['hub', 'inbox', 'standings', 'calendar', 'career', 'halloffame', 'car', 'drivers', 'market', 'staff', 'finance', 'paddock', 'results', 'seasonend'].map((id) => [id, career])),
+});
 
 App.init();
 App.go(shouldShowIntro() ? 'intro' : 'menu');
 window.addEventListener('beforeunload', () => { if (S()) saveGame(); });
-window.__apex = { App, S, audio: audioDebug, sound: Audio };
+window.__apex = { App, S, audio: audioDebug, sound: Audio, perf: { boot: performance.now() } };
 
-// Debug helper (used by automated tests): simulate the current round with AI strategy
-import { getTrack } from './engine/world.js';
-import { runQualifying, makeWeatherPlan, raceLaps, CircuitSim } from './engine/race.js';
-import { RallyEvent } from './engine/rally.js';
-import { applyRoundResults } from './engine/season.js';
-import { applyRaceRivalry } from './engine/rivalry.js';
-window.__apex.simRound = () => {
-  const st = S(); if (st.round >= st.calendar.length) return false;
-  const ev = st.calendar[st.round]; const tr = getTrack(st.category, ev.trackId);
-  let res;
-  if (st.category === 'rally') {
-    const R = new RallyEvent(st, ev, tr, {});
-    while (!R.finished()) { R.planStage({}); let g = 0; while (!R.allDone() && g++ < 1e5) { const q = R.advance(2); if (q) R.resolveDecision(q, 'b'); } R.completeStage(); if (R.isServiceAfter(R.stageIdx - 1)) R.service({}); }
-    res = R.results();
-  } else {
-    const q = runQualifying(st, tr, {}, 0); const laps = raceLaps(st, tr);
-    const sim = new CircuitSim(st, tr, { grid: q.grid, setups: {}, weather: makeWeatherPlan(tr, laps), laps });
-    sim.cars.forEach((c) => (c.auto = true)); sim.runToEnd(); res = sim.results(); applyRaceRivalry(st, sim); window.__apex.lastSim = sim;
-    const pk = (q.qualiOrder || q.grid)[0]; res.pole = sim.cars.find((c) => c.key === pk)?.driverIds[0];
-  }
-  st.weekend = null; applyRoundResults(st, res); saveGame(); return true;
-};
+// Idle warm-up: quality probe (first run only), then the screen chunks in the order a player meets them
+const idle = (fn, t = 1200) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: t }) : setTimeout(fn, 200));
+idle(() => {
+  ensureQuality().then(() => {
+    window.__apex.perf.quality = performance.now();
+    preloadScreens(['newgame', 'hub', 'settings', 'howto', 'quickrace', 'challenges', 'weekend', 'rally'])
+      .then(() => { window.__apex.perf.preloaded = performance.now(); if (gfxTier() !== 'low') loadStage().catch(() => {}); })
+      .then(() => import('./devtools.js')).then((m) => m.install(window.__apex)).catch((e) => console.warn('preload', e));
+  });
+});

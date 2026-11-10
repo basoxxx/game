@@ -7,12 +7,31 @@ import { initGamepad, moveFocus } from './ui/gamepad.js';
 import { maybeTour } from './ui/tour.js';
 import { fmtM, playerTeam, cat } from './engine/season.js';
 import { trackArt } from './ui/trackart.js';
-import { disposeStage } from './ui/garage3d.js';
+import { disposeStage, freezeStage } from './ui/stage3d.js';
+import { installSaveGuard, rescueSnapshot } from './ui/savesafe.js';
+import { openPalette } from './ui/palette.js';
+import { applyAccessibility } from './ui/a11y.js';
 
 const screens = {};
 export function registerScreen(s) { screens[s.id] = s; }
+export const hasScreen = (id) => !!screens[id];
 
-const NAV = [
+// ---- code-split screens: id -> () => import(...). Registered by main.js.
+const loaders = {};
+export function lazyScreens(map) { Object.assign(loaders, map); }
+const loadAll = () => Promise.all([...new Set(Object.values(loaders))].map((f) => f()));
+export function loadScreen(id) { return screens[id] ? Promise.resolve() : (loaders[id] || loadAll)(); }
+// warm the chunks one after the other so they never fight the player for the main thread
+export function preloadScreens(ids) { return ids.reduce((p, id) => p.then(() => (screens[id] ? null : loaders[id]?.())), Promise.resolve()); }
+
+// Sidebar: flat order = number shortcuts (1…0), groups only add headings.
+export const NAV_GROUPS = [
+  ['Sede', ['hub', 'inbox']],
+  ['Squadra', ['car', 'drivers', 'market', 'staff', 'finance']],
+  ['Campionato', ['paddock', 'standings', 'calendar']],
+  ['Carriera', ['career', 'halloffame']],
+];
+export const NAV = [
   { id: 'hub', name: 'Panoramica', icon: 'home' },
   { id: 'inbox', name: 'Posta', icon: 'mail' },
   { id: 'car', name: 'Centro Tecnico', icon: 'car' },
@@ -43,6 +62,49 @@ export const App = {
     initTooltips();
     initGamepad(this);
     try { if (JSON.parse(localStorage.getItem('apexdynasty_settings') || '{}').reduceMotion) document.documentElement.classList.add('reduce-motion'); } catch {}
+    applyAccessibility();
+    installSaveGuard({ saved: () => this.savePulse(), full: () => this.toast('Memoria piena', 'Non c’è più spazio per i salvataggi: esporta la partita o elimina uno slot dal menu Carica.', 'bad') });
+    // error boundary: anything uncaught gets a friendly recover dialog (the save on disk is never touched)
+    window.addEventListener('error', (e) => { if (e.error || e.message) this.crash(e.error || e.message); });
+    window.addEventListener('unhandledrejection', (e) => this.crash(e.reason));
+    // the 3D backdrop rests while the game is in the background
+    window.addEventListener('blur', () => freezeStage(true));
+    window.addEventListener('focus', () => freezeStage(false));
+  },
+  // ---- autosave indicator: a small pill that pulses whenever a save slot is written
+  savePulse() {
+    let el = document.querySelector('.save-pill');
+    if (!el) { el = document.createElement('div'); el.className = 'save-pill'; el.setAttribute('role', 'status'); el.innerHTML = `${icon('save')}<span>Salvato</span>`; document.body.appendChild(el); }
+    el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+    clearTimeout(this._saveT); this._saveT = setTimeout(() => el.classList.remove('on'), 1600);
+  },
+  // ---- global error boundary
+  crash(err) {
+    const msg = String(err?.message || err || 'Errore sconosciuto');
+    if (/ResizeObserver loop|Script error\.?$/i.test(msg)) return;
+    console.warn('[apex] errore intercettato', err);
+    const now = Date.now();
+    if (this._crashAt && now - this._crashAt < 4000) return; // one dialog for a burst of errors
+    this._crashAt = now; this.crashed = true;
+    const rescued = rescueSnapshot();
+    document.querySelector('.load-screen')?.remove(); document.querySelector('.busy-veil')?.remove();
+    const stack = esc(String(err?.stack || msg).split('\n').slice(0, 6).join('\n'));
+    this.modal(`<div class="crash">
+      <div class="crash-ic">${icon('alert')}</div>
+      <div class="tiny upper muted" style="letter-spacing:.3em">Bandiera rossa</div>
+      <h2>Qualcosa è andato storto</h2>
+      <p class="muted">Il gioco ha incontrato un errore imprevisto. ${S() ? `I salvataggi sul disco non sono stati toccati${rescued ? ' e una copia di emergenza della partita in corso è stata messa al sicuro' : ''}.` : 'Nessun salvataggio è stato modificato.'}</p>
+      <details class="crash-details"><summary>Dettagli tecnici</summary><pre>${stack}</pre></details>
+      <div class="row mt24 crash-actions">
+        <button class="btn ghost" data-a="crash-retry">${icon('replay')} Riprova</button>
+        ${S() ? `<button class="btn" data-a="crash-menu">${icon('save')} Salva e torna al menu</button>` : `<button class="btn" data-a="crash-menu">${icon('home')} Menu principale</button>`}
+        <button class="btn primary" data-a="crash-reload">${icon('reset')} Ricarica il gioco</button>
+      </div></div>`, {
+      'crash-retry': () => { this.crashed = false; this.closeModal(); try { this.render(); } catch (e) { this.crash(e); } },
+      'crash-menu': () => { this.crashed = false; this.closeModal(); try { if (S()) saveGame(); } catch {} this.go('menu'); },
+      'crash-reload': () => location.reload(),
+    }, 'crash-modal');
+    try { sfx.error?.(); } catch {}
   },
   onKeyDown(e) {
     const modal = document.querySelector('.modal-wrap');
@@ -58,6 +120,8 @@ export const App = {
     }
     if (e.key === 'Escape' && !modal) { const back = document.querySelector('.ph-back'); if (back) { e.preventDefault(); back.click(); return; } }
     if (e.key === 'F11' && window.apex?.toggleFullscreen) { e.preventDefault(); window.apex.toggleFullscreen(); return; }
+    // command palette: jump anywhere
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && !modal && this.cur !== 'intro') { e.preventDefault(); openPalette(this); return; }
     const tgt = e.target;
     const typing = tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || tgt.isContentEditable);
     // Keyboard activation of clickable non-button elements (cards, tabs, nav items...)
@@ -86,6 +150,7 @@ export const App = {
     // Management shell shortcuts
     if (S() && !s?.full) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); globalActions['quick-save'](); return; }
+      if ((e.altKey && e.key === 'ArrowLeft') || e.key === 'Backspace') { e.preventDefault(); this.back(); return; }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const m = /^Digit(\d)$/.exec(e.code);
       if (m) { const n = NAV[(+m[1] + 9) % 10]; if (n && n.id !== this.cur) { sfx.click(); this.go(n.id); } return; }
@@ -97,7 +162,7 @@ export const App = {
     const rows = (list) => list.map(([a, b]) => `<div class="row between small" style="padding:7px 0;border-bottom:1px solid var(--line)"><span class="muted">${b}</span><span>${a.split(' / ').map(k).join(' <span class="dim">/</span> ')}</span></div>`).join('');
     this.modal(`<div class="tiny upper muted" style="letter-spacing:.3em">Comandi rapidi</div><h2 style="font-style:italic">Tastiera e controller</h2>
       <div class="grid2 mt16" style="gap:28px;align-items:start">
-        <div><h3 class="mb8" style="font-size:13px">Gestione</h3>${rows([['1 / 2 / … / 0', 'Sezioni del menu laterale'], ['Invio', 'Vai al weekend di gara'], ['Ctrl+S', 'Salvataggio rapido'], ['Tab / Invio', 'Muoviti e attiva senza mouse'], ['↑ / ↓', 'Scorri le voci del menu'], ['Esc', 'Chiudi finestra'], ['?', 'Mostra questo pannello']])}</div>
+        <div><h3 class="mb8" style="font-size:13px">Gestione</h3>${rows([['1 / 2 / … / 0', 'Sezioni del menu laterale'], ['Invio', 'Vai al weekend di gara'], ['Ctrl+S', 'Salvataggio rapido'], ['Ctrl+K', 'Cerca e vai a qualsiasi schermata'], ['Backspace / Alt+←', 'Indietro'], ['Tab / Invio', 'Muoviti e attiva senza mouse'], ['↑ / ↓', 'Scorri le voci del menu'], ['Esc', 'Chiudi finestra'], ['?', 'Mostra questo pannello']])}</div>
         <div><h3 class="mb8" style="font-size:13px">In gara</h3>${rows([['Spazio', 'Pausa / riprendi'], ['1 / 2 / 3', 'Velocità 1x · 2x · 4x'], ['4 / 5 / 6', 'Velocità 8x · 16x · 32x'], ['R', 'Replay dell’ultima azione (3D)'], ['1 / 2 / 3', 'Scelta nei momenti chiave'], ['F1', 'Guida “Come si gioca”']])}</div>
       </div>
       <h3 class="mb8 mt24" style="font-size:13px">${icon('gamepad')} Controller</h3>
@@ -117,7 +182,24 @@ export const App = {
     if (fn) fn.call(screens[this.cur], el, e);
   },
   go(id, params = {}) {
+    // code-split screen not here yet: keep the current one on screen until its chunk arrives
+    if (!screens[id]) {
+      this._want = id;
+      let veil = null; const t = setTimeout(() => { veil = this.busy('Caricamento'); }, 140);
+      const end = () => { clearTimeout(t); veil?.(); };
+      loadScreen(id).then(() => {
+        end();
+        if (this._want !== id) return;
+        this._want = null;
+        if (screens[id]) this.go(id, params); else this.crash(new Error(`Schermata sconosciuta: ${id}`));
+      }, (e) => { end(); this._want = null; this.crash(e); });
+      return;
+    }
+    this._want = null;
     const prev = screens[this.cur];
+    // history for Indietro (Backspace / Alt+←): management screens only
+    if (prev && !prev.full && prev.id !== id && !params._back) { this.history.push({ id: prev.id, params: this.params }); if (this.history.length > 30) this.history.shift(); }
+    if (screens[id]?.full) this.history.length = 0;
     prev?.unmount?.();
     // the live race views own a WebGL context of their own: hand ours back before they start
     if (id === 'weekend' || id === 'rally' || id === 'derby') disposeStage();
@@ -153,8 +235,17 @@ export const App = {
     const scroller = () => this.root.querySelector('.main') || this.root.querySelector('.full-screen');
     const scrollY = scroller()?.scrollTop || 0;
     const same = this._lastRendered === this.cur;
-    if (s.full) this.root.innerHTML = `<div class="bg-layer"></div>${s.render(this.params)}`;
-    else this.root.innerHTML = `<div class="bg-layer"></div>${this.shell(s.render(this.params))}`;
+    let body;
+    try { body = s.render(this.params); } catch (e) {
+      // a screen that cannot draw itself shows a deliberate error state instead of a blank page
+      console.warn('[apex] render', this.cur, e);
+      body = `<div class="state-box state-error">${icon('alert')}<h2>Impossibile mostrare questa schermata</h2><p class="muted">Si è verificato un errore durante il disegno di «${esc(this.cur)}». La partita è al sicuro.</p><div class="row mt16" style="justify-content:center"><button class="btn" data-a="nav" data-to="${S() ? 'hub' : 'menu'}">${icon('home')} ${S() ? 'Panoramica' : 'Menu principale'}</button><button class="btn primary" data-a="crash-reload-now">${icon('reset')} Ricarica</button></div></div>`;
+      setTimeout(() => this.crash(e));
+    }
+    if (s.full) this.root.innerHTML = `<div class="bg-layer"></div>${s.full && body.startsWith('<div class="state-box') ? `<div class="full-screen">${body}</div>` : body}`;
+    else {
+      try { this.root.innerHTML = `<div class="bg-layer"></div>${this.shell(body)}`; } catch (e) { console.warn('[apex] shell', e); this.root.innerHTML = `<div class="bg-layer"></div><div class="full-screen">${body}</div>`; }
+    }
     if (same) { const m = scroller(); if (m) m.scrollTop = scrollY; }
     else {
       // entrance animation only when the screen actually changes (never on refresh)
@@ -165,12 +256,23 @@ export const App = {
     }
     this._lastRendered = this.cur;
     makeFocusable(this.root);
-    s.mount?.(this.root, this.params);
+    try { s.mount?.(this.root, this.params); } catch (e) { console.warn('[apex] mount', this.cur, e); this.crash(e); }
     if (!same) { try { maybeTour(this.cur); } catch (e) { console.warn(e); } }
     if (st?._toast) { this.toast(st._toast.title, st._toast.text, 'good'); sfx.win(); st._toast = null; }
     if (st?._levelUp) { this.toast(`Livello manager ${st._levelUp}!`, 'Hai ottenuto un punto abilità: spendilo in Carriera.', 'good'); sfx.levelup(); st._levelUp = null; }
   },
   refresh() { this.render(); },
+  history: [],
+  back() {
+    const h = this.history.pop();
+    if (h) { sfx.click(); this.go(h.id, { ...h.params, _back: 1 }); return true; }
+    if (S() && this.cur !== 'hub' && !screens[this.cur]?.full) { sfx.click(); this.go('hub', { _back: 1 }); return true; }
+    return false;
+  },
+  // To-do items for the hub inbox and the sidebar badges ([level, text, 'screen' | 'screen:tab']).
+  // The career chunk installs the provider; the shell only counts.
+  todoProvider: null,
+  todo(st = S()) { try { return (st && this.todoProvider?.(st)) || []; } catch (e) { console.warn('todo', e); return []; } },
   shell(content) {
     const st = S();
     const t = playerTeam(st);
@@ -181,7 +283,18 @@ export const App = {
     const conf = st.board.confidence;
     const tr = ev ? getTrack(st.category, ev.trackId) : null;
     const confCol = conf < 30 ? 'var(--bad)' : conf > 70 ? 'var(--good)' : 'var(--warn)';
-    const navKey = (i) => (i < 10 ? `<span class="nav-key">${(i + 1) % 10}</span>` : '');
+    const navKey = (i) => (i < 10 ? `<span class="nav-key" aria-hidden="true">${(i + 1) % 10}</span>` : '');
+    // sidebar badges from the to-do list: count per screen, coloured by the most urgent item
+    const rank = { bad: 3, warn: 2, good: 1, info: 0 };
+    const badges = {};
+    for (const [lvl, , to] of this.todo(st)) { const id = String(to).split(':')[0]; const b = (badges[id] ||= [0, 'info']); b[0]++; if (rank[lvl] > rank[b[1]]) b[1] = lvl; }
+    const here = NAV.find((n) => n.id === this.cur), grp = NAV_GROUPS.find(([, ids]) => ids.includes(this.cur))?.[0];
+    const crumbs = `<nav class="crumbs" aria-label="Percorso">
+      ${this.history.length || (this.cur !== 'hub' && here) ? `<button class="crumb-back" data-a="go-back" aria-label="Indietro" data-tip="Indietro (Backspace)">${icon('left')}</button>` : ''}
+      <span class="crumb" data-a="nav" data-to="hub">${esc(t.short || t.name)}</span>${grp && this.cur !== 'hub' ? `<i>/</i><span class="crumb-g">${grp}</span>` : ''}<i>/</i><b>${esc(here?.name || this.cur)}</b>
+      <span class="grow"></span>
+      <button class="crumb-search" data-a="palette" aria-label="Cerca e vai a… (Ctrl+K)">${icon('compass')}<span>Vai a…</span><span class="kbd">Ctrl</span><span class="kbd">K</span></button>
+    </nav>`;
     let mini = '';
     if (tr && st.category !== 'rally') { try { mini = trackSVG(circuitPath(tr.cid), { w: 120, h: 80, glow: null, color: '#fff', width: 4, start: false }); } catch {} }
     return `<div class="shell">
@@ -208,13 +321,18 @@ export const App = {
         <button class="btn primary lg continue-btn" data-a="continue" data-tip="Scorciatoia: Invio">${seasonOver ? 'Fine Stagione' : st.weekend ? 'Torna al Weekend' : 'Weekend di Gara'} ${icon('right')}</button>
       </div>
       <div class="sidebar">
-        ${NAV.map((n, i) => `<div class="nav ${this.cur === n.id ? 'active' : ''}" data-a="nav" data-to="${n.id}">${icon(n.icon)}<span>${n.name}</span>${n.id === 'inbox' && unread ? `<span class="badge">${unread}</span>` : ''}${navKey(i)}</div>`).join('')}
+        ${NAV_GROUPS.map(([g, ids]) => `<div class="nav-group" role="group" aria-label="${g}"><div class="nav-gh">${g}</div>${ids.map((id) => {
+          const i = NAV.findIndex((x) => x.id === id), n = NAV[i]; if (!n) return '';
+          const b = id === 'inbox' ? (unread ? [unread, 'info'] : null) : badges[id];
+          const bl = b ? ` (${b[0]} ${b[0] === 1 ? 'cosa' : 'cose'} da fare)` : '';
+          return `<div class="nav ${this.cur === n.id ? 'active' : ''}" data-a="nav" data-to="${n.id}" aria-label="${esc(n.name)}${bl}"${this.cur === n.id ? ' aria-current="page"' : ''}>${icon(n.icon)}<span>${n.name}</span>${b ? `<span class="badge nb-${b[1]}">${b[0] > 9 ? '9+' : b[0]}</span>` : ''}${navKey(i)}</div>`;
+        }).join('')}</div>`).join('')}
         <div class="nav-sep"></div>
         <div class="nav" data-a="to-menu">${icon('logout')}<span>Menu Principale</span></div>
         <div class="grow"></div>
         ${ev && tr ? `<div class="nav-event" data-a="continue" data-tip="Vai al weekend di gara (Invio)">${mini ? `<div class="ne-track">${mini}</div>` : ''}<div class="ne-k">Prossimo evento</div><div class="ne-name">${flagSVG(tr.nat, 24, 16)}<span>${esc(trackName(st, ev))}</span></div><div class="ne-meta"><span>Round ${st.round + 1}/${st.calendar.length}</span><span>${[tr.night && 'Notturna', ev.sprint && 'Sprint'].filter(Boolean).join(' · ')}</span></div></div>` : ''}
       </div>
-      <div class="main">${content}</div>
+      <div class="main">${crumbs}${content}</div>
     </div>`;
   },
   modal(html, actions = {}, cls = '') {
@@ -342,6 +460,9 @@ export function trackName(st, ev) { return getTrack(st.category, ev.trackId)?.na
 
 const globalActions = {
   shortcuts() { App.shortcuts(); },
+  palette() { openPalette(App); },
+  'go-back'() { App.back(); },
+  'crash-reload-now'() { location.reload(); },
   notes() { App.openNotes(); },
   mixer() { App.audioMixer(); },
   'quick-save'() { if (saveGame()) { App.toast('Partita salvata', `Slot ${S().slot}`, 'good'); sfx.ok(); } else App.toast('Salvataggio fallito', '', 'bad'); },

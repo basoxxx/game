@@ -9,6 +9,9 @@ import { openLoad } from './menu.js';
 import { applyVolumes, sfx, music, AUDIO_BUSES, audioSpectrum, passBy, crowdCheer } from '../ui/audio.js';
 import { applyFilterSettings, FILTER_PRESETS, COLORBLIND_MODES } from '../ui/gfx.js';
 import { resetTips } from '../ui/tour.js';
+import { TIERS, gfxTier, setTier, redetect, tierLabel } from '../ui/quality.js';
+import { applyAccessibility, TEXT_SCALES, SUB_SCALES } from '../ui/a11y.js';
+import { storageUsage } from '../ui/savesafe.js';
 
 const TABS = [
   { id: 'grafica', name: 'Grafica', icon: 'display' },
@@ -33,13 +36,16 @@ const section = (title, ic) => `<div class="opt-sec">${ic ? icon(ic) : ''}<span>
 function tabGrafica(s) {
   return `${section('Visualizzazione', 'display')}
     ${row('Vista 3D in gara', 'Segui le gare con le telecamere 3D (regia, onboard, elicottero). Disattivala per usare la mappa 2D in stile grafica TV: più leggera sui computer datati.', sw(s.view3d !== false, 'data-a="set-tg" data-k="view3d" data-d="1"'))}
-    ${row('Qualità grafica 3D', 'Alta: ombre, riflessi e vegetazione dettagliata. Prestazioni: dimezza il carico sulla scheda video mantenendo leggibili piste e vetture.', choice([['high', 'Alta'], ['low', 'Prestazioni']], s.gfx === 'low' ? 'low' : 'high', (v) => `data-a="set-gfx" data-v="${v}"`))}
+    ${row('Qualità grafica', `Alta: ombre, riflessi, profondità di campo e sfondi 3D animati. Media: effetti alleggeriti. Bassa: niente sfondi 3D nei menu e gare 3D leggere, per computer datati.${s.gfxProbe ? ` Rilevamento automatico: ${s.gfxProbe.renderer || 'scheda video'}${s.gfxProbe.ms ? ` (${s.gfxProbe.ms} ms)` : ''}.` : ''}`, `${choice(TIERS.map(([v, l, d]) => [v, l, d]), gfxTier(), (v) => `data-a="set-tier" data-v="${v}"`)}<button class="btn sm ghost opt-detect" data-a="set-detect" data-tip="Misura la scheda video per un secondo e sceglie la qualità">${icon('reset')} Rileva${s.gfxAuto ? ' <span class="chip">auto</span>' : ''}</button>`)}
     ${window.apex?.toggleFullscreen ? row('Schermo intero', 'Passa da finestra a schermo intero. Scorciatoia: F11.', `<button class="btn sm" data-a="set-fs">${icon('fullscreen')} Cambia <span class="kbd">F11</span></button>`) : ''}
     ${section('Filtri immagine', 'palette')}
     ${row('Stile immagine', 'Correzione colore applicata alla gara, al garage e a tutte le viste 3D.', choice(Object.entries(FILTER_PRESETS).map(([k, p]) => [k, p.label, p.desc]), s.gfxFilter || 'naturale', (v) => `data-a="set-filter" data-v="${v}"`))}
     ${[['gfxSharpen', 'Nitidezza adattiva', 'Rende più definiti bordi e dettagli lontani.', false], ['gfxGrain', 'Grana pellicola', 'Leggera grana cinematografica animata, come nelle riprese TV.', false], ['gfxVignette', 'Vignettatura', 'Scurisce leggermente i bordi dell’immagine per concentrare lo sguardo al centro.', true]].map(([k, n, d, def]) => row(n, d, sw(s[k] ?? def, `data-a="set-gtg" data-k="${k}" data-d="${def ? 1 : 0}"`))).join('')}
     ${section('Accessibilità', 'accessibility')}
     ${row('Modalità daltonici', 'Corregge i colori delle viste 3D per chi ha un deficit nella percezione dei colori. Le mescole hanno sempre anche la lettera.', choice(Object.entries(COLORBLIND_MODES), s.gfxColorblind || 'off', (v) => `data-a="set-cb" data-v="${v}"`))}
+    ${row('Dimensione testo', 'Ingrandisce o riduce testi e pannelli dell’interfaccia (90–130%). Le viste 3D non cambiano.', choice(TEXT_SCALES.map((v) => [v, `${v}%`]), s.textScale || 100, (v) => `data-a="set-text" data-v="${v}"`))}
+    ${row('Sottotitoli in gara', 'Dimensione della telecronaca e dei messaggi radio mostrati durante le sessioni dal vivo.', choice(SUB_SCALES, s.subScale || 100, (v) => `data-a="set-sub" data-v="${v}"`))}
+    ${row('Colori di stato sicuri', 'Usa blu e arancio al posto di verde e rosso per indicare positivo/negativo in tabelle, badge e grafici: leggibili con ogni tipo di daltonismo.', sw(!!(s.safeColors ?? (s.gfxColorblind && s.gfxColorblind !== 'off')), 'data-a="set-safe"'))}
     ${row('Riduci animazioni', 'Elimina transizioni, scorrimenti e animazioni decorative dell’interfaccia.', sw(!!s.reduceMotion, 'data-a="set-motion"'))}`;
 }
 
@@ -70,7 +76,9 @@ function tabGioco(s) {
     ${row('Ripristina consigli e tour', 'Fa ricomparire tutti i consigli e i tour guidati già visti.', `<button class="btn sm" data-a="set-tips-reset">${icon('reset')} Ripristina</button>`)}
     ${st ? `${section('Salvataggi', 'save')}
     ${row('Salva in uno slot', 'Il gioco salva da solo dopo ogni evento. Qui puoi creare un salvataggio in uno slot a scelta.', `<button class="btn sm" data-a="set-save">${icon('save')} Scegli slot…</button>`)}
-    ${row('Esporta su file', 'Scarica la carriera in un file .json da conservare o da importare su un altro computer.', `<button class="btn sm" data-a="set-export">${icon('download')} Esporta</button>`)}` : ''}
+    ${row('Esporta su file', 'Scarica la carriera in un file .json da conservare o da importare su un altro computer.', `<button class="btn sm" data-a="set-export">${icon('download')} Esporta</button>`)}` : section('Salvataggi', 'save')}
+    ${row('Carica o importa', 'Apri uno slot di salvataggio, ripristina un backup o importa un file .json esportato.', `<button class="btn sm" data-a="set-load">${icon('upload')} Carica…</button>`)}
+    ${(() => { const u = storageUsage(); const mb = u.used / 1048576; const pct = Math.min(100, Math.round((mb / 5) * 100)); return row('Spazio usato', `Salvataggi, backup e cache occupano circa ${mb.toFixed(2)} MB dei ~5 MB disponibili. Se lo spazio finisce il gioco libera prima cache e vecchi backup.`, `<div class="opt-store ${pct > 80 ? 'full' : ''}"><i style="width:${pct}%"></i></div><b class="mono">${mb.toFixed(1)} MB</b>`); })()}
     ${section('Informazioni', 'info')}
     <div class="opt-about">${icon('flag')}<div><b>Apex Dynasty</b> <span class="ver-badge">v${__APP_VERSION__}</span><div class="small muted">Gioco gestionale di fantasia. Tutti i nomi di squadre, piloti, sponsor e marchi sono parodie inventate e non sono affiliati a persone o aziende reali.</div></div></div>`;
 }
@@ -157,9 +165,14 @@ registerScreen({
     'set-tab'(el) { tab = el.dataset.id; sfx.select?.(); App.refresh(); },
     'set-tg'(el) { const k = el.dataset.k; const cur = getSettings()[k]; const on = !(cur ?? el.dataset.d === '1'); setSettings({ [k]: on }); applyVolumes(); if (k === 'music' && on) music.kick?.(); App.refresh(); refocus(el); },
     'set-gfx'(el) { setSettings({ gfx: el.dataset.v }); App.refresh(); refocus(el); },
+    'set-tier'(el) { setTier(el.dataset.v, false); App.refresh(); refocus(el); },
+    'set-detect'(el) { el.disabled = true; el.innerHTML = `${icon('hourglass')} Misuro…`; redetect().then((r) => { App.toast(`Qualità ${tierLabel(r.tier)}`, r.renderer ? esc(r.renderer) : 'Scheda video misurata', 'good'); App.refresh(); refocus(el); }); },
+    'set-text'(el) { setSettings({ textScale: +el.dataset.v }); applyAccessibility(); App.refresh(); refocus(el); },
+    'set-sub'(el) { setSettings({ subScale: +el.dataset.v }); applyAccessibility(); App.refresh(); refocus(el); },
+    'set-safe'(el) { const s = getSettings(); const cur = !!(s.safeColors ?? (s.gfxColorblind && s.gfxColorblind !== 'off')); setSettings({ safeColors: !cur }); applyAccessibility(); App.refresh(); refocus(el); },
     'set-filter'(el) { setSettings({ gfxFilter: el.dataset.v }); applyFilterSettings(); App.refresh(); refocus(el); },
     'set-gtg'(el) { const k = el.dataset.k; setSettings({ [k]: !(getSettings()[k] ?? el.dataset.d === '1') }); applyFilterSettings(); App.refresh(); refocus(el); },
-    'set-cb'(el) { setSettings({ gfxColorblind: el.dataset.v }); applyFilterSettings(); App.refresh(); refocus(el); },
+    'set-cb'(el) { setSettings({ gfxColorblind: el.dataset.v }); applyFilterSettings(); applyAccessibility(); App.refresh(); refocus(el); },
     'set-motion'(el) { const v = !getSettings().reduceMotion; setSettings({ reduceMotion: v }); document.documentElement.classList.toggle('reduce-motion', v); App.refresh(); refocus(el); },
     'set-fs'() { window.apex?.toggleFullscreen?.(); },
     'set-vol'(el) {
@@ -182,6 +195,7 @@ registerScreen({
     },
     'set-tips-reset'() { resetTips(); sfx.ok(); App.toast('Consigli riattivati', 'I suggerimenti e i tour ricompariranno nelle schermate.', 'good'); },
     'set-save'() { openLoad(true); },
+    'set-load'() { openLoad(false); },
     'set-export'() {
       const b = exportSave(); const a = document.createElement('a'); a.href = URL.createObjectURL(b);
       a.download = `apex-dynasty-${S().season}-r${S().round + 1}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);

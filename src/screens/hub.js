@@ -1,4 +1,4 @@
-import { carImg, helmet3D, mountStage, stageEnabled } from '../ui/garage3d.js';
+import { carImg, helmet3D, mountStage, liveBackdrop } from '../ui/stage3d.js';
 import { App, registerScreen } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { carSVG, flagSVG, helmetSVG, trackSVG, teamBadge } from '../ui/art.js';
@@ -36,19 +36,16 @@ function rivalPanel(st) {
 }
 
 let hubStage = null;
-registerScreen({
-  id: 'hub',
-  render() {
-    const st = S();
-    ensureDynasty(st);
-    const t = playerTeam(st);
-    const C = cat(st);
-    const info = nextEventInfo(st);
-    const s = standings(st);
-    const tpos = s.teams.findIndex((x) => x.id === t.id) + 1;
-    const myDrivers = teamDrivers(st, t);
+// "Da fare": everything that needs the player's attention, most urgent first.
+// [level, text, 'screen' | 'screen:tab'] — also drives the sidebar badges.
+export function computeTodo(st) {
+  ensureDynasty(st);
+  const t = playerTeam(st);
+  const s = standings(st);
+  const myDrivers = teamDrivers(st, t);
     const sponsorSlots = 3 - t.sponsors.length;
     const todo = [];
+    if (st.pendingTech || st.pendingEvent || st.pendingDyn) todo.push(['bad', 'Una decisione ti aspetta: rispondi prima del weekend', 'hub']);
     if (myDrivers.length < seatsPerTeam(st)) todo.push(['bad', 'Sedili vuoti! Ingaggia un pilota', 'market']);
     if (sponsorSlots > 0 && st.sponsorOffers.length) todo.push(['warn', sponsorSlots === 1 ? '1 spazio sponsor libero' : `${sponsorSlots} spazi sponsor liberi`, 'finance']);
     if (t.projects.length < rdSlots(t, st)) todo.push(['warn', rdSlots(t, st) - t.projects.length === 1 ? '1 slot R&D inattivo' : `${rdSlots(t, st) - t.projects.length} slot R&D inattivi`, 'car']);
@@ -68,10 +65,35 @@ registerScreen({
     }
     for (const d of myDrivers) { if (d.rivalOffer) todo.unshift(['bad', `${d.name} ha un’offerta da ${st.teams[d.rivalOffer.teamId]?.name}: rinnova o lo perderai`, 'drivers']); else if (d.nextTeam && d.nextTeam !== t.id) todo.push(['warn', `${d.name} partirà a fine anno: trova un sostituto`, 'market']); }
 
+  const rank = { bad: 0, warn: 1, good: 2, info: 3 };
+  return todo.map((x, i) => [x, i]).sort((a, b) => rank[a[0][0]] - rank[b[0][0]] || a[1] - b[1]).map((x) => x[0]);
+}
+App.todoProvider = computeTodo;
+const TODO_DEST = { hub: ['home', 'Decisione'], market: ['market', 'Mercato'], finance: ['money', 'Finanze'], car: ['car', 'Centro Tecnico'], career: ['star', 'Carriera'], inbox: ['mail', 'Posta'], standings: ['chart', 'Classifiche'], paddock: ['news', 'Paddock'], drivers: ['users', 'Piloti'] };
+const TODO_IC = { bad: 'alert', warn: 'bell', good: 'star', info: 'info' };
+function todoPanel(todo) {
+  const urgent = todo.filter((x) => x[0] === 'bad').length;
+  const head = `<div class="panel-head"><h3>${icon('check')} Da fare</h3>${todo.length ? `<span class="todo-count ${urgent ? 'urgent' : ''}">${urgent ? `${urgent} urgenti · ` : ''}${todo.length}</span>` : ''}</div>`;
+  if (!todo.length) return `<div class="panel todo-panel">${head}<div class="todo-empty">${icon('check')}<div><b>Tutto in ordine</b><span>Nessuna questione aperta: puoi andare al weekend di gara.</span></div></div></div>`;
+  return `<div class="panel todo-panel">${head}<div class="todo-list">${todo.map(([cls, txt, to]) => { const [scr, tab] = to.split(':'); const d = TODO_DEST[scr] || ['right', '']; return `<div class="todo t-${cls}" data-a="nav" data-to="${scr}"${tab ? ` data-tab="${tab}"` : ''}><span class="todo-ic">${icon(TODO_IC[cls] || 'info')}</span><span class="grow">${txt}</span>${d[1] ? `<span class="todo-dest">${d[1]}</span>` : ''}${icon('right')}</div>`; }).join('')}</div></div>`;
+}
+
+registerScreen({
+  id: 'hub',
+  render() {
+    const st = S();
+    ensureDynasty(st);
+    const t = playerTeam(st);
+    const C = cat(st);
+    const info = nextEventInfo(st);
+    const s = standings(st);
+    const tpos = s.teams.findIndex((x) => x.id === t.id) + 1;
+    const myDrivers = teamDrivers(st, t);
+    const todo = computeTodo(st);
     let hero = '';
     const myD0 = myDrivers[0];
-    const live = stageEnabled();
-    const heroCar = live ? '' : carImg(st.category, t.car.livery, { number: myD0?.number, sponsor: t.sponsors[0]?.name, helmet: myD0?.helmet.c1 }, 900, 400);
+    const live = liveBackdrop();
+    const heroCar = live ? '' : carImg(st.category, t.car.livery, { number: myD0?.number, sponsor: t.sponsors[0]?.name, helmet: myD0?.helmet.c1 }, 900, 400, carSVG(st.category, t.car.livery, { number: myD0?.number, sponsor: t.sponsors[0]?.name || t.short }));
     const stage = live ? '<div class="hh-stage" id="hub-stage" aria-hidden="true"></div><div class="hh-scrim"></div>' : '';
     if (info) {
       const { ev, tr } = info;
@@ -133,7 +155,7 @@ registerScreen({
           </div>
           <div class="col gap16">
             ${goalsPanel(st)}
-            ${todo.length ? `<div class="panel"><div class="panel-head"><h3>Da fare</h3><span class="small muted">${todo.length}</span></div><div>${todo.map(([cls, txt, to]) => `<div class="todo t-${cls}" data-a="nav" data-to="${to.split(':')[0]}"${to.includes(':') ? ` data-tab="${to.split(':')[1]}"` : ''}><span class="grow">${txt}</span>${icon('right')}</div>`).join('')}</div></div>` : ''}
+            ${todoPanel(todo)}
             ${st.objectives?.length ? `<div class="panel"><div class="panel-head"><h3>Obiettivi stagionali</h3><span class="small muted">Manager Lv ${st.career.level || 1}</span></div><div>${st.objectives.map((o) => `<div class="obj-row">${icon(o.done ? 'check' : 'target', 'ico', `style="width:18px;height:18px;flex:none;color:${o.done ? 'var(--good)' : 'var(--dim)'}"`)}<span class="grow ${o.done ? 'good' : ''}">${esc(o.text)}</span><span class="small muted mono">${o.xp} XP</span></div>`).join('')}</div></div>` : ''}
             <div class="panel"><div class="panel-head"><h3>Classifica piloti</h3><button class="btn sm ghost" data-a="nav" data-to="standings">Tutte ${icon('right')}</button></div>
               <table class="tbl"><tbody>${s.drivers.slice(0, 6).map((x, i) => { const d = st.drivers[x.id]; const tm = st.teams[d.teamId]; return `<tr class="${d.teamId === t.id ? 'me' : ''}"><td class="pos p${i + 1}">${i + 1}</td><td style="width:8px;padding-left:0;padding-right:0">${tm ? teamStripe(tm) : ''}</td><td>${driverChip(st, d, { helmet: false })}</td><td class="right mono"><b>${x.pts}</b></td></tr>`; }).join('')}</tbody></table>

@@ -7,11 +7,37 @@ import { CATEGORIES } from '../data/categories.js';
 import { circuitPath, arcFrac, TrackView } from '../ui/trackview.js';
 import { TRACKS } from '../data/tracks.js';
 import { sfx } from '../ui/audio.js';
-import { openLessons } from './engineer.js';
-import { mountStage, stageEnabled } from '../ui/garage3d.js';
+import { mountStage, liveBackdrop } from '../ui/stage3d.js';
+import { ensureQuality } from '../ui/quality.js';
 import { TEAMS } from '../data/teams.js';
-let garage = null, showcase = null;
+import { loadWithBackup, restoreBackup, hasBackup } from '../ui/savesafe.js';
+let garage = null, showcase = null, menuGen = 0;
 import { migrateSave } from '../engine/migrate.js';
+
+// Main menu entries, in order. Other modes: append one object (rendered generically).
+//   to: screen id (data-a="nav") · a: action name · icon · label · desc (string or fn(ctx))
+//   tag: small pill · sm: secondary style · sep: divider · when(ctx): show only if true · disabled(ctx)
+export const MENU_ITEMS = [
+  { a: 'continue-last', icon: 'play', label: 'Continua', when: (c) => c.hasSave, desc: (c) => (c.last ? `${c.last.team} · Stagione ${c.last.season} · Round ${Math.min(c.last.round + 1, c.last.total)}/${c.last.total}` : 'Riprendi l’ultima partita salvata') },
+  { to: 'newgame', icon: 'flag', label: 'Nuova Carriera', desc: 'Diventa Team Principal: Formula, Rally o Endurance. Scegli una squadra o fondane una tua.' },
+  { to: 'quickrace', icon: 'speed', label: 'Gara Rapida', desc: 'Un weekend singolo con qualsiasi squadra, su qualsiasi pista.' },
+  { to: 'derby', icon: 'steering', label: 'Scontro Totale', desc: 'Prendi il volante: corse a contatto, salti e derby della distruzione.', tag: 'Guida tu' },
+  { to: 'challenges', icon: 'target', label: 'Sfide', desc: 'Scenari con un obiettivo e medaglie da conquistare.' },
+  { sep: true },
+  { a: 'load', icon: 'save', label: 'Carica Partita', desc: 'Apri uno degli slot di salvataggio o importa un file.', sm: true, disabled: (c) => !c.hasSave },
+  { to: 'settings', back: 'menu', icon: 'settings', label: 'Impostazioni', desc: 'Audio, qualità grafica, filtri, testo e accessibilità.', sm: true },
+  { to: 'howto', back: 'menu', icon: 'book', label: 'Come si gioca', desc: 'Guida illustrata: la settimana tipo, il weekend, le decisioni in gara, i comandi.', sm: true },
+  { a: 'lessons', icon: 'sim', label: 'Accademia Ingegneri', desc: 'Lezioni interattive su gomme, strategia e assetto.', sm: true },
+  { a: 'quit', icon: 'logout', label: 'Esci', desc: 'Chiudi il gioco.', sm: true, when: () => !!window.apex?.quit },
+];
+function menuItem(it, ctx) {
+  if (it.when && !it.when(ctx)) return '';
+  if (it.sep) return '<div class="menu-sep" role="separator"></div>';
+  const desc = typeof it.desc === 'function' ? it.desc(ctx) : it.desc || '';
+  const act = it.to ? `data-a="nav" data-to="${esc(it.to)}"${it.back ? ` data-back="${esc(it.back)}"` : ''}` : `data-a="${esc(it.a)}"`;
+  const dis = it.disabled?.(ctx);
+  return `<div class="menu-item ${it.sm ? 'sm' : ''} ${dis ? 'disabled' : ''}" ${act} data-desc="${esc(desc)}"${dis ? ' aria-disabled="true"' : ''}>${icon(it.icon || 'right')}<span>${esc(it.label)}</span>${it.tag ? `<span class="tag">${esc(it.tag)}</span>` : ''}</div>`;
+}
 
 let anim = null, view = null;
 const DEMO_COLORS = [['#d40000', '#ffdd00'], ['#00d2be', '#c0c0c0'], ['#1b2a6b', '#e3002b'], ['#ff8000', '#101820'], ['#00594f', '#cedc00'], ['#005aff', '#fff'], ['#0090ff', '#ff87bc'], ['#f0f0f0', '#d00f1f'], ['#1634cc', '#fff'], ['#1a1a1a', '#ff2d2d']];
@@ -22,25 +48,15 @@ registerScreen({
     const saves = listSaves();
     const hasSave = saves.some((s) => !s.empty);
     const last = saves.filter((x) => !x.empty).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0];
-    const item = (a, ic, label, desc, extra = '', cls = '') => `<div class="menu-item ${cls}" ${a} data-desc="${esc(desc)}">${icon(ic)}<span>${label}</span>${extra}</div>`;
+    const ctx = { hasSave, last, saves };
     return `<div class="menu-screen">
-      ${stageEnabled() ? '<div id="menu-3d" class="menu-stage"></div><div class="menu-scrim"></div>' : `<div class="menu-bg"><canvas id="menu-cv"></canvas></div><div class="menu-car-fallback">${carSVG('formula', { primary: '#e5141b', secondary: '#fff', accent: '#111', pattern: 1 }, { number: 1, sponsor: 'Apex Dynasty' })}</div>`}
+      <div class="menu-bg"><canvas id="menu-cv"></canvas></div><div class="menu-car-fallback">${carSVG('formula', { primary: '#e5141b', secondary: '#fff', accent: '#111', pattern: 1 }, { number: 1, sponsor: 'Apex Dynasty' })}</div>
       <div class="menu-feature" id="menu-feature"><div class="mf-k" id="menu-feat-k">In pista</div><div class="mf-v" id="menu-track"></div><div class="mf-t" id="menu-car-name"></div></div>
       <div class="menu-left">
         <div class="menu-logo">${logoMark(64)}<div><div class="logo-big">Apex<span>Dynasty</span></div><div class="logo-sub">Formula · Rally · Endurance</div></div></div>
         <div>
           <nav class="menu-list" aria-label="Menu principale">
-            ${hasSave ? item('data-a="continue-last"', 'play', 'Continua', last ? `${last.team} · Stagione ${last.season} · Round ${Math.min(last.round + 1, last.total)}/${last.total}` : 'Riprendi l’ultima partita salvata') : ''}
-            ${item('data-a="nav" data-to="newgame"', 'flag', 'Nuova Carriera', 'Diventa Team Principal: Formula, Rally o Endurance. Scegli una squadra o fondane una tua.')}
-            ${item('data-a="nav" data-to="quickrace"', 'speed', 'Gara Rapida', 'Un weekend singolo con qualsiasi squadra, su qualsiasi pista.')}
-            ${item('data-a="nav" data-to="derby"', 'steering', 'Scontro Totale', 'Prendi il volante: corse a contatto, salti e derby della distruzione.', '<span class="tag">Guida tu</span>')}
-            ${item('data-a="nav" data-to="challenges"', 'target', 'Sfide', 'Scenari con un obiettivo e medaglie da conquistare.')}
-            <div class="menu-sep"></div>
-            ${item('data-a="load"', 'save', 'Carica Partita', 'Apri uno degli slot di salvataggio o importa un file.', '', `sm ${hasSave ? '' : 'disabled'}`)}
-            ${item('data-a="nav" data-to="settings" data-back="menu"', 'settings', 'Impostazioni', 'Audio, grafica 3D, filtri, realismo e accessibilità.', '', 'sm')}
-            ${item('data-a="nav" data-to="howto" data-back="menu"', 'book', 'Come si gioca', 'Guida illustrata: la settimana tipo, il weekend, le decisioni in gara, i comandi.', '', 'sm')}
-            ${item('data-a="lessons"', 'sim', 'Accademia Ingegneri', 'Lezioni interattive su gomme, strategia e assetto.', '', 'sm')}
-            ${window.apex?.quit ? item('data-a="quit"', 'logout', 'Esci', 'Chiudi il gioco.', '', 'sm') : ''}
+            ${MENU_ITEMS.map((it) => menuItem(it, ctx)).join('')}
           </nav>
           <div class="menu-desc" id="menu-desc" aria-live="polite"></div>
         </div>
@@ -66,10 +82,29 @@ registerScreen({
     // console-style: the first entry is selected as soon as the menu opens
     const first = document.querySelector('.menu-list .menu-item:not(.disabled)');
     first?.focus({ preventScroll: true });
-    const m3 = document.getElementById('menu-3d');
     const tl = document.getElementById('menu-track'), cn = document.getElementById('menu-car-name'), fk = document.getElementById('menu-feat-k');
-    if (m3) {
-      // the showroom keeps the same car while the menu is re-rendered (load dialog, delete save...)
+    // 1) the 2D backdrop paints with the menu, no 3D code needed
+    const cv = document.getElementById('menu-cv');
+    if (cv) {
+      const demo = TRACKS.formula[Math.floor(Math.random() * TRACKS.formula.length)];
+      view = new TrackView(cv, circuitPath(demo.cid), { pad: 70, glow: 'rgba(0,0,0,0)', clear: true, width: 12 });
+      if (tl) tl.textContent = demo.name;
+      const cars = DEMO_COLORS.map((c, i) => ({ p: -i * 0.012, v: 0.06 + Math.random() * 0.002, c }));
+      let last = performance.now();
+      const loop = (t) => {
+        anim = requestAnimationFrame(loop);
+        if (document.hidden) return;
+        const dt = Math.min(0.05, (t - last) / 1000); last = t;
+        for (const car of cars) { car.p += car.v * dt * (0.95 + Math.sin(t / 1000 + car.v * 100) * 0.08); }
+        view.frame((c, v) => { for (const car of cars) { const q = v.pointAt(arcFrac('formula', demo.cid, car.p)); v.drawCar(q.x, q.y, q.ang, car.c[0], car.c[1], { glow: car.c[0] }); } });
+      };
+      anim = requestAnimationFrame(loop);
+    }
+    // 2) once the quality is known, the 3D showroom loads in the background and fades in on top
+    const gen = ++menuGen;
+    ensureQuality().then(() => {
+      const screen = document.querySelector('.menu-screen');
+      if (gen !== menuGen || !screen || !liveBackdrop() || garage) return;
       if (!showcase) {
         const cats = ['formula', 'formula', 'endurance', 'rally', 'junior'];
         const c = cats[Math.floor(Math.random() * cats.length)];
@@ -77,35 +112,31 @@ registerScreen({
         showcase = { c, t, n: Math.floor(1 + Math.random() * 63) };
       }
       const { c, t, n } = showcase;
-      garage = mountStage(m3, { id: 'menu', mode: 'cine', shift: 0.13, category: c, livery: { primary: t.colors[0], secondary: t.colors[1], accent: t.colors[2] }, number: n, sponsor: t.short, team: t, series: CATEGORIES[c]?.full || CATEGORIES[c]?.name, box: n });
-      if (fk) fk.textContent = 'Nel box';
-      if (tl) tl.textContent = t.name;
-      if (cn) cn.textContent = `${CATEGORIES[c]?.full || CATEGORIES[c]?.name || ''} · ${t.hq || ''}`;
-      return;
-    }
-    const cv = document.getElementById('menu-cv'); if (!cv) return;
-    const demo = TRACKS.formula[Math.floor(Math.random() * TRACKS.formula.length)];
-    view = new TrackView(cv, circuitPath(demo.cid), { pad: 70, glow: 'rgba(0,0,0,0)', clear: true, width: 12 });
-    if (tl) tl.textContent = demo.name;
-    const cars = DEMO_COLORS.map((c, i) => ({ p: -i * 0.012, v: 0.06 + Math.random() * 0.002, c }));
-    let last = performance.now();
-    const loop = (t) => {
-      const dt = Math.min(0.05, (t - last) / 1000); last = t;
-      for (const car of cars) { car.p += car.v * dt * (0.95 + Math.sin(t / 1000 + car.v * 100) * 0.08); }
-      view.frame((c, v) => { for (const car of cars) { const q = v.pointAt(arcFrac('formula', demo.cid, car.p)); v.drawCar(q.x, q.y, q.ang, car.c[0], car.c[1], { glow: car.c[0] }); } });
-      anim = requestAnimationFrame(loop);
-    };
-    anim = requestAnimationFrame(loop);
+      const host = document.createElement('div'); host.id = 'menu-3d'; host.className = 'menu-stage'; host.setAttribute('aria-hidden', 'true');
+      const scrim = document.createElement('div'); scrim.className = 'menu-scrim';
+      screen.prepend(host, scrim);
+      garage = mountStage(host, { id: 'menu', mode: 'cine', shift: 0.13, category: c, livery: { primary: t.colors[0], secondary: t.colors[1], accent: t.colors[2] }, number: n, sponsor: t.short, team: t, series: CATEGORIES[c]?.full || CATEGORIES[c]?.name, box: n });
+      // when the first 3D frame is up: swap the caption and stop drawing the 2D backdrop
+      const mo = new MutationObserver(() => {
+        if (!host.classList.contains('stage-on')) return;
+        mo.disconnect(); cancelAnimationFrame(anim); anim = 0;
+        screen.classList.add('has-stage');
+        if (fk) fk.textContent = 'Nel box';
+        if (tl) tl.textContent = t.name;
+        if (cn) cn.textContent = `${CATEGORIES[c]?.full || CATEGORIES[c]?.name || ''} · ${t.hq || ''}`;
+      });
+      mo.observe(host, { attributes: true, attributeFilter: ['class'] });
+    });
   },
-  unmount() { cancelAnimationFrame(anim); view?.destroy(); view = null; garage?.destroy(); garage = null; showcase = null; },
+  unmount() { menuGen++; cancelAnimationFrame(anim); anim = 0; view?.destroy(); view = null; garage?.destroy(); garage = null; showcase = null; },
   actions: {
     'continue-last'() {
       const s = listSaves().filter((x) => !x.empty).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0];
-      if (s && loadGame(s.slot)) { migrateSave(window.__apex.S()); sfx.ok(); App.go('hub'); }
+      if (s && loadWithBackup(s.slot)) { sfx.ok(); App.go('hub'); }
     },
     load() { openLoad(); },
     quit() { window.apex?.quit?.(); },
-    lessons() { openLessons(); },
+    lessons() { import('./engineer.js').then((m) => m.openLessons()); },
     mixer() { App.audioMixer(); },
   },
 });
@@ -153,14 +184,16 @@ export function openLoad(saveMode = false) {
     return `<h2>${saveMode ? 'Salva Partita' : 'Carica Partita'}</h2>
     <div class="col">${saves.map((s) => `<div class="card row" style="gap:14px">
       <div class="rating sm">${s.slot}</div>
-      ${s.empty ? `<div class="grow muted">Slot vuoto</div>` : `<div class="grow"><div style="font-weight:700">${esc(s.team)} <span class="chip" style="margin-left:6px">${CATEGORIES[s.category]?.name}</span></div><div class="small muted">${esc(s.player)} · Stagione ${s.season} · Round ${Math.min(s.round + 1, s.total)}/${s.total} · ${s.savedAt ? new Date(s.savedAt).toLocaleString('it-IT') : ''}</div></div>`}
+      ${s.empty ? `<div class="grow muted">${s.corrupt ? 'Salvataggio illeggibile' : 'Slot vuoto'}</div>` : `<div class="grow"><div style="font-weight:700">${esc(s.team)} <span class="chip" style="margin-left:6px">${CATEGORIES[s.category]?.name}</span></div><div class="small muted">${esc(s.player)} · Stagione ${s.season} · Round ${Math.min(s.round + 1, s.total)}/${s.total} · ${s.savedAt ? new Date(s.savedAt).toLocaleString('it-IT') : ''}</div></div>`}
       ${saveMode ? `<button class="btn sm primary" data-a="save-slot" data-slot="${s.slot}">Salva qui</button>` : !s.empty ? `<button class="btn sm primary" data-a="load-slot" data-slot="${s.slot}">Carica</button>` : ''}
+      ${!saveMode && hasBackup(s.slot) ? `<button class="btn sm ghost" data-a="restore-slot" data-slot="${s.slot}" data-tip="Ripristina la copia di sicurezza creata prima dell’ultimo aggiornamento del salvataggio">${icon('upload')} Backup</button>` : ''}
       ${!s.empty ? `<button class="btn sm ghost icon-btn" data-a="del-slot" data-slot="${s.slot}" data-tip="Elimina salvataggio" aria-label="Elimina salvataggio">${icon('trash')}</button>` : ''}
     </div>`).join('')}</div>
     <div class="row mt16 between"><div class="row"><label class="btn sm ghost">${icon('upload')} Importa file<input type="file" accept=".json,application/json" data-change="import" hidden></label></div><button class="btn ghost" data-a="close-modal">Chiudi</button></div>`;
   };
   const actions = {
-    'load-slot'(el) { if (loadGame(+el.dataset.slot)) { migrateSave(window.__apex.S()); App.closeModal(); sfx.ok(); App.go('hub'); } },
+    'load-slot'(el) { if (loadWithBackup(+el.dataset.slot)) { App.closeModal(); sfx.ok(); App.go('hub'); } else App.toast('Caricamento non riuscito', 'Il file di salvataggio è illeggibile. Se esiste un backup puoi ripristinarlo.', 'bad'); },
+    'restore-slot'(el) { const n = +el.dataset.slot; App.confirm('Ripristinare il backup?', `Lo slot ${n} tornerà alla copia salvata prima dell’ultimo aggiornamento del gioco.`, () => { if (restoreBackup(n)) { App.toast('Backup ripristinato', `Slot ${n}`, 'good'); openLoad(saveMode); } }, 'Ripristina'); },
     'save-slot'(el) { saveGame(+el.dataset.slot); App.toast('Partita salvata', `Slot ${el.dataset.slot}`, 'good'); App.closeModal(); },
     'del-slot'(el) {
       const n = +el.dataset.slot;

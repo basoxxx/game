@@ -1,4 +1,4 @@
-import { helmet3D } from '../ui/garage3d.js';
+import { helmet3D } from '../ui/stage3d.js';
 // Shared UI fragments
 import { helmetSVG, flagSVG, teamBadge } from '../ui/art.js';
 import { esc, ratingClass, bar } from '../ui/dom.js';

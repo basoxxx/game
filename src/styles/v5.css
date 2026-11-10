@@ -1,0 +1,145 @@
+/* =====================================================================
+   v5 shell layer: grouped sidebar + badges, breadcrumbs, command palette,
+   "Da fare" inbox, autosave pill, crash dialog, loading/empty/error states,
+   accessibility (text scale, colour-blind-safe status colours), celebrations.
+   Loaded last: shared components are unified here instead of per screen.
+   ===================================================================== */
+
+/* ---- colour-blind-safe status colours (blue / orange instead of green / red) ---- */
+:root.cb-safe { --good: #3aa0ff; --bad: #ff8a1f; --s-green: #3aa0ff; --info: #a98bff; }
+
+/* ---- text scale: management screens, modals, tooltips and toasts (3D views keep their size) ---- */
+.ui-zoomed .main > *, .ui-zoomed .modal, .ui-zoomed .tip, .ui-zoomed .toasts, .ui-zoomed .palette, .ui-zoomed .full-screen:not(.race-view):not(.dz-root) { zoom: var(--ui-zoom, 1); }
+.ui-zoomed .sidebar .nav, .ui-zoomed .sidebar .nav-gh { zoom: min(var(--ui-zoom, 1), 1.12); }
+.race-sub { zoom: var(--sub-scale, 1); }
+
+/* ---- sidebar groups ---- */
+.nav-group { display: flex; flex-direction: column; gap: 1px; flex: none; }
+.nav-group + .nav-group { margin-top: 6px; }
+.nav-gh { padding: 8px 22px 4px; font-family: var(--display); font-size: 11.5px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--dim); }
+.nav-group:first-child .nav-gh { padding-top: 0; }
+.nav .badge.nb-bad { background: var(--bad); color: #fff; }
+.nav .badge.nb-warn { background: var(--warn); color: #111; }
+.nav .badge.nb-good { background: color-mix(in srgb, var(--good) 22%, var(--s3)); color: var(--good); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--good) 45%, transparent); }
+.nav .badge.nb-info { background: var(--s4); color: var(--text); }
+@media (max-height: 860px) {
+  .nav { height: 36px; font-size: 14.5px; }
+  .nav-gh { padding: 6px 22px 3px; font-size: 11px; }
+  .nav-group + .nav-group { margin-top: 3px; }
+  .nav-sep { margin: 6px 18px; }
+  .nav-event { margin-top: 8px; padding: 10px 12px 9px; }
+  .nav-event .ne-name { font-size: 17px; margin-top: 5px; }
+}
+@media (max-height: 760px) {
+  .nav { height: 32px; }
+  .nav-gh { padding: 5px 22px 2px; }
+  .nav-event .ne-track, .nav-event .ne-meta { display: none; }
+}
+
+/* ---- breadcrumbs / back / palette trigger ---- */
+.crumbs { display: flex; align-items: center; gap: 8px; margin: -14px 0 14px; min-height: 30px; font-family: var(--display); font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.crumbs i { font-style: normal; color: var(--dim); }
+.crumbs b { color: var(--text2); font-weight: 700; }
+.crumbs .crumb { cursor: pointer; transition: color var(--t-med); }
+.crumbs .crumb:hover { color: #fff; }
+.crumb-back { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: var(--s2); border: 1px solid var(--line2); color: var(--text2); cursor: pointer; transition: background var(--t-med), color var(--t-med); }
+.crumb-back:hover { background: var(--s3); color: #fff; }
+.crumb-back .ico { width: 15px; height: 15px; }
+.crumb-search { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px 0 10px; background: var(--s1); border: 1px solid var(--line2); color: var(--muted); font: inherit; letter-spacing: .08em; cursor: pointer; transition: border-color var(--t-med), color var(--t-med); }
+.crumb-search:hover { border-color: var(--line3); color: #fff; }
+.crumb-search .ico { width: 15px; height: 15px; }
+.crumb-search > span:not(.kbd) { margin-right: 10px; }
+.crumb-search .kbd { font-size: 11px; padding: 1px 5px; }
+@media (max-width: 1360px) { .crumb-search > span:not(.kbd) { display: none; } }
+
+/* ---- command palette ---- */
+.palette-wrap { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-start; justify-content: center; padding-top: 14vh; background: rgba(4,5,7,.7); animation: fade .15s ease; }
+.palette { width: min(640px, 92vw); background: var(--s1); border: 1px solid var(--line2); border-top: 3px solid var(--team); box-shadow: var(--shadow); animation: modalIn .22s var(--ease-out); }
+.pal-in { display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+.pal-in .ico { width: 20px; height: 20px; color: var(--muted); flex: none; }
+.pal-in input { flex: 1; min-width: 0; height: 56px; background: none; border: 0; outline: none; color: #fff; font: 600 19px var(--font); }
+.pal-in input::placeholder { color: var(--dim); }
+.pal-list { max-height: min(52vh, 460px); overflow-y: auto; padding: 6px 0; }
+.pal-g { padding: 10px 18px 4px; font-family: var(--display); font-size: 11.5px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--dim); }
+.pal-item { display: flex; align-items: center; gap: 12px; padding: 10px 18px; cursor: pointer; color: var(--text2); font-size: 15px; position: relative; }
+.pal-item .ico { width: 18px; height: 18px; color: var(--dim); flex: none; }
+.pal-item > span { flex: 1; }
+.pal-item.on { background: var(--s3); color: #fff; }
+.pal-item.on::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--team); }
+.pal-item.on .ico { color: var(--team); }
+.pal-item.on .ico:last-child { color: var(--muted); }
+.pal-empty { display: flex; align-items: center; gap: 10px; padding: 22px 18px; color: var(--muted); }
+.pal-empty .ico { width: 18px; height: 18px; }
+.pal-foot { display: flex; gap: 18px; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+.pal-foot .kbd { margin-right: 3px; }
+
+/* ---- "Da fare" inbox on the hub ---- */
+.todo-panel .panel-head h3 { display: flex; align-items: center; gap: 8px; }
+.todo-panel .panel-head h3 .ico { width: 17px; height: 17px; color: var(--team); }
+.todo-count { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.todo-count.urgent { color: var(--bad); }
+.todo-list { display: flex; flex-direction: column; gap: 3px; }
+.todo + .todo { margin-top: 0; }
+.todo .todo-ic { display: inline-flex; flex: none; }
+.todo .todo-ic .ico { width: 16px; height: 16px; color: var(--tc, var(--info)); }
+.todo .grow { line-height: 1.3; }
+.todo .todo-dest { flex: none; font-family: var(--display); font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); transition: color var(--t-med); }
+.todo:hover .todo-dest, .todo:focus-visible .todo-dest { color: var(--text2); }
+.todo:hover > .ico:last-child { transform: translateX(3px); color: #fff; }
+.todo > .ico:last-child { transition: transform var(--t-med) var(--ease), color var(--t-med); }
+.todo-empty { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: color-mix(in srgb, var(--good) 8%, var(--s2)); border-left: 4px solid var(--good); }
+.todo-empty > .ico { width: 22px; height: 22px; color: var(--good); flex: none; }
+.todo-empty b { display: block; font-family: var(--display); font-size: 17px; text-transform: uppercase; letter-spacing: .03em; }
+.todo-empty span { display: block; font-size: 13.5px; color: var(--text2); margin-top: 2px; }
+
+/* ---- autosave pill ---- */
+.save-pill { position: fixed; left: 50%; bottom: 18px; z-index: 70; display: flex; align-items: center; gap: 8px; padding: 7px 14px 7px 11px; background: rgba(10,11,14,.92); border: 1px solid var(--line2); border-left: 3px solid var(--good); font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--text2); pointer-events: none; opacity: 0; transform: translate(-50%, 10px); transition: opacity .25s, transform .25s var(--ease-out); }
+.save-pill .ico { width: 15px; height: 15px; color: var(--good); }
+.save-pill.on { opacity: 1; transform: translate(-50%, 0); }
+.save-pill.on .ico { animation: savePulse 1s ease; }
+@keyframes savePulse { 30% { transform: scale(1.25); } }
+
+/* ---- crash dialog + deliberate states ---- */
+.modal.crash-modal { width: min(620px, 92vw); border-top-color: var(--bad); }
+.crash { text-align: left; }
+.crash-ic { width: 52px; height: 52px; display: grid; place-items: center; background: color-mix(in srgb, var(--bad) 18%, var(--s2)); margin-bottom: 14px; }
+.crash-ic .ico { width: 28px; height: 28px; color: var(--bad); }
+.crash h2 { margin: 6px 0 8px; }
+.crash-details { margin-top: 14px; font-size: 13px; color: var(--muted); }
+.crash-details summary { cursor: pointer; }
+.crash-details pre { margin: 8px 0 0; padding: 10px 12px; background: #07080a; border: 1px solid var(--line); white-space: pre-wrap; word-break: break-word; font-size: 12px; max-height: 160px; overflow: auto; }
+.crash-actions { justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.state-box { max-width: 560px; margin: 10vh auto; padding: 32px; text-align: center; background: var(--s1); border: 1px solid var(--line2); }
+.state-box > .ico { width: 40px; height: 40px; color: var(--muted); }
+.state-box.state-error > .ico { color: var(--bad); }
+.state-box h2 { margin: 12px 0 8px; }
+.busy-veil { animation: fade .2s ease .1s both; }
+
+/* ---- settings additions ---- */
+.opt-detect { margin-left: 8px; }
+.opt-detect .chip { margin-left: 4px; font-size: 10.5px; padding: 1px 5px; }
+.opt-store { width: 140px; height: 6px; background: rgba(255,255,255,.08); overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 10px; }
+.opt-store i { display: block; height: 100%; background: var(--good); }
+.opt-store.full i { background: var(--bad); }
+
+/* ---- menu: 2D backdrop under the 3D one, cross-fade when the 3D frame is up ---- */
+.menu-screen .menu-bg, .menu-screen .menu-car-fallback { transition: opacity .7s ease; }
+.menu-screen.has-stage .menu-bg, .menu-screen.has-stage .menu-car-fallback { opacity: 0; pointer-events: none; }
+.menu-screen .menu-stage { z-index: 0; }
+.menu-screen .menu-scrim { z-index: 1; }
+.menu-screen .menu-car-fallback { z-index: 0; }
+.menu-item.disabled { opacity: .45; cursor: default; }
+
+/* ---- count-up numbers ---- */
+[data-count] { font-variant-numeric: tabular-nums; }
+
+/* ---- celebrations (confetti canvas) ---- */
+.confetti-cv { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 95; pointer-events: none; }
+
+/* ---- consistent focus ring on dark/coloured surfaces ---- */
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; box-shadow: 0 0 0 4px rgba(0,0,0,.6); }
+.nav:focus-visible, .tab:focus-visible, .pal-item:focus-visible, .todo:focus-visible { outline-offset: -2px; box-shadow: none; }
+.btn.primary:focus-visible, .btn.team:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) { .save-pill, .palette, .palette-wrap { animation: none; transition: none; } }
+.reduce-motion .save-pill, .reduce-motion .palette, .reduce-motion .palette-wrap { animation: none; transition: none; }
