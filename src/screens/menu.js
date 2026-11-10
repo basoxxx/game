@@ -3,7 +3,7 @@ import { icon } from '../ui/icons.js';
 import { logoMark, carSVG, teamBadge } from '../ui/art.js';
 import { esc } from '../ui/dom.js';
 import { listSaves, loadGame, deleteSave, importSave, saveGame, SLOTS } from '../engine/state.js';
-import { CATEGORIES } from '../data/categories.js';
+import { CATEGORIES, DIFFICULTY } from '../data/categories.js';
 import { circuitPath, arcFrac, TrackView } from '../ui/trackview.js';
 import { TRACKS } from '../data/tracks.js';
 import { sfx } from '../ui/audio.js';
@@ -145,6 +145,7 @@ registerScreen({
 });
 
 // "Continue" card: the most recent save, one click away
+const saveTags = (s) => `${s.ironman ? `<span class="chip save-tag iron" data-tip="Carriera Ironman: un solo salvataggio">${icon('lock')} Ironman</span>` : ''}${s.difficulty && s.difficulty !== 'normal' && DIFFICULTY?.[s.difficulty] ? `<span class="chip save-tag diff-${esc(s.difficulty)}">${esc(DIFFICULTY[s.difficulty].name)}</span>` : ''}`;
 function continueCard(s) {
   const C = CATEGORIES[s.category];
   const col = s.colors?.[0] || '#e5141b';
@@ -155,7 +156,7 @@ function continueCard(s) {
   return `<div class="menu-continue" data-a="continue-last" style="--cc:${col}" data-tip="Riprendi da dove avevi lasciato">
     <div class="mc-k">${icon('play')} Continua carriera <span>${esc(when)}</span></div>
     <div class="mc-row">${badge}<div class="mc-t"><b>${esc(s.team)}</b><span>${esc(s.player || '')} · ${esc(C?.name || '')}</span></div></div>
-    <div class="mc-meta"><span>Stagione <b>${s.season}</b></span><span>Round <b>${Math.min(s.round + 1, s.total)}/${s.total}</b></span></div>
+    <div class="mc-meta"><span>Stagione <b>${s.season}</b></span><span>Round <b>${Math.min(s.round + 1, s.total)}/${s.total}</b></span></div>${saveTags(s) ? `<div class="mc-tags">${saveTags(s)}</div>` : ''}
     <div class="mc-bar"><i style="width:${pct}%"></i></div>
   </div>`;
 }
@@ -187,7 +188,7 @@ export function openLoad(saveMode = false) {
     return `<h2>${saveMode ? 'Salva Partita' : 'Carica Partita'}</h2>
     <div class="col">${saves.map((s) => `<div class="card row" style="gap:14px">
       <div class="rating sm">${s.slot}</div>
-      ${s.empty ? `<div class="grow muted">${s.corrupt ? 'Salvataggio illeggibile' : 'Slot vuoto'}</div>` : `<div class="grow"><div style="font-weight:700">${esc(s.team)} <span class="chip" style="margin-left:6px">${CATEGORIES[s.category]?.name}</span></div><div class="small muted">${esc(s.player)} · Stagione ${s.season} · Round ${Math.min(s.round + 1, s.total)}/${s.total} · ${s.savedAt ? new Date(s.savedAt).toLocaleString('it-IT') : ''}</div></div>`}
+      ${s.empty ? `<div class="grow muted">${s.corrupt ? 'Salvataggio illeggibile' : 'Slot vuoto'}</div>` : `<div class="grow"><div style="font-weight:700">${esc(s.team)} <span class="chip" style="margin-left:6px">${CATEGORIES[s.category]?.name}</span>${saveTags(s)}</div><div class="small muted">${esc(s.player)} · Stagione ${s.season} · Round ${Math.min(s.round + 1, s.total)}/${s.total} · ${s.savedAt ? new Date(s.savedAt).toLocaleString('it-IT') : ''}</div></div>`}
       ${saveMode ? `<button class="btn sm primary" data-a="save-slot" data-slot="${s.slot}">Salva qui</button>` : !s.empty ? `<button class="btn sm primary" data-a="load-slot" data-slot="${s.slot}">Carica</button>` : ''}
       ${!saveMode && hasBackup(s.slot) ? `<button class="btn sm ghost" data-a="restore-slot" data-slot="${s.slot}" data-tip="Ripristina la copia di sicurezza creata prima dell’ultimo aggiornamento del salvataggio">${icon('upload')} Backup</button>` : ''}
       ${!s.empty ? `<button class="btn sm ghost icon-btn" data-a="del-slot" data-slot="${s.slot}" data-tip="Elimina salvataggio" aria-label="Elimina salvataggio">${icon('trash')}</button>` : ''}

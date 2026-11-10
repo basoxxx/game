@@ -81,6 +81,15 @@ const CH = [
       <div class="ht-card"><span class="ht-ic">${icon('money')}</span><b>Proprietà e tifosi</b><p>Ogni squadra ha una proprietà con una sua idea di successo (trofei, bilancio, giovani, tecnica, visibilità) e un obiettivo extra a stagione. I tifosi crescono con i risultati e pagano in merchandising. Dopo un’annata disastrosa scatta il <b>piano di rilancio</b>.</p></div>
     </div>
     <div class="ht-note">${icon('bulb')}<div><b>Il mondo non ti aspetta:</b> le squadre rivali salgono e scendono, cambiano direttore tecnico, team principal e a volte proprietà e nome. Nel <b>Paddock → Commissione</b> trovi tendenze, voci di mercato e cronache.</div></div>` },
+  { id: 'strategia', icon: 'compass', name: 'Strategia, deleghe e storie', render: () => `
+    <p class="ht-lead">Quando la squadra cresce non puoi seguire tutto di persona. Pianifica in grande, delega il resto e lascia che la stagione racconti le sue storie.</p>
+    <div class="ht-cards two">
+      <div class="ht-card"><span class="ht-ic">${icon('compass')}</span><b>Sala strategica</b><p>Nel <b>Centro Tecnico → Sala strategica</b> trovi le scelte aperte della stagione in un posto solo, con l’effetto di ciascuna. Le più importanti compaiono anche in <b>Da fare</b> e come badge nel menu.</p></div>
+      <div class="ht-card"><span class="ht-ic">${icon('users')}</span><b>Deleghe</b><p>Affida allo staff le questioni di routine (kit di sviluppo, piccoli imprevisti, sviluppo automatico): decidono loro secondo il tuo stile, tu tieni le scelte che contano. Puoi riprendere il controllo quando vuoi.</p></div>
+      <div class="ht-card"><span class="ht-ic">${icon('book')}</span><b>Storie</b><p>Rivalità, crisi e occasioni si sviluppano su più round: una storia annuncia quando tornerà a bussare e le tue risposte ne cambiano il finale.</p></div>
+      <div class="ht-card"><span class="ht-ic">${icon('lock')}</span><b>Ironman</b><p>Scelto all’inizio della carriera: un solo salvataggio, scritto a ogni decisione, senza copie né ritorni a un backup. Ogni errore resta. Il badge <b>Ironman</b> lo ricorda nel menu.</p></div>
+    </div>
+    <div class="ht-note">${icon('bulb')}<div><b>Difficoltà Leggenda:</b> avversari spietati, premi ridotti e obiettivi altissimi. Per chi conosce già il gioco.</div></div>` },
   { id: 'comandi', icon: 'keyboard', name: 'Comandi e accessibilità', render: () => `
     <div class="ht-cards two">
       <div class="ht-card"><span class="ht-ic">${icon('keyboard')}</span><b>Tastiera</b><p>${kb('1')}…${kb('0')} sezioni della gestione · ${kb('Invio')} weekend di gara · ${kb('Ctrl S')} salvataggio rapido · ${kb('Esc')} indietro · ${kb('Ctrl K')} vai a qualsiasi schermata · ${kb('Backspace')} schermata precedente · ${kb('F1')} questa guida · ${kb('?')} tutti i comandi. Le frecce spostano la selezione tra pulsanti e schede.</p></div>

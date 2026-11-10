@@ -152,3 +152,16 @@
 /* confetti from celebrate(): none with reduced motion */
 .reduce-motion canvas.confetti { display: none; }
 @media (prefers-reduced-motion: reduce) { canvas.confetti { display: none; } }
+
+/* ---- new game: 4 difficulties + Ironman; save tags ---- */
+.ng-diff-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+@media (min-width: 1800px) { .ng-diff-grid { grid-template-columns: repeat(4, 1fr); } }
+.ng-iron { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+.ng-iron .opt-sw { flex: none; width: 52px; min-width: 0; padding: 4px 6px; }
+.ng-iron b { font-family: var(--display); font-size: 17px; text-transform: uppercase; letter-spacing: .03em; }
+.save-tag { margin-left: 6px; display: inline-flex; align-items: center; gap: 4px; }
+.save-tag .ico { width: 12px; height: 12px; }
+.save-tag.iron { color: var(--gold); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 50%, transparent); }
+.save-tag.diff-legend, .save-tag.diff-hard { color: var(--bad); }
+.mc-tags { display: flex; gap: 6px; margin-top: 8px; }
+.mc-tags .save-tag { margin-left: 0; }

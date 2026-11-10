@@ -20,6 +20,7 @@ import './paddock.js';
 import { ensureDynasty, statusInfo, maybeDynDecision, dynDecisionView, resolveDynDecision, STATUS, MANDATES, pressIssues, academyDrivers, academySlots } from '../engine/dynasty.js';
 import { pressArt, portraitSVG, statusEmblem, teamCol, boardTable } from './career-ui.js';
 import { celebrate } from './results.js';
+import { strategyBadge } from '../engine/career5.js';
 
 export function nextEventInfo(st) {
   const ev = st.calendar[st.round];
@@ -65,6 +66,11 @@ export function computeTodo(st) {
     }
     for (const d of myDrivers) { if (d.rivalOffer) todo.unshift(['bad', `${d.name} ha un’offerta da ${st.teams[d.rivalOffer.teamId]?.name}: rinnova o lo perderai`, 'drivers']); else if (d.nextTeam && d.nextTeam !== t.id) todo.push(['warn', `${d.name} partirà a fine anno: trova un sostituto`, 'market']); }
 
+  // Sala strategica (Centro Tecnico): open choices and an active storyline
+  const sb = strategyBadge(st);
+  if (sb?.count) for (const it of sb.items) todo.push([sb.warn ? 'warn' : 'info', `Sala strategica: ${esc(it.text)}`, it.screen === 'car' && it.params?.tab ? `car:${it.params.tab}` : it.screen || 'car:plan']);
+  if (sb?.count > sb?.items.length) todo.push(['info', `Sala strategica: altre ${sb.count - sb.items.length} scelte aperte`, 'car:plan']);
+  if (sb?.story) todo.push(['info', `Storia in corso: ${esc(sb.story.name)}${sb.story.inRounds != null ? ` (tra ${sb.story.inRounds} round)` : ''}`, 'car:plan']);
   const rank = { bad: 0, warn: 1, good: 2, info: 3 };
   return todo.map((x, i) => [x, i]).sort((a, b) => rank[a[0][0]] - rank[b[0][0]] || a[1] - b[1]).map((x) => x[0]);
 }

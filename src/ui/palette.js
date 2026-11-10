@@ -13,9 +13,10 @@ function entries(App) {
   // career screens (with the sections people look for by name)
   add('Panoramica', 'hub home sede da fare inbox decisioni', 'home', go('hub'), 'Sede', true);
   add('Posta', 'messaggi mail email', 'mail', go('inbox'), 'Sede', true);
+  add('Centro Tecnico · Sala strategica', 'strategia piano scelte deleghe storie plan', 'compass', go('car', { tab: 'plan' }), 'Squadra', true);
   add('Centro Tecnico · Sviluppo R&D', 'auto vettura progetti sviluppo rd car', 'car', go('car', { tab: 'dev' }), 'Squadra', true);
-  add('Centro Tecnico · Regolamento & PU', 'regolamento regole power unit motore fornitore', 'rules', go('car', { tab: 'regs' }), 'Squadra', true);
-  add('Centro Tecnico · Progetto & Livrea', 'livrea colori concetto design', 'palette', go('car', { tab: 'design' }), 'Squadra', true);
+  add('Centro Tecnico · Regole & PU', 'regolamento regole power unit motore fornitore', 'rules', go('car', { tab: 'regs' }), 'Squadra', true);
+  add('Centro Tecnico · Progetto e livrea', 'livrea colori concetto design', 'palette', go('car', { tab: 'design' }), 'Squadra', true);
   add('Centro Tecnico · Confronto', 'confronto rivali prestazioni', 'chart', go('car', { tab: 'compare' }), 'Squadra', true);
   add('Piloti & Accademia', 'piloti contratti morale accademia giovani drivers', 'users', go('drivers'), 'Squadra', true);
   add('Mercato piloti', 'mercato ingaggi svincolati trasferimenti market', 'market', go('market'), 'Squadra', true);

@@ -10,6 +10,7 @@ import { setState, saveGame, listSaves } from '../engine/state.js';
 import { addMail } from '../engine/season.js';
 import { sfx } from '../ui/audio.js';
 import { ensureDynasty, setMandate, MANDATES } from '../engine/dynasty.js';
+import { setIronman } from '../engine/career5.js';
 
 const PALETTE = ['#e10600', '#ff8000', '#ffd400', '#22d37a', '#00594f', '#00d2be', '#00c2ff', '#005aff', '#1b2a6b', '#9b30ff', '#ff4fa3', '#ffffff', '#c0c0c0', '#1a1a1a', '#6b3e1e', '#c9a227'];
 const PATTERNS = ['Classica', 'Banda', 'Bicolore', 'Frecce', 'Sfumata', 'Retrò'];
@@ -60,6 +61,7 @@ registerScreen({
     'c-pattern'(el) { W.custom.pattern = +el.dataset.p; App.refresh(); },
     'c-engine'(el) { W.custom.engine = el.dataset.e; App.refresh(); },
     'opt'(el) { W[el.dataset.k] = el.dataset.v; App.refresh(); },
+    'ng-iron'(el) { W.ironman = !W.ironman; App.refresh(); requestAnimationFrame(() => document.querySelector('[data-a="ng-iron"]')?.focus({ preventScroll: true })); },
     start() {
       const name = (document.getElementById('pname')?.value || 'Giocatore').trim() || 'Giocatore';
       W.name = name;
@@ -69,7 +71,9 @@ registerScreen({
       const t = st.teams[st.playerTeam];
       addMail(st, { from: 'Consiglio di Amministrazione', icon: 'board', type: 'info', subject: `Benvenuto in ${t.name}!`, body: `Caro ${name},\n\nil consiglio ti dà il benvenuto come nuovo Team Principal. Il nostro obiettivo per la stagione ${st.season} è chiudere almeno ${st.board.target}° nel campionato costruttori.\n\nIl mandato che ci hai presentato è «${MANDATES[W.mandate].name}». Ecco il piano che ti chiediamo di rispettare:\n${st.dyn.plan.steps.map((x) => `• ${x.season}: ${x.text}`).join('\n')}\n\nPrima del primo evento:\n• Visita il Centro Tecnico per scegliere il concetto della vettura e la livrea\n• Firma gli sponsor nella sezione Sponsor & Finanze\n• Avvia i primi progetti di sviluppo\n\nBuona fortuna!` });
       addMail(st, { from: 'Area Commerciale', icon: 'money', type: 'info', subject: 'Sponsor in attesa', body: 'Abbiamo diverse proposte di sponsorizzazione sul tavolo. Ogni sponsor paga a gara più un bonus legato agli obiettivi. Hai 3 spazi disponibili sulla livrea.' });
-      setState(st); saveGame(W.slot);
+      setState(st);
+      if (W.ironman) setIronman(st);
+      saveGame(W.slot);
       W.step = 1; W._slotInit = false;
       sfx.win();
       App.go('hub');
@@ -140,7 +144,8 @@ function step3() {
     <div class="panel"><div class="panel-head"><h3>Il tuo profilo</h3></div>
       <label class="lbl">Nome del Team Principal</label><input type="text" id="pname" value="${esc(W.name)}" maxlength="24" style="width:100%;margin-top:8px;font-size:24px;font-family:var(--display);font-weight:700;text-transform:uppercase;letter-spacing:.03em">
       <div class="panel-head" style="margin-top:28px"><h3>Difficoltà</h3></div>
-      <div class="grid3">${Object.entries(DIFFICULTY).map(([k, d]) => opt('diff', k, d.name, d.desc)).join('')}</div>
+      <div class="ng-diff-grid">${Object.entries(DIFFICULTY).map(([k, d]) => opt('diff', k, d.name, d.desc)).join('')}</div>
+      <div class="card click ng-iron ${W.ironman ? 'sel' : ''}" data-a="ng-iron" role="switch" aria-checked="${!!W.ironman}"><span class="opt-sw ${W.ironman ? 'on' : ''}" aria-hidden="true"><i></i></span><div><b>Ironman</b><div class="small muted">Un solo salvataggio per carriera, scritto a ogni decisione: niente ricaricamenti per cancellare un errore.</div></div></div>
       <div class="panel-head" style="margin-top:28px"><h3>Il tuo mandato</h3><span class="small muted">Cosa prometti al consiglio</span></div>
       <div class="grid3">${Object.entries(MANDATES).map(([k, m]) => opt('mandate', k, m.name, m.desc)).join('')}</div>
       <div class="panel-head" style="margin-top:28px"><h3>Slot di salvataggio</h3></div>
