@@ -343,7 +343,7 @@ export class CircuitSim {
         auto: !e.isPlayer, smart: e.isPlayer ? 0.9 : clamp(smart + rand(-0.12, 0.08), 0.3, 1), aiRainReact: rand(0, 0.15), gapAhead: 9, drs: false, dirty: false,
         stintLap: 0, plan: null, planIdx: 0, ers: 100, ersMode: 'balanced',
         fuelSave: false, crew: 'normal', planAuto: true, endPlan: null, tankMax: this.endurance ? this.stintLaps * effEff : 1,
-        eng: 'std', grain: 0, flat: 0, hot: 0, dmgFloor: 0, launch: 'normal', so: defaultOrders(), driveLaps: {}, conf: 0, press: 0,
+        eng: 'std', grain: 0, flat: 0, hot: 0, dmgFloor: 0, launch: 'normal', so: defaultOrders(), driveLaps: {}, conf: 0, press: 0, pstat: { start: 0, made: 0, lost: 0, pit: 0, inc: 0, sc: 0 },
         ledger: { pit: 0, deg: 0, dirty: 0, drs: 0, damage: 0, temp: 0, lift: 0, tyre: 0, mode: 0, ers: 0, eng: 0, err: 0, traffic: 0, pen: 0, stops: 0 },
       };
       if (!this.endurance) car.fuel = car.fuelMax = e.isPlayer ? 1.01 : 1.004 + rand(0, 0.012);
@@ -1268,6 +1268,7 @@ export class CircuitSim {
     if (req.garage) this.log(`🔧 ${this.driver(c).name} entra in garage: riparazione completa.`, 'pit', c.key, c.isPlayer);
     c.inPit = loss + stat;
     c.pitStops++;
+    c._pitPos0 = c.pos; c._pitLap = c.lap;
     if (c.ledger) { c.ledger.pit += loss + stat; c.ledger.stops++; }
     if (req.compound) { c.flat = 0; c.grain = 0; c.hot = 0; c._grainTold = false; }
     // a stop answers any pending 'box?' radio call from this driver
@@ -1534,7 +1535,7 @@ export class CircuitSim {
       // the passing car keeps its own pace: the passed car drops back instead (no teleport forward)
       a.dist = Math.min(a.dist, b.dist) - 0.0012; moved.add(a); moved.add(b);
       [order[i - 1], order[i]] = [b, a];
-      gains.push([b, a, i]);
+      gains.push([b, a, i]); if (start) { b.pstat.start++; a.pstat.start--; } else { b.pstat.sc++; a.pstat.sc--; }
       if (b.restart === 'attack' && chance(0.06)) { a.damage += rand(0.2, 0.6); this.log(`⚠ Contatto alla ripartenza tra ${db.name} e ${da.name}!`, 'warn', b.key, a.isPlayer || b.isPlayer); this.investigate(b, a, false); }
     }
     for (const [b, a, i] of gains) if (i <= 8 || a.isPlayer || b.isPlayer) { this.log(`⇄ ${start ? 'Partenza' : 'Ripartenza'}: ${this.driver(b).name} ${start ? 'scatta meglio di' : 'infila'} ${this.driver(a).name} per la P${i}!`, 'overtake', b.key, a.isPlayer || b.isPlayer); this.onOvertake?.(b, a); }
@@ -1638,6 +1639,14 @@ export class CircuitSim {
   }
 
   // team-mates fighting on track
+  // where the positions were won and lost (post-race report): start, on-track passes, pit cycles, restarts, the rest
+  positionStory(c) {
+    const P = c.pstat || {}; const end = c.status === 'dnf' ? null : c.pos;
+    const known = (P.start || 0) + (P.made || 0) - (P.lost || 0) + (P.pit || 0) + (P.sc || 0);
+    const total = end == null ? null : c.grid - end;
+    const dec = this.decisions.filter((d) => d.keys?.includes(c.key) && d.out && d.out.pos != null && d.pos0 != null && d.choice).map((d) => ({ lap: d.lap, title: d.title, choice: d.choice, by: d.by, delta: d.pos0 - d.out.pos })).filter((d) => d.delta !== 0).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 3);
+    return { grid: c.grid, end, total, start: P.start || 0, made: P.made || 0, lost: P.lost || 0, pit: P.pit || 0, sc: P.sc || 0, other: total == null ? null : total - known, dec };
+  }
   // driver state: confidence (-1..1) after passes and mistakes, pressure (laps with a car within 1s behind), fatigue (endurance stints)
   shake(c, v) { if (c) c.conf = clamp((c.conf || 0) + v, -1, 1); }
   nerves(c) {
@@ -1763,6 +1772,7 @@ export class CircuitSim {
         if (c.hot >= 3) { c.hot = 0; c.age += this.life(c) * 0.035; c.blisters = (c.blisters || 0) + 1; if (c.isPlayer) this.log(`📻 Ingegnere a ${first}: «Blistering: le gomme sono surriscaldate${c.dirty ? ' in aria sporca' : ''}, stiamo bruciando vita utile. Gestisci o esci dalla scia.»`, 'radio', c.key, true); }
       } else c.hot = 0;
     }
+    if (c._pitPos0 != null && c.lap >= c._pitLap + 2) { c.pstat.pit += c._pitPos0 - c.pos; c._pitPos0 = null; }
     // confidence drifts back to neutral, faster when the driver can breathe (Gestione); pressure builds with a car on the gearbox
     { const bh = this.cars.find((x) => x.status === 'running' && x.pos === c.pos + 1);
       const under = bh && bh.gapAhead < 1 && !this.sc && !this.vsc;
@@ -1980,14 +1990,14 @@ export class CircuitSim {
             [order[i - 1], order[i]] = [b, a];
             const how = pick(['bloccaggio in staccata', 'va lungo in curva', 'sbaglia la cambiata in uscita', 'finisce sul cordolo e perde trazione']);
             a.ledger.err += loss; if (how === 'bloccaggio in staccata') this.flatSpot(a);
-            this.shake(a, -0.3); this.shake(b, 0.1);
+            this.shake(a, -0.3); this.shake(b, 0.1); b.pstat.made++; a.pstat.lost++;
             if (a.isPlayer || b.isPlayer || i <= 8) { this.log(`⚠ ${da.name} sotto pressione: ${how}! ${db.name} passa per la P${i}.`, 'overtake', b.key, a.isPlayer || b.isPlayer); this.comment(`Errore di ${da.name}: ${how}, e ${db.name} non perdona!`, b.key, a.isPlayer || b.isPlayer); this.pushTV({ kind: 'pass', key: b.key, other: a.key, pos: i, err: true }); this.onOvertake?.(b, a); }
             if (a.isPlayer && chance(0.5)) this.log(`📻 ${da.name.split(' ')[0]}: «${pick(['Ho bloccato l’anteriore, scusate!', 'Non avevo più grip dietro...', 'Mi sono innervosito, errore mio.'])}»`, 'radio', a.key, true);
             continue;
           }
           const p = clamp(duel.pBonus + 0.05 + this.track.ovt * 0.42 + (paceDiff / this.ls) * 0.3 + (db.attrs.race - da.attrs.race) / 110 + (b.drs ? (b.train ? 0.03 : 0.1) : 0) + (b.mode === 'push' ? 0.06 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.16 : 0) - (a.ersMode === 'deploy' ? 0.1 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.12 : 0) + (b.attackUntil > this.time ? 0.12 : 0) - (a.defendUntil > this.time ? 0.18 : 0) + (a.yieldUntil > this.time ? 0.6 : 0) + (b.conf || 0) * 0.04 - (a.conf || 0) * 0.03, 0.02, 0.95);
           if (chance(p)) {
-            this.shake(b, 0.12); this.shake(a, -0.07);
+            this.shake(b, 0.12); this.shake(a, -0.07); b.pstat.made++; a.pstat.lost++;
             // lap times stay realistic: the attacker never jumps forward, the defender loses the time
             a.dist = Math.min(a.dist, b.dist) - 0.0012;
             [order[i - 1], order[i]] = [b, a];
@@ -2086,6 +2096,6 @@ export class CircuitSim {
       const gap = this.gapToLeader(c, leader);
       return { key: c.key, teamId: c.teamId, driverIds: c.driverIds, pos, status: c.status === 'dnf' ? 'dnf' : 'fin', reason: c.reason, pts, gap, bestLap: c.bestLap, pitStops: c.pitStops, grid: c.grid, laps: c.status === 'finished' ? c.finishLap : Math.floor(Math.max(0, c.dist)), tyres: [...c.compoundsUsed] };
     });
-    return { classification: out, fastest: this.fastest, scCount: this.scCount, penalties: this.penalties.slice(), compFails: { ...this.compFails }, compDamage: { ...this.compDamage } };
+    return { classification: out, fastest: this.fastest, scCount: this.scCount, penalties: this.penalties.slice(), compFails: { ...this.compFails }, compDamage: { ...this.compDamage }, story: Object.fromEntries(this.cars.filter((c) => c.isPlayer).map((c) => [c.key, this.positionStory(c)])) };
   }
 }

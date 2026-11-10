@@ -188,6 +188,12 @@ function ledgerHTML(sim, cls) {
       const gap = typeof g === 'number' && typeof gr === 'number' ? Math.abs(g - gr) : null;
       cmp = `<div class="an-led-cmp">Rispetto a <b>${esc(sim.driver(r).name)}</b> (P${r.pos}${gap != null ? `, ${i > 0 ? 'davanti' : 'dietro'} di ${gap.toFixed(1)}s` : ''}): ${diffs.length ? diffs.map((x) => `<span class="${x.v > 0 ? 'bad' : 'good'}">${x.v > 0 ? 'hai perso' : 'hai guadagnato'} ${Math.abs(x.v).toFixed(1)}s in ${x.n.toLowerCase()}</span>`).join(' · ') : 'gara molto simile: la differenza l’hanno fatta passo puro e posizione in pista'}.</div>`;
     } else if (c.status === 'dnf') cmp = `<div class="an-led-cmp bad">Ritirato: ${esc(c.reason || '')}</div>`;
+    { const ps = sim.positionStory?.(c);
+      if (ps) { const sg = (v) => `<b class="${v > 0 ? 'good' : v < 0 ? 'bad' : 'muted'}">${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v)}</b>`;
+        const parts = [`Partenza ${sg(ps.start)}`, `Sorpassi ${sg(ps.made)} / ${sg(-ps.lost)}`, `Soste ${sg(ps.pit)}`];
+        if (ps.sc) parts.push(`Ripartenze ${sg(ps.sc)}`);
+        if (ps.other) parts.push(`<span data-tip="Soste e ritiri degli altri, errori, penalità">Altro ${sg(ps.other)}</span>`);
+        cmp += `<div class="an-led-cmp"><span class="tiny upper muted">Posizioni</span> P${ps.grid} → ${ps.end ? 'P' + ps.end : 'RIT'}${ps.total != null ? ` (${sg(ps.total)})` : ''}: ${parts.join(' · ')}${ps.dec.length ? `<div class="tiny mt8">Decisioni che hanno pesato: ${ps.dec.map((x) => `G${x.lap} ${esc(x.title.replace(/^[^\wÀ-ÿ]+/, ''))} → «${esc(x.choice)}» ${sg(x.delta)}`).join(' · ')}</div>` : ''}</div>`; } }
     return `<div class="an-led-card"><div class="row between"><b>${esc(d.name)}</b><span class="muted small">${c.status === 'dnf' ? 'RIT' : 'P' + c.pos} · partito P${c.grid}</span></div><div class="mt8">${rows || '<span class="muted small">Ancora nessuna voce significativa.</span>'}</div>${cmp}</div>`;
   }).join('')}</div>`;
 }
