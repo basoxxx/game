@@ -125,3 +125,4 @@
   .md-hub, .md-setup, .md-daily, .md-debrief { grid-template-columns: 1fr; }
   .md-cer-champ { font-size: 48px; }
 }
+.md-screen .empty .btn .ico { width: 17px; height: 17px; color: inherit; }

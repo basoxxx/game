@@ -50,7 +50,7 @@ function applyCircuitStart(sim, s) {
     }
     if (s.myWear != null) { c.wear = clamp(s.myWear, 0, 0.95); c.age = Math.round(c.wear * 30); }
     if (s.myDamage) { c.damage = (c.damage || 0) + s.myDamage; }
-    if (s.myFuelLow && sim.endurance) c.fuel = Math.max(1, c.fuel * 0.6);
+    if (s.myFuelLow && sim.endurance) c.fuel = Math.max(1, c.fuel * 0.75);
     c.lapTarget = sim.computeLap(c);
   }
   if (s.rivalsWear != null) for (const c of sim.cars) if (!c.isPlayer) { c.wear = clamp(s.rivalsWear, 0, 0.9); c.lapTarget = sim.computeLap(c); }
