@@ -18,6 +18,16 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 5.0
+- **Circuiti originali**: tutti i tracciati sono ora disegni originali ispirati al carattere delle piste (lunghezza, tipo di curve, punti di sorpasso), con nomi di fantasia per circuiti ed eventi.
+- **Nuove modalità**: Campionato personalizzato, 18 Scenari storici d'invenzione con medaglie, Sfida del giorno, Team Principal a tempo, Gara Rapida con preset e rivincita.
+- **Grafica**: luci e colori da ripresa TV, ombre stabili, nebbia in quota, strutture con materiali veri (box con balconi e podio, tribune, guardrail), città a isolati nei circuiti cittadini, colline con boschi e neve, costa naturale; auto con abitacoli, piloti, finiture lucide/satinate/opache e retro rifiniti.
+- **Avvio rapido**: il menu compare subito e il 3D arriva dopo; qualità grafica scelta in automatico al primo avvio.
+- **Weekend di gara**: ingegnere che fa il punto via radio e impara le tue abitudini, previsione gomme con incertezza, rischio guasto, rivali vicini, fiducia e pressione dei piloti, scia in qualifica, caos alla prima curva, bilancio di dove hai guadagnato o perso posizioni; corretti vari bug delle decisioni a gioco velocizzato.
+- **Carriera**: Sala strategica, sei storie a più puntate, deleghe e notiziario settimanale, difficoltà Leggenda, modalità Ironman, premi di fine stagione.
+- **Scontro Totale**: tre livelli di guida, aderenza per superficie sotto ogni ruota, danni che cambiano la guida, corsia box, rivali di coppa, quattro nuove modalità, due nuove arene, Parco giochi, Coppa Caos.
+- **Interfaccia**: barra laterale a gruppi con badge, pannello "Da fare", ricerca rapida Ctrl+K, guida aggiornata, protezione dei salvataggi con backup, dimensione del testo regolabile.
+
 ## Novità della versione 4.0.1
 - Rally: il terreno ora segue la strada anche nelle prove lunghe (prima strada e auto potevano finire sotto il terreno).
 - Telecamera dei box che segue l'auto anche con ingressi box lunghi, griglia di partenza disegnata sotto le auto, cielo coperto più atmosferico, rocce e chiazze d'asfalto più leggere.
