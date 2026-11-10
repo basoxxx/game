@@ -15,6 +15,7 @@ import { getTrack, driverOverall, avgPart, salaryFor } from './world.js';
 import { press, principal, adjustRel, statusIdx, invLevel, TP_PERSONAS, relLabel } from './dynasty.js';
 import { heatOf, addHeat } from './rivalry.js';
 import { reserveFor } from './stewards.js';
+import { diffOf, hasFacPerk } from './career5.js';
 
 const hash = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; return h; };
 const scale = (st) => cat(st).budgetScale;
@@ -22,6 +23,7 @@ const last = (n) => String(n || '').split(' ').slice(-1)[0];
 const perfParts = (st) => cat(st).parts.filter((p) => p.id !== 'reliability');
 const bump = (t, id, v) => { if (t.car.parts[id] != null) t.car.parts[id] = clamp(+(t.car.parts[id] + v).toFixed(1), 30, 99.5); };
 const tdOf = (st, t) => st.staff[t.staff?.td]?.rating || 70;
+const corrMin = (st) => (hasFacPerk(st.teams?.[st.playerTeam], 'windtunnel', 5) ? 0.82 : 0.6);
 
 // =====================================================================================
 // DATA
@@ -91,7 +93,7 @@ export function ensureDepth(st) {
   P.v ??= 1;
   if (!P.era) { P.era = { n: 1, start: st.season, next: st.season + 3 + (hash(st.playerName + st.category) % 2), tpl: -1, name: 'Regolamento attuale', policy: 'bal', prep: 0, hist: [] }; planEra(st, P.era); }
   P.era.hist ??= [];
-  P.corr ??= clamp(0.8 + (pt.facilities.windtunnel || 1) * 0.02, 0.6, 0.97);
+  P.corr ??= clamp(0.8 + (pt.facilities.windtunnel || 1) * 0.02, corrMin(st), 0.97);
   P.suspects ??= [];
   P.pol ??= {};
   P.pol.autoRevert ??= true; P.pol.autoVote ??= false; P.pol.autoKit ??= false;
@@ -181,7 +183,7 @@ export function winterCars(st) {
   const teams = Object.values(st.teams);
   const isEra = st.season >= e.next;
   const focus = isEra ? (e.nextFocus || []) : [];
-  const diffK = { easy: 0.8, normal: 1, hard: 1.2 }[st.difficulty] || 1;
+  const diffK = diffOf(st).winter;
   const avgB = teams.reduce((s, t) => s + t.baseBudget, 0) / teams.length;
   const before = Object.fromEntries(teams.map((t) => [t.id, avgPart(t)]));
   // 1) remove concept modifiers, then regression (or era compression)
@@ -193,7 +195,7 @@ export function winterCars(st) {
     for (const t of teams) {
       let v = t.car.parts[p.id];
       const anchor = anchors[t.id];
-      if (!isEra) { const w = t.isPlayer ? 0.15 : 0.28; v = v * (1 - w) + anchor * w + rand(-1.5, 1.5) + luck[t.id]; }
+      if (!isEra) { const w = t.isPlayer ? 0.18 + dominance(st) * 0.04 : 0.28; v = v * (1 - w) + anchor * w + rand(-1.5, 1.5) + luck[t.id]; }
       else if (p.id === 'reliability') v = mean - 3 + (v - mean) * 0.7 + rand(-2, 2);
       else {
         const f = focus.includes(p.id);
@@ -232,6 +234,11 @@ export function winterCars(st) {
       else if (best - v > 7) t.car.parts[p.id] = +(v + (best - v - 7) * 0.12 * diffK).toFixed(1);
     }
   }
+  // 3b) Formula Apex 2 is a spec series: the organiser re-homologates every car close to the field average
+  if (st.category === 'junior') for (const p of C.parts) {
+    const mean = teams.reduce((a, t) => a + t.car.parts[p.id], 0) / teams.length;
+    for (const t of teams) t.car.parts[p.id] = +(mean + (t.car.parts[p.id] - mean) * 0.6).toFixed(1);
+  }
   // 4) the Federation trims performance every winter: keeps the scale stable over long careers (no cars piling up at the ceiling)
   const top3 = teams.map((t) => avgPart(t)).sort((a, b) => b - a).slice(0, 3);
   const over = top3.reduce((a, b) => a + b, 0) / top3.length - (st.category === 'junior' ? 84 : 91);
@@ -244,7 +251,7 @@ export function winterCars(st) {
     e.hist.push({ n: e.n, name: e.name, from: e.start, to: st.season - 1 });
     e.n++; e.start = st.season; e.name = e.nextName; e.tpl = e.nextTpl; e.next = st.season + randInt(3, 5); e.policy = 'bal'; e.prep = 0; e.asked = false; e.told = false;
     planEra(st, e);
-    P.corr = clamp(+(P.corr - 0.1).toFixed(2), 0.6, 0.97);
+    P.corr = clamp(+(P.corr - 0.1).toFixed(2), corrMin(st), 0.97);
     for (const a of Object.values(P.ai)) a.prep = null;
   }
   return out;
@@ -280,7 +287,7 @@ export function leaderDrag(st, team, partId) {
   return clamp(1 - (team.car.parts[partId] - vals[0] - 2) / 10, 0.4, 1);
 }
 export function corrRoll(st) { const c = st.dp?.corr ?? 0.9; return clamp(gauss(c + 0.07, (1 - c) * 0.55), 0.25, 1.12); }
-export function corrCost(st) { return +(3.5 * scale(st)).toFixed(2); }
+export function corrCost(st) { return +(3.5 * scale(st) * (hasFacPerk(playerTeam(st), 'windtunnel', 4) ? 0.7 : 1)).toFixed(2); }
 export function corrCampaign(st) {
   const P = ensureDepth(st); const pt = playerTeam(st);
   if (P.corrRound === `${st.season}:${st.round}`) return { ok: false, msg: 'La campagna di correlazione di questo evento è già stata fatta.' };
@@ -289,7 +296,7 @@ export function corrCampaign(st) {
   if (pt.money < c) return { ok: false, msg: 'Fondi insufficienti.' };
   addFinance(st, 'Produzione: campagna di correlazione galleria-pista', -c);
   const g = +(rand(0.05, 0.1) + invLevel(pt, 'tunnel') * 0.01).toFixed(2);
-  P.corr = clamp(+(P.corr + g).toFixed(2), 0.6, 0.97); P.corrRound = `${st.season}:${st.round}`;
+  P.corr = clamp(+(P.corr + g).toFixed(2), corrMin(st), 0.97); P.corrRound = `${st.season}:${st.round}`;
   return { ok: true, gain: g };
 }
 export function corrLabel(c) { return c >= 0.93 ? 'Eccellente' : c >= 0.86 ? 'Buona' : c >= 0.78 ? 'Incerta' : 'Scarsa'; }
@@ -297,7 +304,7 @@ export function corrLabel(c) { return c >= 0.93 ? 'Eccellente' : c >= 0.86 ? 'Bu
 export function afterProject(st, team, proj, gain, before) {
   if (!team.isPlayer || proj.next) return null;
   const P = ensureDepth(st);
-  if (proj.failed) P.corr = clamp(+(P.corr - 0.03).toFixed(2), 0.6, 0.97); else P.corr = clamp(+(P.corr + 0.008).toFixed(3), 0.6, 0.97);
+  if (proj.failed) P.corr = clamp(+(P.corr - 0.03).toFixed(2), corrMin(st), 0.97); else P.corr = clamp(+(P.corr + 0.008).toFixed(3), corrMin(st), 0.97);
   if (gain < 0) {
     if (P.pol.autoRevert) { team.car.parts[proj.part] = before; proj.reverted = true; return { reverted: true }; }
     P.suspects.push({ id: uid('su'), part: proj.part, loss: gain, exp: proj.exp || 2, season: st.season, round: st.round, state: 'new' });
@@ -317,7 +324,7 @@ export function insistSuspect(st, id) {
   s.state = 'insist';
   return { ok: true, msg: `Teniamo il pacchetto in macchina: ${Math.round(insistChance(st) * 100)}% di farlo funzionare al prossimo evento.` };
 }
-export function insistChance(st) { return clamp(0.2 + (st.dp?.corr ?? 0.85) * 0.4, 0.3, 0.6); }
+export function insistChance(st) { return clamp(0.2 + (st.dp?.corr ?? 0.85) * 0.4 + (hasFacPerk(playerTeam(st), 'simulator', 5) ? 0.1 : 0), 0.3, 0.7); }
 function suspectsRound(st) {
   const P = st.dp; const pt = playerTeam(st);
   for (const s of P.suspects.slice()) {
@@ -326,10 +333,10 @@ function suspectsRound(st) {
     P.suspects = P.suspects.filter((x) => x !== s);
     if (chance(insistChance(st))) {
       const g = +(s.exp * rand(0.5, 0.8)).toFixed(1);
-      bump(pt, s.part, -s.loss + g); P.corr = clamp(+(P.corr + 0.03).toFixed(2), 0.6, 0.97);
+      bump(pt, s.part, -s.loss + g); P.corr = clamp(+(P.corr + 0.03).toFixed(2), corrMin(st), 0.97);
       addMail(st, { from: 'Direttore Tecnico', icon: 'rd', type: 'good', subject: `Capito il pacchetto: ${partName(st, s.part)} +${g}`, body: `Avevi ragione a insistere. I dati raccolti in pista hanno spiegato il problema: ora il pacchetto su ${partName(st, s.part)} funziona (+${g}) e la correlazione galleria-pista è migliorata.` });
     } else {
-      bump(pt, s.part, -s.loss); P.corr = clamp(+(P.corr - 0.02).toFixed(2), 0.6, 0.97);
+      bump(pt, s.part, -s.loss); P.corr = clamp(+(P.corr - 0.02).toFixed(2), corrMin(st), 0.97);
       addMail(st, { from: 'Direttore Tecnico', icon: 'rd', type: 'bad', subject: `Pacchetto bocciato: ${partName(st, s.part)}`, body: `Abbiamo corso un evento in più con il pacchetto difettoso su ${partName(st, s.part)} senza venirne a capo. Torniamo alla vecchia specifica: nessun guadagno, e un weekend perso.` });
     }
   }
@@ -346,7 +353,7 @@ export function kitFit(track) {
   if (o >= 0.68 && s <= 0.5) return 'low';
   return null;
 }
-export function kitCost(st) { return +(2.6 * scale(st)).toFixed(2); }
+export function kitCost(st) { return +(2.6 * scale(st) * (hasFacPerk(playerTeam(st), 'pitcrew', 5) ? 0.7 : 1)).toFixed(2); }
 export function kitTracks(st, k) { return st.calendar.filter((ev) => !ev.done && kitFit(getTrack(st.category, ev.trackId)) === k).map((ev) => getTrack(st.category, ev.trackId)); }
 export function buyKit(st, k) {
   const P = ensureDepth(st); const pt = playerTeam(st);
@@ -508,7 +515,7 @@ export function setReserve(st, id) {
 export function loanTargets(st, d) {
   const C = st.category; const ov = driverOverall(d, C);
   if (!d || d.academy !== st.playerTeam || d.teamId || d.loan) return [];
-  if (st.round > Math.floor(st.calendar.length * 0.4)) return [];
+  if (st.round > Math.floor(st.calendar.length * (hasFacPerk(playerTeam(st), 'academy', 5) ? 0.6 : 0.4))) return [];
   const taken = new Set(Object.values(st.drivers).filter((x) => x.loan).map((x) => x.teamId));
   return Object.values(st.teams).filter((t) => !t.isPlayer && !taken.has(t.id)).map((t) => {
     const ds = t.drivers.map((id) => st.drivers[id]).filter((x) => x && !isInjured(st, x)).sort((a, b) => driverOverall(a, C) - driverOverall(b, C));
@@ -555,7 +562,7 @@ export function fansInfo(st) {
   const perRace = merchPerRace(st);
   return { fans: P.fans, start: P.fans0.v, growth: (P.fans / Math.max(1, P.fans0.v) - 1) * 100, perRace, season: +(perRace * st.calendar.length).toFixed(2), rank: Object.values(st.teams).filter((t) => t.rep > pt.rep).length + 1 };
 }
-function merchPerRace(st) { const P = st.dp; const pt = playerTeam(st); return +(P.fans / 1000 * 0.11 * scale(st) * (1 + invLevel(pt, 'museum') * 0.15) * 20 / Math.max(6, st.calendar.length)).toFixed(3); }
+function merchPerRace(st) { const P = st.dp; const pt = playerTeam(st); return +(P.fans / 1000 * 0.11 * scale(st) * (1 + invLevel(pt, 'museum') * 0.15) * (hasFacPerk(pt, 'hospitality', 4) ? 1.1 : 1) * 20 / Math.max(6, st.calendar.length)).toFixed(3); }
 export function fmtFans(k) { return k >= 1000 ? `${(k / 1000).toFixed(2).replace('.', ',')} mln` : `${Math.round(k)} mila`; }
 function fansRound(st, res) {
   const P = st.dp; const pt = playerTeam(st);
@@ -564,7 +571,7 @@ function fansRound(st, res) {
   const stars = teamDrivers(st, pt).reduce((a, d) => a + (d.stats.titles > 0 ? 0.3 : 0) + (driverOverall(d, st.category) >= 88 ? 0.2 : 0), 0);
   const g = (best === 1 ? 1.6 : best <= 3 ? 0.8 : best <= 10 ? 0.15 : -0.35) + stars * 0.15 + (pt.facilities.hospitality - 3) * 0.05;
   const cap = 600 + pt.rep * pt.rep * 0.55; // a team's reach is bounded by its prestige
-  P.fans = Math.max(80, Math.round(P.fans * (1 + g / 100 * clamp(1.4 - P.fans / cap, 0.15, 1.2))));
+  P.fans = Math.max(80, Math.round(P.fans * (1 + g / 100 * (g > 0 && hasFacPerk(pt, 'hospitality', 5) ? 1.25 : 1) * clamp(1.4 - P.fans / cap, 0.15, 1.2))));
   const m = merchPerRace(st);
   if (m >= 0.005) addFinance(st, 'Merchandising e tifosi', m);
 }
@@ -667,7 +674,7 @@ export function depthMaybeDecision(st) {
       const leader = overallCarRanking(st)[0] === pt.id;
       const prop = leader && chance(0.6) ? (cands.filter((id) => PROPS[id].interest(st, pt) < 0)[0] || pick(cands)) : pick(cands);
       const pd = { kind: 'vote', prop };
-      if (P.pol.autoVote) { const out = runVote(st, pd, PROPS[prop].interest(st, pt) >= 0 ? 0 : 1); addMail(st, { from: 'Delegato in Commissione', icon: 'rules', type: 'info', subject: `Voto in Commissione: ${PROPS[prop].title}`, body: `${PROPS[prop].text}\n\nCome da delega, abbiamo votato secondo l’interesse della squadra, senza fare lobby. Esito: ${out}.` }); continue; }
+      if (P.pol.autoVote || (P.pol.minorVote && Math.abs(PROPS[prop].interest(st, pt)) <= 0.25)) { const out = runVote(st, pd, PROPS[prop].interest(st, pt) >= 0 ? 0 : 1); addMail(st, { from: 'Delegato in Commissione', icon: 'rules', type: 'info', subject: `Voto in Commissione: ${PROPS[prop].title}`, body: `${PROPS[prop].text}\n\nCome da delega, abbiamo votato secondo l’interesse della squadra, senza fare lobby. Esito: ${out}.` }); continue; }
       st.pendingDyn = pd; return;
     }
   }
@@ -724,7 +731,13 @@ export function aiDevFactor(st, team) {
   const all = Object.values(st.teams);
   const best = Math.max(...all.map((t) => avgPart(t)));
   const chase = 1 + clamp((best - avgPart(team) - 2) / 30, 0, 0.12);
-  return (1 + (P.ai[team.id]?.mom || 0) * 0.25) * chase * eraDevMult(st, team);
+  return (1 + (P.ai[team.id]?.mom || 0) * 0.25) * chase * eraDevMult(st, team) * (1 + dominance(st) * 0.12 * diffOf(st).chase);
+}
+// consecutive constructors' titles of the player in this category (the paddock reacts to a dynasty)
+export function dominance(st) {
+  const ys = new Set((st.career?.trophies || []).filter((t) => t.type === 'Costruttori' && t.category === st.category).map((t) => t.season));
+  let n = 0; for (let y = st.season - 1; ys.has(y); y--) n++;
+  return Math.min(3, n);
 }
 export function aiTrend(st, teamId) { const m = st.dp?.ai?.[teamId]?.mom || 0; return { mom: m, label: m >= 0.45 ? 'In forte ascesa' : m >= 0.15 ? 'In crescita' : m > -0.15 ? 'Stabile' : m > -0.45 ? 'In calo' : 'In crisi', cls: m >= 0.15 ? 'good' : m > -0.15 ? '' : m > -0.45 ? 'warn' : 'bad', arrow: m >= 0.45 ? '▲▲' : m >= 0.15 ? '▲' : m > -0.15 ? '■' : m > -0.45 ? '▼' : '▼▼' }; }
 function worldLog(st, text, kind = 'info') { const P = st.dp; P.world.unshift({ s: st.season, text, kind }); P.world.length = Math.min(P.world.length, 30); }
@@ -782,6 +795,17 @@ function worldWinter(st, sum) {
   }
   void sum;
 }
+// rumour sources: each has a track record the player can learn to read
+export const RUMOUR_SOURCES = [
+  { id: 'in', name: 'fonte interna', rel: 'Alta' },
+  { id: 'jr', name: 'giornalista accreditato', rel: 'Media' },
+  { id: 'tb', name: 'tabloid', rel: 'Bassa' },
+];
+export function sourceStats(st) {
+  const P = ensureDepth(st); const out = {};
+  for (const S of RUMOUR_SOURCES) { const l = P.rum.filter((r) => r.src === S.id && r.ok != null); out[S.id] = { ...S, n: l.length, ok: l.filter((r) => r.ok).length, pct: l.length ? Math.round((l.filter((r) => r.ok).length / l.length) * 100) : null }; }
+  return out;
+}
 function rumourRound(st) {
   const P = st.dp; const n = st.calendar.length; const C = st.category;
   if (st.round < Math.floor(n * 0.4) || st.round >= n || !chance(0.75)) return;
@@ -793,10 +817,12 @@ function rumourRound(st) {
   let to = d.nextTeam || d.rivalOffer?.teamId;
   if (!to || chance(0.12)) { const c = Object.values(st.teams).filter((t) => t.id !== d.teamId && !t.isPlayer); to = pick(c)?.id; }
   if (!to || !st.teams[to]) return;
-  P.rum.push({ d: d.id, name: d.name, from: cur.short, to, toName: st.teams[to].name, s: st.season, r: st.round });
+  const isReal = to === (d.nextTeam || d.rivalOffer?.teamId);
+  const src = RUMOUR_SOURCES[isReal ? (chance(0.7) ? 0 : chance(0.5) ? 1 : 2) : (chance(0.65) ? 2 : chance(0.6) ? 1 : 0)];
+  P.rum.push({ d: d.id, name: d.name, from: cur.short, to, toName: st.teams[to].name, s: st.season, r: st.round, src: src.id });
   if (P.rum.length > 40) P.rum.splice(0, P.rum.length - 40);
   const T = [`Radio paddock: ${d.name} verso ${st.teams[to].name}?`, `Voci insistenti: ${st.teams[to].name} corteggia ${last(d.name)}`, `${last(d.name)} visto nel motorhome ${st.teams[to].short}: indizio o depistaggio?`, `Il manager di ${last(d.name)} a cena con i vertici ${st.teams[to].short}`];
-  press(st, { kind: 'brief', tone: cur.isPlayer ? 'bad' : 'info', h: pick(T), t: '', tag: 'Voci di mercato' });
+  press(st, { kind: 'brief', tone: cur.isPlayer ? 'bad' : 'info', h: `${pick(T)} (${src.name})`, t: '', tag: 'Voci di mercato' });
 }
 function rumoursVerify(st) {
   const P = st.dp;
@@ -917,11 +943,12 @@ export function depthEndSeason(st, sum) {
   // idle cash does not stay in the team forever: the owners take a dividend on what exceeds a full season budget
   const excess = pt.money - pt.baseBudget;
   if (excess > pt.baseBudget * 0.05) {
-    const div = +(excess * 0.4).toFixed(1);
+    // progressive: 40% of the first half-budget of excess, 65% of what lies beyond
+    const div = +(Math.min(excess, pt.baseBudget * 0.5) * 0.4 + Math.max(0, excess - pt.baseBudget * 0.5) * 0.65).toFixed(1);
     addFinance(st, 'Dividendo alla proprietà', -div);
     st.board.confidence = clamp(st.board.confidence + 3, 0, 100);
     sum.dividend = div;
-    addMail(st, { from: 'La Proprietà', icon: 'money', type: 'info', subject: `Dividendo di fine stagione: ${fmtM(div)}`, body: `La cassa supera il budget di un’intera stagione (${fmtM(pt.baseBudget)}). La proprietà preleva il 40% dell’eccedenza come dividendo: ${fmtM(div)}. In cambio, fiducia +3.\n\nIl denaro fermo non fa andare più forte la macchina: investilo in strutture, sviluppo, piloti o negli investimenti fuori dal budget cap prima della fine dell’anno.` });
+    addMail(st, { from: 'La Proprietà', icon: 'money', type: 'info', subject: `Dividendo di fine stagione: ${fmtM(div)}`, body: `La cassa supera il budget di un’intera stagione (${fmtM(pt.baseBudget)}). La proprietà preleva un dividendo progressivo (40% dell’eccedenza, 65% oltre metà budget): ${fmtM(div)}. In cambio, fiducia +3.\n\nIl denaro fermo non fa andare più forte la macchina: investilo in strutture, sviluppo, piloti o negli investimenti fuori dal budget cap prima della fine dell’anno.` });
   }
   sum.owner = o;
   sum.fans = fansInfo(st);
@@ -961,7 +988,7 @@ export function depthNewSeason(st, winter) {
     const cash = +(pt.baseBudget * 0.1).toFixed(1);
     addFinance(st, 'Piano di rilancio della proprietà', cash);
     st.board.target = clamp(st.board.target + 1, 1, Object.keys(st.teams).length);
-    P.corr = clamp(+(P.corr + 0.05).toFixed(2), 0.6, 0.97);
+    P.corr = clamp(+(P.corr + 0.05).toFixed(2), corrMin(st), 0.97);
     addMail(st, { from: 'La Proprietà', icon: 'board', type: 'good', subject: 'Piano di rilancio approvato', body: `La scorsa stagione è andata molto sotto le attese (${L.pos}° invece del ${L.target}°). La proprietà non molla: ${fmtM(cash)} di liquidità straordinaria, obiettivo abbassato di una posizione e una campagna di correlazione pagata dalla casa. In più, per regolamento, chi chiude indietro ha più ore di galleria del vento. È l’anno della rimonta.` });
   }
   void C;

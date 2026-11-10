@@ -1,5 +1,6 @@
 // Narrative: press conferences and paddock events with choices
 import { pick, chance, clamp, rand, shuffle } from './rng.js';
+import { noteModal, commit, modalLoad } from './career5.js';
 import { addFinance, addMail, addNews, playerTeam, teamDrivers, fmtM, cat } from './season.js';
 import { gainXP } from './progress.js';
 import { rivalryList, addHeat, heatLabel } from './rivalry.js';
@@ -125,6 +126,7 @@ EVENTS.push(
 
 export function maybePaddockEvent(st) {
   if (st.quick || st.pendingEvent || st.round >= st.calendar.length) return;
+  if (modalLoad(st) >= 1 && chance(0.6)) return; // a quiet week after a busy one
   const t = playerTeam(st); const C = cat(st);
   // rivalry drama has priority when tension is high
   if (chance(0.55)) for (const f of shuffle(EVENTS.slice(RIVAL0))) {
@@ -146,4 +148,5 @@ export function resolvePaddockEvent(st, choice) {
   ev?.a[choice]?.fx();
   addMail(st, { from: pe.from, icon: 'info', type: 'info', subject: pe.title, body: `${pe.text}\n\nDecisione: ${pe.a[choice].t} (${pe.a[choice].note}).` });
   st.pendingEvent = null;
+  noteModal(st); commit(st);
 }

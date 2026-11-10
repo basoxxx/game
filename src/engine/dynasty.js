@@ -14,6 +14,7 @@ import { getTrack, generateRookie, salaryFor, driverOverall, avgPart } from './w
 import { gainXP } from './progress.js';
 import { physicsLap } from './trackphys.js';
 import { ensureDepth, depthMaybeDecision, depthDecisionView, depthResolveDecision } from './depth.js';
+import { storyMaybeDecision, storyView, storyResolve, autoHandle, noteModal, modalLoad, commit } from './career5.js';
 
 const hash = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; return h; };
 const scale = (st) => cat(st).budgetScale;
@@ -357,7 +358,7 @@ export function teamTrait(st, team, role, id) { const s = st.staff?.[team.staff?
 // =====================================================================================
 // ACADEMY
 // =====================================================================================
-export function academySlots(team) { return 1 + Math.floor((team.facilities.academy || 1) / 2) + (team.invest?.juniorActive ? 1 : 0); }
+export function academySlots(team) { return 1 + Math.floor((team.facilities.academy || 1) / 2) + ((team.facilities.academy || 1) >= 4 ? 1 : 0) + (team.invest?.juniorActive ? 1 : 0); }
 export function academyDrivers(st) { return Object.values(st.drivers).filter((d) => d.academy === st.playerTeam && !d.retired); }
 export function prospectFee(st, d) { return +((0.25 + (d.pot - 75) * 0.03) * scale(st) * 3).toFixed(2); }
 export function academyUpkeep(st) { return +(academyDrivers(st).length * 0.08 * scale(st) * 3).toFixed(2); }
@@ -558,11 +559,14 @@ export function maybeDynDecision(st, opts = {}) {
   }
   // regulation era, Commission votes, team-mate feuds (depth.js)
   if (!st.pendingTech && !st.pendingEvent) { depthMaybeDecision(st); if (st.pendingDyn) return; }
+  // storylines: multi-step arcs (career5.js)
+  if (!st.pendingTech && !st.pendingEvent && storyMaybeDecision(st)) return;
   if (st.round === 0 || opts.roll === false) return;
-  // principals
-  if (!chance(st.pendingTech ? 0.08 : st.pendingEvent ? 0.2 : 0.34)) return;
+  // principals (pressure valve: no optional diplomacy right after a busy round)
+  if (modalLoad(st) >= 1) return;
+  if (!chance(st.pendingTech ? 0.06 : st.pendingEvent ? 0.14 : 0.3)) return;
   const pd = principalDecision(st);
-  if (pd) st.pendingDyn = pd;
+  if (pd && !autoHandle(st, pd)) st.pendingDyn = pd;
 }
 
 function nearbyTeams(st) {
@@ -597,6 +601,7 @@ export function dynDecisionView(st) {
   const pd = st.pendingDyn; if (!pd) return null;
   const pt = playerTeam(st);
   if (pd.kind === 'era' || pd.kind === 'vote' || pd.kind === 'feud') return depthDecisionView(st, pd);
+  if (pd.kind === 'story') return storyView(st, pd);
   const t = pd.team ? st.teams[pd.team] : null;
   const p = pd.team ? principal(st, pd.team) : null;
   if (pd.team && (!t || !p || t.isPlayer)) return null;
@@ -645,12 +650,20 @@ export function dynDecisionView(st) {
 
 export function resolveDynDecision(st, i) {
   const pd = st.pendingDyn; if (!pd) return '';
-  if (!dynDecisionView(st)) { st.pendingDyn = null; return ''; }
+  if (!dynDecisionView(st)) { st.pendingDyn = null; if (pd.kind === 'story' && st.dp?.story) st.dp.story.active = null; return ''; }
+  noteModal(st);
+  if (pd.kind === 'story') {
+    const v = dynDecisionView(st);
+    const out = storyResolve(st, pd, i);
+    addMail(st, { from: v?.from || 'Paddock', icon: 'star', type: 'info', subject: v?.title || 'Storia', body: `${v?.text || ''}\n\nDecisione: ${v?.a[i]?.t || ''}. ${out}` });
+    st.pendingDyn = null; commit(st);
+    return out;
+  }
   if (pd.kind === 'era' || pd.kind === 'vote' || pd.kind === 'feud') {
     const view0 = dynDecisionView(st);
     const out0 = depthResolveDecision(st, pd, i);
     addMail(st, { from: view0?.from || 'Paddock', icon: pd.kind === 'feud' ? 'driver' : 'rules', type: 'info', subject: view0?.title || 'Decisione', body: `${view0?.text || ''}\n\nDecisione: ${view0?.a[i]?.t || ''}. ${out0}` });
-    st.pendingDyn = null;
+    st.pendingDyn = null; commit(st);
     return out0;
   }
   const D = st.dyn; const pt = playerTeam(st); const sc = scale(st);
@@ -711,7 +724,7 @@ export function resolveDynDecision(st, i) {
   }
   const view = dynDecisionView(st);
   addMail(st, { from: view?.from || 'Paddock', icon: pd.kind === 'board' ? 'board' : pd.kind === 'investor' || pd.kind === 'tycoon' ? 'money' : 'users', type: 'info', subject: view?.title || 'Decisione', body: `${view?.text || ''}\n\nDecisione: ${view?.a[i]?.t || ''}. ${out}` });
-  st.pendingDyn = null;
+  st.pendingDyn = null; commit(st);
   return out;
 }
 
