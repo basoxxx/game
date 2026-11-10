@@ -261,7 +261,7 @@ export class Race3D {
     // setting (no post-processing) keeps ACES, which needs no grade.
     this._agx = !!this.composer;
     if (!this._agx) this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this._expK = this._agx ? 1.55 : 1; this._gSat = this._agx ? 1.16 : 1; this._gCon = this._agx ? 1.15 : 1.08;
+    this._expK = this._agx ? 1.5 : 1; this._gSat = this._agx ? 1.22 : 1; this._gCon = this._agx ? 1.2 : 1.08;
     this.renderer.toneMappingExposure *= this._expK;
     if (this.composer?.grade) { const gu = this.composer.grade.uniforms; gu.uCon.value = this._gCon; gu.uSat.value = (this.tod?.sat ?? 1.08) * this._gSat; if (this.tod) gu.uWarm.value = this.tod.warm; }
     if (this.composer?.rays && this.tod) this.composer.rays.uniforms.uTint.value.setHex(this.tod.disc);
@@ -600,11 +600,16 @@ export class Race3D {
       // lane lines: fast-lane edge by the pit wall, fast / working lane divider
       this.scene.add(this.laneStrip(-P + 1, P - 1, () => this.pit.fl0 - 0.1, () => this.pit.fl0 + 0.1, 0.04, lineMat));
       this.scene.add(this.laneStrip(-P + 1, P - 1, () => this.pit.fl1 + 0.0, () => this.pit.fl1 + 0.2, 0.04, lineMat));
+      // pit entry / exit lines: solid white from the track edge to the end of the pit wall
+      const pwq = P + 3, edge = W / 2 + 0.25;
+      const blend = (q) => { const t = Math.min(1, Math.max(0, (P + 15 - Math.abs(q)) / 12)); return edge + (this.pit.wall - 0.3 - edge) * t; };
+      this.scene.add(this.laneStrip(-P - 15, -pwq, (q) => blend(q) - 0.12, (q) => blend(q) + 0.12, 0.043, lineMat));
+      this.scene.add(this.laneStrip(pwq, P + 15, (q) => blend(q) - 0.12, (q) => blend(q) + 0.12, 0.043, lineMat));
     }
     this.buildBarriers(street, wallMat);
     // bridge decks and pillars for figure-of-eight crossings
     if (this.geo.bridges) {
-      const deckMat = new THREE.MeshStandardMaterial({ color: 0x8d9095, roughness: 0.8 });
+      const deckMat = triMat('concrete_wall_008', { scale: 0.25, color: 0xb4b7ba, roughness: 1, low: this.low });
       for (const [i0, j] of this.geo.bridges) {
         for (let k = -16; k <= 16; k += 2) {
           const q = (j + k + N) % N; const hq = this.geo.h[q];
