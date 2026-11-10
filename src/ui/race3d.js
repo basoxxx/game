@@ -472,7 +472,7 @@ export class Race3D {
               vec2 sub = floor(f / 24.0); float hs = fract(sin(dot(cell * 3.0 + sub, vec2(12.9898, 78.233))) * 43758.5453);
               vec3 yard = c * (0.7 + 0.1 * step(0.5, fract(f.x / 2.6)) * step(0.2, fract(f.y / 5.2)));
               float carS = step(0.55, fract(sin(dot(floor(f / vec2(2.6, 5.2)) + cell * 7.0, vec2(41.3, 17.9))) * 9631.7)) * step(0.2, fract(f.y / 5.2)) * step(0.15, fract(f.x / 2.6)) * step(fract(f.x / 2.6), 0.85);
-              yard = mix(yard, vec3(0.25, 0.27, 0.3) * (0.4 + 1.2 * fract(hs * 13.0)), carS * step(0.45, hs) * 0.9);
+              yard = mix(yard, vec3(0.1, 0.11, 0.13) * (0.5 + 2.2 * fract(hs * 13.0 + floor(f.x / 2.6) * 0.37)), carS * step(0.62, hs) * 0.75);
               yard = mix(yard, c * vec3(0.45, 0.62, 0.33) * (0.8 + 0.4 * dvn(w * 0.3)), step(0.82, hs));
               vec3 inner = hv > 0.84 ? c * vec3(0.42, 0.62, 0.3) * (0.8 + 0.4 * dfbm(w * 0.15)) : yard;
               c = mix(inner, c * 1.08, pave);                                 // pale paving slabs
@@ -1216,11 +1216,14 @@ export class Race3D {
       let tx = px, tz = pz, rot = Math.random() * 6.283;
       if (this.city) {
         // on the street grid: one tower per block, square to the streets, never in a park
-        const C = this.city, [u, v] = C.toG(px, pz), bi = Math.floor(u), bj = Math.floor(v);
+        const C = this.city, [u, v] = C.toG(px, pz), bi = Math.floor(u), bj = Math.floor(v), cs0 = Math.cos(C.th), sn0 = Math.sin(C.th);
         if (C.park(bi, bj) || items.some((it) => it.bi === bi && it.bj === bj)) continue;
         [tx, tz] = C.fromG(bi + 0.5, bj + 0.5); rot = -C.th;
         if (this.seaMask?.(tx, tz) || !this.clearOfTrack(tx, tz, this.TW / 2 + 30 + wd)) continue;
-        items.push({ x: tx, z: tz, w: Math.min(wd, 58), dp: Math.min(dp, 58), h, y: (this.hillH ? this.hillH(tx, tz) : 0) - 3, rot, t: tints[Math.floor(Math.random() * tints.length)], bi, bj, s: Math.random() < 0.5 ? 2 : 0 });
+        // on a slope the base sits at the lowest corner (buried uphill, never floating downhill)
+        const yb = this.hillH ? Math.min(...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => this.hillH(tx + (a * cs0 - b * sn0) * wd / 2, tz + (a * sn0 + b * cs0) * dp / 2))) : 0;
+        if (yb > 60) continue;
+        items.push({ x: tx, z: tz, w: Math.min(wd, 58), dp: Math.min(dp, 58), h: h + (this.hillH ? this.hillH(tx, tz) - yb : 0), y: yb - 3, rot, t: tints[Math.floor(Math.random() * tints.length)], bi, bj, s: Math.random() < 0.5 ? 2 : 0 });
         k++; continue;
       }
       items.push({ x: tx, z: tz, w: wd, dp, h, y: this.hillH ? this.hillH(px, pz) - 3 : -3, rot, t: tints[Math.floor(Math.random() * tints.length)] });
