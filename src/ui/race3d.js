@@ -1222,7 +1222,7 @@ export class Race3D {
         if (this.seaMask?.(tx, tz) || !this.clearOfTrack(tx, tz, this.TW / 2 + 30 + wd)) continue;
         // on a slope the base sits at the lowest corner (buried uphill, never floating downhill)
         const yb = this.hillH ? Math.min(...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => this.hillH(tx + (a * cs0 - b * sn0) * wd / 2, tz + (a * sn0 + b * cs0) * dp / 2))) : 0;
-        if (yb > 60) continue;
+        if (yb > 12) continue; // the coarse hill mesh would leave towers hanging over the slopes
         items.push({ x: tx, z: tz, w: Math.min(wd, 58), dp: Math.min(dp, 58), h: h + (this.hillH ? this.hillH(tx, tz) - yb : 0), y: yb - 3, rot, t: tints[Math.floor(Math.random() * tints.length)], bi, bj, s: Math.random() < 0.5 ? 2 : 0 });
         k++; continue;
       }
