@@ -8,7 +8,7 @@ import { clamp, chance, pick, rand, uid } from './rng.js';
 import { cat, playerTeam, teamDrivers, addMail, addNews, addFinance, fmtM, standings, partName, overallCarRanking, rdSlots, costCap, capSpent, seatsPerTeam, startProject, rdCost } from './season.js';
 import { getTrack, driverOverall, avgPart, salaryFor } from './world.js';
 import { press, principal, adjustRel, expectedRank, academyDrivers, academySlots } from './dynasty.js';
-import { ensureDepth, eraInfo, tokenInfo, puDeal, supplierList, kitsEnabled, kitTracks, kitCost, buyKit, KITS, aiTrend, loanTargets } from './depth.js';
+import { ensureDepth, eraInfo, tokenInfo, tokenParts, puDeal, supplierList, kitsEnabled, kitTracks, kitCost, buyKit, KITS, aiTrend, loanTargets } from './depth.js';
 import { saveGame } from './state.js';
 import { offerScore } from './market.js';
 
@@ -298,7 +298,7 @@ export function autoDevelop(st) {
   try { prio = strategyRoom(st).dev.prio.concat(cat(st).parts.map((p) => ({ id: p.id, name: p.name }))); } catch { prio = cat(st).parts.map((p) => ({ id: p.id, name: p.name })); }
   const seen = new Set();
   for (const p of prio) {
-    if (free <= 0 || seen.has(p.id)) continue; seen.add(p.id);
+    if (free <= 0 || seen.has(p.id) || tokenParts(st).includes(p.id)) continue; seen.add(p.id); // never burns homologation tokens
     if (pt.money < cost * 4) break;
     if (st.category === 'formula' && capSpent(st) + cost > costCap(st) * 0.97) break;
     const r = startProject(st, p.id, 'base', false, 'safe');
