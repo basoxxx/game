@@ -234,6 +234,9 @@ const SIGS = {
   street: ['stadium', 'parabolic', 'snake'], tight: ['stadium'], twisty: ['carousel', 'stadium', 'snake'],
 };
 const tight = (cid) => CHAR[cid] === 'tight';
+// minimum distance (m) between separate sections; tight street layouts may run closer
+const SEPMIN = { mon: 29, abu: 30 };
+const MORE_TRIES = { mon: 2500, abu: 2500, bra: 2500 };
 // Hand-written briefs for layouts whose reference is too sparse for the automatic redesign to
 // close cleanly: straights (m) and corners [angle°, radius m], first and last are the start halves.
 const CUSTOM = {
@@ -487,10 +490,11 @@ if (isMain) {
     const ThetaT = turns * 2 * Math.PI;
     const startMin = cid === 'mon' ? 105 : 140;
     let best = null; const fails = {};
-    for (let t = 0; t < TRIES * 2; t++) {
-      if (t === TRIES && best) break; // second round (gentler) only when the first found nothing
+    const NT = args.tries ? TRIES : (MORE_TRIES[cid] || TRIES); // hard briefs get a longer search
+    for (let t = 0; t < NT * 2; t++) {
+      if (t === NT && best) break; // second round (gentler) only when the first found nothing
       const rng = rngOf(hash(cid) ^ (t * 2654435761));
-      const tt = t % TRIES; const amp = (tt < TRIES * 0.5 ? 1 : tt < TRIES * 0.75 ? 0.75 : tt < TRIES * 0.9 ? 0.5 : 0.35) * (t >= TRIES ? 0.4 : 1);
+      const tt = t % NT; const amp = (tt < NT * 0.5 ? 1 : tt < NT * 0.75 ? 0.75 : tt < NT * 0.9 ? 0.5 : 0.35) * (t >= NT ? 0.4 : 1);
       const { P, log, sig } = redesign(cid, base, rng, amp);
       const mirror = rng() < 0.5;
       if (mirror) for (const p of P) { if (p.t === 'S') p.ksc = -p.ksc; else p.th = -p.th; }
@@ -517,7 +521,7 @@ if (isMain) {
       { // fast pre-check on the rendered line: crossings and section separation
         const q = quickCheck(xs, ys); const want = cid === 'jpn' ? 1 : 0;
         if (q.crosses !== want) { fails.cross = (fails.cross || 0) + 1; if (args.dump && (globalThis.__dump ??= []).length < 12) globalThis.__dump.push({ q, log, xs: xs.filter((v, i) => i % 10 === 0), ys: ys.filter((v, i) => i % 10 === 0) }); continue; }
-        if (q.minSep < 28) { fails.sep = (fails.sep || 0) + 1; continue; }
+        if (q.minSep < (SEPMIN[cid] || 33) + 1) { fails.sep = (fails.sep || 0) + 1; continue; }
       }
       let pts = samplePts({ xs, ys, ks }).map((p) => [Math.round(p[0]), Math.round(p[1])]);
       // recentre
@@ -538,7 +542,7 @@ if (isMain) {
       if (c.crosses !== want || c.crossAng < 40) bad.push('cross');
       // a bridge must stay well away from the pit lane / grid (+-300 m around the line)
       if (c.crossAt.some(([i, j]) => Math.min(i, g.N - i, j, g.N - j) < 60 + 24)) bad.push('cross');
-      if (c.minSep < 27) bad.push('sep');
+      if (c.minSep < (SEPMIN[cid] || 33)) bad.push('sep');
       if (c.minR < 12) bad.push('radius');
       if (c.startStraight < (cid === 'mon' ? 180 : 250) || c.startAfter < 70 || c.startBefore < 70) bad.push('start');
       if (c.pitClr < Math.min(rc.pitClr, 45)) bad.push('pit');
@@ -549,6 +553,7 @@ if (isMain) {
       const dev = outlineDeviation(rg.x, rg.y, g.x, g.y, 200);
       if (dev.mean < 0.06) { fails.similar = (fails.similar || 0) + 1; delete CIRCUITS[key]; continue; }
       const tc = turnCorr(rg.k, g.k);
+      if (tc > 0.65) { fails.similar = (fails.similar || 0) + 1; delete CIRCUITS[key]; continue; }
       const score = Math.min(dev.mean, 0.14) * 30 + Math.min(dev.max, 0.4) * 2 - Math.max(0, tc - 0.4) * 2 - Math.abs(gr - 1) * 6 - Math.abs(vr - 1) * 4 - Math.abs(st.brakes - rs.brakes) * 0.1 - Math.abs(c.corners - rc.corners) / Math.max(8, rc.corners) * 1 + Math.min(c.minSep, 40) / 200;
       if (!best || score > best.score) { if (best) delete CIRCUITS[best.key]; best = { key, score, t, log, sig, mirror, dev: { mean: dev.mean, max: dev.max }, tc, c, st, pts, len: CIRCUITS[key].len }; }
       else delete CIRCUITS[key];
