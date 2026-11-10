@@ -431,6 +431,22 @@ export class SessionSim {
     for (const c of run) {
       if (c.lap.type !== 'timed' || c.lap.trafficDone) continue;
       if (c.clearNext) { c.clearNext = false; c.lap.trafficDone = true; continue; }
+      // the tow: another car on a flying lap 0.6-2.2s up the road gives a slipstream on the straights
+      if (this.isQuali && !c.lap.towDone && !this.rain) {
+        for (const o of run) {
+          if (o === c || o.lap.type !== 'timed') continue;
+          let g = (o.dist - c.dist); g -= Math.floor(g); const gs = g * this.track.lap;
+          if (gs > 0.6 && gs < 2.2) {
+            c.lap.towDone = true;
+            if (chance(0.5)) {
+              const gain = rand(0.03, 0.12) * this.ls * (this.track.lap > 95 ? 1.3 : 1);
+              c.lap.sec[c.secIdx] = Math.max(1, c.lap.sec[c.secIdx] - gain); c.lap.notes.push('tow');
+              if (c.isPlayer) this.log(`🌀 Scia di ${this.driver(o).name} sul rettilineo: ${this.driver(c).name} guadagna ${gain.toFixed(2)}s.`, 'info', c.key, true);
+            }
+            break;
+          }
+        }
+      }
       for (const o of run) {
         if (o === c || o.lap.type === 'timed') continue;
         let g = (o.dist - c.dist); g -= Math.floor(g); // laps ahead (0..1)

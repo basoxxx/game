@@ -1538,8 +1538,36 @@ export class CircuitSim {
       if (b.restart === 'attack' && chance(0.06)) { a.damage += rand(0.2, 0.6); this.log(`⚠ Contatto alla ripartenza tra ${db.name} e ${da.name}!`, 'warn', b.key, a.isPlayer || b.isPlayer); this.investigate(b, a, false); }
     }
     for (const [b, a, i] of gains) if (i <= 8 || a.isPlayer || b.isPlayer) { this.log(`⇄ ${start ? 'Partenza' : 'Ripartenza'}: ${this.driver(b).name} ${start ? 'scatta meglio di' : 'infila'} ${this.driver(a).name} per la P${i}!`, 'overtake', b.key, a.isPlayer || b.isPlayer); this.onOvertake?.(b, a); }
+    if (start) this.firstLapChaos(order);
     if (gains.length) this.pushTV({ kind: 'restart', title: start ? 'Partenza' : 'Ripartenza', text: `${gains.length} ${gains.length === 1 ? 'posizione guadagnata' : 'posizioni guadagnate'} ${start ? 'allo spegnimento dei semafori' : 'al via lanciato'}` });
     for (const c of this.cars) { c.restart = null; c.lapTarget = this.computeLap(c); }
+  }
+  // turn 1 on the opening lap: the bunched-up midfield, aggressive launches and rain make contact likely
+  firstLapChaos(order) {
+    if (this._chaosDone) return; this._chaosDone = true;
+    const n = order.length; if (n < 6) return;
+    const aggr = order.filter((c) => (c.isPlayer && !c.auto ? c.launch : c._aiLaunch) === 'aggr').length;
+    const p = clamp(0.22 + n * 0.006 + this.rain * 0.3 + aggr * 0.02, 0.15, 0.6) * this.realism.damage;
+    if (!chance(p)) return;
+    // the midfield is where it happens: P4 to P16
+    const i = randInt(Math.min(3, n - 2), Math.min(n - 2, 15));
+    const a = order[i], b = order[i + 1]; if (!a || !b) return;
+    const da = this.driver(a), db = this.driver(b);
+    const r = Math.random();
+    const mine = a.isPlayer || b.isPlayer;
+    if (r < 0.55) {
+      const amt = rand(0.3, 0.9); this.addDamage(a, amt, 0.15);
+      this.log(`💥 Curva 1: contatto tra ${db.name} e ${da.name}, ala danneggiata per ${da.name} (+${amt.toFixed(1)}s/giro).`, 'warn', a.key, mine);
+      if (chance(0.5)) this.investigate(b, a, false);
+    } else if (r < 0.9) {
+      const loss = rand(4, 9); a.dist -= loss / this.track.lap; a.ledger.err += loss;
+      this.log(`↺ Curva 1: ${da.name} va in testacoda dopo un tocco di ${db.name}, perde ${loss.toFixed(0)}s.`, 'warn', a.key, mine);
+    } else {
+      this.retire(a, 'Incidente al primo giro', true);
+      if (!this.sc) this.deploySC();
+    }
+    this.pushTV({ kind: 'issue', key: a.key, title: 'Caos in curva 1', text: da.name, pos: i + 1 });
+    this.comment(`Contatto in curva 1! ${da.name} e ${db.name} si toccano nel gruppo.`, a.key, true);
   }
   restartMoment() {
     const mine = this.mine().filter((c) => this.laps - c.dist > 1.5 && !c.auto);
