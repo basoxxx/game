@@ -1248,7 +1248,7 @@ export class Race3D {
           const side = l % 2 ? 1 : -1;
           const [px, pz] = C.fromG(bi + 0.5 + (along - 0.5) * inner / B, bj + 0.5 + side * (inner - dp) / (2 * B) * (nl > 2 ? 1 : 0));
           const rad = Math.hypot(wd, dp) / 2;
-          if (this.seaMask?.(px, pz) || !this.clearOfTrack(px, pz, this.TW / 2 + 18 + rad)) continue;
+          if (this.seaMask?.(px, pz) || (this.hillH && this.hillH(px, pz) > 1.2) || !this.clearOfTrack(px, pz, this.TW / 2 + 18 + rad)) continue;
           if ((this.obstacles || []).some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.r + rad) ** 2)) continue;
           const h = 10 + (tall > 0.7 ? 18 + Math.random() * 30 : Math.random() * 16) + Math.floor(Math.random() * 3) * 3.4;
           const st = tall > 0.7 ? (Math.random() < 0.5 ? 1 : 2) : (Math.random() < 0.25 ? 1 : 3);
@@ -1309,7 +1309,11 @@ export class Race3D {
               fc = mix(fc, vec3(0.25, 0.24, 0.23), shop * step(0.15, cl2) * step(cl2, 0.85));
               fwin = w2 + shop * 0.5;
             }
-            diffuseColor.rgb = mix(fc, vec3(0.24), roofT);
+            // roofs: pale gravel / membrane, terracotta tiles or dark bitumen, with plant boxes
+            float rv = th(vec2(vTw.w * 7.0, 3.0));
+            vec3 roofC = rv < 0.4 ? vec3(0.62, 0.61, 0.58) : rv < 0.75 ? vec3(0.55, 0.3, 0.22) : vec3(0.3, 0.31, 0.33);
+            roofC *= 0.85 + 0.3 * th(floor(vTw.xy * 0.25));
+            diffuseColor.rgb = mix(fc, roofC, roofT);
             win = fwin * (1.0 - roofT);
             lit = step(0.72, th(vec2(floor(vTw.x / 4.0) + vTw.w * 13.0, floor(vTw.y / 3.4)))) * win;
           }` : ''}`)
