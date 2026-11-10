@@ -18,6 +18,16 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 4.0
+- **Auto 3D rifatte**: nuovo kit procedurale per Formula, Hypercar, GT e Rally1 con passaruota, luci LED, livree più ricche e gomme/vernici più realistiche.
+- **Circuiti più veri**: ambienti diversi per ogni circuito (mare, deserto, colline, città), terreno intermedio, decalcomanie sull'asfalto, vita a bordo pista, prove rally più ricche.
+- **Telecamere affidabili**: movimento indipendente dalla velocità di simulazione, regia TV che tiene le inquadrature, elicottero con visuale libera, controllo automatico che sblocca le camere ferme.
+- **Decisioni a gioco velocizzato**: sistema unico in gara, prove, qualifiche e rally: pausa, rallentamento o scelta dell'ingegnere, countdown in tempo di gara con un minimo di tempo reale, priorità, schede rapide, ordini permanenti, box in questo giro o nel prossimo, registro delle decisioni.
+- **Gara più profonda**: stato delle gomme (graining, blistering, spiattellamenti), mappe motore, bandiera rossa, doppia sosta, bandiere blu, tempi di guida in Endurance; nel rally ordine di partenza e pulizia della strada, ricognizione, prove notturne con fari, riparazioni a bordo strada.
+- **Carriera più profonda**: ere regolamentari, base tecnica e correlazione, gettoni di sviluppo, kit pista, forniture power unit, Commissione con votazioni, infortuni, tifosi, proprietà, mondo che evolve, prestiti e promozioni dei junior.
+- **Scontro Totale**: auto rifatte con pannelli staccabili, vetri e interni, meteo e ora del giorno per arena, scintille, detriti, onde d'urto, notte con fari, garage con riflessi, anteprime 3D delle arene.
+- **Interfaccia**: menu cinematico con garage 3D, caschi 3D, mappe dei tracciati con velocità e curve, calendario con scheda evento, grafici di classifica e radar della vettura, stemmi più vari.
+
 ## Novità della versione 3.9.1
 - Pioggia più realistica vista dalla TV, cielo notturno di Le Mans senza bagliore, Monaco e circuiti cittadini con case, palme, piazze e auto parcheggiate, nessuno scatto al calar della notte.
 - Riepilogo di fine stagione con il ritorno degli investimenti; investimenti in Formula Apex ribilanciati.
