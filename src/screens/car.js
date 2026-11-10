@@ -161,6 +161,7 @@ function planTab(st, t, C) {
     ${S.fx.length ? `<div class="tiny upper muted mt8">Effetti che durano</div>${S.fx.slice(0, 4).map((f) => `<div class="tiny">• ${esc(f.text)} <span class="muted">(${f.s})</span></div>`).join('')}` : ''}</div>`;
   const tog = (k, label, desc) => `<div class="row between" style="padding:7px 0;border-bottom:1px solid var(--line);gap:10px"><div><b class="small">${label}</b><div class="tiny muted">${desc}</div></div><button class="btn sm ${P.pol[k] ? 'active' : ''}" data-a="pol" data-k="${k}">${P.pol[k] ? 'Attivo' : 'Disattivo'}</button></div>`;
   const pol = `<div class="panel"><div class="panel-head"><h3>Deleghe</h3><span class="small muted">Le scelte di routine, gestite dallo staff</span></div>
+    ${tog('autoDev', 'Sviluppo di routine', 'Il direttore tecnico riempie gli slot R&D liberi con aggiornamenti di base sul componente più utile.')}
     ${tog('digest', 'Notiziario settimanale', 'Le comunicazioni minori di ogni evento arrivano in un solo messaggio.')}
     ${tog('minorVote', 'Voti irrilevanti al delegato', 'In Commissione decidi tu solo quando la proposta ci tocca davvero.')}
     ${tog('autoVote', 'Delega tutti i voti', 'Il delegato vota sempre secondo l’interesse della squadra, senza lobby.')}

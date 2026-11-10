@@ -5,7 +5,7 @@
 //  - Storylines: multi-step narrative arcs with branching choices and lasting effects
 //  - Facility perks (Lv4 / Lv5), season awards, records chase, rumour sources
 import { clamp, chance, pick, rand, uid } from './rng.js';
-import { cat, playerTeam, teamDrivers, addMail, addNews, addFinance, fmtM, standings, partName, overallCarRanking, rdSlots, costCap, capSpent, seatsPerTeam } from './season.js';
+import { cat, playerTeam, teamDrivers, addMail, addNews, addFinance, fmtM, standings, partName, overallCarRanking, rdSlots, costCap, capSpent, seatsPerTeam, startProject, rdCost } from './season.js';
 import { getTrack, driverOverall, avgPart, salaryFor } from './world.js';
 import { press, principal, adjustRel, expectedRank, academyDrivers, academySlots } from './dynasty.js';
 import { ensureDepth, eraInfo, tokenInfo, puDeal, supplierList, kitsEnabled, kitTracks, kitCost, buyKit, KITS, aiTrend, loanTargets } from './depth.js';
@@ -60,7 +60,7 @@ export function facilityPerks(team, key) { return (FACILITY_PERKS[key] || []).ma
 // =====================================================================================
 export function ensureCareer5(st) {
   const P = ensureDepth(st); if (!P) return null;
-  P.pol.digest ??= true; P.pol.noBets ??= false; P.pol.minorVote ??= true;
+  P.pol.digest ??= true; P.pol.noBets ??= false; P.pol.minorVote ??= true; P.pol.autoDev ??= true;
   P.story ??= { active: null, done: {}, log: [], fx: [] };
   P.story.log ??= []; P.story.fx ??= []; P.story.done ??= {};
   P.mq ??= {};
@@ -284,6 +284,30 @@ export function autoKits(st) {
   return out;
 }
 
+// Routine development: idle R&D slots are filled by the technical director with small, safe upgrades
+// on the most useful part (never over the budget cap, never below a cash cushion). Players who plan
+// their own programme simply keep the slots busy; the delegation can be switched off.
+export function autoDevelop(st) {
+  const P = ensureCareer5(st); if (!P?.pol.autoDev) return [];
+  const pt = playerTeam(st); const n = st.calendar.length;
+  if (st.round >= n - 1) return [];
+  const cost = rdCost(st, 'base'); const out = [];
+  let free = Math.min(rdSlots(pt, st) - pt.projects.length, 1 - pt.projects.filter((x) => x.auto).length); // one routine project at a time
+  if (free <= 0 || pt.money < cost * 4) return [];
+  let prio = [];
+  try { prio = strategyRoom(st).dev.prio.concat(cat(st).parts.map((p) => ({ id: p.id, name: p.name }))); } catch { prio = cat(st).parts.map((p) => ({ id: p.id, name: p.name })); }
+  const seen = new Set();
+  for (const p of prio) {
+    if (free <= 0 || seen.has(p.id)) continue; seen.add(p.id);
+    if (pt.money < cost * 4) break;
+    if (st.category === 'formula' && capSpent(st) + cost > costCap(st) * 0.97) break;
+    const r = startProject(st, p.id, 'base', false, 'safe');
+    if (r.ok) { free--; out.push(p.name || partName(st, p.id)); pt.projects[pt.projects.length - 1].auto = true; }
+  }
+  if (out.length) addMail(st, { from: 'Direttore Tecnico', icon: 'rd', type: 'info', subject: `Sviluppo di routine: ${out.join(', ')}`, body: `Gli slot R&D erano liberi: come da delega abbiamo avviato aggiornamenti di base (approccio conservativo) su ${out.join(', ')}, ${fmtM(cost)} ciascuno. Per un programma più ambizioso avvia tu i progetti dal Centro Tecnico, o disattiva la delega nella Sala strategica.` });
+  return out;
+}
+
 // =====================================================================================
 // STRATEGY ROOM
 // =====================================================================================
@@ -395,6 +419,7 @@ export function recordsChase(st) {
 export function career5PostRound(st) {
   const P = ensureCareer5(st); if (!P) return;
   autoKits(st);
+  autoDevelop(st);
   weeklyDigest(st);
   commit(st);
 }
