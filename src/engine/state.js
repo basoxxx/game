@@ -12,6 +12,7 @@ function storage() { try { return window.localStorage; } catch { return null; } 
 
 export function saveGame(slot = G.state?.slot) {
   if (!G.state || !slot) return false;
+  if (G.state.ironman && G.state.slot && slot !== G.state.slot) slot = G.state.slot; // Ironman: one save per career, no copies
   const st = storage(); if (!st) return false;
   G.state.slot = slot;
   G.state.savedAt = Date.now();
@@ -41,7 +42,7 @@ export function listSaves() {
       if (!raw) return { slot, empty: true };
       const s = JSON.parse(raw);
       const team = s.teams?.[s.playerTeam];
-      return { slot, empty: false, player: s.playerName, team: team?.name, colors: team?.colors, category: s.category, season: s.season, round: s.round, total: s.calendar?.length, savedAt: s.savedAt };
+      return { slot, empty: false, ironman: !!s.ironman, difficulty: s.difficulty, player: s.playerName, team: team?.name, colors: team?.colors, category: s.category, season: s.season, round: s.round, total: s.calendar?.length, savedAt: s.savedAt };
     } catch { return { slot, empty: true, corrupt: true }; }
   });
 }
@@ -52,6 +53,9 @@ export function exportSave() {
 export function importSave(text) {
   const s = JSON.parse(text);
   if (!s || !s.teams || !s.drivers) throw new Error('File di salvataggio non valido');
+  if (s.ironman) { // an Ironman career cannot be rolled back to an older backup
+    for (const k of SLOTS) { try { const o = JSON.parse(storage()?.getItem(SAVE_PREFIX + k) || 'null'); if (o?.ironman?.id === s.ironman.id && (o.savedAt || 0) > (s.savedAt || 0)) throw new Error('Carriera Ironman: esiste già un salvataggio più recente di questa carriera.'); } catch (e) { if (/Ironman/.test(e.message)) throw e; } }
+  }
   G.state = s; return s;
 }
 

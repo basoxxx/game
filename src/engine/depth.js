@@ -366,7 +366,7 @@ export function buyKit(st, k) {
   return { ok: true };
 }
 export function setPuMode(st, m) { const P = ensureDepth(st); if (!PU_MODES[m]) return { ok: false }; P.mode = m; applyTrackMods(st); return { ok: true }; }
-export function puWearMult(st, team) { return team?.isPlayer ? (PU_MODES[st.dp?.mode] || PU_MODES.std).wear : 1; }
+export function puWearMult(st, team) { return team?.isPlayer ? (PU_MODES[st.dp?.mode] || PU_MODES.std).wear * (hasFacPerk(team, 'pitcrew', 4) ? 0.9 : 1) : 1; }
 export function clearTrackMods(st) {
   for (const t of Object.values(st.teams)) {
     if (!t.car.tmod) continue;

@@ -47,7 +47,7 @@ export const FACILITY_PERKS = {
   factory: [{ lvl: 4, name: 'Reparto prototipi', desc: 'Straordinari sui progetti R&D -30%' }, { lvl: 5, name: 'Linea rapida', desc: 'I progetti rivoluzionari arrivano un evento prima' }],
   windtunnel: [{ lvl: 4, name: 'Galleria a nastro mobile', desc: 'Campagne di correlazione -30%' }, { lvl: 5, name: 'Modello in scala 60%', desc: 'La correlazione galleria-pista non scende mai sotto l’82%' }],
   simulator: [{ lvl: 4, name: 'Simulatore dinamico', desc: 'I piloti iniziano la stagione in forma (+0,4)' }, { lvl: 5, name: 'Gemello digitale', desc: 'Insistere su un pacchetto difettoso: +10% di riuscita' }],
-  pitcrew: [{ lvl: 4, name: 'Squadra trasferte', desc: 'Pit stop e assistenze più rapidi (effetto in gara)' }, { lvl: 5, name: 'Officina in pista', desc: 'Pacchetti per circuito -30%' }],
+  pitcrew: [{ lvl: 4, name: 'Revisioni in casa', desc: 'Usura dei componenti della power unit -10%' }, { lvl: 5, name: 'Officina in pista', desc: 'Pacchetti per circuito -30%' }],
   academy: [{ lvl: 4, name: 'Rete di osservatori', desc: 'Un posto in più in accademia' }, { lvl: 5, name: 'Accordi di prestito', desc: 'Finestra prestiti aperta fino al 60% della stagione' }],
   hospitality: [{ lvl: 4, name: 'Area VIP', desc: 'Merchandising +10%' }, { lvl: 5, name: 'Fan zone permanente', desc: 'Crescita dei tifosi +25%' }],
 };
@@ -363,7 +363,7 @@ export function careerAwards(st, sum) {
   const moves = teams.filter((t) => t.prevPos).map((t) => ({ t, d: t.prevPos - (sum.st.teams.findIndex((x) => x.id === t.id) + 1) }));
   const up = moves.sort((a, b) => b.d - a.d)[0]; const down = moves.slice().sort((a, b) => a.d - b.d)[0];
   if (up && up.d >= 2) out.push({ name: 'Sorpresa dell’anno', who: up.t.name, team: '', note: `+${up.d} posizioni nei costruttori`, icon: 'speed', mine: up.t.isPlayer });
-  if (down && down.d <= -2) out.push({ name: 'Delusione dell’anno', who: down.t.name, team: '', note: `${down.d} posizioni nei costruttori`, icon: 'warn', mine: down.t.isPlayer });
+  if (down && down.d <= -2) out.push({ name: 'Delusione dell’anno', who: down.t.name, team: '', note: `${down.d} posizioni nei costruttori`, icon: 'alert', mine: down.t.isPlayer });
   const rel = teams.map((t) => ({ t, dnf: st.calendar.reduce((a, e) => a + (e.results?.classification || []).filter((r) => r.teamId === t.id && r.status === 'dnf').length, 0) })).sort((a, b) => a.dnf - b.dnf)[0];
   if (rel) out.push({ name: 'Affidabilità d’oro', who: rel.t.name, team: '', note: `${rel.dnf} ritiri in tutta la stagione`, icon: 'wrench', mine: rel.t.isPlayer });
   return out;
@@ -375,7 +375,7 @@ export function recordsChase(st) {
   const out = [];
   for (const [k, lbl] of [['wins', 'vittorie'], ['podiums', 'podi'], ['poles', 'pole'], ['titles', 'titoli']]) {
     const sorted = rows.filter((r) => r[k] > 0).sort((a, b) => b[k] - a[k]);
-    const rec = sorted[0]; if (!rec) continue;
+    const rec = sorted[0]; if (!rec || rec[k] < ({ wins: 10, podiums: 25, poles: 8, titles: 2 }[k])) continue;
     const ch = sorted.find((r) => r.active && r.name !== rec.name && rec[k] - r[k] <= Math.max(2, rec[k] * 0.25));
     if (rec.active) out.push({ k, lbl, holder: rec.name, v: rec[k], mine: rec.mine, text: `${rec.name} detiene il record di ${lbl} (${rec[k]}) ed è ancora in attività` });
     else if (ch) out.push({ k, lbl, holder: rec.name, v: rec[k], chaser: ch.name, cv: ch[k], mine: ch.mine, text: `${ch.name} è a ${rec[k] - ch[k]} ${lbl} dal record di ${rec.name} (${rec[k]})` });
@@ -401,5 +401,13 @@ export function career5NewSeason(st) {
   P.story.active = null;
   for (const d of Object.values(st.drivers)) if (d.clause && d.teamId !== pt.id) d.clause = 0;
   autoKits(st);
+}
+// Called when the manager moves to another team of the same category: team-bound depth state starts over
+export function career5TeamSwitch(st) {
+  const P = st.dp; if (!P) return;
+  delete P.owner; delete P.fans; delete P.fans0; delete P.pu; P.suspects = []; P.incoming = [];
+  P.mode = 'std'; P.kits = { season: st.season, low: false, high: false };
+  if (P.story) P.story.active = null;
+  for (const d of Object.values(st.drivers)) d.clause = 0;
 }
 void seatsPerTeam; void rand;
