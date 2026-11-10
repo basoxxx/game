@@ -3,11 +3,12 @@ import { App, registerScreen, coach } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { helmetSVG, flagSVG, teamBadge, carSVG, trackSVG } from '../ui/art.js';
 import { esc, bar, fmtTime, fmtGap } from '../ui/dom.js';
-import { S, saveGame, getSettings } from '../engine/state.js';
+import { S, saveGame, getSettings, setSettings } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { applyRaceRivalry } from '../engine/rivalry.js';
 import { cat, playerTeam, teamDrivers, applyRoundResults, standings, seatsPerTeam, aiFillSeats, addMail } from '../engine/season.js';
-import { buildEntries, runQualifying, makeWeatherPlan, raceLaps, CircuitSim, aiSetupQuality, weatherForecast, SETUP_BIAS, TACTICAL } from '../engine/race.js';
+import { buildEntries, runQualifying, makeWeatherPlan, raceLaps, CircuitSim, aiSetupQuality, weatherForecast, SETUP_BIAS, ENGINE_MAPS, defaultOrders } from '../engine/race.js';
+import { DecisionHub, decSettings, MIN_REAL } from './decisions.js';
 import { compEnabled, compStatus, fitComponent } from '../engine/components.js';
 import { licencePoints, BAN_POINTS } from '../engine/stewards.js';
 import { COMPOUNDS } from '../data/categories.js';
@@ -21,7 +22,7 @@ import { Race3D, webglAvailable } from '../ui/race3d.js';
 import { trackGeometry, drsZones, partSensitivity, trackStats } from '../engine/trackphys.js';
 import { planOptions, stintBar, degChartSVG, drawTelemetry, breakdownHTML, openLessons, wearError } from './engineer.js';
 import { SETUP_PARAMS, idealFor, setupQuality } from './setup.js';
-import { isLiveSession, sessionRender, sessionMount, sessionStop, sessionActions, sessionKey, simulateQualifying } from './sessions.js';
+import { isLiveSession, sessionRender, sessionMount, sessionStop, sessionActions, sessionKey, simulateQualifying, sessionHub } from './sessions.js';
 import { plannerPanel, plannerActions, raceStrategyHTML, adviceHTML, ensurePlan, isDryPlan, racePlan } from './planner.js';
 import { optimise, normalizePlan } from '../engine/strategy.js';
 import { tvUpdate, trackerUpdate, stintChartSVG, liveStandingsHTML, analysisHTML, defaultSel } from './broadcast.js';
@@ -90,9 +91,11 @@ registerScreen({
     if (sessionKey(e)) return;
     if (!R.sim) return;
     if (R.an) { if (e.key === 'Escape' || e.code === 'KeyA') { e.preventDefault(); closeAnalysis(); } return; }
-    if (e.code === 'KeyA' && !R.moment) { openAnalysis(); return; }
-    if (R.moment && /^Digit[1-3]$/.test(e.code)) { resolveMomentUI(+e.code.slice(5) - 1); return; }
-    if (e.code === 'Space') { e.preventDefault(); R.paused = !R.paused; updateSpeedUI(); }
+    // space and the speed keys stay live while a decision card is open; 1-3 / Enter answer it
+    if (e.code === 'Space') { e.preventDefault(); if (document.activeElement?.matches?.('button, [data-a]')) document.activeElement.blur(); R.paused = !R.paused; R.last = performance.now(); updateSpeedUI(); return; }
+    if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.code === 'Minus' || e.code === 'NumpadSubtract') { const L = [1, 2, 4, 8, 16, 32]; const i = Math.max(0, L.indexOf(R.speed)); R.speed = L[Math.max(0, Math.min(L.length - 1, i + (e.code === 'Equal' || e.code === 'NumpadAdd' ? 1 : -1)))]; updateSpeedUI(); return; }
+    if (R.hub?.key(e)) { updateControls(true); return; }
+    if (e.code === 'KeyA' && !R.hub?.open) { openAnalysis(); return; }
     const sp = { Digit1: 1, Digit2: 2, Digit3: 4, Digit4: 8, Digit5: 16, Digit6: 32, Digit0: 1 }[e.code];
     if (sp) { R.speed = sp; R.paused = false; updateSpeedUI(); }
     if (e.code === 'KeyR' && R.r3d) { if (R.replay) stopReplay(); else startReplay(R.lastHighlight && R.sim.time - R.lastHighlight.t < 12 ? R.lastHighlight.key : R.focus); }
@@ -135,16 +138,31 @@ registerScreen({
     mode(el) { R.sim?.setMode(el.dataset.key, el.dataset.m); updateControls(true); },
     ers(el) { R.sim?.setErs(el.dataset.key, el.dataset.m); updateControls(true); },
     orders(el) { const st = S(); R.sim?.setOrders(st.playerTeam, el.dataset.o); updateControls(true); },
-    moment(el) { resolveMomentUI(+el.dataset.i); },
-    'moments-off'() { if (R.sim) { R.sim.momentsOn = false; R.sim.moments = []; } document.getElementById('moment')?.remove(); R.moment = null; R.last = performance.now(); },
+    // the decision hub is shared by the race and by the live practice / qualifying sessions
+    dec(el) { const h = R.hub || sessionHub(); h?.answer(el.dataset.id, +el.dataset.i); if (R.hub && R.sim) { R.last = performance.now(); updateControls(true); } },
+    'dec-cfg'() { (R.hub || sessionHub())?.toggleCfg(); },
+    'dec-mode'(el) { (R.hub || sessionHub())?.setMode(el.dataset.v); },
+    'dec-minor'() { (R.hub || sessionHub())?.toggleMinor(); },
+    'moments-off'() { R.hub?.setMode('engineer'); },
     radio(el) { R.sim?.answerRadio(+el.dataset.id, el.dataset.y === '1'); sfx.radio(); updateControls(true); },
+    so(el) { const c = rc(el); if (!c) return; const v = el.dataset.v === 'toggle' ? !c.so?.[el.dataset.k] : el.dataset.v; R.sim.setOrder(c.key, el.dataset.k, v); setSettings({ standingOrders: { ...c.so } }); updateControls(true); },
+    eng(el) { R.sim?.setEngine(el.dataset.key, el.dataset.m); updateControls(true); },
+    launch(el) { const w = S().weekend; (w.launch ||= {})[el.dataset.key] = el.dataset.v; App.refresh(); },
     pitsel(el) { R.pitSel[el.dataset.key] = el.dataset.c; updateControls(true); },
-    pit(el) { const k = el.dataset.key; const c = R.sim.cars.find((x) => x.key === k); if (c.pitReq) R.sim.cancelPit(k); else R.sim.requestPit(k, R.sim.endurance ? { ...R.sim.endPitReq(c), compound: R.pitSel[k] === 'none' ? null : R.pitSel[k], swap: !!R.swap[k] } : { compound: (c.plan?.[c.planIdx + 1]?.c && R.ctab?.[k] === 'strat') ? c.plan[c.planIdx + 1].c : R.pitSel[k] === 'none' ? null : R.pitSel[k], fuel: true, swap: !!R.swap[k], crew: c.crew, repair: c.repair !== false }); updateControls(true); },
+    pit(el) {
+      const k = el.dataset.key; const c = R.sim.cars.find((x) => x.key === k); if (!c || c.status !== 'running') return;
+      if (c.pitReq && !el.dataset.when) { R.sim.cancelPit(k); App.toast('Box annullato', `${R.sim.driver(c).name} resta in pista.`, ''); updateControls(true); return; }
+      const req = R.sim.endurance ? { ...R.sim.endPitReq(c), compound: R.pitSel[k] === 'none' ? null : R.pitSel[k], swap: !!R.swap[k] } : { compound: (c.plan?.[c.planIdx + 1]?.c && R.ctab?.[k] === 'strat') ? c.plan[c.planIdx + 1].c : R.pitSel[k] === 'none' ? null : R.pitSel[k], fuel: true, swap: !!R.swap[k], crew: c.crew, repair: c.repair !== false };
+      const r = R.sim.requestPit(k, req, el.dataset.when || 'this');
+      // at high speed the lap can change between the click and the call: always say which lap it is
+      if (r) App.toast('Box confermato', `${R.sim.driver(c).name} rientra alla fine del giro ${Math.min(R.sim.laps, r.lap)}${r.late ? ': l’ingresso box di questo giro era già stato superato' : ''}.`, r.late ? 'bad' : 'good');
+      sfx.radio?.(); updateControls(true);
+    },
     swap(el) { R.swap[el.dataset.key] = !R.swap[el.dataset.key]; const c = R.sim.cars.find((x) => x.key === el.dataset.key); if (c.pitReq) c.pitReq.swap = R.swap[el.dataset.key]; updateControls(true); },
     auto(el) { const c = R.sim.cars.find((x) => x.key === el.dataset.key); c.auto = !c.auto; updateControls(true); },
-    speed(el) { R.speed = +el.dataset.v; R.paused = false; updateSpeedUI(); },
-    pause() { R.paused = !R.paused; updateSpeedUI(); },
-    'sim-end'() { App.confirm('Simulare fino alla fine?', 'La strategia dei tuoi piloti passerà all’ingegnere.', () => { R.sim.cars.forEach((c) => { if (c.isPlayer) c.auto = true; }); R.sim.momentsOn = false; R.sim.moments = []; document.getElementById('moment')?.remove(); R.moment = null; R.sim.runToEnd(); }); },
+    speed(el) { R.speed = +el.dataset.v; R.paused = false; R.last = performance.now(); updateSpeedUI(); },
+    pause() { R.paused = !R.paused; R.last = performance.now(); updateSpeedUI(); },
+    'sim-end'() { App.confirm('Simulare fino alla fine?', 'La strategia dei tuoi piloti passerà all’ingegnere.', () => { R.sim.cars.forEach((c) => { if (c.isPlayer) c.auto = true; }); R.sim.momentsOn = false; R.sim.moments = []; R.hub?.reset(); R.sim.runToEnd(); }); },
     'finish-race'() { finishRace(); },
     'an-open'() { openAnalysis(); },
     'an-close'() { closeAnalysis(); },
@@ -173,6 +191,7 @@ function qualiView(st, tr) {
         <div class="weather-strip mt16">${forecast(st, w).map((r) => `<i style="height:${Math.max(2, r * 20)}px;opacity:${r > 0.05 ? 0.9 : 0.15}"></i>`).join('')}</div>${hasPerk(st, 'meteo') ? '<div class="tiny good">Radar preciso (abilità Meteorologo)</div>' : '<div class="tiny muted">Previsione indicativa: sblocca “Meteorologo” per il radar preciso.</div>'}<div class="row between tiny muted"><span>Giro 1</span><span>Giro ${w.laps}</span></div>
       </div>
       ${plannerPanel(st, w, tr, entries, q, C)}
+      <div class="panel launch-panel"><div class="panel-head"><h3>Procedura di partenza</h3><span class="tiny muted">vale anche per le ripartenze da fermo</span></div>${entries.map((e) => { const d = st.drivers[e.driverIds[0]]; const v = w.launch?.[e.key] || 'normal'; return `<div class="row gap8 mt8"><b class="grow">${esc(d.name)}</b><div class="seg" style="min-width:300px">${[['safe', 'Prudente', 'Stacco frizione morbido: quasi mai si perde, quasi mai si guadagna'], ['normal', 'Normale', 'Mappa frizione standard'], ['aggr', 'Aggressiva', 'Più posizioni guadagnate al via, ma ~14% di pattinamento e rischio di partenza anticipata']].map(([k, n, tip]) => `<div class="${v === k ? 'on ' + (k === 'aggr' ? 'push' : k === 'safe' ? 'save' : '') : ''}" data-a="launch" data-key="${e.key}" data-v="${k}" data-tip="${tip}">${n}</div>`).join('')}</div></div>`; }).join('')}</div>
       <button class="btn primary xl pulse" data-a="to-race">${icon('flag')} Vai in griglia</button>
     </div>
   </div>`;
@@ -195,13 +214,14 @@ function raceScreen(st) {
       <div id="flagstatus"></div>
       <div class="grow"></div>
       <div class="speed-btns" id="speedbtns">${[1, 2, 4, 8, 16, 32].map((v, i) => `<button class="btn sm" data-a="speed" data-v="${v}" data-tip="${v === 1 ? 'Tempo reale' : `Velocità ${v}x`} · tasto ${i + 1}">${v === 1 ? '1x LIVE' : v + 'x'}</button>`).join('')}</div>
-      <button class="btn sm an-open" data-a="an-open" data-tip="Lap chart, distacchi, strategie e passo gara (A)">${icon('chart')} Analisi</button>
+      <button class="btn sm dec-open" data-a="dec-cfg" data-tip="Decisioni a gioco accelerato: pausa automatica, rallenta a 1x o decide l’ingegnere">${icon('settings')} Decisioni</button>
+      <button class="btn sm an-open" data-a="an-open" data-tip="Lap chart, distacchi, strategie, bilancio dei tempi e registro decisioni (A)">${icon('chart')} Analisi</button>
       <button class="btn sm" data-a="sim-end" data-tip="Simula il resto della gara: le decisioni passano all’ingegnere">${icon('ff')} Fine gara</button>
-      <span class="kbd-help" data-a="shortcuts" data-tip="Scorciatoie: Spazio pausa · 1-6 velocità · R replay · A analisi">?</span>
+      <span class="kbd-help" data-a="shortcuts" data-tip="Scorciatoie: Spazio pausa · 1-6 velocità (+/−) · R replay · A analisi · decisioni: 1-3 e Invio, card rapide Z/X/C">?</span>
       <div class="race-prog"><i id="race-prog"></i></div>
     </div>
     <div class="race-board" id="board"></div>
-    <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="race-sub" id="race-sub"></div><div class="battle" id="battle"></div><div class="tvg-layer" id="tvg"></div><div class="ivt-layer" id="tvtrack"></div><div id="finish-overlay"></div></div>
+    <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="race-sub" id="race-sub"></div><div class="battle" id="battle"></div><div class="tvg-layer" id="tvg"></div><div class="ivt-layer" id="tvtrack"></div><div class="dec-stack" id="dec-stack"></div><div id="finish-overlay"></div></div>
     <div class="race-side" id="side"></div>
     <div class="race-feed"><div class="row gap4 mb8" id="feed-tabs"></div><div id="feed" style="height:calc(100% - 46px);overflow-y:auto"></div></div>
   </div>`;
@@ -232,9 +252,20 @@ function mountRace() {
     if (c.plan && c.plan[0].c !== c.tyre) c.plan[0].c = c.tyre;
     if (!R.sim.endurance && w.fuel?.[c.key] != null && !isSprint) R.sim.setFuelLoad(c, w.fuel[c.key]);
     if (R.sim.endurance && w.endPlan?.[c.key]) R.sim.setEndPlan(c, w.endPlan[c.key]);
+    c.so = { ...defaultOrders(), ...(getSettings().standingOrders || {}) };
+    c.launch = w.launch?.[c.key] || 'normal';
     c.lapTarget = R.sim.computeLap(c); R.pitSel[c.key] = defaultPitTyre(c);
   }
-  R.ctab = {}; R.tvN = 0; R.tvQ = []; R.tvCur = null; R.ivh = {}; R.an = null;
+  R.hub = new DecisionHub({
+    host: () => document.getElementById('finish-overlay'), stack: () => document.getElementById('dec-stack'), unit: 'di gara',
+    clock: { get speed() { return R.speed; }, set speed(v) { R.speed = v; }, get paused() { return R.paused; }, set paused(v) { R.paused = v; R.last = performance.now(); }, now: () => R.sim?.time || 0 },
+    onSpeed: updateSpeedUI, onCfg: applyDecCfg,
+    onOpen: (it) => { const k = it.focus; if (k) { R.focus = k; if (R.r3d) { R.r3d.director = false; R.r3d.camMode = it.type === 'sc' || it.type === 'red' ? 'heli' : 'chase'; R.r3d._cut = true; R.r3d.focusKey = k; } } },
+    onClose: () => { if (R.r3d && R.view3d === 'auto') R.r3d.director = true; R.last = performance.now(); updateControls(true); },
+    extraCfg: 'Gli ordini permanenti di ogni pilota (battaglie, safety car, guasti, radio, ritmo automatico) sono nella scheda «Ordini» del suo pannello.',
+  });
+  applyDecCfg();
+  R.ctab = {}; R.tvN = 0; R.tvQ = []; R.tvCur = null; R.ivh = {}; R.an = null; R.moment = null;
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {}; R.gh = {};
   R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { ...viewPads(false, circuitPath(tr.cid).aspect), glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' || st.category === 'junior' ? drsZones('formula', tr) : [] });
   R.last = performance.now(); R.uiT = 0;
@@ -248,13 +279,13 @@ function mountRace() {
   startLights(() => { R.paused = false; R.last = performance.now(); updateSpeedUI(); engineStart(st.category); });
   const loop = (t) => {
     const dt = Math.min(0.1, (t - R.last) / 1000); R.last = t;
-    if (!R.paused && !R.sim.finished && !R.replay && !R.moment) {
-      let rem = dt * R.speed;
-      while (rem > 0 && !R.sim.moments.length) { const d = Math.min(0.5, rem); R.sim.step(d); rem -= d; }
-      // fast-forwarding (16x and up): battles and undercuts are left to the drivers, only big calls stop the race
-      while (R.sim.moments.length && R.speed >= 16 && TACTICAL.has(R.sim.moments[0].type)) { const m = R.sim.moments.shift(); R.sim.log(`📻 ${m.title}: decide il pilota (gara accelerata).`, 'radio', m.key && m.key !== 'all' ? m.key : null, false); }
-      if (R.sim.moments.length) showMoment(R.sim.moments[0]);
+    if (!R.paused && !R.sim.finished && !R.replay) {
+      R.sim.uiSpeed = R.speed;
+      let rem = dt * R.speed; const id0 = R.sim.radioId;
+      // a new call that matters stops this frame's fast-forward at once: the hub pauses / slows before more race goes by
+      while (rem > 0 && !R.sim.finished) { const d = Math.min(0.5, rem); R.sim.step(d); rem -= d; if (R.sim.radioId !== id0 && R.sim.moments.some((m) => !m.seen && m.prio >= 2)) break; }
     }
+    if (R.hub) { syncMoments(); R.hub.tick(); }
     if (R.replay) playReplay(dt); else if (R.r3d) update3D(dt); else draw();
     if (R.r3d) draw();
     R.uiT += dt;
@@ -266,7 +297,7 @@ function mountRace() {
   R.raf = requestAnimationFrame(loop);
   updateSpeedUI();
 }
-function stopRace() { closeAnalysis(true); R.moment = null; R.replay = null; R.rbuf = []; cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = null; R.r3d?.destroy(); R.r3d = null; engineStop(); }
+function stopRace() { closeAnalysis(true); R.moment = null; R.hub = null; R.replay = null; R.rbuf = []; cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = null; R.r3d?.destroy(); R.r3d = null; engineStop(); }
 
 // 2D map: keep a top band (camera buttons, TV graphics, interval tracker) and a subtitle line free;
 // as a 3D minimap the map fills its little box
@@ -412,7 +443,7 @@ function updateTop() {
   const wx = document.getElementById('wx'); const r = sim.rain;
   if (wx) wx.innerHTML = `<b class="${r > 0.2 ? 'info' : ''}">${r < 0.05 ? 'Asciutto' : r < 0.3 ? 'Pioviggine' : r < 0.6 ? 'Pioggia' : 'Diluvio'}${sim.night ? ' · Notte' : ''}</b><span>Meteo ${Math.round(r * 100)}%</span>`;
   const fs = document.getElementById('flagstatus');
-  if (fs) { const h = sim.sc ? '<span class="flagplate sc"><i></i>Safety car</span>' : sim.finished ? '<span class="flagplate end"><i></i>Bandiera a scacchi</span>' : '<span class="flagplate green"><i></i>Bandiera verde</span>'; if (fs.innerHTML !== h) fs.innerHTML = h; }
+  if (fs) { const h = sim.sc?.red ? '<span class="flagplate sc red"><i></i>Bandiera rossa</span>' : sim.sc ? '<span class="flagplate sc"><i></i>Safety car</span>' : sim.vsc ? `<span class="flagplate sc"><i></i>${sim.endurance ? 'Full course yellow' : 'Virtual SC'}</span>` : sim.finished ? '<span class="flagplate end"><i></i>Bandiera a scacchi</span>' : '<span class="flagplate green"><i></i>Bandiera verde</span>'; if (fs.innerHTML !== h) fs.innerHTML = h; }
 }
 
 // "Charles Leclair" -> "C. Leclair" so the tower stays readable on narrow screens
@@ -420,6 +451,17 @@ function towerName(n) {
   const p = String(n).split(' ');
   if (p.length < 2) return esc(n);
   return `<span class="ini">${esc(p[0][0])}.</span> ${esc(p.slice(1).join(' '))}`;
+}
+// timing-tower status icons: pit call, penalty, damage, mechanical issue
+function towerIcons(sim, c) {
+  if (c.status === 'dnf') return '';
+  const ic = [];
+  if (c.pitReq && c.isPlayer) ic.push('<i class="tw-ic pit" data-tip="Box chiamato">BOX</i>');
+  if (c.penalty > 0) ic.push(`<i class="tw-ic pen" data-tip="Penalità di ${c.penalty}s">+${c.penalty}</i>`);
+  if (c.issue) ic.push(`<i class="tw-ic iss" data-tip="${esc(c.issue.name)}">!</i>`);
+  else if (c.damage + (c.dmgFloor || 0) > 0.2) ic.push(`<i class="tw-ic dmg" data-tip="Danni: +${(c.damage + (c.dmgFloor || 0)).toFixed(1)}s/giro">D</i>`);
+  if (c.eng === 'high' && c.isPlayer) ic.push('<i class="tw-ic eng" data-tip="Mappa motore Spinta">M+</i>');
+  return ic.slice(0, 3).join('');
 }
 function updateBoard() {
   const sim = R.sim;
@@ -442,7 +484,7 @@ function updateBoard() {
     const fl = sim.fastest.key === c.key;
     return `<div class="lb-row ${c.isPlayer ? 'me' : ''} ${c.status === 'dnf' ? 'dnf' : ''} ${c.inPit > 0 ? 'pit' : ''} ${c.key === R.focus ? 'focus' : ''}" data-a="focus" data-key="${c.key}">
       <span class="pos p${i + 1}">${i + 1}</span>${teamStripe(c.team)}
-      <span class="nm">${towerName(d.name)}${fl ? '<i class="fl" data-tip="Giro più veloce"></i>' : ''} ${posDelta > 0 ? `<span class="good tiny">▲${posDelta}</span>` : posDelta < 0 ? `<span class="bad tiny">▼${-posDelta}</span>` : ''}</span>
+      <span class="nm">${towerName(d.name)}${fl ? '<i class="fl" data-tip="Giro più veloce"></i>' : ''}${towerIcons(sim, c)} ${posDelta > 0 ? `<span class="good tiny">▲${posDelta}</span>` : posDelta < 0 ? `<span class="bad tiny">▼${-posDelta}</span>` : ''}</span>
       <span>${c.status === 'dnf' ? '' : tyreBadge(c.tyre)}</span>
       <div>${c.status === 'dnf' ? `<span class="tiny bad">${esc(c.reason || '')}</span>` : c.inPit > 0 ? '<span class="chip warn tiny">BOX</span>' : `<div class="wear" data-tip="Gomme ${COMPOUNDS[c.tyre]?.name || ''}: ${Math.max(0, Math.round((1 - c.wear) * 100))}% · ${c.stintLap ?? 0} giri"><i style="width:${Math.max(0, 1 - c.wear) * 100}%;background:${c.wear > 0.8 ? 'var(--bad)' : c.wear > 0.55 ? 'var(--warn)' : 'var(--good)'}"></i></div>`}</div>
       <span class="gap ${gcls}">${gap}</span></div>`;
@@ -494,11 +536,15 @@ function updateControls(force) {
     const advice = engineerAdvice(sim, c);
     const pitSel = R.pitSel[c.key];
     const tab = R.ctab?.[c.key] || 'drive';
-    const tabs = c.status === 'running' ? `<div class="ctabs"><div class="${tab === 'drive' ? 'on' : ''}" data-a="ctab" data-key="${c.key}" data-t="drive">Pilota</div><div class="${tab === 'strat' ? 'on' : ''}" data-a="ctab" data-key="${c.key}" data-t="strat">Strategia${(() => { const a = sim.advise(c); return a?.urgent && a.act ? ' <i class="ctab-dot"></i>' : ''; })()}</div></div>` : '';
+    const tabs = c.status === 'running' ? `<div class="ctabs"><div class="${tab === 'drive' ? 'on' : ''}" data-a="ctab" data-key="${c.key}" data-t="drive">Pilota</div><div class="${tab === 'strat' ? 'on' : ''}" data-a="ctab" data-key="${c.key}" data-t="strat">Strategia${(() => { const a = sim.advise(c); return a?.urgent && a.act ? ' <i class="ctab-dot"></i>' : ''; })()}</div><div class="${tab === 'orders' ? 'on' : ''}" data-a="ctab" data-key="${c.key}" data-t="orders" data-tip="Ordini permanenti: come si comporta il muretto quando non vuoi essere interrotto">Ordini</div></div>` : '';
+    if (c.status === 'running' && tab === 'orders') return `<div class="ctrl-card" style="border-top-color:${c.team.car.livery.primary}">
+      <div class="row">${helmetSVG(d.helmet, 34)}<div class="grow"><b>${esc(d.name)}</b><div class="tiny muted">Ordini permanenti · valgono anche a gioco accelerato</div></div><span class="pos p${i + 1}" style="font-size:26px">P${i + 1}</span></div>${tabs}
+      ${ordersHTML(sim, c)}
+    </div>`;
     if (c.status === 'running' && tab === 'strat') return `<div class="ctrl-card" style="border-top-color:${c.team.car.livery.primary}">
       <div class="row">${helmetSVG(d.helmet, 34)}<div class="grow"><b>${esc(d.name)}</b><div class="tiny muted">P${i + 1} · ${COMPOUNDS[c.tyre].name} ${c.stintLap} giri · usura ${Math.round(c.wear * 100)}% · soste ${c.pitStops}</div></div><span class="pos p${i + 1}" style="font-size:26px">P${i + 1}</span></div>${tabs}
       ${raceStrategyHTML(sim, c, R)}
-      <button class="btn ${c.pitReq ? 'danger' : 'team'} mt8" style="width:100%" data-a="pit" data-key="${c.key}">${c.pitReq ? `Annulla box (${c.pitReq.compound ? COMPOUNDS[c.pitReq.compound].short : 'benzina'})` : `${icon('pit')} Box ora`}</button>
+      ${pitButtons(sim, c, null)}
     </div>`;
     return `<div class="ctrl-card" style="border-top-color:${c.team.car.livery.primary}">
       <div class="row">${helmetSVG(d.helmet, 34)}<div class="grow"><b>${esc(d.name)}</b><div class="tiny muted">${c.status === 'dnf' ? `<span class="bad">Ritirato: ${esc(c.reason)}</span>` : c.status === 'finished' ? 'Arrivato' : `P${i + 1} · Partito P${c.grid} · Soste ${c.pitStops}`}</div></div><span class="pos p${i + 1}" style="font-size:26px">P${i + 1}</span></div>${tabs}
@@ -506,17 +552,19 @@ function updateControls(force) {
       <div class="grid2 mt8 small" style="gap:6px"><div class="muted">Davanti <b style="color:#fff" class="mono">${gA != null && gA < 60 ? '-' + Math.max(0, gA).toFixed(1) + 's' : '—'}</b></div><div class="muted right">Dietro <b style="color:#fff" class="mono">${gB != null && gB < 60 ? '+' + Math.max(0, gB).toFixed(1) + 's' : '—'}</b></div></div>
       <div class="row mt8">${tyreBadge(c.tyre)}<div class="grow"><div class="row between tiny"><span>${COMPOUNDS[c.tyre].name} · ${c.stintLap} giri</span><span class="${tempCls(sim, c)}">${Math.round(c.temp)}°C</span><span class="${c.wear > 0.75 ? 'bad' : ''}">${wearTxt}%</span></div><div class="wear" style="height:6px"><i style="width:${wearTxt}%;background:${c.wear > 0.7 ? 'var(--bad)' : c.wear > 0.45 ? 'var(--warn)' : 'var(--good)'}"></i></div></div></div>
       ${sim.endurance ? `<div class="row mt8">${icon('fuel', 'ico', 'style="width:18px"')}<div class="grow"><div class="row between tiny"><span>Carburante</span><span class="${c.fuel < 1.5 ? 'bad' : ''}">${c.fuel.toFixed(1)} giri</span></div><div class="wear" style="height:6px"><i style="width:${(c.fuel / c.fuelMax) * 100}%;background:var(--info)"></i></div></div></div><div class="tiny muted mt8">Stint pilota: ${c.stintCount + 1}${c.stintCount >= 2 ? ' <span class="warn">(affaticato)</span>' : ''}</div>` : ''}
-      ${c.damage > 0.05 ? `<div class="chip bad mt8">Danni: +${c.damage.toFixed(1)}s/giro</div>` : ''}
+      ${stateChips(sim, c)}
       ${(() => { const h = gapHistory(sim, c, gA); return h.length >= 3 ? `<div class="gapline" data-tip="Distacco da chi precede negli ultimi giri. Sotto la linea verde (1s) puoi attaccare con DRS/Override."><div><div class="gl-lbl">Gap avanti</div><div class="gl-v">${gA != null && gA < 60 ? Math.max(0, gA).toFixed(2) + 's' : '—'}</div></div>${sparkline(h.map((x) => x.v))}</div>` : ''; })()}
       <div class="tiny upper muted mt8 mb8">Ritmo</div>
       <div class="seg">${[['save', 'Gestione', 'Gestione: più lento ma risparmia gomme (e carburante).'], ['normal', 'Normale', 'Normale: equilibrio tra passo e usura.'], ['push', 'Attacco', 'Attacco: più veloce, ma consuma le gomme e le surriscalda.']].map(([k, n, tip]) => `<div class="${c.mode === k ? 'on ' + k : ''}" data-a="mode" data-key="${c.key}" data-m="${k}" data-tip="${tip}">${n}</div>`).join('')}</div>
       <div class="row between tiny mt8"><span class="upper muted">${sim.endurance ? 'Ibrido' : 'Batteria ERS'}</span><span class="${c.ers < 20 ? 'bad' : ''}">${Math.round(c.ers)}%</span></div>
       <div class="wear" style="height:6px;margin:4px 0 6px"><i style="width:${c.ers}%;background:linear-gradient(90deg,#7c4dff,#00e5ff)"></i></div>
       <div class="seg">${[['harvest', 'Ricarica', 'Ricarica: perdi un po’ di passo ma riempi la batteria.'], ['balanced', 'Bilanciato', 'Bilanciato: usa e recupera energia in modo neutro.'], ['deploy', 'Override', 'Override: massima potenza elettrica. Usalo entro 1s da chi precede per sorpassare.']].map(([k, n, tip]) => `<div class="${c.ersMode === k ? 'on ' + (k === 'deploy' ? 'push' : k === 'harvest' ? 'save' : '') : ''}" data-a="ers" data-key="${c.key}" data-m="${k}" data-tip="${tip}">${n}</div>`).join('')}</div>
+      <div class="row between tiny mt8"><span class="upper muted" data-tip="Mappa motore: Spinta dà ~0,2s al giro ma consuma il 5% in più e stressa power unit e cambio; Risparmio fa il contrario">Mappa motore</span><span class="${c.eng === 'high' ? 'warn' : 'muted'}">${c.eng === 'high' ? 'affidabilità a rischio' : c.eng === 'low' ? 'consumo −4,5%' : ''}</span></div>
+      <div class="seg" style="margin-top:4px">${Object.entries(ENGINE_MAPS).map(([k, m]) => `<div class="${(c.eng || 'std') === k ? 'on ' + (k === 'high' ? 'push' : k === 'low' ? 'save' : '') : ''}" data-a="eng" data-key="${c.key}" data-m="${k}" data-tip="${k === 'high' ? '−0,2s/giro · consumo +5% · rischio guasto ×1,75 e usura componenti' : k === 'low' ? '+0,22s/giro · consumo −4,5% · rischio guasto −35%' : 'Mappa di gara standard'}">${m.name}</div>`).join('')}</div>
       <div class="tiny upper muted mt8 mb8">Pit stop</div>
       <div class="row gap4 wrap">${sim.C.compounds.map((cp) => `<button class="btn sm ${pitSel === cp ? 'active' : ''}" style="padding:4px 6px" data-a="pitsel" data-key="${c.key}" data-c="${cp}" data-tip="Monta ${COMPOUNDS[cp].name} alla prossima sosta">${tyreBadge(cp)}</button>`).join('')}${sim.endurance ? `<button class="btn sm ${pitSel === 'none' ? 'active' : ''}" style="padding:4px 8px" data-a="pitsel" data-key="${c.key}" data-c="none">${icon('fuel')} Solo benzina</button>` : ''}</div>
       ${sim.endurance && c.driverIds.length > 1 ? `<button class="btn sm mt8 ${R.swap[c.key] ? 'active' : ''}" style="width:100%" data-a="swap" data-key="${c.key}">${icon('swap')} Cambio pilota → ${esc(st.drivers[c.driverIds[(c.driverIdx + 1) % c.driverIds.length]].name.split(' ').pop())}</button>` : ''}
-      <button class="btn ${c.pitReq ? 'danger' : 'team'} mt8 ${advice?.urgent && !c.pitReq ? 'pulse' : ''}" style="width:100%" data-a="pit" data-key="${c.key}">${c.pitReq ? `Annulla box (${c.pitReq.compound ? COMPOUNDS[c.pitReq.compound].short : 'benzina'})` : `${icon('pit')} Chiama ai box`}</button>
+      ${pitButtons(sim, c, advice)}
       ${(() => { const a = sim.advise(c); if (a?.urgent && a.act) return adviceHTML(a, c, true); return advice ? `<div class="small mt8 ${advice.urgent ? 'warn' : 'muted'}">${icon('info', 'ico', 'style="width:13px;vertical-align:-2px"')} ${advice.text}</div>` : ''; })()}
       ${!sim.endurance && sim.fuelMargin(c) < 0.2 ? `<div class="row between tiny mt8"><span class="${sim.fuelMargin(c) < 0 ? 'bad' : 'warn'}">${icon('fuel', 'ico', 'style="width:12px;vertical-align:-2px"')} Benzina ${sim.fuelMargin(c) >= 0 ? '+' : ''}${sim.fuelMargin(c).toFixed(1)} giri</span><button class="btn sm ${c.fuelSave ? 'active' : ''}" data-a="rs-lift" data-key="${c.key}">Lift &amp; coast ${c.fuelSave ? 'ON' : 'OFF'}</button></div>` : ''}
       <div class="row between mt8 tiny"><span class="muted">Strategia automatica (ingegnere)</span><button class="btn sm ${c.auto ? 'active' : ''}" data-a="auto" data-key="${c.key}" data-tip="L’ingegnere decide ritmo e pit stop al posto tuo">${c.auto ? 'ON' : 'OFF'}</button></div>
@@ -526,7 +574,7 @@ function updateControls(force) {
   const plan = R.sim.weather.plan;
   const curLap = Math.floor(R.sim.progress * R.sim.laps);
   const wxHtml = `<div class="panel tight"><div class="row between tiny upper muted mb8"><span>Radar meteo</span><span>${R.sim.weather.isRain ? 'Pioggia prevista' : 'Asciutto'}</span></div><div class="weather-strip">${plan.slice(0, R.sim.laps).map((r, i) => `<i style="height:${Math.max(2, r * 20)}px;opacity:${i < curLap ? 0.25 : r > 0.05 ? 0.95 : 0.15};${i === curLap ? 'background:#fff' : ''}"></i>`).join('')}</div></div>`;
-  const radio = sim.radioQ.map((r) => { const c = sim.cars.find((x) => x.key === r.key); return `<div class="ctrl-card radio-card"><div class="rc-h">${icon('radio')} Radio · ${esc(sim.driver(c).name)}</div><div class="mt8" style="font-weight:600;font-size:15px">${esc(r.text.replace(/^[^:]+: /, ''))}</div><div class="row gap6 mt8"><button class="btn sm good grow" data-a="radio" data-id="${r.id}" data-y="1">${{ pit: 'Box, box!', pass: 'Ok, scambio', push: 'Vai, attacca!', rain: 'Box per intermedie', ers: 'Sì, ricarica' }[r.type]}</button><button class="btn sm grow" data-a="radio" data-id="${r.id}" data-y="0">${{ pit: 'Resta fuori', pass: 'Negativo', push: 'Gestisci', rain: 'Resta fuori', ers: 'No' }[r.type]}</button></div><div class="wear mt8" style="height:3px"><i style="width:${Math.max(0, (r.until - sim.time) / 40) * 100}%;background:var(--warn)"></i></div></div>`; }).join('');
+  const radio = (sim.radioQ || []).map((r) => { const c = sim.cars.find((x) => x.key === r.key); return `<div class="ctrl-card radio-card"><div class="rc-h">${icon('radio')} Radio · ${esc(sim.driver(c).name)}</div><div class="mt8" style="font-weight:600;font-size:15px">${esc(r.text.replace(/^[^:]+: /, ''))}</div><div class="row gap6 mt8"><button class="btn sm good grow" data-a="radio" data-id="${r.id}" data-y="1">${{ pit: 'Box, box!', pass: 'Ok, scambio', push: 'Vai, attacca!', rain: 'Box per intermedie', ers: 'Sì, ricarica' }[r.type]}</button><button class="btn sm grow" data-a="radio" data-id="${r.id}" data-y="0">${{ pit: 'Resta fuori', pass: 'Negativo', push: 'Gestisci', rain: 'Resta fuori', ers: 'No' }[r.type]}</button></div><div class="wear mt8" style="height:3px"><i style="width:${Math.max(0, (r.until - sim.time) / 40) * 100}%;background:var(--warn)"></i></div></div>`; }).join('');
   const myTeam = mine[0]?.teamId;
   const orders = mine.length > 1 && mine.every((c) => c.status === 'running') ? `<div class="panel tight"><div class="tiny upper muted mb8">Ordini di scuderia</div><div class="seg">${[['free', 'Libera lotta'], ['hold', 'Mantenere'], ['swap', 'Scambio']].map(([k, n]) => `<div class="${(sim.teamOrders[myTeam] || 'free') === k ? 'on' : ''}" data-a="orders" data-o="${k}">${n}</div>`).join('')}</div></div>` : '';
   const full = radio + html + orders + wxHtml + (R.sim.finished ? `<button class="btn primary xl pulse" data-a="finish-race">${icon('chequered')} Risultati</button>` : '');
@@ -539,9 +587,58 @@ function updateControls(force) {
   }
 }
 
+const lastN = (n) => { const p = String(n).split(' '); return p.slice(1).join(' ') || n; };
+// pit call: this lap / next lap, with the pit-entry check and the predicted rejoin
+function pitButtons(sim, c, advice) {
+  const pi = sim.pitInfo(c);
+  if (c.pitReq) { const lap = Math.min(sim.laps, Math.max(c.lap + 1, c.pitReq.minLap || 0)); return `<button class="btn danger mt8" style="width:100%" data-a="pit" data-key="${c.key}" data-tip="Clicca per annullare la chiamata">Annulla box · rientro a fine giro ${lap} (${c.pitReq.compound ? COMPOUNDS[c.pitReq.compound].short : 'benzina'})</button>`; }
+  const sel = R.pitSel[c.key];
+  const pv = sim.pitPreview(c, sel && sel !== 'none' && !COMPOUNDS[sel]?.wet ? sel : null);
+  const secs = Math.round(pi.toEntry / 5) * 5;
+  let info = pi.passed ? `<span class="warn">Ingresso box già superato: la sosta è possibile solo a fine giro ${pi.thisLap}.</span>` : `Ingresso box tra ~${secs}s di gara.`;
+  if (pv) {
+    info += ` Rientro stimato: <b>P${pv.pos}</b>${pv.ahead ? `, ${pv.ahead.gap.toFixed(1)}s dietro ${esc(lastN(pv.ahead.name))} ${pv.traffic ? '<span class="warn">(traffico)</span>' : '(aria libera)'}` : ' in testa'}.`;
+    if (pv.stack > 0.3) info += ` <span class="warn">Doppia sosta: +${pv.stack.toFixed(1)}s in coda dietro il compagno.</span>`;
+    if (pv.undercut) info += ` Undercut su ${esc(lastN(pv.undercut.name))}: ${pv.undercut.gain >= 0 ? '+' : ''}${pv.undercut.gain.toFixed(1)}s in 2 giri, ne servono ${pv.undercut.need.toFixed(1)} → <b class="${pv.undercut.ok ? 'good' : 'bad'}">${pv.undercut.ok ? 'possibile' : 'difficile'}</b>.`;
+  }
+  return `<div class="row gap4 mt8 pit-row"><button class="btn team grow ${advice?.urgent ? 'pulse' : ''}" data-a="pit" data-key="${c.key}" data-when="this" data-tip="Rientra alla prima occasione${pi.passed ? ' (ingresso di questo giro già superato)' : ''}">${icon('pit')} Box fine giro ${Math.min(sim.laps, pi.thisLap)}</button><button class="btn" data-a="pit" data-key="${c.key}" data-when="next" data-tip="Un giro in più in pista, poi box">Giro ${Math.min(sim.laps, pi.nextLap)}</button></div><div class="tiny muted mt8 pit-info">${info}</div>`;
+}
+// what is going on with the car: tyre state, damage, penalties, driving time
+function stateChips(sim, c) {
+  const ch = [];
+  if (c.damage > 0.05) ch.push(`<span class="chip bad" data-tip="Ala/carrozzeria: si ripara alla prossima sosta (+${(c.damage * 12).toFixed(0)}s)">Ala: +${c.damage.toFixed(1)}s/giro</span>`);
+  if ((c.dmgFloor || 0) > 0.03) ch.push(`<span class="chip bad" data-tip="Danno al fondo: non riparabile in gara">Fondo: +${c.dmgFloor.toFixed(2)}s/giro</span>`);
+  if ((c.flat || 0) > 0.03) ch.push(`<span class="chip warn" data-tip="Gomma spiattellata dopo un bloccaggio: vibrazioni fino al cambio gomme">Spiattellata +${c.flat.toFixed(2)}s</span>`);
+  if ((c.grain || 0) >= 0.4) ch.push('<span class="chip warn" data-tip="Graining: hai spinto a gomme fredde. Passa in Gestione 2-3 giri per ripulirle">Graining</span>');
+  if ((c.hot || 0) >= 2) ch.push('<span class="chip warn" data-tip="Gomme surriscaldate: un altro giro così e si formano bolle (blistering) che accorciano la vita del set">Surriscaldamento</span>');
+  if (c.blisters) ch.push(`<span class="chip bad" data-tip="Blistering: vita utile del set ridotta">Blistering ×${c.blisters}</span>`);
+  if (c.train) ch.push('<span class="chip" data-tip="Trenino DRS: anche l’auto davanti ha l’ala aperta, il DRS serve a poco">Trenino DRS</span>');
+  if (c.issue) ch.push(`<span class="chip warn">${esc(c.issue.name)}</span>`);
+  if (c.tl >= 2 && !sim.endurance) ch.push(`<span class="chip ${c.tl >= 3 ? 'bad' : 'warn'}" data-tip="Limiti della pista: alla quarta infrazione scatta la penalità di 5s">Track limits ${c.tl}/4</span>`);
+  if (c.penalty > 0) ch.push(`<span class="chip bad" data-tip="Penalità in tempo aggiunta all’arrivo">Penalità +${c.penalty}s</span>`);
+  if (sim.endurance && c.driverIds.length > 1) { const n = c.driveLaps?.[c.driverIdx] || 0, mx = sim.maxDrive(c); ch.push(`<span class="chip ${n >= mx * 0.85 ? 'warn' : ''}" data-tip="Tempo massimo di guida per pilota: oltre il limite 30s di penalità">Guida ${n}/${mx} giri</span>`); }
+  return ch.length ? `<div class="row wrap gap4 mt8 state-chips">${ch.join('')}</div>` : '';
+}
+function ordersHTML(sim, c) {
+  const so = c.so || defaultOrders();
+  const seg = (k, opts) => `<div class="seg">${opts.map(([v, n, tip]) => `<div class="${so[k] === v ? 'on' : ''}" data-a="so" data-key="${c.key}" data-k="${k}" data-v="${v}" data-tip="${tip || ''}">${n}</div>`).join('')}</div>`;
+  const tog = (label, tip, on, attrs) => `<div class="row between mt8 small"><span class="muted" data-tip="${tip}">${label}</span><button class="btn sm ${on ? 'active' : ''}" ${attrs}>${on ? 'ON' : 'OFF'}</button></div>`;
+  return `<div class="ss-lbl">Battaglie in pista</div>${seg('battle', [['ask', 'Chiedimi'], ['attack', 'Attacca', 'Attacca e difendi sempre con Override'], ['manage', 'Gestisci', 'Mai rischi: ricarica e lascia passare']])}
+    <div class="ss-lbl">Safety car</div>${seg('sc', [['ask', 'Chiedimi'], ['auto', 'Ingegnere', 'Box se le gomme hanno più del 33% di usura']])}
+    <div class="ss-lbl">Problemi tecnici</div>${seg('issue', [['ask', 'Chiedimi'], ['safe', 'Prudente', 'Sempre l’opzione senza rischi'], ['risk', 'Rischia', 'Continua a spingere e incrocia le dita']])}
+    <div class="ss-lbl">Richieste radio del pilota</div>${seg('radio', [['ask', 'Chiedimi'], ['auto', 'Ingegnere', 'Risponde l’ingegnere']])}
+    ${sim.endurance ? '' : tog('Pioggia: cambio gomme automatico', 'Crossover automatico slick / intermedie / bagnato', c.wxAuto, `data-a="rs-wx" data-key="${c.key}"`)}
+    ${sim.endurance || !c.plan ? '' : tog('Finestra box: sosta automatica al giro del piano', 'L’ingegnere chiama il box al giro pianificato', c.planAuto !== false, `data-a="rs-auto" data-key="${c.key}"`)}
+    ${tog('Attacca se il rivale è entro 1,3s (gomme sotto il 60%)', 'Ritmo d’attacco e Override automatici quando sei a tiro', !!so.pushTrig, `data-a="so" data-key="${c.key}" data-k="pushTrig" data-v="toggle"`)}
+    ${tog('Gestisci se usura oltre 75% o gomme surriscaldate', 'Passa in Gestione da solo per salvare le gomme', !!so.saveTrig, `data-a="so" data-key="${c.key}" data-k="saveTrig" data-v="toggle"`)}
+    <div class="tiny muted mt8">Il duello tra compagni si decide con gli «Ordini di scuderia» qui sotto. Tutto ciò che viene deciso in automatico finisce nel registro decisioni dell’Analisi.</div>`;
+}
+
 function engineerAdvice(sim, c) {
   const comp = COMPOUNDS[c.tyre]; const r = sim.rain; const lapsLeft = sim.laps - c.dist;
-  if (c.pitReq) return { text: 'Box confermato: rientra al prossimo passaggio.' };
+  if (c.pitReq) return { text: `Box confermato: rientra alla fine del giro ${Math.min(sim.laps, Math.max(c.lap + 1, c.pitReq.minLap || 0))}.` };
+  if ((c.grain || 0) >= 0.5) return { text: 'Graining: gomme fredde maltrattate. 2-3 giri in Gestione le ripuliscono.', urgent: false };
+  if ((c.hot || 0) >= 2 && !comp.wet) return { text: `Gomme oltre la finestra${c.dirty ? ' in aria sporca' : ''}: rischio blistering, alza il ritmo o esci dalla scia.`, urgent: true };
   if (!comp.wet && r > 0.3) return { text: 'Pioggia forte! Servono gomme da bagnato SUBITO.', urgent: true };
   if (comp.wet && r < 0.1 && lapsLeft > 2) return { text: 'La pista si asciuga: valuta le slick.', urgent: true };
   if (sim.endurance && c.fuel < 2.2 && lapsLeft > 1) return { text: `Carburante per ${c.fuel.toFixed(1)} giri: prepara la sosta.`, urgent: c.fuel < 1.4 };
@@ -703,32 +800,30 @@ function playReplay(dt) {
   r.update(states, dt);
 }
 
-// ---------------- KEY MOMENTS ----------------
-function showMoment(m) {
-  if (R.moment) return;
-  R.moment = m;
-  sfx.notify();
-  if (m.key && m.key !== 'all') { R.focus = m.key; if (R.r3d) { R.r3d.director = false; R.r3d.camMode = m.type === 'sc' ? 'heli' : 'chase'; R.r3d._cut = true; R.r3d.focusKey = m.key; } }
-  const ov = document.getElementById('finish-overlay'); if (!ov) return;
-  const col = { sc: 'var(--warn)', rain: 'var(--info)', dry: 'var(--gold)', front: 'var(--info)', attack: 'var(--bad)', defend: 'var(--bad)', undercut: 'var(--warn)', issue: 'var(--warn)', restart: 'var(--good)', mates: 'var(--team)', night: '#7c8cff', fatigue: 'var(--warn)' }[m.type] || 'var(--team)';
-  const eyebrow = { issue: 'Problema tecnico', restart: 'Ripartenza', front: 'Radar meteo', dry: 'Meteo', rain: 'Meteo', mates: 'Ordini di scuderia', night: 'Endurance · notte', fatigue: 'Endurance · cambio pilota' }[m.type] || 'Momento chiave';
-  ov.insertAdjacentHTML('beforeend', `<div id="moment" class="decision" style="border-top-color:${col};width:min(660px,92%)"><div class="m-eyebrow" style="color:${col}">${eyebrow} · gara in pausa</div>
-    <div class="m-title">${esc(m.title)}</div>
-    <div class="mt8" style="line-height:1.55;color:var(--text2)">${esc(m.text)}</div>
-    <div class="col gap6 mt16">${m.options.map((o, i) => `<div class="opt" data-a="moment" data-i="${i}"><div class="row between"><b>${esc(o.label)}</b><span class="kbd">${i + 1}</span></div><div class="small muted mt8">${esc(o.desc)}</div></div>`).join('')}</div>
-    <div class="row between mt16"><span class="small muted">Puoi disattivare queste pause nelle impostazioni del muretto.</span><button class="btn sm ghost" data-a="moments-off">Non chiedere più in questa gara</button></div></div>`);
+// ---------------- DECISIONS: race moments feed the shared decision hub ----------------
+const M_COL = { sc: 'var(--warn)', red: 'var(--bad)', rain: 'var(--info)', dry: 'var(--gold)', front: 'var(--info)', attack: 'var(--bad)', defend: 'var(--bad)', undercut: 'var(--warn)', issue: 'var(--warn)', restart: 'var(--good)', mates: 'var(--team)', night: '#7c8cff', fatigue: 'var(--warn)', drive: 'var(--warn)', garage: 'var(--bad)', radio: 'var(--warn)' };
+const M_EYE = { sc: 'Safety car', red: 'Bandiera rossa', issue: 'Problema tecnico', restart: 'Ripartenza', front: 'Radar meteo', dry: 'Meteo', rain: 'Meteo', mates: 'Ordini di scuderia', night: 'Endurance · notte', fatigue: 'Endurance · cambio pilota', drive: 'Endurance · tempo di guida', garage: 'Endurance · danni', attack: 'Battaglia', defend: 'Battaglia', undercut: 'Strategia', radio: 'Radio dal pilota' };
+function applyDecCfg() {
+  const sim = R.sim; if (!sim) return;
+  const cfg = decSettings();
+  sim.minReal = MIN_REAL; sim.minorAuto = cfg.minorAuto; sim.decMode = cfg.mode === 'engineer' ? 'engineer' : 'ask';
+  // switching to "the engineer decides" answers whatever is still open
+  for (const m of sim.moments.slice()) { const p = sim.policyChoice(m); if (p) sim.resolveMoment(m.id, p.i, p.by); }
 }
-function resolveMomentUI(i) {
-  const m = R.moment; if (!m) return;
-  R.sim.resolveMoment(m.id, i);
-  document.getElementById('moment')?.remove();
-  R.moment = null;
-  sfx.radio?.();
-  if (R.r3d && R.view3d === 'auto') R.r3d.director = true;
-  R.last = performance.now();
-  updateControls(true);
+function syncMoments() {
+  const sim = R.sim, hub = R.hub;
+  for (const m of sim.moments) {
+    m.seen = true;
+    if (hub.has('m' + m.id)) continue;
+    hub.offer({
+      id: 'm' + m.id, engine: true, prio: m.prio, type: m.type, title: m.title, text: m.text, options: m.options, def: m.def, ttl: m.ttl,
+      color: M_COL[m.type], eyebrow: M_EYE[m.type] || 'Momento chiave', focus: m.key && m.key !== 'all' ? m.key : null,
+      get until() { return m.until; }, set until(v) { m.until = v; },
+      valid: () => (sim.moments.includes(m) ? null : 'chiusa'),
+      resolve: (i, by) => sim.resolveMoment(m.id, i, by),
+    });
+  }
 }
-
 // ---------------- ANALYSIS OVERLAY ----------------
 function openAnalysis() {
   if (!R.sim || R.an) return;

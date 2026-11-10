@@ -20,6 +20,7 @@ import { trackGeometry, drsZones } from '../engine/trackphys.js';
 import { SETUP_PARAMS, setupQuality, setupFeedback, fbTxt, trackSetupBase } from './setup.js';
 import { wearError } from './engineer.js';
 import { clamp, rand } from '../engine/rng.js';
+import { DecisionHub, hubLogHTML } from './decisions.js';
 
 const P = window.__sess = { sim: null, id: null, view: null, r3d: null, raf: 0, speed: 8, paused: false, last: 0, uiT: 0, sel: null, tab: 'setup', spec: {}, focus: null, view3d: null, feedN: 0, sideSig: '', done: false };
 let holding = false;
@@ -153,12 +154,13 @@ export function sessionRender(st) {
       <div class="tb-stat ss-hide-sm" id="ss-wx"><b>—</b><span>Meteo</span></div>
       <div class="grow"></div>
       <div class="speed-btns" id="ss-speeds">${speeds.map((v, i) => `<button class="btn sm" data-a="ss-speed" data-v="${v}" data-tip="${v === 1 ? 'Tempo reale' : `Velocità ${v}x`}${i < 7 ? ' · tasto ' + (i + 1) : ''}">${v === 1 ? '1x' : v + 'x'}</button>`).join('')}</div>
+      <button class="btn sm dec-open" data-a="dec-cfg" data-tip="Decisioni a gioco accelerato: pausa automatica, rallenta a 1x o decide l’ingegnere">${icon('settings')} Decisioni</button>
       <button class="btn sm" data-a="ss-simulate" data-tip="Simula il resto della sessione: l’ingegnere gestisce i tuoi piloti">${icon('ff')} ${w.phase === 'practice' ? 'Simula il resto' : 'Simula sessione'}</button>
       ${w.phase !== 'practice' && fmt.length > 1 ? `<button class="btn sm" data-a="ss-simq" data-tip="Simula tutte le fasi rimaste della qualifica e vai alla griglia">${icon('ff')} Simula qualifica</button>` : ''}
       <div class="race-prog"><i id="ss-progbar"></i></div>
     </div>
     <div class="race-board" id="ss-board"></div>
-    <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="ss-viewbtns"></div><div class="hud3d hidden" id="hud3d"></div><div class="race-sub" id="race-sub"></div><div class="ss-banner" id="ss-banner"></div><div id="finish-overlay"></div></div>
+    <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="ss-viewbtns"></div><div class="hud3d hidden" id="hud3d"></div><div class="race-sub" id="race-sub"></div><div class="ss-banner" id="ss-banner"></div><div class="dec-stack" id="dec-stack"></div><div id="finish-overlay"></div></div>
     <div class="race-side ss-side" id="ss-side"><div id="ss-cars"></div><div id="ss-panel"></div></div>
     <div class="race-feed"><div class="row gap4 mb8" id="feed-tabs"><div class="tab active">Cronaca della sessione</div><div class="grow"></div><span class="tiny muted" id="ss-feedinfo"></span></div><div id="ss-feed" style="height:calc(100% - 46px);overflow-y:auto"></div></div>
   </div>`;
@@ -180,12 +182,21 @@ export function sessionMount() {
   updateUI(true);
   updateSpeedUI();
   if (sim.finished) showEndCard(st, sim);
+  P.hub = new DecisionHub({
+    host: () => document.getElementById('finish-overlay'), stack: () => document.getElementById('dec-stack'), unit: 'di sessione',
+    clock: { get speed() { return P.speed; }, set speed(v) { P.speed = v; }, get paused() { return P.paused; }, set paused(v) { P.paused = v; P.last = performance.now(); }, now: () => sim.time },
+    onSpeed: updateSpeedUI, onOpen: (it) => { if (it.focus) { P.focus = it.focus; P.sel = it.focus; refreshSide(); } }, onClose: () => { P.last = performance.now(); refreshSide(); },
+    note: (title, text) => sim.log(`📻 ${title}: ${text}`, 'radio', null, true),
+    extraCfg: 'In prova e in qualifica il muretto ti chiama quando un’auto resta ferma ai box, prima dell’ultimo tentativo utile e quando c’è traffico davanti al giro lanciato.',
+  });
+  if (P.hubLog?.id === P.id) P.hub.log = P.hubLog.log; else P.hubLog = { id: P.id, log: P.hub.log };
   const loop = (t) => {
     const dt = Math.min(0.1, (t - P.last) / 1000); P.last = t;
     if (!P.paused && !sim.finished) {
       let rem = dt * P.speed;
-      while (rem > 0 && !sim.finished) { const d = Math.min(0.5, rem); sim.step(d); rem -= d; }
+      while (rem > 0 && !sim.finished) { const d = Math.min(0.5, rem); sim.step(d); rem -= d; if (sessionDecisions(st, sim)) break; }
     }
+    if (P.hub && !sim.finished) { sessionDecisions(st, sim); P.hub.tick(); } else if (P.hub?.items.length) P.hub.reset();
     if (P.r3d) update3D(dt);
     draw();
     P.uiT += dt;
@@ -201,7 +212,76 @@ export function sessionMount() {
     : 'Scegli gomme, benzina e programma e premi <b>Esci dal box</b>. Dopo ogni run il pilota ti dà il <b>feedback sull’assetto</b>: modifica i parametri tra un run e l’altro. Un <b>long run</b> (6+ giri) misura il degrado delle gomme per la strategia.'), 1500);
 }
 
+// ---------------- DECISIONS (shared hub): idle cars, last chance in qualifying, traffic before a push lap ----------------
+// returns true when a call that should interrupt the fast-forward was raised
+function sessionDecisions(st, sim) {
+  const hub = P.hub; if (!hub || sim.finished) return false;
+  const est = sim.track.lap * 1.02; let raised = false;
+  for (const c of sim.cars) {
+    if (!c.isPlayer || c.auto) continue;
+    const d = sim.driver(c); const idG = 'g' + c.key, idL = 'l' + c.key;
+    if (c.state !== 'garage' || c.pending) c._idleT = null; else if (c._idleT == null) c._idleT = sim.time;
+    const idle = c.state === 'garage' && !c.pending && !sim.red && !sim.chequered;
+    const need = est * 2.26 + 14; // an out lap and one timed lap
+    const canRun = sim.remaining > need;
+    const pos = sim.position(c); const inDrop = sim.isQuali && !!sim.adv && (c.best == null || pos > sim.adv);
+    const go = (err) => { if (err) App.toast('Non si può uscire', err, 'bad'); else { P.focus = c.key; refreshSide(); } };
+    const gone = () => (c.state !== 'garage' || c.pending ? 'l’auto è già in uscita' : sim.chequered ? 'bandiera a scacchi' : sim.red ? 'bandiera rossa' : sim.remaining < est * 1.24 + 8 ? 'non c’è più tempo per un giro' : null);
+    // last useful moment for a flying lap in qualifying
+    if (sim.isQuali && idle && canRun && sim.remaining < need + 80 && !c._lastAsked) {
+      c._lastAsked = true;
+      if (inDrop || c.best == null || pos > Math.max(1, (sim.adv || 4) - 3)) {
+        hub.items = hub.items.filter((x) => x.id !== idG);
+        hub.offer({ id: idL, prio: 3, who: d.name, focus: c.key, eyebrow: `${sim.name} · ultimi minuti`, color: 'var(--bad)', title: `Ultima occasione · ${d.name}`,
+          text: `Restano ${mmss(sim.remaining)}: è l’ultimo momento utile per un giro lanciato. ${c.best == null ? 'Nessun tempo segnato.' : `Ora è P${pos}${sim.adv ? (pos > sim.adv ? ': eliminato se non migliora' : ` (passano i primi ${sim.adv})`) : ''}.`} La pista è al massimo del grip, ma escono tutti adesso: rischio traffico e bandiere gialle.`,
+          options: [{ label: 'Esci subito: giro secco', desc: `${COMPOUNDS[sim.wetComp() || 'soft'].name}, benzina minima` }, { label: 'Resta ai box', desc: 'Risparmi un treno di gomme, ma la posizione può solo peggiorare' }],
+          def: inDrop || c.best == null ? 0 : 1, ttl: 25, valid: gone, resolve: (i) => { if (i === 0) go(sim.engineerRun(c.key)); else c._idleT = sim.time; } });
+        raised = true; continue;
+      }
+    }
+    // a car sitting in the garage while the clock runs
+    const after = c.runs.length > 0 && c._runSeen !== c.runs.length;
+    const idleFor = c._idleT == null ? 0 : sim.time - c._idleT;
+    if (idle && canRun && !hub.has(idG) && !hub.has(idL) && (after || idleFor > (sim.isQuali ? 110 : 330))) {
+      c._runSeen = c.runs.length; c._idleT = sim.time;
+      const last = c.runs[c.runs.length - 1]; const es = sim.engineerSpec(c);
+      const bestT = last?.times?.filter((x) => x.valid).map((x) => x.t).sort((a, b) => a - b)[0];
+      const opts = [];
+      if (sim.isQuali) {
+        opts.push({ label: 'Nuovo tentativo: giro secco', desc: `${COMPOUNDS[es.c].name}${newSetsLeft(st, sim.setsOf(c.key), es.c) > 0 ? ' nuove' : ' usate (set nuovi finiti)'}, benzina minima`, run: () => sim.engineerRun(c.key) });
+        opts.push({ label: 'Resta ai box', desc: 'Si risparmiano le gomme per la gara', run: null });
+      } else {
+        if (last && !last.crashed) opts.push({ label: `Ripeti: ${COMPOUNDS[last.comp].short} × ${Math.max(1, last.times.length)} giri`, desc: 'Stesso programma dell’ultimo run, stesso treno di gomme', run: () => sim.goWhenReady(c.key, { c: last.comp, setId: last.setId ?? null, laps: Math.max(1, last.times.length), fuel: Math.max(3, Math.round(last.startFuel || 6)), mode: last.mode || 'normal', kind: last.kind || null }) });
+        opts.push({ label: `Programma dell’ingegnere: ${es.label}`, desc: `${COMPOUNDS[es.c].name} × ${es.laps} giri, ${es.mode === 'push' ? 'al limite' : 'ritmo gara'}`, run: () => sim.engineerRun(c.key), eng: true });
+        opts.push({ label: 'Resta ai box: decido io', desc: 'Scegli gomme, benzina e assetto dal pannello a destra', run: null });
+      }
+      const def = sim.isQuali ? (inDrop || c.best == null ? 0 : 1) : opts.findIndex((o) => o.eng);
+      hub.offer({ id: idG, prio: 2, who: d.name, focus: c.key, eyebrow: sim.isQuali ? sim.name : 'Prove libere', color: 'var(--team)', title: `${d.name} è ai box`,
+        text: `${after && last ? `Run concluso: ${last.times.length} ${last.times.length === 1 ? 'giro' : 'giri'} su ${COMPOUNDS[last.comp].name}${bestT ? `, migliore ${fmtTime(bestT)}` : ''}.` : `Auto ferma ai box da ${Math.round(idleFor / 60)} minuti mentre il tempo scorre.`} Restano ${mmss(sim.remaining)}${sim.isQuali ? ` · ${c.best == null ? 'nessun tempo' : 'P' + pos}${sim.adv ? ` (passano i primi ${sim.adv})` : ''}` : ''}.`,
+        options: opts.map((o) => ({ label: o.label, desc: o.desc })), def: Math.max(0, def), ttl: sim.isQuali ? 30 : 50, valid: gone,
+        resolve: (i) => { const o = opts[i]; if (o?.run) go(o.run()); else c._idleT = sim.time; } });
+      raised = true;
+    }
+    // slow cars ahead of the push lap
+    if (c.state === 'run' && c.lap?.type === 'out' && c.secIdx >= 1 && !c.lap._trafAsked && c.run?.seq[c.run.i + 1] === 'timed' && (sim.isQuali || c.run.mode === 'push')) {
+      c.lap._trafAsked = true;
+      const tr = sim.trafficAhead(c, 7);
+      if (tr.length) {
+        const L = c.lap; const left = L.sec.slice(c.secIdx).reduce((a, b) => a + b, 0) - c.secT;
+        hub.offer({ id: 't' + c.key + Math.round(sim.time), prio: sim.isQuali ? 2 : 1, who: d.name, focus: c.key, eyebrow: 'Traffico', color: 'var(--warn)', title: `Traffico davanti a ${d.name}`,
+          text: `${tr.length === 1 ? `${sim.driver(tr[0]).name} è` : `${tr.length} auto sono`} in un giro lento nei 7 secondi davanti: il giro lanciato rischia di essere rovinato.`,
+          options: [{ label: 'Crea spazio', desc: 'Rallenta nel giro di lancio (+5s): pista libera garantita' }, { label: 'Vai lo stesso', desc: 'Nessun tempo perso, ma rischi di trovarli in traiettoria' }],
+          def: sim.remaining > left + est + 12 ? 0 : 1, ttl: 12, hardUntil: sim.time + Math.max(1, left - 2),
+          valid: () => (c.state === 'run' && c.lap === L ? null : 'il giro è già partito'), resolve: (i) => { if (i === 0) sim.makeGap(c.key); } });
+        if (sim.isQuali) raised = true;
+      }
+    }
+  }
+  return raised && P.speed < 16 ? true : raised && hub.items.some((x) => x.prio >= 3);
+}
+
 export function sessionStop() {
+  P.hub = null;
   cancelAnimationFrame(P.raf); P.raf = 0;
   P.view?.destroy(); P.view = null;
   P.r3d?.destroy(); P.r3d = null;
@@ -585,6 +665,7 @@ function showEndCard(st, sim) {
     <div class="col gap4 mt16" style="text-align:left;min-width:340px">${mine}</div>
     ${elim.length ? `<div class="tiny upper muted mt16" style="text-align:left">Eliminati</div><div class="small muted" style="text-align:left">${elim.map((c) => esc(sim.driver(c).name)).join(' · ')}</div>` : ''}
     ${!sim.isQuali ? `<div class="small muted mt16" style="text-align:left">Pista gommata al ${Math.round(sim.rubber * 100)}%. ${Object.keys(w.longRuns || {}).length ? 'Degrado misurato per: ' + Object.keys(w.longRuns).map((x) => COMPOUNDS[x].name).join(', ') + '.' : 'Nessun long run: il degrado per la strategia è solo stimato.'}</div>` : ''}
+    ${hubLogHTML(P.hub?.log || P.hubLog?.log, 'Decisioni della sessione')}
     <button class="btn primary xl mt24" data-a="ss-next">${esc(next)} ${icon('right')}</button></div></div>`;
 }
 
@@ -698,9 +779,12 @@ export const sessionActions = {
     App.refresh();
   },
 };
+export function sessionHub() { return P.raf ? P.hub : null; }
 export function sessionKey(e) {
   if (!P.sim || !P.raf) return false;
-  if (e.code === 'Space') { e.preventDefault(); sessionActions['ss-pause'](); return true; }
+  if (e.code === 'Space') { e.preventDefault(); if (document.activeElement?.matches?.('button, [data-a]')) document.activeElement.blur(); sessionActions['ss-pause'](); return true; }
+  if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.code === 'Minus' || e.code === 'NumpadSubtract') { const L = [1, 2, 4, 8, 16, 32, 64]; const i = Math.max(0, L.indexOf(P.speed)); P.speed = L[Math.max(0, Math.min(L.length - 1, i + (e.code === 'Equal' || e.code === 'NumpadAdd' ? 1 : -1)))]; updateSpeedUI(); return true; }
+  if (P.hub?.key(e)) return true;
   const sp = { Digit1: 1, Digit2: 2, Digit3: 4, Digit4: 8, Digit5: 16, Digit6: 32, Digit7: 64 }[e.code];
   if (sp) { P.speed = sp; P.paused = false; updateSpeedUI(); return true; }
   return false;

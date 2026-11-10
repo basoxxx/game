@@ -2,7 +2,7 @@
 // live split times, co-driver calls, incidents and a timed service park.
 import { CATEGORIES, RALLY_TYRES, SURFACES, POINTS_STD } from '../data/categories.js';
 import { buildEntries, aiSetupQuality } from './race.js';
-import { carPerf } from './season.js';
+import { carPerf, standings } from './season.js';
 import { rand, randInt, chance, clamp, gauss, pick, mulberry32 } from './rng.js';
 
 export const PACE_MODES = {
@@ -87,6 +87,8 @@ export class RallyEvent {
       s.sectors = [0, 1, 2].map(() => pool[Math.floor(r() * pool.length)]);
       s.rainP = s.surface === 'snow' ? 0 : state.forceRain === true || state.forceRain === false ? (s.wet ? 95 : 3) : Math.round(clamp(s.wet ? 52 + r() * 40 : (track.rain || 0) * 60 + r() * 22, 2, 96));
     }
+    // night stage: the closing stage of the second loop can run in the dark (light pods needed)
+    { const ni = this.stages.length >= 4 && r() < 0.6 ? 3 : -1; this.stages.forEach((s, i) => { s.night = i === ni && !s.power; }); }
     this.stageIdx = 0;
     this.fast = track.fast || 1;
     this.tv = []; this.tvId = 0;
@@ -96,9 +98,12 @@ export class RallyEvent {
         ...e, team, total: 0, stageTimes: [], status: 'running', retiredLeg: false, superRally: 0,
         damage: { engine: 0, suspension: 0, gearbox: 0, body: 0 }, setupQ: setups[e.key] ?? aiSetupQuality(state, team),
         incidents: [], penalty: 0, psPoints: 0, tyre: null, tyreWear: 0, spare: null, spares: 2, check: 0, posHist: [],
+        // recce: how good the pace notes are (experience of the crew; the player can invest in an extra pass)
+        recce: clamp(0.45 + (state.drivers[e.driverIds[0]]?.attrs.exp || 60) / 220 + gauss(0, 0.07), 0.3, 0.95), recceDeep: false, lightPod: false, roadPos: null, roadside: -1,
       };
     });
     this.log = [];
+    this.setRoadOrder();
   }
   driver(c) { return this.state.drivers[c.driverIds[0]]; }
   get stage() { return this.stages[this.stageIdx]; }
@@ -107,6 +112,51 @@ export class RallyEvent {
   isLoopStart(i = this.stageIdx) { return i === 0 || this.isServiceAfter(i - 1); }
   loopStages(i = this.stageIdx) { let a = i; while (!this.isLoopStart(a)) a--; const out = [this.stages[a]]; let b = a; while (b + 1 < this.stages.length && !this.isLoopStart(b + 1)) out.push(this.stages[++b]); return out; }
   pushTV(g) { this.tv.push({ id: ++this.tvId, stage: this.stageIdx, ...g }); if (this.tv.length > 200) this.tv.shift(); }
+
+  // ---------- road order: who sweeps the road ----------
+  // first loop: championship order (the leader opens the road); afterwards reverse classification (the leader runs last)
+  setRoadOrder() {
+    const act = this.crews.filter((c) => c.status !== 'out');
+    let order;
+    if (this.stageIdx < 2) {
+      let pts = {};
+      try { for (const d of standings(this.state).drivers) pts[d.id] = d.pts; } catch { pts = {}; }
+      order = act.slice().sort((a, b) => (pts[b.driverIds[0]] || 0) - (pts[a.driverIds[0]] || 0) || (b.team.rep || 0) - (a.team.rep || 0) || a.carIdx - b.carIdx);
+    } else order = this.overall().filter((c) => c.status !== 'out').reverse();
+    this.roadN = order.length; this.roadList = order;
+    order.forEach((c, i) => (c.roadPos = i));
+  }
+  // pace factor lost to the road position on this stage (0 = none)
+  roadLoss(c, st) {
+    if (c.roadPos == null) return 0;
+    const x = c.roadPos / Math.max(1, (this.roadN || 2) - 1); // 0 = first on the road, 1 = last
+    if (st.surface === 'gravel' || st.surface === 'rough') return st.wet ? 0.005 * x : 0.009 * Math.pow(1 - x, 1.6); // dry: loose gravel swept by the first cars; wet: ruts and mud for the last
+    if (st.surface === 'snow') return 0.006 * Math.pow(1 - x, 1.6);
+    return 0.0025 * x; // tarmac: dirt pulled onto the line by the cuts
+  }
+  roadInfo(c, st = this.stage) { return { pos: (c.roadPos ?? 0) + 1, n: this.roadN || this.crews.length, secs: st ? this.roadLoss(c, st) * st.km / (SURFACES[st.surface].speed * this.fast) * 3600 : 0 }; }
+  loopHasNight(i = this.stageIdx) { return this.loopStages(i).some((s) => s.night); }
+  // extra recce pass (player, before the first stage): better notes, less time for the shakedown setup
+  setRecce(key, deep) {
+    const c = this.crews.find((x) => x.key === key); if (!c || this.stageIdx > 0 || !!deep === c.recceDeep) return;
+    c.recceDeep = !!deep; c.recce = clamp(c.recce + (deep ? 0.2 : -0.2), 0.2, 1); c.setupQ = clamp(c.setupQ + (deep ? -0.05 : 0.05), 0, 0.97);
+  }
+  // roadside repair on the liaison between two stages of a loop (no service): patches part of the damage,
+  // but the crew can check in late (10s per minute)
+  canRoadside(c) { return c.status !== 'out' && !c.retiredLeg && this.stageIdx > 0 && !this.finished() && !this.isServiceAfter(this.stageIdx - 1) && c.roadside !== this.stageIdx && Object.values(c.damage).some((v) => v > 0.08); }
+  roadsideRepair(key, comp) {
+    const c = this.crews.find((x) => x.key === key); if (!c || !this.canRoadside(c) || !(c.damage[comp] > 0.02)) return null;
+    const d = this.driver(c);
+    c.roadside = this.stageIdx;
+    const before = c.damage[comp];
+    c.damage[comp] = clamp(before * (0.62 - d.attrs.exp / 500), 0, 1);
+    const late = chance(clamp(0.2 + before * 0.6 - d.attrs.exp / 400, 0.05, 0.75)) ? randInt(1, 3) : 0;
+    if (late) c.penalty += late * 10;
+    c.total = c.stageTimes.reduce((s, x) => s + (x || 0), 0) + c.penalty;
+    const text = `${d.name} ripara ${DMG_NAMES[comp]} a bordo strada: danno dal ${Math.round(before * 100)}% al ${Math.round(c.damage[comp] * 100)}%${late ? `, ma arriva al controllo orario con ${late} min di ritardo (+${late * 10}s)` : ', in orario al controllo'}.`;
+    this.pushLog(text, late ? 'warn' : 'good', c);
+    return { text, late, before, after: c.damage[comp] };
+  }
 
   perfOn(c, stage) {
     const w = SURFACES[stage.surface].weights;
@@ -142,7 +192,10 @@ export class RallyEvent {
   }
   offChance(c, st, riskMult, d = this.driver(c)) {
     const surfRisk = { rough: 1.45, snow: 1.15, gravel: 1, tarmac: 0.9 }[st.surface] * (st.wet ? 1.35 : 1);
-    return 0.032 * riskMult * (1.38 - d.attrs.cons / 100) * surfRisk * (1 + c.damage.suspension * 0.6);
+    // approximate pace notes and darkness make every blind corner a gamble
+    const notes = 1.15 - (c.recce ?? 0.5) * 0.3;
+    const night = st.night ? (c.lightPod ? 1.2 : 1.75) : 1;
+    return 0.032 * riskMult * (1.38 - d.attrs.cons / 100) * surfRisk * (1 + c.damage.suspension * 0.6) * notes * night;
   }
   nominalTime(c, st, tyre = c.tyre || bestTyreFor(st, st.wet)) {
     const d = this.driver(c); const surf = SURFACES[st.surface];
@@ -151,6 +204,9 @@ export class RallyEvent {
     f -= c.damage.engine * 0.025 + c.damage.suspension * 0.03 + c.damage.gearbox * 0.022 + c.damage.body * 0.006;
     if (st.wet) f -= 0.05;
     if (c.spares > 1) f -= 0.0015;
+    f -= this.roadLoss(c, st);
+    if (st.night) f -= c.lightPod ? 0.006 * (1.3 - d.attrs.exp / 100) : 0.03; // without the light pod you drive blind
+    else if (c.lightPod) f -= 0.0012; // weight and drag of the pod in daylight
     return st.km / (surf.speed * this.fast * f) * 3600;
   }
 
@@ -159,10 +215,14 @@ export class RallyEvent {
     const st = this.stage;
     const res = [];
     const loopStart = this.isLoopStart();
+    this.setRoadOrder();
     for (const c of this.crews) {
       if (c.status === 'out') continue;
       const d = this.driver(c);
       const ch = { ...(this.aiChoice(c, st)), ...(choices[c.key] || {}) };
+      if (loopStart) c.lightPod = ch.lightPod ?? this.loopHasNight();
+      // rivals patch their cars on the liaison too
+      if (!c.isPlayer && this.canRoadside(c)) { const worst = Object.entries(c.damage).sort((a, b) => b[1] - a[1])[0]; if (worst[1] > 0.4 && chance(0.6)) this.roadsideRepair(c.key, worst[0]); }
       if (!ch.paces) ch.paces = [ch.pace || 'normal', ch.pace || 'normal', ch.pace || 'normal'];
       // tyres: fitted at the start of a loop, otherwise only the spares can be swapped in
       if (loopStart || !c.tyre) { c.tyre = ch.tyre; c.tyreWear = 0; c.spare = ch.spare || ch.tyre; c.spares = ch.spares ?? 2; }
@@ -228,7 +288,7 @@ export class RallyEvent {
     // AIs read the notes too: back off in the most dangerous sector
     const paces = st.sectors.map((s) => (pace === 'push' && SECTOR_TYPES[s].risk > 1.35 && !c.isPlayer && chance(0.5) ? 'normal' : pace));
     const useSpare = !this.isLoopStart() && c.spares >= 2 && c.spare && c.spare !== c.tyre && tyreFit(c.spare, st, st.wet) > tyreFit(c.tyre, st, st.wet) + 0.02;
-    return { tyre, spare: tyre, spares: 2, pace, paces, useSpare };
+    return { tyre, spare: tyre, spares: 2, pace, paces, useSpare, lightPod: this.loopHasNight() };
   }
 
   // duration of a move between two progress points, using the per-sector times
@@ -254,9 +314,8 @@ export class RallyEvent {
     return pieces;
   }
   buildPieces() {
-    // start order (visual only, does not affect stage times), 20s apart: the leaders run last so they
-    // can chase the split times; on the first stage, by seeding (team reputation)
-    const order = this.stageIdx === 0 ? this.crews.filter((c) => c.plan).sort((a, b) => (a.team.rep || 0) - (b.team.rep || 0) || a.carIdx - b.carIdx) : this.overall().filter((c) => c.plan).reverse();
+    // start order = road order, 20s apart (see setRoadOrder: it matters on loose surfaces)
+    const order = (this.roadList || this.crews).filter((c) => c.plan);
     const startIdx = new Map(order.map((c, i) => [c, i]));
     for (const c of this.crews) {
       if (!c.plan) { c.stageResult = null; c.progress = 0; c.splitTimes = {}; c.pieces = []; continue; }
@@ -443,6 +502,7 @@ export class RallyEvent {
     ov.forEach((c, i) => c.posHist.push(c.status === 'out' ? null : i + 1));
     st.gapsAfter = Object.fromEntries(ov.filter((c) => c.status !== 'out').map((c) => [c.key, c.total - ov[0].total]));
     this.stageIdx++;
+    this.setRoadOrder();
     return ranking;
   }
 
@@ -491,7 +551,7 @@ export class RallyEvent {
         gap: c.status === 'out' ? null : c.total - leader.total, time: c.total,
         stageWins: this.stages.filter((s) => s.winner === c.key).length,
       })),
-      stages: this.stages.map((s) => ({ name: s.name, surface: s.surface, km: s.km, winner: s.winner, best: s.best, wet: s.wet, power: s.power })),
+      stages: this.stages.map((s) => ({ name: s.name, surface: s.surface, km: s.km, winner: s.winner, best: s.best, wet: s.wet, power: s.power, night: !!s.night })),
       pole: null,
     };
   }
