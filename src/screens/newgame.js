@@ -1,4 +1,4 @@
-import { carImg } from '../ui/garage3d.js';
+import { carImg, helmet3D, mountStage, stageEnabled } from '../ui/garage3d.js';
 import { App, registerScreen } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { carSVG, teamBadge, categoryArt, flagSVG, helmetSVG } from '../ui/art.js';
@@ -23,8 +23,16 @@ function teamStrengthLabel(td, all) {
   return f < 0.3 ? ['Top Team', 'good'] : f < 0.65 ? ['Centro Gruppo', 'warn'] : ['Sfida Difficile', 'bad'];
 }
 
+let ngStage = null;
+const CAT_LIVERY = {
+  formula: { primary: '#e10600', secondary: '#ffffff', accent: '#111111', pattern: 1, number: 16 },
+  junior: { primary: '#0a2a66', secondary: '#3aa0ff', accent: '#ffffff', pattern: 3, number: 2 },
+  rally: { primary: '#0a2a66', secondary: '#ffcc00', accent: '#e10600', pattern: 5, number: 1 },
+  endurance: { primary: '#111111', secondary: '#00c2ff', accent: '#ffffff', pattern: 2, number: 7 },
+};
 registerScreen({
   id: 'newgame', full: true,
+  unmount() { ngStage?.destroy(); ngStage = null; },
   render() {
     const firstFree = listSaves().find((s) => s.empty)?.slot || 1;
     if (W.step === 1 && !W._slotInit) { W.slot = firstFree; W._slotInit = true; }
@@ -68,6 +76,12 @@ registerScreen({
     },
   },
   mount() {
+    const host = document.getElementById('ng-stage');
+    if (host) {
+      const cu = W.team === 'custom' ? W.custom : null;
+      const sel = cu || TEAMS[W.cat].find((t) => t.id === W.team);
+      if (sel) ngStage = mountStage(host, { id: 'newgame', mode: 'orbit', angle: 0.7, pitch: 0.07, dist: W.cat === 'rally' ? 8.4 : 9.4, fov: 24, target: [0, 0.62, 0], category: W.cat, livery: { primary: sel.colors[0], secondary: sel.colors[1], accent: sel.colors[2], pattern: cu ? cu.pattern : 1 }, number: cu ? 1 : (TEAMS[W.cat].indexOf(sel) + 1) * 3 + 1, sponsor: sel.short, team: { name: sel.name, short: sel.short }, series: CATEGORIES[W.cat]?.full, box: TEAMS[W.cat].indexOf(sel) + 1 || 1 });
+    } else { ngStage?.destroy(); ngStage = null; }
     document.getElementById('pname')?.addEventListener('input', (e) => { W.name = e.target.value; });
     document.getElementById('cname')?.addEventListener('input', (e) => { W.custom.name = e.target.value; const p = document.getElementById('cprev-name'); if (p) p.textContent = e.target.value; });
     document.getElementById('cshort')?.addEventListener('input', (e) => { W.custom.short = e.target.value.toUpperCase().slice(0, 3); });
@@ -77,7 +91,7 @@ registerScreen({
 function step1() {
   return `<div class="cat-cards anim-in">${Object.values(CATEGORIES).map((c) => `
     <div class="cat-card ${W.cat === c.id ? 'sel' : ''}" style="--cc:${c.color}" data-a="pick-cat" data-id="${c.id}">
-      <div class="art">${categoryArt(c.id)}</div>
+      <div class="art art3d">${carImg(c.id, CAT_LIVERY[c.id], { number: CAT_LIVERY[c.id].number, sponsor: 'Apex' }, 720, 340, categoryArt(c.id))}</div>
       <div class="cinfo"><div class="cc-k" style="color:${c.color}">${c.id === 'junior' ? 'Carriera dalla gavetta' : c.type === 'rally' ? 'Prove speciali' : c.id === 'endurance' ? 'Gare di durata' : 'Monoposto'}</div><h2 class="mt8">${c.name}</h2><div class="small mt8" style="color:var(--text2);min-height:38px">${c.tagline}</div>
       <div class="cc-facts"><span><b>${TEAMS[c.id].length}</b>team</span><span><b>${c.cars}</b>auto/team</span>${c.driversPerCar > 1 ? `<span><b>${c.driversPerCar}</b>piloti/auto</span>` : ''}<span>${c.type === 'rally' ? 'Decisioni live' : c.refuel ? 'Rifornimenti' : 'Strategia gomme'}</span></div>${c.id === 'junior' ? '<div class="small good mt8">Vinci per salire in Formula Apex</div>' : ''}</div>
     </div>`).join('')}</div>
@@ -93,15 +107,15 @@ function step2() {
     const [lab, cls] = teamStrengthLabel(sel, teams);
     preview = `<div class="team-preview" style="--team:${sel.colors[0] === '#f0f0f0' || sel.colors[0] === '#f2f2f2' || sel.colors[0] === '#f4f4f4' ? sel.colors[1] : sel.colors[0]}">
       <div class="tp-head">${teamBadge(sel, 52)}<div class="grow"><h2>${sel.name}</h2><div class="small" style="color:var(--text2)">${sel.hq} · Team Principal attuale: ${sel.principal}</div></div><span class="tc-tier ${cls}">${lab}</span></div>
-      <div class="tp-car">${carImg(W.cat, { primary: sel.colors[0], secondary: sel.colors[1], accent: sel.colors[2], pattern: 1 }, { number: '', sponsor: sel.short }, 760, 330)}</div>
+      ${stageEnabled() ? '<div class="tp-car tp-stage" id="ng-stage"></div>' : `<div class="tp-car">${carImg(W.cat, { primary: sel.colors[0], secondary: sel.colors[1], accent: sel.colors[2], pattern: 1 }, { number: '', sponsor: sel.short }, 760, 330)}</div>`}
       <div class="tp-body"><div class="stat-strip"><div><b>${sel.base}</b><span>Valore vettura</span></div><div><b>€${sel.budget}M</b><span>Budget</span></div><div><b class="stars" style="font-size:22px">${stars(sel.rep / 20)}</b><span>Prestigio</span></div></div>
-      <div class="tiny upper muted mt16 mb8">Piloti</div>${sel.gen ? '<div class="small muted">Giovani talenti generati all’inizio della carriera.</div>' : ''}<div>${(sel.d || []).map((d) => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">${helmetSVG(null, 30)}${flagSVG(d[1])}<b style="font-family:var(--display);font-size:18px;text-transform:uppercase">${d[0]}</b><span class="small muted">${d[2]} anni</span><span class="grow"></span><span class="small muted">Velocità</span><b class="num" style="font-size:20px">${d[3]}</b></div>`).join('')}</div></div>
+      <div class="tiny upper muted mt16 mb8">Piloti</div>${sel.gen ? '<div class="small muted">Giovani talenti generati all’inizio della carriera.</div>' : ''}<div>${(sel.d || []).map((d) => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">${helmet3D(null, 30)}${flagSVG(d[1])}<b style="font-family:var(--display);font-size:18px;text-transform:uppercase">${d[0]}</b><span class="small muted">${d[2]} anni</span><span class="grow"></span><span class="small muted">Velocità</span><b class="num" style="font-size:20px">${d[3]}</b></div>`).join('')}</div></div>
     </div>`;
   } else if (W.team === 'custom') {
     const cu = W.custom;
     preview = `<div class="panel glow" style="--team:${cu.colors[0]}">
       <h2 style="font-size:32px;font-style:italic;font-weight:800">Fonda la tua squadra</h2><div class="small muted">Prenderai il posto del team più debole, con budget ridotto. La vera sfida.</div>
-      <div class="car-stage mt16" style="min-height:200px"><div class="grid-floor"></div>${carImg(W.cat, { primary: cu.colors[0], secondary: cu.colors[1], accent: cu.colors[2], pattern: cu.pattern }, { number: '', sponsor: cu.short })}</div>
+      ${stageEnabled() ? '<div class="car-stage live mt16 tp-stage" id="ng-stage"></div>' : `<div class="car-stage mt16" style="min-height:200px"><div class="grid-floor"></div>${carImg(W.cat, { primary: cu.colors[0], secondary: cu.colors[1], accent: cu.colors[2], pattern: cu.pattern }, { number: '', sponsor: cu.short })}</div>`}
       <div class="grid2 mt16"><div class="col gap6"><label class="lbl">Nome squadra</label><input type="text" id="cname" value="${esc(cu.name)}" maxlength="26"></div><div class="col gap6"><label class="lbl">Sigla (3 lettere)</label><input type="text" id="cshort" value="${esc(cu.short)}" maxlength="3"></div></div>
       ${['Colore primario', 'Colore secondario', 'Dettagli'].map((lab, i) => `<div class="mt16"><label class="lbl">${lab}</label><div class="swatches mt8">${PALETTE.map((c) => `<div class="swatch ${cu.colors[i] === c ? 'sel' : ''}" style="background:${c}" data-a="c-color" data-i="${i}" data-c="${c}"></div>`).join('')}</div></div>`).join('')}
       <div class="mt16"><label class="lbl">Motivo livrea</label><div class="row wrap mt8 gap6">${PATTERNS.map((p, i) => `<button class="btn sm ${cu.pattern === i ? 'active' : ''}" data-a="c-pattern" data-p="${i}">${p}</button>`).join('')}</div></div>

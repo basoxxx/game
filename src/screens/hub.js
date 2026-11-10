@@ -1,4 +1,4 @@
-import { carImg } from '../ui/garage3d.js';
+import { carImg, helmet3D, mountStage, stageEnabled } from '../ui/garage3d.js';
 import { App, registerScreen } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { carSVG, flagSVG, helmetSVG, trackSVG, teamBadge } from '../ui/art.js';
@@ -35,6 +35,7 @@ function rivalPanel(st) {
   return `<div class="panel"><div class="panel-head"><h3>${icon('flame')} Tensione tra piloti</h3></div><div>${list.map((r) => { const a = st.drivers[r.a], b = st.drivers[r.b]; const c = heatColor(r.heat); return `<div class="rival-row ${r.mine ? 'mine' : ''}"><div class="row between"><b style="font-family:var(--display);font-size:18px;text-transform:uppercase">${esc(a.name.split(' ').slice(-1)[0])} <span class="dim">vs</span> ${esc(b.name.split(' ').slice(-1)[0])}</b><span style="font-family:var(--display);font-size:13px;letter-spacing:.1em;color:${c};font-weight:800">${heatLabel(r.heat).toUpperCase()}</span></div><div class="heat"><i style="width:${Math.round(r.heat)}%;background:${c}"></i></div><div class="small muted">${r.mates ? 'Compagni di squadra · ' : ''}${esc(r.why)}</div></div>`; }).join('')}</div></div>`;
 }
 
+let hubStage = null;
 registerScreen({
   id: 'hub',
   render() {
@@ -69,7 +70,9 @@ registerScreen({
 
     let hero = '';
     const myD0 = myDrivers[0];
-    const heroCar = carImg(st.category, t.car.livery, { number: myD0?.number, sponsor: t.sponsors[0]?.name, helmet: myD0?.helmet.c1 }, 900, 400);
+    const live = stageEnabled();
+    const heroCar = live ? '' : carImg(st.category, t.car.livery, { number: myD0?.number, sponsor: t.sponsors[0]?.name, helmet: myD0?.helmet.c1 }, 900, 400);
+    const stage = live ? '<div class="hh-stage" id="hub-stage" aria-hidden="true"></div><div class="hh-scrim"></div>' : '';
     if (info) {
       const { ev, tr } = info;
       const path = st.category === 'rally' ? genStage(tr.seed, STAGE_STYLE[tr.id]) : circuitPath(tr.cid);
@@ -86,7 +89,7 @@ registerScreen({
       }
       facts += fact(`${Math.round(tr.rain * 100)}<small>%</small>`, 'Rischio pioggia') + (tr.ovt != null ? fact(tr.ovt > 0.6 ? 'Facili' : tr.ovt > 0.3 ? 'Medi' : 'Difficili', 'Sorpassi', 'f-opt') : '');
       const tags = `${ev.sprint ? `<span class="tag">${icon('bolt')} Sprint</span>` : ''}${tr.night ? `<span class="tag dark">${icon('moon')} Notturna</span>` : ''}${tr.double ? '<span class="tag">Punti doppi</span>' : ''}`;
-      hero = `<section class="hub-hero">
+      hero = `<section class="hub-hero ${live ? 'live' : ''}">${stage}
         <div class="hh-info">
           <div class="hh-eyebrow">Prossimo evento · Round ${ev.round} / ${st.calendar.length} ${tags}</div>
           <div class="hh-name">${flagSVG(tr.nat, 48, 32)}<span>${esc(tr.name)}</span></div>
@@ -94,9 +97,9 @@ registerScreen({
           <div class="hh-facts">${facts}</div>
           <div class="hh-cta"><button class="btn primary xl" data-a="continue">${st.weekend ? 'Riprendi il Weekend' : 'Vai al Weekend'} ${icon('right')}</button></div>
         </div>
-        <div class="hh-visual"><div class="hh-track">${trackSVG(path, { w: 520, h: 300, glow: null, color: 'rgba(255,255,255,.85)', width: 4, under: 'rgba(0,0,0,.35)' })}</div><div class="hh-car">${heroCar}</div></div>
+        <div class="hh-visual">${live ? `<div class="hh-map" data-a="nav" data-to="calendar" data-tip="Apri il calendario"><div class="hm-k">${st.category === 'rally' ? 'Prova speciale' : 'Tracciato'}</div>${trackSVG(path, { w: 220, h: 130, glow: null, color: '#fff', width: 3.5, under: 'rgba(0,0,0,.5)' })}</div>` : `<div class="hh-track">${trackSVG(path, { w: 520, h: 300, glow: null, color: 'rgba(255,255,255,.85)', width: 4, under: 'rgba(0,0,0,.35)' })}</div><div class="hh-car">${heroCar}</div>`}</div>
       </section>`;
-    } else hero = `<section class="hub-hero"><div class="hh-info"><div class="hh-eyebrow">Stagione ${st.season}</div><div class="hh-name">Stagione conclusa</div><div class="hh-circ">Tutti gli eventi sono stati disputati.</div><div class="hh-cta" style="margin-top:28px"><button class="btn primary xl" data-a="continue">Bilancio di fine stagione ${icon('right')}</button></div></div><div class="hh-visual"><div class="hh-car">${heroCar}</div></div></section>`;
+    } else hero = `<section class="hub-hero ${live ? 'live' : ''}">${stage}<div class="hh-info"><div class="hh-eyebrow">Stagione ${st.season}</div><div class="hh-name">Stagione conclusa</div><div class="hh-circ">Tutti gli eventi sono stati disputati.</div><div class="hh-cta" style="margin-top:28px"><button class="btn primary xl" data-a="continue">Bilancio di fine stagione ${icon('right')}</button></div></div><div class="hh-visual"><div class="hh-car">${heroCar}</div></div></section>`;
 
     const parts = C.parts.map((p) => {
       const rank = partRanking(st, p.id).indexOf(t.id) + 1;
@@ -119,7 +122,7 @@ registerScreen({
         <div class="hub-grid">
           <div class="col gap16">
             <div class="panel"><div class="panel-head"><h3>I tuoi piloti</h3><button class="btn sm ghost" data-a="nav" data-to="drivers">Dettagli ${icon('right')}</button></div>
-              ${myDrivers.map((d) => { const p = s.drivers.findIndex((x) => x.id === d.id) + 1; const pts = s.drivers.find((x) => x.id === d.id)?.pts || 0; return `<div class="drv-row"><div class="row" style="gap:12px"><span class="drv-num">${d.number}</span>${helmetSVG(d.helmet, 52)}</div><div style="min-width:0"><div class="row" style="gap:8px">${flagSVG(d.nat)}<span class="drv-name">${esc(d.name)}</span></div><div class="drv-meta">${p}° in classifica · ${pts} pt · ${d.age} anni</div><div class="mt8">${moraleChip(d.morale)}</div></div>${ratingBox(ovr(st, d), false)}</div>`; }).join('') || '<div class="muted">Nessun pilota</div>'}
+              ${myDrivers.map((d) => { const p = s.drivers.findIndex((x) => x.id === d.id) + 1; const pts = s.drivers.find((x) => x.id === d.id)?.pts || 0; return `<div class="drv-row"><div class="row" style="gap:12px"><span class="drv-num">${d.number}</span>${helmet3D(d.helmet, 52)}</div><div style="min-width:0"><div class="row" style="gap:8px">${flagSVG(d.nat)}<span class="drv-name">${esc(d.name)}</span></div><div class="drv-meta">${p}° in classifica · ${pts} pt · ${d.age} anni</div><div class="mt8">${moraleChip(d.morale)}</div></div>${ratingBox(ovr(st, d), false)}</div>`; }).join('') || '<div class="muted">Nessun pilota</div>'}
             </div>
             ${info && st.category !== 'rally' ? insightPanel(st, info.tr, t) : ''}
             <div class="panel"><div class="panel-head"><h3>La vettura</h3><button class="btn sm ghost" data-a="nav" data-to="car">Centro Tecnico ${icon('right')}</button></div>
@@ -145,6 +148,10 @@ registerScreen({
   },
   mount() {
     const st = S();
+    {
+      const host = document.getElementById('hub-stage');
+      if (host) { const t = playerTeam(st), d0 = teamDrivers(st, t)[0]; hubStage = mountStage(host, { id: 'hub', mode: 'hero', shift: host.clientWidth < 1150 ? 0.25 : 0.17, angle: 0.66, pitch: 0.05, dist: 8.4, fov: 22, target: [0.1, 0.72, 0], category: st.category, livery: t.car.livery, number: d0?.number, sponsor: t.sponsors[0]?.name || t.short, helmet: d0?.helmet.c1, team: { name: t.name, short: t.short }, series: cat(st).full, box: d0?.number || 1 }); }
+    }
     ensureProgress(st);
     if (st.tutorialSeen && !st.quick) maybeTechDecision(st);
     if (st.pendingTech && st.tutorialSeen) {
@@ -180,6 +187,7 @@ registerScreen({
       <div class="row mt24" style="justify-content:flex-end"><button class="btn primary lg" data-a="close-modal">Al lavoro! ${icon('right')}</button></div>`);
     }
   },
+  unmount() { hubStage?.destroy(); hubStage = null; },
   actions: {},
 });
 

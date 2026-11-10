@@ -148,13 +148,39 @@ export function flagSVG(nat, w = 22, h = 15) {
   return `<svg class="flag" width="${w}" height="${h}" viewBox="0 0 45 30" preserveAspectRatio="none">${inner}</svg>`;
 }
 
+// Team crests: the outline, the inner motif and the lettering treatment are picked from the
+// team's own name, so every squad keeps the same crest everywhere and the grid looks varied.
+const BADGE_SHAPES = [
+  'M20 2 L36 8 L36 20 C36 30 28 36 20 38 C12 36 4 30 4 20 L4 8 Z',
+  'M20 2.5 A17.5 17.5 0 1 1 19.99 2.5 Z',
+  'M20 2 L35.6 11 L35.6 29 L20 38 L4.4 29 L4.4 11 Z',
+  'M10 5 L38 5 L30 35 L2 35 Z',
+  'M4 4 L36 4 L36 22 C36 31 28 36 20 38 C12 36 4 31 4 22 Z',
+  'M12 3 L28 3 Q37 3 37 12 L37 28 Q37 37 28 37 L12 37 Q3 37 3 28 L3 12 Q3 3 12 3 Z',
+  'M20 2 L38 14 L32 37 L8 37 L2 14 Z',
+];
+function badgeHash(t) { const k = String(t.id || '') + String(t.name || t.short || ''); let h = 2166136261; for (let i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 export function teamBadge(team, size = 34) {
-  const [a, b, c] = team.colors;
-  const id = sid();
-  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" style="flex:none"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${shade(a, -0.45)}"/></linearGradient></defs>
-    <path d="M20 2 L36 8 L36 20 C36 30 28 36 20 38 C12 36 4 30 4 20 L4 8 Z" fill="url(#${id})" stroke="${b}" stroke-width="2"/>
-    <path d="M8 26 L32 14 L32 18 L8 30 Z" fill="${b}" opacity="0.85"/><path d="M8 30 L32 18 L32 20 L8 32 Z" fill="${c}" opacity="0.8"/>
-    <text x="20" y="20" font-family="Exo 2, sans-serif" font-weight="900" font-style="italic" font-size="10.5" text-anchor="middle" fill="${textOn(a)}">${team.short}</text></svg>`;
+  const [a, b = '#ffffff', c = '#111111'] = team.colors || ['#e5141b'];
+  const id = sid(), h = badgeHash(team), shape = BADGE_SHAPES[h % BADGE_SHAPES.length], motif = (h >>> 5) % 6;
+  // the trim must separate from the dark UI: fall back to white when both livery colours are dark
+  const trim = luminance(b) > 0.22 ? b : luminance(a) > 0.22 ? '#0b0c0f' : '#ffffff';
+  const m2 = luminance(c) > 0.08 || luminance(a) < 0.3 ? c : b;
+  const M = [
+    `<path d="M-2 30 L42 10 L42 16 L-2 36 Z" fill="${b}" opacity=".9"/><path d="M-2 36 L42 16 L42 19 L-2 39 Z" fill="${m2}" opacity=".85"/>`,
+    `<path d="M0 26 L20 34 L40 26 L40 31 L20 39 L0 31 Z" fill="${b}" opacity=".92"/><path d="M0 20 L20 28 L40 20 L40 22.5 L20 30.5 L0 22.5 Z" fill="${m2}" opacity=".8"/>`,
+    `<rect x="0" y="27" width="40" height="13" fill="${b}" opacity=".92"/><rect x="0" y="24.5" width="40" height="2" fill="${m2}" opacity=".85"/>`,
+    `<path d="M26 0 L40 0 L40 40 L16 40 Z" fill="${b}" opacity=".9"/><path d="M24 0 L26 0 L16 40 L14 40 Z" fill="${m2}" opacity=".85"/>`,
+    `<g opacity=".9"><rect x="0" y="28" width="40" height="2.2" fill="${b}"/><rect x="0" y="31.6" width="40" height="2.2" fill="${b}"/><rect x="0" y="35.2" width="40" height="2.2" fill="${m2}"/></g>`,
+    `<path d="M0 0 H40 V9 Q20 15 0 9 Z" fill="${b}" opacity=".92"/><path d="M0 9 Q20 15 40 9 V11 Q20 17 0 11 Z" fill="${m2}" opacity=".8"/>`,
+  ][motif];
+  const txt = String(team.short || '').slice(0, 3);
+  const ty = motif === 5 ? 27 : 20.5, tx = motif === 3 ? 18 : 20;
+  const ink = textOn(a);
+  return `<svg class="badge-svg" width="${size}" height="${size}" viewBox="0 0 40 40" style="flex:none" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${shade(a, 0.14)}"/><stop offset="1" stop-color="${shade(a, -0.42)}"/></linearGradient><clipPath id="${id}c"><path d="${shape}"/></clipPath></defs>
+    <path d="${shape}" fill="url(#${id})"/><g clip-path="url(#${id}c)">${M}<path d="M0 0 H40 V14 Q20 20 0 14 Z" fill="#fff" opacity=".07"/></g>
+    <path d="${shape}" fill="none" stroke="${trim}" stroke-width="2" stroke-linejoin="round"/>
+    <text x="${tx}" y="${ty}" font-family="'Barlow Condensed','Arial Narrow',sans-serif" font-weight="800" font-style="italic" font-size="${txt.length > 2 ? 12.5 : 14.5}" letter-spacing=".02em" text-anchor="middle" fill="${ink}" stroke="${ink === '#ffffff' ? 'rgba(0,0,0,.45)' : 'rgba(255,255,255,.35)'}" stroke-width=".7" paint-order="stroke">${txt}</text></svg>`;
 }
 
 export function logoMark(size = 30) {
@@ -183,4 +209,19 @@ export function trackSVG(path, { w = 300, h = 180, color = '#fff', glow = '#e106
   const e = path.pts[path.pts.length - 1];
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-height:${h}px">${glow ? `<path d="${d}" fill="none" stroke="${glow}" stroke-opacity="0.35" stroke-width="${width + 8}" stroke-linejoin="round" stroke-linecap="round" style="filter:blur(4px)"/>` : ''}${under ? `<path d="${d}" fill="${fill || 'none'}" stroke="${under}" stroke-width="${width * 2.6}" stroke-linejoin="round" stroke-linecap="round"/>` : ''}<path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linejoin="round" stroke-linecap="round"/>
   ${start ? `<circle cx="${ox + s[0] * tw}" cy="${oy + s[1] * th}" r="${width + 1.5}" fill="#2fd77f" stroke="#000" stroke-width="2"/>${!path.closed ? `<circle cx="${ox + e[0] * tw}" cy="${oy + e[1] * th}" r="${width + 1.5}" fill="#fff" stroke="#000" stroke-width="2"/>` : ''}` : ''}</svg>`;
+}
+
+// Tyre compound roundel: colour + letter (never colour alone)
+const COMPOUNDS = { soft: ['#ff3b30', 'S'], medium: ['#ffd400', 'M'], hard: ['#f2f2f2', 'H'], inter: ['#3ddc84', 'I'], wet: ['#3a8bff', 'W'], gravel: ['#c9a36b', 'G'], snow: ['#cfe8ff', 'N'], tarmac: ['#9aa3b2', 'A'] };
+export function compoundIcon(id, size = 22) {
+  const [col, l] = COMPOUNDS[id] || ['#9aa3b2', String(id || '?')[0].toUpperCase()];
+  return `<svg class="cmp-ico" width="${size}" height="${size}" viewBox="0 0 24 24" aria-label="${id}"><circle cx="12" cy="12" r="10.5" fill="#0c0d10"/><circle cx="12" cy="12" r="8.6" fill="none" stroke="${col}" stroke-width="2.6" stroke-dasharray="11.5 2"/><text x="12" y="16" text-anchor="middle" font-family="'Barlow Condensed','Arial Narrow',sans-serif" font-weight="800" font-size="11.5" fill="#fff">${l}</text></svg>`;
+}
+// Weather glyph from a rain probability (0..1) and night flag
+export function weatherIcon(rain = 0, night = false, size = 26) {
+  const sun = night ? '<path d="M17.5 12.5A6.5 6.5 0 1 1 10 5a5.4 5.4 0 0 0 7.5 7.5z" fill="#cfd8ee"/>' : '<circle cx="12" cy="11" r="4.2" fill="#ffc93a"/><g stroke="#ffc93a" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v2M12 17v2M4 11h2M18 11h2M6.3 5.3l1.4 1.4M16.3 15.3l1.4 1.4M6.3 16.7l1.4-1.4M16.3 6.7l1.4-1.4"/></g>';
+  const cloud = (o = 1) => `<path d="M7.5 19a4 4 0 1 1 .9-7.9A5 5 0 0 1 18 12.6a3.2 3.2 0 0 1-.4 6.4z" fill="#aeb6c4" opacity="${o}"/>`;
+  const drops = (n) => `<g stroke="#4aa8ff" stroke-width="1.8" stroke-linecap="round">${[9, 13, 17].slice(0, n).map((x) => `<path d="M${x} 20.2l-1 2.6"/>`).join('')}</g>`;
+  const inner = rain < 0.12 ? sun : rain < 0.3 ? `<g transform="translate(3 -3) scale(.8)">${sun}</g>${cloud()}` : rain < 0.5 ? `${cloud()}${drops(2)}` : `${cloud()}${drops(3)}`;
+  return `<svg class="wx-ico" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${inner}</svg>`;
 }

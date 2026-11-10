@@ -8,10 +8,9 @@ import { circuitPath, arcFrac, TrackView } from '../ui/trackview.js';
 import { TRACKS } from '../data/tracks.js';
 import { sfx } from '../ui/audio.js';
 import { openLessons } from './engineer.js';
-import { Garage3D } from '../ui/garage3d.js';
-import { webglAvailable } from '../ui/race3d.js';
+import { mountStage, stageEnabled } from '../ui/garage3d.js';
 import { TEAMS } from '../data/teams.js';
-let garage = null;
+let garage = null, showcase = null;
 import { migrateSave } from '../engine/migrate.js';
 
 let anim = null, view = null;
@@ -25,10 +24,8 @@ registerScreen({
     const last = saves.filter((x) => !x.empty).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0];
     const item = (a, ic, label, desc, extra = '', cls = '') => `<div class="menu-item ${cls}" ${a} data-desc="${esc(desc)}">${icon(ic)}<span>${label}</span>${extra}</div>`;
     return `<div class="menu-screen">
-      <div class="menu-bg"><canvas id="menu-cv"></canvas></div>
-      <div id="menu-3d" class="menu-car"></div>
-      ${webglAvailable() ? '' : `<div class="menu-car-fallback">${carSVG('formula', { primary: '#e5141b', secondary: '#fff', accent: '#111', pattern: 1 }, { number: 1, sponsor: 'Apex Dynasty' })}</div>`}
-      <div class="menu-feature" id="menu-feature"><div class="mf-k">In pista</div><div class="mf-v" id="menu-track"></div><div class="mf-t" id="menu-car-name"></div></div>
+      ${stageEnabled() ? '<div id="menu-3d" class="menu-stage"></div><div class="menu-scrim"></div>' : `<div class="menu-bg"><canvas id="menu-cv"></canvas></div><div class="menu-car-fallback">${carSVG('formula', { primary: '#e5141b', secondary: '#fff', accent: '#111', pattern: 1 }, { number: 1, sponsor: 'Apex Dynasty' })}</div>`}
+      <div class="menu-feature" id="menu-feature"><div class="mf-k" id="menu-feat-k">In pista</div><div class="mf-v" id="menu-track"></div><div class="mf-t" id="menu-car-name"></div></div>
       <div class="menu-left">
         <div class="menu-logo">${logoMark(64)}<div><div class="logo-big">Apex<span>Dynasty</span></div><div class="logo-sub">Formula · Rally · Endurance</div></div></div>
         <div>
@@ -62,11 +59,6 @@ registerScreen({
     </div>`;
   },
   mount() {
-    const cv = document.getElementById('menu-cv');
-    const demo = TRACKS.formula[Math.floor(Math.random() * TRACKS.formula.length)];
-    view = new TrackView(cv, circuitPath(demo.cid), { pad: 70, glow: 'rgba(0,0,0,0)', clear: true, width: 12 });
-    view.demoName = demo.circuit;
-    const tl = document.getElementById('menu-track'); if (tl) tl.textContent = demo.name;
     const desc = document.getElementById('menu-desc');
     const list = document.querySelector('.menu-list');
     list?.addEventListener('focusin', (e) => { const it = e.target.closest('.menu-item'); if (it && desc) desc.textContent = it.dataset.desc || ''; });
@@ -75,15 +67,26 @@ registerScreen({
     const first = document.querySelector('.menu-list .menu-item:not(.disabled)');
     first?.focus({ preventScroll: true });
     const m3 = document.getElementById('menu-3d');
-    if (m3 && webglAvailable()) {
-      try {
-        const cats = ['formula', 'formula', 'endurance', 'rally'];
+    const tl = document.getElementById('menu-track'), cn = document.getElementById('menu-car-name'), fk = document.getElementById('menu-feat-k');
+    if (m3) {
+      // the showroom keeps the same car while the menu is re-rendered (load dialog, delete save...)
+      if (!showcase) {
+        const cats = ['formula', 'formula', 'endurance', 'rally', 'junior'];
         const c = cats[Math.floor(Math.random() * cats.length)];
         const t = TEAMS[c][Math.floor(Math.random() * TEAMS[c].length)];
-        garage = new Garage3D(m3, c, { primary: t.colors[0], secondary: t.colors[1], accent: t.colors[2] }, { accent: t.colors[0] === '#f0f0f0' ? t.colors[1] : t.colors[0], number: Math.floor(1 + Math.random() * 63), sponsor: t.short, dist: 13 });
-        const cn = document.getElementById('menu-car-name'); if (cn) cn.textContent = `${t.name} · ${CATEGORIES[c]?.name || ''}`;
-      } catch (e) { console.warn(e); }
+        showcase = { c, t, n: Math.floor(1 + Math.random() * 63) };
+      }
+      const { c, t, n } = showcase;
+      garage = mountStage(m3, { id: 'menu', mode: 'cine', shift: 0.13, category: c, livery: { primary: t.colors[0], secondary: t.colors[1], accent: t.colors[2] }, number: n, sponsor: t.short, team: t, series: CATEGORIES[c]?.full || CATEGORIES[c]?.name, box: n });
+      if (fk) fk.textContent = 'Nel box';
+      if (tl) tl.textContent = t.name;
+      if (cn) cn.textContent = `${CATEGORIES[c]?.full || CATEGORIES[c]?.name || ''} · ${t.hq || ''}`;
+      return;
     }
+    const cv = document.getElementById('menu-cv'); if (!cv) return;
+    const demo = TRACKS.formula[Math.floor(Math.random() * TRACKS.formula.length)];
+    view = new TrackView(cv, circuitPath(demo.cid), { pad: 70, glow: 'rgba(0,0,0,0)', clear: true, width: 12 });
+    if (tl) tl.textContent = demo.name;
     const cars = DEMO_COLORS.map((c, i) => ({ p: -i * 0.012, v: 0.06 + Math.random() * 0.002, c }));
     let last = performance.now();
     const loop = (t) => {
@@ -94,7 +97,7 @@ registerScreen({
     };
     anim = requestAnimationFrame(loop);
   },
-  unmount() { cancelAnimationFrame(anim); view?.destroy(); garage?.destroy(); garage = null; },
+  unmount() { cancelAnimationFrame(anim); view?.destroy(); view = null; garage?.destroy(); garage = null; showcase = null; },
   actions: {
     'continue-last'() {
       const s = listSaves().filter((x) => !x.empty).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0];
