@@ -752,6 +752,19 @@ function worldWinter(st, sum) {
     const a = P.ai[t.id] ||= { mom: 0, reb: 0 };
     const exp = byRep.indexOf(t.id) + 1; const pos = t.lastPos || exp;
     a.mom = clamp(+(a.mom * 0.5 + gauss(0, 0.38) + ((exp - pos) / n) * 0.9).toFixed(2), -1, 1);
+    // dynasties wear out: every consecutive title makes the champion a target (staff poached, complacency)
+    a.streak = pos === 1 ? (a.streak || 0) + 1 : 0;
+    if (a.streak >= 2) {
+      a.mom = clamp(+(a.mom - 0.12 * (a.streak - 1)).toFixed(2), -1, 1);
+      const td = st.staff[t.staff?.td];
+      if (td && chance(0.3 + 0.1 * a.streak)) {
+        const poor = teams.filter((x) => x.id !== t.id).sort((x, y) => (x.lastPos || 0) - (y.lastPos || 0)).slice(-3);
+        const to = pick(poor); const td2 = to && st.staff[to.staff?.td];
+        const loss = Math.min(6, Math.max(2, Math.round((td.rating - 70) / 4)));
+        td.rating = clamp(td.rating - loss, 55, 99); if (td2) td2.rating = clamp(td2.rating + loss, 55, 99);
+        worldLog(st, `Fuga di cervelli: dopo ${a.streak} titoli di fila, metà dell’ufficio tecnico di ${t.name} passa a ${to?.name || 'una rivale'}.`, 'staff');
+      }
+    }
     const orig = TEAMS[st.category].find((x) => x.id === t.id)?.budget || t.baseBudget;
     t.baseBudget = +clamp(t.baseBudget * (1 + a.mom * 0.05), orig * 0.65, orig * 1.6).toFixed(2);
     if (eraNext) a.prep = clamp(+(rand(0.15, 0.6) + ((pos - 1) / Math.max(1, n - 1)) * 0.45).toFixed(2), 0, 1);
