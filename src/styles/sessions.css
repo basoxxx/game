@@ -150,3 +150,14 @@
 .wx-brief .ico { color: var(--info); }
 .wx-stint { display: grid; grid-template-columns: 58px 22px minmax(90px, auto) 70px 1fr; align-items: center; gap: 8px; padding: 4px 6px; background: var(--bg2); }
 .wx-stint .chip { justify-self: start; }
+
+/* v5 live strategy tools: tyre forecast band, rivals table */
+.rs-fc { margin-top: 4px; }
+.rs-fc-bar { position: relative; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.08); margin-bottom: 4px; overflow: hidden; }
+.rs-fc-bar .band { position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, rgba(255,196,0,0.35), rgba(76,217,100,0.35)); border-radius: 4px; }
+.rs-fc-bar .mid { position: absolute; top: -1px; bottom: -1px; width: 2px; margin-left: -1px; background: #fff; }
+.rs-fc-bar .flag { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: repeating-linear-gradient(180deg, #fff 0 2px, #111 2px 4px); }
+.rs-riv { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+.rs-riv-row { display: flex; gap: 6px; align-items: center; padding: 2px 4px; border-radius: 4px; background: rgba(255,255,255,0.03); white-space: nowrap; }
+.rs-riv-row .ell { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.rs-riv-row > span:nth-child(n+3) { flex: none; }
