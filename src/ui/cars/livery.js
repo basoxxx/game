@@ -241,10 +241,13 @@ export function helmetMat(base, L, number) {
 // windscreen wrapping into the A-pillars, side windows with the roll cage showing through,
 // rear screen, sun strip with the team's sponsor. spec: { ws: u where the screen starts,
 // rw: u where the rear screen ends, side: [u0, u1], split: B-pillar u, ... }
-export function greenhouseMat(L, spec, banner = '') {
-  return cached(['gh', L.primary, L.secondary, L.accent, JSON.stringify(spec), banner].join('|'), () => {
+export function greenhouseMat(L, spec, banner = '', pattern = L.pattern ?? 1) {
+  const p = ((pattern | 0) % 10 + 10) % 10;
+  return cached(['gh', L.primary, L.secondary, L.accent, JSON.stringify(spec), banner, p].join('|'), () => {
     const [c, g] = canvas(W / 2, H / 2); g.scale(0.5, 0.5);
     g.fillStyle = spec.roof || L.primary; g.fillRect(0, 0, W, H);
+    // stripe schemes carry on over the roof
+    if (p === 0 || p === 1 || p === 6) { g.save(); g.translate(0, H * 0.55); scheme(g, p, L, 'top', 0); g.restore(); }
     let S = SH;
     const glass = (pts) => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x * W, y * S) : g.moveTo(x * W, y * S))); g.closePath(); g.fillStyle = 'rgb(4,5,7)'; g.strokeStyle = 'rgb(4,5,7)'; g.lineWidth = 14; g.lineJoin = 'round'; g.fill(); g.stroke(); };
     const sheen = (x0, x1, y0, y1) => { const gr = g.createLinearGradient(0, y0 * S, 0, y1 * S); gr.addColorStop(0, 'rgba(120,150,180,0.22)'); gr.addColorStop(0.6, 'rgba(120,150,180,0.03)'); gr.addColorStop(1, 'rgba(120,150,180,0.10)'); g.fillStyle = gr; g.fillRect(x0 * W, Math.min(y0, y1) * S, (x1 - x0) * W, Math.abs(y1 - y0) * S); };

@@ -36,8 +36,8 @@ export function tyreMat(tread) {
     g.fillStyle = tg; g.fillRect(0, y0, TW, y1 - y0); gr.fillStyle = 'rgb(238,238,238)'; gr.fillRect(0, y0, TW, y1 - y0);
     for (let i = 0; i < 1400; i++) {
       const y = y0 + rnd() * (y1 - y0), x = rnd() * TW, len = 8 + rnd() * 70, a = rnd();
-      g.fillStyle = a > 0.5 ? `rgba(78,72,66,${0.2 + rnd() * 0.3})` : `rgba(6,6,7,${0.25 + rnd() * 0.3})`; g.fillRect(x, y, len, 1); if (x + len > TW) g.fillRect(x - TW, y, len, 1);
-      gb.fillStyle = a > 0.5 ? 'rgba(160,160,160,0.5)' : 'rgba(100,100,100,0.5)'; gb.fillRect(x, y, len, 1);
+      g.fillStyle = a > 0.5 ? `rgba(70,66,62,${0.08 + rnd() * 0.14})` : `rgba(6,6,7,${0.1 + rnd() * 0.16})`; g.fillRect(x, y, len, 1); if (x + len > TW) g.fillRect(x - TW, y, len, 1);
+      gb.fillStyle = a > 0.5 ? 'rgba(140,140,140,0.4)' : 'rgba(116,116,116,0.4)'; gb.fillRect(x, y, len, 1);
     }
     // sidewall moulding rings and speckle
     for (const y of [TH * 0.06, TH * 0.11, TH * 0.2, TH * 0.8, TH * 0.89, TH * 0.94]) { gb.fillStyle = 'rgb(170,170,170)'; gb.fillRect(0, y, TW, 2); g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(0, y, TW, 2); }
@@ -58,7 +58,7 @@ export function tyreMat(tread) {
       cut((ctx) => { if (tread === 'wet') { ctx.fillRect(0, y0 + th * 0.27, TW, 6); ctx.fillRect(0, y1 - th * 0.27 - 6, TW, 6); } ctx.fillRect(0, mid - 2.5, TW, 5); });
     }
     const tex = (c, srgb) => { const t = canvasTex(c, { srgb, repeat: true, aniso: 8 }); t.repeat.set(tread === 'rally' ? 5 : 4, 1); return t; };
-    return new THREE.MeshStandardMaterial({ map: tex(cc, true), roughnessMap: tex(rc, false), bumpMap: tex(bc, false), bumpScale: tread === 'slick' ? 0.6 : 3, roughness: 1, metalness: 0 });
+    return new THREE.MeshStandardMaterial({ map: tex(cc, true), roughnessMap: tex(rc, false), bumpMap: tex(bc, false), bumpScale: tread === 'slick' ? 0.3 : 3, roughness: 1, metalness: 0 });
   });
 }
 // compound colour -> tread pattern (rain compounds are blue / green in the game data)

@@ -97,7 +97,7 @@ export function formula(L, opts) {
   for (const s of [1, -1]) {
     const z = s * 0.57;
     car.add(blade([0.3, 0.6, s * 0.44], [0.44, 0.735, z], 0.03, 0.012, cg)); car.add(blade([0.44, 0.735, z], [0.46, 0.62, s * 0.66], 0.03, 0.01, cg));
-    car.add(at(sph(1, pri, { ws: 14, hs: 10, sx: 0.06, sy: 0.036, sz: 0.085 }), 0.45, 0.75, z));
+    car.add(at(sph(1, pri, { ws: 14, hs: 10, sx: 0.05, sy: 0.027, sz: 0.085 }), 0.45, 0.75, z));
     const gl = new THREE.Mesh(memo('mglass', 0, () => new THREE.PlaneGeometry(0.15, 0.058)), MAT.mirror()); gl.position.set(0.39, 0.75, z); gl.rotation.y = -Math.PI / 2; car.add(gl);
   }
   // floor with raised leading edge, edge wings and tunnel fences, diffuser

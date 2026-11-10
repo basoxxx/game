@@ -52,7 +52,7 @@ export function flakeTex() {
   });
 }
 const PAINT = { roughness: 0.28, metalness: 0.14, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.25, specularIntensity: 0.8 };
-export function paintProps() { return { ...PAINT, normalMap: flakeTex(), normalScale: new THREE.Vector2(0.06, 0.06) }; }
+export function paintProps() { return { ...PAINT, normalMap: flakeTex(), normalScale: new THREE.Vector2(0.025, 0.025) }; }
 
 export const MAT = {
   carbon: () => cached('carbon', () => new THREE.MeshPhysicalMaterial({ color: 0x6a6d74, map: carbonTex(), bumpMap: carbonTex(true), bumpScale: 0.35, roughness: 0.5, metalness: 0.1, clearcoat: 0.45, clearcoatRoughness: 0.14, envMapIntensity: 0.55 })),
