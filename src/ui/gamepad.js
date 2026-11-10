@@ -13,6 +13,15 @@ import { sfx } from './audio.js';
 const FOCUSABLE = 'button:not([disabled]), [data-a]:not(.disabled), input:not([type=hidden]):not([disabled]), select:not([disabled]), a[href], [tabindex="0"]';
 let App = null, raf = 0, prev = {}, held = {}, lastMove = 0;
 
+// haptics: a short rumble on the first connected controller (no-op without one)
+export function rumble(strong = 0.5, ms = 180, weak = strong) {
+  try {
+    if (document.documentElement.classList.contains('reduce-motion')) { strong *= 0.5; weak *= 0.5; }
+    const gp = (navigator.getGamepads?.() || []).find(Boolean);
+    gp?.vibrationActuator?.playEffect?.('dual-rumble', { startDelay: 0, duration: ms, strongMagnitude: strong, weakMagnitude: weak });
+  } catch {}
+}
+
 export function initGamepad(app) {
   App = app;
   window.__apexPad = { moveFocus, candidates };

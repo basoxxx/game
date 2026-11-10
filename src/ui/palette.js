@@ -69,7 +69,10 @@ export function openPalette(App) {
   const prevFocus = document.activeElement;
   const draw = () => {
     const q = inp.value.trim().toLowerCase();
-    shown = all.map((e) => ({ e, s: Math.max(score(q, e.label.toLowerCase()) * 1.5, score(q, e.kw)) })).filter((x) => x.s > 0).sort((a, b) => (q ? b.s - a.s : 0)).map((x) => x.e).slice(0, 12);
+    // substring hits (label first, then keywords) beat loose subsequence matches, which only show when nothing else does
+    const ranked = all.map((e) => { const l = e.label.toLowerCase(); const li = l.indexOf(q), ki = e.kw.indexOf(q); return { e, s: !q ? 1 : li >= 0 ? 1000 - li : ki >= 0 ? 500 - ki * 0.1 : score(q, e.kw) * (q.length > 2 ? 0.5 : 1) }; }).filter((x) => x.s > 0);
+    const strong = ranked.filter((x) => x.s >= 400);
+    shown = (strong.length ? strong : ranked).sort((a, b) => (q ? b.s - a.s : 0)).map((x) => x.e).slice(0, 12);
     sel = Math.min(sel, Math.max(0, shown.length - 1));
     let lastG = '';
     box.innerHTML = shown.length ? shown.map((e, i) => { const g = !q && e.group !== lastG ? `<div class="pal-g">${esc((lastG = e.group))}</div>` : ''; return `${g}<div class="pal-item ${i === sel ? 'on' : ''}" role="option" aria-selected="${i === sel}" data-i="${i}">${icon(e.ic)}<span>${esc(e.label)}</span>${i === sel ? icon('right') : ''}</div>`; }).join('') : `<div class="pal-empty">${icon('info')} Nessun risultato per «${esc(inp.value)}»</div>`;

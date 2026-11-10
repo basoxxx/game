@@ -2,7 +2,7 @@ import { carImg, helmet3D, mountStage, liveBackdrop } from '../ui/stage3d.js';
 import { App, registerScreen } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { carSVG, flagSVG, helmetSVG, trackSVG, teamBadge } from '../ui/art.js';
-import { esc, bar } from '../ui/dom.js';
+import { esc, bar, countUp } from '../ui/dom.js';
 import { S } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { cat, playerTeam, teamDrivers, standings, partRanking, fmtM, rdSlots, RD_TIERS, partName, freeAgents, seatsPerTeam } from '../engine/season.js';
@@ -170,6 +170,7 @@ registerScreen({
   },
   mount() {
     const st = S();
+    countUp(document.querySelectorAll('.hub-kpis > div > b'), 'hub');
     {
       const host = document.getElementById('hub-stage');
       if (host) { const t = playerTeam(st), d0 = teamDrivers(st, t)[0]; hubStage = mountStage(host, { id: 'hub', mode: 'hero', shift: host.clientWidth < 1150 ? 0.25 : 0.17, angle: 0.66, pitch: 0.05, dist: 8.4, fov: 22, target: [0.1, 0.72, 0], category: st.category, livery: t.car.livery, number: d0?.number, sponsor: t.sponsors[0]?.name || t.short, helmet: d0?.helmet.c1, team: { name: t.name, short: t.short }, series: cat(st).full, box: d0?.number || 1 }); }

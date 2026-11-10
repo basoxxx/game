@@ -106,11 +106,13 @@ export const TOURS = {
   career: () => [
     { title: 'Benvenuto al muretto', icon: 'flag', text: `Sei il <b>Team Principal</b>. Ogni round del calendario è una settimana: prima <b>prepari la squadra</b> in fabbrica, poi vai al <b>weekend di gara</b>. Ti mostro dove si trova tutto in 30 secondi.` },
     { sel: '.topbar .tb-stats', icon: 'chart', title: 'I numeri che contano', text: 'Round, <b>budget</b>, <b>fiducia del consiglio</b> e il tuo <b>livello manager</b>. Se la fiducia scende troppo rischi il posto: rispetta l’obiettivo stagionale.' },
-    { sel: '.sidebar .nav[data-to="inbox"]', icon: 'mail', title: 'Posta e decisioni', text: 'Qui arrivano offerte, richieste dei piloti e scelte importanti. Il numero rosso indica i messaggi da leggere.' },
+    { sel: '.todo-panel', icon: 'check', title: 'Da fare', text: 'La lista delle cose che ti aspettano questa settimana, le più urgenti in alto. <b>Clicca una voce</b> per andare dritto alla schermata giusta: svuotala prima di partire per il weekend.' },
+    { sel: '.sidebar', icon: 'home', title: 'Il menu della squadra', place: 'right', text: 'Le sezioni sono divise in <b>Sede</b>, <b>Squadra</b>, <b>Campionato</b> e <b>Carriera</b>. Il numerino colorato accanto a una voce segnala qualcosa da fare lì: <b>rosso</b> urgente, <b>giallo</b> da sistemare.' },
     { sel: '.sidebar .nav[data-to="car"]', icon: 'car', title: 'Centro Tecnico', text: 'Avvia i progetti di <b>R&amp;D</b> per migliorare la monoposto. Pensa ai prossimi circuiti: motore per le piste veloci, carico per quelle lente.' },
     { sel: '.sidebar .nav[data-to="finance"]', icon: 'money', title: 'Sponsor e finanze', text: 'Firma subito gli <b>sponsor</b>: pagano a ogni evento e finanziano lo sviluppo. Tieni d’occhio stipendi e costi delle strutture.' },
     { sel: '.sidebar .nav[data-to="drivers"]', icon: 'users', title: 'Piloti e mercato', text: 'Morale, forma e contratti dei tuoi piloti. Dal <b>Mercato</b> puoi ingaggiare talenti… se il budget lo permette.' },
     { sel: '.continue-btn', icon: 'right', title: 'Ogni settimana finisce qui', text: 'Quando sei pronto premi <b>Weekend di Gara</b> (o <span class="kbd">Invio</span>): prove libere per l’assetto, qualifiche, poi la gara dove decidi ritmo, gomme e pit stop.' },
+    { sel: '.crumb-search', icon: 'compass', title: 'Vai dove vuoi', text: 'Premi <span class="kbd">Ctrl</span> <span class="kbd">K</span> e scrivi: «sponsor», «regolamento», «accademia»… e ci sei. <span class="kbd">Backspace</span> torna alla schermata precedente.' },
     { sel: '.tb-actions', icon: 'help', title: 'Aiuto sempre a portata', text: 'Notifiche, mixer audio, la guida <b>Come si gioca</b> (<span class="kbd">F1</span>) e l’elenco comandi. Puoi rivedere questo tour dalla guida. Buona stagione!' },
   ],
   race: () => [

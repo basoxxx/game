@@ -3,7 +3,7 @@ import { teamBadge, logoMark, luminance, flagSVG, trackSVG } from './ui/art.js';
 import { esc } from './ui/dom.js';
 import { sfx, music, setAudioScene, AUDIO_BUSES, applyVolumes } from './ui/audio.js';
 import { S, saveGame, getSettings, setSettings } from './engine/state.js';
-import { initGamepad, moveFocus } from './ui/gamepad.js';
+import { initGamepad, moveFocus, rumble } from './ui/gamepad.js';
 import { maybeTour } from './ui/tour.js';
 import { fmtM, playerTeam, cat } from './engine/season.js';
 import { trackArt } from './ui/trackart.js';
@@ -63,6 +63,8 @@ export const App = {
     initGamepad(this);
     try { if (JSON.parse(localStorage.getItem('apexdynasty_settings') || '{}').reduceMotion) document.documentElement.classList.add('reduce-motion'); } catch {}
     applyAccessibility();
+    // big moments are felt on the controller too
+    for (const [k, a, ms] of [['win', 0.8, 420], ['levelup', 0.5, 260], ['error', 0.6, 160]]) { const f = sfx[k]; if (f) sfx[k] = (...x) => { rumble(a, ms); return f(...x); }; }
     installSaveGuard({ saved: () => this.savePulse(), full: () => this.toast('Memoria piena', 'Non c’è più spazio per i salvataggi: esporta la partita o elimina uno slot dal menu Carica.', 'bad') });
     // error boundary: anything uncaught gets a friendly recover dialog (the save on disk is never touched)
     window.addEventListener('error', (e) => { if (e.error || e.message) this.crash(e.error || e.message); });
@@ -118,7 +120,7 @@ export const App = {
       if (f.length) { const i = f.indexOf(document.activeElement); if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); } else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); } else if (i < 0) { e.preventDefault(); f[0].focus(); } }
       return;
     }
-    if (e.key === 'Escape' && !modal) { const back = document.querySelector('.ph-back'); if (back) { e.preventDefault(); back.click(); return; } }
+    if (e.key === 'Escape' && !modal) { const back = document.querySelector('.ph-back'); if (back) { e.preventDefault(); back.click(); return; } if (S() && !screens[this.cur]?.full && this.cur !== 'hub' && !e.target?.closest?.('input, textarea, select')) { e.preventDefault(); this.back(); return; } }
     if (e.key === 'F11' && window.apex?.toggleFullscreen) { e.preventDefault(); window.apex.toggleFullscreen(); return; }
     // command palette: jump anywhere
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && !modal && this.cur !== 'intro') { e.preventDefault(); openPalette(this); return; }
@@ -291,7 +293,7 @@ export const App = {
     const here = NAV.find((n) => n.id === this.cur), grp = NAV_GROUPS.find(([, ids]) => ids.includes(this.cur))?.[0];
     const crumbs = `<nav class="crumbs" aria-label="Percorso">
       ${this.history.length || (this.cur !== 'hub' && here) ? `<button class="crumb-back" data-a="go-back" aria-label="Indietro" data-tip="Indietro (Backspace)">${icon('left')}</button>` : ''}
-      <span class="crumb" data-a="nav" data-to="hub">${esc(t.short || t.name)}</span>${grp && this.cur !== 'hub' ? `<i>/</i><span class="crumb-g">${grp}</span>` : ''}<i>/</i><b>${esc(here?.name || this.cur)}</b>
+      ${grp ? `<span class="crumb" data-a="nav" data-to="${NAV_GROUPS.find((g) => g[0] === grp)[1][0]}">${grp}</span><i>/</i>` : ''}<b>${esc(here?.name || this.cur)}</b>
       <span class="grow"></span>
       <button class="crumb-search" data-a="palette" aria-label="Cerca e vai a… (Ctrl+K)">${icon('compass')}<span>Vai a…</span><span class="kbd">Ctrl</span><span class="kbd">K</span></button>
     </nav>`;
@@ -354,7 +356,7 @@ export const App = {
     // move focus into the dialog (primary action first) so keyboard and controller users land in it
     requestAnimationFrame(() => {
       if (!w.isConnected || w.contains(document.activeElement)) return;
-      const f = w.querySelector('.btn.primary:not([disabled]), button:not([disabled]), [data-a], input, select');
+      const f = w.querySelector('.btn.primary:not([disabled])') || w.querySelector('button:not([disabled]), [data-a], input, select');
       f?.focus({ preventScroll: true });
     });
     return w;
@@ -379,6 +381,7 @@ export const App = {
     if (this.notes.length > 60) this.notes.length = 60;
     this.updateNotesBadge();
     t.setAttribute('role', type === 'bad' ? 'alert' : 'status');
+    if (type === 'good') rumble(0.25, 90, 0.4);
     t.innerHTML = `<div class="t-ic">${icon(type === 'bad' ? 'alert' : type === 'good' ? 'check' : 'info')}</div><b>${title}</b><div class="small muted">${text}</div><i class="t-bar"></i>`;
     while (box.children.length >= 4) box.firstElementChild.remove();
     box.appendChild(t);

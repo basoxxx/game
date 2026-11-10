@@ -32,3 +32,21 @@ export function pageHead({ back = 'menu', backAction = null, eyebrow = '', title
   const btn = back === null && !backAction ? '' : `<button class="btn icon-btn ph-back" ${b} aria-label="Indietro" data-tip="Indietro (Esc)">${icon('left')}</button>`;
   return `<div class="page-head"><div class="ph-left">${btn}<div>${eyebrow ? `<div class="ph-eyebrow">${eyebrow}</div>` : ''}<h1>${title}</h1>${sub ? `<div class="ph-sub">${sub}</div>` : ''}</div></div>${right ? `<div class="ph-right">${right}</div>` : ''}</div>`;
 }
+
+// Count-up for big numbers: animates the first number in each element from the value it showed
+// last time (0 on the first visit) to the new one, keeping prefix/suffix (€, %, M, °).
+const lastCount = new Map();
+export function countUp(els, key = 'n', ms = 750) {
+  const still = document.documentElement.classList.contains('reduce-motion');
+  [...els].forEach((el, i) => {
+    const node = [...el.childNodes].find((n) => n.nodeType === 3 && /\d/.test(n.textContent)); if (!node) return;
+    const m = /^([^\d-]*)(-?\d+(?:\.\d+)?)(.*)$/s.exec(node.textContent); if (!m) return;
+    const to = parseFloat(m[2]), dec = (m[2].split('.')[1] || '').length, k = key + ':' + i;
+    const from = lastCount.has(k) ? lastCount.get(k) : 0; lastCount.set(k, to);
+    if (still || from === to) return;
+    const t0 = performance.now();
+    const step = (t) => { if (!node.isConnected) return; const p = Math.min(1, (t - t0) / ms), e = 1 - (1 - p) ** 3; node.textContent = m[1] + (from + (to - from) * e).toFixed(dec) + m[3]; if (p < 1) requestAnimationFrame(step); };
+    node.textContent = m[1] + from.toFixed(dec) + m[3];
+    requestAnimationFrame(step);
+  });
+}

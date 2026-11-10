@@ -102,7 +102,10 @@ registerScreen({
     }
     // 2) once the quality is known, the 3D showroom loads in the background and fades in on top
     const gen = ++menuGen;
-    ensureQuality().then(() => {
+    // let the menu paint (and answer input) before any 3D work starts
+    const afterPaint = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 60)));
+    if (!performance.getEntriesByName('menu-painted').length) requestAnimationFrame(() => setTimeout(() => performance.mark('menu-painted')));
+    ensureQuality().then(afterPaint).then(() => new Promise((r) => (window.requestIdleCallback ? requestIdleCallback(r, { timeout: 900 }) : setTimeout(r, 250)))).then(() => {
       const screen = document.querySelector('.menu-screen');
       if (gen !== menuGen || !screen || !liveBackdrop() || garage) return;
       if (!showcase) {
