@@ -991,7 +991,7 @@ export class CircuitSim {
   prefKey(m) { return m.type + (m.sub ? ':' + m.sub : ''); }
   prefs() { if (!this._prefs) { try { this._prefs = { ...(getSettings().engPrefs || {}) }; } catch { this._prefs = {}; } } return this._prefs; }
   learnedDefault(mm) {
-    const p = this.prefs()[this.prefKey(mm)]; if (!p || p.n < 3 || !Array.isArray(p.c)) return;
+    const p = this.prefs()[this.prefKey(mm)]; if (!p || p.n < 2.5 || !Array.isArray(p.c)) return;
     const j = p.c.indexOf(Math.max(...p.c)); const share = p.c[j] / p.n;
     const opt = mm.options[j]; if (!opt || share < 0.7 || p.c.length !== mm.options.length) return;
     if (j === mm.def) { mm.text = `${mm.text} Siamo d’accordo: è anche la tua scelta abituale.`; return; }
