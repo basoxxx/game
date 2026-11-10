@@ -48,5 +48,7 @@
 .dz-rival svg { width: 54px; height: 54px; flex: none; border-radius: 50%; background: #222; border: 2px solid var(--rc, #ff5a5a); }
 .dz-rival .tiny { opacity: .8; }
 .dz-story { font-size: 13px; color: var(--text2); font-style: italic; margin-top: 4px; }
+.dzx-board u.codardo { background: #ffe066; }
+.dzx-board u.rivale { background: #ff3bd0; box-shadow: 0 0 6px #ff3bd0; }
 @keyframes dzxin { from { opacity: 0; transform: translateX(-50%) translateY(10px); } }
 @media (max-width: 900px) { .dzx-dmg, .dzx-heat { display: none !important; } }

@@ -39,7 +39,7 @@ export function setup(game) {
 function bench(game, c) { c.out = true; c.removed = true; c.benched = true; c.mesh.visible = false; c.body.setEnabled?.(false); }
 function unbench(game, c, wave) {
   const T = game.terrain, tr = game.track, a = Math.random() * Math.PI * 2, r = tr.R * 0.82;
-  c.benched = false; c.removed = false; c.out = false; c.hp = 100; c.zoneDmg = null; c.heat = 0; c.hotT = 0; c.fireT = 0; c.burnT = 0; c.outT = 0;
+  c.benched = false; c.removed = false; c.out = false; c.hp = Math.min(100, 40 + wave * 10); // early waves are already battered: they fall quickly, later ones are fresh c.zoneDmg = null; c.heat = 0; c.hotT = 0; c.fireT = 0; c.burnT = 0; c.outT = 0;
   for (const w of c.mesh.userData.wheels) { w.userData.bent = 0; w.userData.toe = 0; w.rotation.x = 0; }
   game.repairWheels(c); c.body.setEnabled?.(true); c.mesh.visible = true;
   c.body.setTranslation({ x: T.cx + Math.cos(a) * r, y: T.heightAt(T.cx + Math.cos(a) * r, T.cz + Math.sin(a) * r) + 0.8, z: T.cz + Math.sin(a) * r }, true);

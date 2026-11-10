@@ -1286,7 +1286,7 @@ export class DerbyGame {
     if (!ev && ['race', 'derby', 'elim', 're'].includes(this.mode)) r.prize = Math.round(([5000, 3500, 2500, 1800, 1300, 1000, 800, 600][r.pos - 1] || 400) * (this.diff.prize || 1));
     if (this.mode === 'parco') r.prize = 0;
     // bonus objectives of the event (each pays once per run)
-    r.objectives = evalObjectives(this, r); const objPay = r.objectives.reduce((s, o) => s + (o.done ? o.prize : 0), 0);
+    r.props = this.playerProps || 0; r.objectives = evalObjectives(this, r); const objPay = r.objectives.reduce((s, o) => s + (o.done ? o.prize : 0), 0);
     r.bonus = Math.min(6000, (P.kills || 0) * 1000 + Math.round((P.score || 0) / 20) * 10) + objPay;
     if (this.mode === 'parco') r.bonus = Math.min(1500, r.bonus);
     if (this.o.championship) r.bonus = Math.round(r.bonus / 2);
