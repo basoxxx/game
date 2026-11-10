@@ -7,7 +7,7 @@ import { genStage, STAGE_STYLE } from './trackview.js';
 import { getSettings } from '../engine/state.js';
 import { passBy } from './audio.js';
 import { buildCar, setTyreColor, setCarLOD, MAT } from './cars3d.js';
-import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, updateSunFlare, updateGodRays, HeightFog, stabilizeShadow, triMat } from './gfx.js';
+import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, updateSunFlare, updateGodRays, HeightFog, stabilizeShadow, triMat, loadTex } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { biomeOf, RALLY_LOOK } from './env/biomes.js';
 import { buildCoast, buildMidTerrain, buildDecals, buildLife, buildRallyExtras, buildGridSlots } from './env/scenery.js';
@@ -486,7 +486,15 @@ export class Race3D {
       }
     }
     // white edge lines + rubbered racing line
-    const lineMat = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.6 });
+    // white lines: thermoplastic paint, chipped and greyed by rubber where the cars cross it
+    const lineTex = canvasTex(32, 512, (c, w, h) => {
+      c.fillStyle = '#f4f4f2'; c.fillRect(0, 0, w, h);
+      for (let k = 0; k < 260; k++) { c.fillStyle = `rgba(70,70,72,${0.15 + Math.random() * 0.5})`; c.beginPath(); c.arc(Math.random() * w, Math.random() * h, 0.4 + Math.random() * 1.6, 0, 7); c.fill(); }
+      for (let k = 0; k < 40; k++) { c.fillStyle = `rgba(20,20,20,${Math.random() * 0.18})`; c.fillRect(Math.random() * w, Math.random() * h, 2 + Math.random() * 10, 20 + Math.random() * 120); }
+      for (let k = 0; k < 6; k++) { const y = Math.random() * h; c.fillStyle = 'rgba(60,60,60,0.55)'; c.fillRect(0, y, w, 2 + Math.random() * 6); }
+    });
+    const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: lineTex, roughness: 0.55 });
+    if (!this.low) detailPatch(lineMat, { antiTile: false, macro: 0.06, macroScale: 0.1, wet: true, key: 'line' });
     this.scene.add(this.ribbon(W / 2 - 0.35, W / 2 - 0.1, 0.045, lineMat, 0.05));
     this.scene.add(this.ribbon(-W / 2 + 0.1, -W / 2 + 0.35, 0.045, lineMat, 0.05));
     // rubbered-in racing line: two tyre tracks made of fine streaks
@@ -967,7 +975,18 @@ export class Race3D {
   // street circuits, and catch-fences with posts everywhere
   buildBarriers(street, paintedMat) {
     const N = this.geo.N;
-    const steel = new THREE.MeshStandardMaterial({ color: 0xb9c0c7, metalness: 0.92, roughness: 0.32, side: THREE.DoubleSide });
+    // Armco W-beam: galvanised steel with the two-ridge profile in a normal map, splice bolts every
+    // 4 m (one texture tile), dirt thrown up along the bottom edge
+    const armD = canvasTex(256, 64, (c, w, h) => {
+      const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#d5dadf'); g.addColorStop(0.5, '#b4bbc2'); g.addColorStop(1, '#8f8a80'); c.fillStyle = g; c.fillRect(0, 0, w, h);
+      for (let k = 0; k < 90; k++) { c.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '60,62,66'},${Math.random() * 0.12})`; c.fillRect(Math.random() * w, Math.random() * h, 4 + Math.random() * 40, 1 + Math.random() * 2); }
+      c.fillStyle = 'rgba(40,42,46,0.55)'; c.fillRect(0, 0, 3, h); for (const y of [0.22, 0.5, 0.78]) for (const x of [7, 15]) { c.beginPath(); c.arc(x, y * h, 2.2, 0, 7); c.fill(); }
+      const d = c.createLinearGradient(0, h * 0.65, 0, h); d.addColorStop(0, 'rgba(90,75,55,0)'); d.addColorStop(1, 'rgba(90,75,55,0.35)'); c.fillStyle = d; c.fillRect(0, h * 0.65, w, h * 0.35);
+    });
+    armD.repeat.set(1, 1);
+    const armN = canvasTex(4, 64, (c, w, h) => { for (let y = 0; y < h; y++) { const v = y / h; const dh = Math.sin(v * Math.PI * 4) * 0.85; const ny = -dh, nz = Math.sqrt(Math.max(0, 1 - ny * ny)); c.fillStyle = `rgb(128,${Math.round((ny * 0.5 + 0.5) * 255)},${Math.round((nz * 0.5 + 0.5) * 255)})`; c.fillRect(0, y, w, 1); } });
+    armN.colorSpace = THREE.NoColorSpace;
+    const steel = new THREE.MeshStandardMaterial({ color: 0xffffff, map: armD, normalMap: this.low ? null : armN, metalness: 0.85, roughness: 0.42, side: THREE.DoubleSide });
     const fenceTex = canvasTex(128, 128, (c, w, h) => { c.clearRect(0, 0, w, h); c.strokeStyle = 'rgba(205,210,214,0.95)'; c.lineWidth = 3; for (let k = -w; k < w * 2; k += 32) { c.beginPath(); c.moveTo(k, 0); c.lineTo(k + h, h); c.stroke(); c.beginPath(); c.moveTo(k, h); c.lineTo(k + h, 0); c.stroke(); } }, [1, 1]);
     fenceTex.wrapS = fenceTex.wrapT = THREE.RepeatWrapping; fenceTex.repeat.set(1, 2);
     const fence = new THREE.MeshStandardMaterial({ map: fenceTex, alphaTest: 0.35, transparent: false, metalness: 0.6, roughness: 0.5, side: THREE.DoubleSide });
@@ -985,8 +1004,8 @@ export class Race3D {
       } else {
         const isTec = (i) => tec[i] === (side > 0 ? 1 : 2);
         // guard-rail: two steel beams on posts
-        this.barrierStrip(side, 0.42, 0.72, steel, { filter: (i) => !isTec(i), inset: 0.05 });
-        this.barrierStrip(side, 0.82, 1.08, steel, { filter: (i) => !isTec(i), inset: 0.05 });
+        this.barrierStrip(side, 0.42, 0.74, steel, { filter: (i) => !isTec(i), inset: 0.05, vRepeat: 4 });
+        this.barrierStrip(side, 0.8, 1.1, steel, { filter: (i) => !isTec(i), inset: 0.05, vRepeat: 4 });
         // Tecpro blocks where cars arrive at speed
         this.barrierStrip(side, 0, 1.2, tecMatA, { filter: isTec, vRepeat: 8, inset: -0.4 });
       }
@@ -1047,6 +1066,33 @@ export class Race3D {
     const mat = this.low ? new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x5d6a52 : 0x3f7a34, vertexColors: true, roughness: 1 })
       : detailPatch(pbr(street > 0.7 ? 'aerial_grass_rock' : 'aerial_grass_rock', { repeat: [1, 1], color: street > 0.7 ? 0x7f9a62 : this.groundCol }), { macro: 0.25, macroScale: 0.004, tint: 0xd8c27a, tintAmt: 0.3, key: 'hills' });
     mat.vertexColors = true;
+    if (!this.low) {
+      // far landscape: forest canopy (mottled crowns with self-shadowing) where the vertex colour
+      // says forest, rock on steep / high ground, snow caps on the alpine ranges
+      const prev = mat.onBeforeCompile, rockT = loadTex('tex/aerial_rocks_02_diff_1k.jpg'), rcol = new THREE.Color(this.biome.rockCol), snowH = this.biome.rock ? 260 * Math.max(0.8, this.biome.hill) : 1e5;
+      mat.onBeforeCompile = (sh, r) => {
+        prev(sh, r);
+        sh.uniforms.tRock = { value: rockT };
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D tRock;')
+          .replace('#include <color_fragment>', `#include <color_fragment>
+            {
+              vec3 wN = normalize((vec4(normalize(vNormal), 0.0) * viewMatrix).xyz);
+              float slope = 1.0 - clamp(wN.y, 0.0, 1.0), dist = length(vWPos - cameraPosition);
+              float fk = smoothstep(0.8, 0.3, dot(vColor.rgb, vec3(0.333)));
+              float fade = 1.0 - smoothstep(1500.0, 4500.0, dist);
+              float crowns = dvn(vWPos.xz * 0.11) * 0.6 + dvn(vWPos.xz * 0.29 + 3.1) * 0.4;
+              float clumps = dfbm(vWPos.xz * 0.012 + 9.0);
+              diffuseColor.rgb *= mix(1.0, (0.55 + 0.8 * mix(0.5, crowns, fade)) * (0.75 + 0.5 * clumps), fk);
+              float rk = max(smoothstep(0.42, 0.68, slope), smoothstep(${(rockH).toFixed(1)}, ${(rockH + 120).toFixed(1)}, vWPos.y + 40.0 * (clumps - 0.5)));
+              vec3 rp = vWPos * 0.0045;
+              vec3 rt = mix(texture2D(tRock, rp.xz).rgb, mix(texture2D(tRock, rp.xy).rgb, texture2D(tRock, rp.zy).rgb, abs(wN.x)), smoothstep(0.3, 0.7, slope));
+              diffuseColor.rgb = mix(diffuseColor.rgb, rt * vec3(${rcol.r.toFixed(3)}, ${rcol.g.toFixed(3)}, ${rcol.b.toFixed(3)}) * 2.2, rk * 0.85);
+              float sn = smoothstep(${snowH.toFixed(1)}, ${(snowH + 90).toFixed(1)}, vWPos.y + 60.0 * (clumps - 0.5)) * (1.0 - smoothstep(0.55, 0.8, slope));
+              diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.95, 0.98), sn);
+            }`);
+      };
+      const k0 = mat.customProgramCacheKey; mat.customProgramCacheKey = () => k0() + '|farland' + rockH + '|' + snowH + '|' + this.biome.rockCol;
+    }
     const hills = new THREE.Mesh(g, mat); hills.receiveShadow = false; this.scene.add(hills);
     if (street <= 0.7) buildMidTerrain(this, mat, this.biome, (x, z) => [(x - (cx - 6000)) / 12000 * 1400, (-(z - cz) + 6000) / 12000 * 1400]);
     // exponential haze: crisp near the track, blue-grey aerial perspective on the hills
