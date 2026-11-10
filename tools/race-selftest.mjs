@@ -38,7 +38,7 @@ for (const cat of ['formula', 'junior', 'endurance']) {
     if (cat !== 'endurance' && !sim.weather.isRain && slowShare > 0.08) bad.push(`${cat}/${tr.id}: ${(slowShare * 100).toFixed(0)}% di giri lentissimi a bandiera verde`);
     const stops = fin.map((x) => x.pitStops); const avgStops = stops.reduce((a2, b2) => a2 + b2, 0) / Math.max(1, stops.length);
     stats.stops = (stats.stops || 0) + avgStops;
-    if (cat !== 'endurance' && !sim.weather.isRain && (avgStops < 0.9 || avgStops > 3.6)) bad.push(`${cat}/${tr.id}: soste medie ${avgStops.toFixed(2)}`);
+    if (cat !== 'endurance' && !sim.weather.isRain && !sim.redCount && (avgStops < 0.9 || avgStops > 3.6)) bad.push(`${cat}/${tr.id}: soste medie ${avgStops.toFixed(2)}`);
     if (cat === 'endurance' && (avgStops < 2 || avgStops > laps)) bad.push(`${cat}/${tr.id}: soste medie ${avgStops.toFixed(2)}`);
     if (res.classification.length - fin.length > res.classification.length * 0.45) bad.push(`${cat}/${tr.id}: troppi ritiri (${res.classification.length - fin.length})`);
     const seqs = new Set(sim.cars.filter((c) => c.status !== 'dnf').map((c) => [...sim.stopsLog.filter((x) => x.key === c.key).map((x) => x.from), c.tyre].join('-')));

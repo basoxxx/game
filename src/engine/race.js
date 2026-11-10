@@ -857,8 +857,13 @@ export class CircuitSim {
       else if (left <= 3 && wear < 0.8 && c.gapAhead < 2.5) mode = 'push';
       else if (wear > 0.92 && toStop > 3) mode = 'save';
     }
-    if (!this.endurance && c.smart > 0.7 && left < this.laps * 0.18 && c.gapAhead < 1.5 && (c.team.car.parts.reliability ?? 75) > 68) eng = 'high';
+    // pit-wall personality (stable per team): aggressive walls use the Spinta map earlier, conservative ones nurse fragile cars
+    const style = c.aiStyle ||= (() => { const h = [...String(c.teamId)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 3; return ['aggr', 'balanced', 'cons'][h]; })();
+    const winHigh = style === 'aggr' ? 0.3 : style === 'cons' ? 0.1 : 0.18;
+    if (!this.endurance && c.smart > 0.7 && left < this.laps * winHigh && c.gapAhead < 1.5 && (c.team.car.parts.reliability ?? 75) > (style === 'aggr' ? 60 : 68)) eng = 'high';
     else if (c.smart > 0.75 && left < this.laps * 0.25 && c.gapAhead > 12 && c.pos > 1 && (this.fuelMargin(c) ?? 1) < 0.3) eng = 'low';
+    else if (style !== 'aggr' && c.smart > 0.5 && left > 3 && c.lap % 3 === 0) { const r = this.reliability(c); if (r && r.risk > (style === 'cons' ? 0.1 : 0.16)) { eng = 'low'; if (c.eng !== 'low' && c.pos <= 10 && !c._nurseTV) { c._nurseTV = true; this.comment(`${this.driver(c).name} sembra aver abbassato il ritmo: al muretto ${c.team.short || c.team.name} temono per l’affidabilità.`, c.key); } } }
+    if (c._nurseTV && eng !== 'low' && c.eng === 'low' && style !== 'aggr') eng = 'low';
     if (mode !== c.mode || eng !== c.eng) { c.mode = mode; c.eng = eng; }
   }
   // standing orders of a player car: automatic push / conserve triggers
