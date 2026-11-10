@@ -7,7 +7,7 @@ import { genStage, STAGE_STYLE } from './trackview.js';
 import { getSettings } from '../engine/state.js';
 import { passBy } from './audio.js';
 import { buildCar, setTyreColor, setCarLOD, MAT } from './cars3d.js';
-import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, updateSunFlare, updateGodRays } from './gfx.js';
+import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, updateSunFlare, updateGodRays, HeightFog, stabilizeShadow, triMat } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { biomeOf, RALLY_LOOK } from './env/biomes.js';
 import { buildCoast, buildMidTerrain, buildDecals, buildLife, buildRallyExtras, buildGridSlots } from './env/scenery.js';
@@ -205,7 +205,7 @@ export class Race3D {
     this.renderer.setPixelRatio(this.low ? 1 : Math.min(1.5, window.devicePixelRatio || 1));
     this.renderer.shadowMap.enabled = !this.low;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMapping = THREE.AgXToneMapping;
     this.renderer.toneMappingExposure = night ? 1.0 : 1.05;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
@@ -235,7 +235,10 @@ export class Race3D {
     WET.value = 0;
     // time of day: explicit opts.timeOfDay ('day' | 'afternoon' | 'dusk'), else endurance races at
     // the night circuits start in the evening light
-    this.skyKind = night ? 'night' : TOD[timeOfDay] ? timeOfDay : category === 'endurance' && DUSK_TRACKS.includes(this.geo.cid) ? 'dusk' : (!this.open && TOD[this.biome.tod] ? this.biome.tod : 'day');
+    // the golden-hour look of some rounds is the race's: practice / qualifying (the session screen)
+    // run in the plain day light unless they pass a timeOfDay themselves
+    const session = !!container.closest?.('.ss-screen');
+    this.skyKind = night ? 'night' : TOD[timeOfDay] ? timeOfDay : category === 'endurance' && DUSK_TRACKS.includes(this.geo.cid) ? 'dusk' : (!this.open && !session && TOD[this.biome.tod] ? this.biome.tod : 'day');
     this.tod = TOD[this.skyKind] || null;
     if (this.tod) {
       const T = this.tod;
@@ -253,7 +256,14 @@ export class Race3D {
       if (sd) this.buildSunDisc(sd);
     });
     this.composer = makeComposer(this.renderer, this.scene, this.camera, { bloom: night ? 0.45 : 0.18, low: this.low, ao: true, flare: !night, rays: !night, dof: true });
-    if (this.composer?.grade && this.tod) { this.composer.grade.uniforms.uWarm.value = this.tod.warm; this.composer.grade.uniforms.uSat.value = this.tod.sat; }
+    // AgX tone mapping (soft highlight roll-off, no hue skews on the liveries) with a broadcast
+    // grade on top: more exposure, contrast and saturation to get the punch back. The light
+    // setting (no post-processing) keeps ACES, which needs no grade.
+    this._agx = !!this.composer;
+    if (!this._agx) this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this._expK = this._agx ? 1.55 : 1; this._gSat = this._agx ? 1.16 : 1; this._gCon = this._agx ? 1.15 : 1.08;
+    this.renderer.toneMappingExposure *= this._expK;
+    if (this.composer?.grade) { const gu = this.composer.grade.uniforms; gu.uCon.value = this._gCon; gu.uSat.value = (this.tod?.sat ?? 1.08) * this._gSat; if (this.tod) gu.uWarm.value = this.tod.warm; }
     if (this.composer?.rays && this.tod) this.composer.rays.uniforms.uTint.value.setHex(this.tod.disc);
     this.cars = new Map();
     for (const c of cars) this.addCar(c);
@@ -301,10 +311,10 @@ export class Race3D {
     this.sunDir = night ? new THREE.Vector3(0.22, 0.93, 0.3).normalize() : new THREE.Vector3(0.55, 0.62, 0.45).normalize();
     sun.position.copy(this.sunDir).multiplyScalar(400);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(3072, 3072);
     // tight frustum that follows the camera target (see updateCamera)
     const sc = sun.shadow.camera; sc.left = -70; sc.right = 70; sc.top = 70; sc.bottom = -70; sc.near = 50; sc.far = 900;
-    sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.03;
+    sun.shadow.bias = -0.00025; sun.shadow.normalBias = 0.02;
     this.scene.add(sun); this.scene.add(sun.target);
     this.sun = sun;
     // sky dome gradient
@@ -751,7 +761,7 @@ export class Race3D {
       const beam = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, W + 2.8), m); beam.position.y = 5; g.add(beam);
       this.placeAt(g, i, 0, this.geo.h ? this.geo.h[i] : 0); this.scene.add(g);
     }
-    if (this.scene.fog) { this.scene.fog = new THREE.FogExp2(this.scene.fog.color, 0.0007); this.fogDensity = this.scene.fog.density; }
+    if (this.scene.fog) { this.scene.fog = new HeightFog(this.scene.fog.color, 0.0007); this.fogDensity = this.scene.fog.density; }
   }
 
   // rally stage dressing: spectator groups behind red/white tape on the outside of corners and
@@ -1040,7 +1050,7 @@ export class Race3D {
     const hills = new THREE.Mesh(g, mat); hills.receiveShadow = false; this.scene.add(hills);
     if (street <= 0.7) buildMidTerrain(this, mat, this.biome, (x, z) => [(x - (cx - 6000)) / 12000 * 1400, (-(z - cz) + 6000) / 12000 * 1400]);
     // exponential haze: crisp near the track, blue-grey aerial perspective on the hills
-    if (this.scene.fog) { this.scene.fog = new THREE.FogExp2(this.scene.fog.color, this.night ? 0.0009 : 0.00025 * this.biome.haze); this.fogDensity = this.scene.fog.density; }
+    if (this.scene.fog) { this.scene.fog = new HeightFog(this.scene.fog.color, this.night ? 0.0009 : 0.00025 * this.biome.haze); this.fogDensity = this.scene.fog.density; }
   }
 
   // city skyline behind street circuits (and a distant downtown for park circuits): glass and
@@ -1197,12 +1207,13 @@ export class Race3D {
       });
     });
     ad.wrapS = ad.wrapT = THREE.ClampToEdgeWrapping; ad.anisotropy = 8;
-    const conc = this.low ? new THREE.MeshStandardMaterial({ color: 0xb9bcbf, roughness: 0.9 }) : pbr('concrete_floor_worn_001', { color: 0xd4d6d8, repeat: [0.22, 0.22], roughness: 0.95 });
+    const low = this.low;
+    const conc = triMat('concrete_wall_008', { scale: 0.22, color: 0xdcdcda, roughness: 1, low });
     this._sm = {
       crowd: crowdMat, conc,
-      steel: new THREE.MeshStandardMaterial({ color: 0x8e979f, roughness: 0.45, metalness: 0.6 }),
-      dark: new THREE.MeshStandardMaterial({ color: 0x3a3e45, roughness: 0.8, metalness: 0.2 }),
-      roof: new THREE.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.42, metalness: 0.35 }),
+      steel: triMat('metal_plate', { scale: 0.45, color: 0xa4adb5, roughness: 0.9, metalness: 0.65, low }),
+      dark: triMat('metal_plate', { scale: 0.45, color: 0x3d4148, roughness: 1, metalness: 0.3, low }),
+      roof: triMat('corrugated_iron_02', { scale: 0.35, color: 0xf2f3f4, roughness: 0.75, metalness: 0.45, low }),
       ad: new THREE.MeshStandardMaterial({ map: ad, roughness: 0.5, emissive: 0xffffff, emissiveMap: ad, emissiveIntensity: this.night ? 0.5 : 0.06 }),
       back: this.standBackMat(),
       nBrands: brands.length,
@@ -1393,7 +1404,7 @@ export class Race3D {
   // (lamps face the grid; this.lights[k] shares its material with the whole column)
   buildGantry(W) {
     const g = new THREE.Group();
-    const steel = new THREE.MeshStandardMaterial({ color: 0x30343b, metalness: 0.75, roughness: 0.38 });
+    const steel = triMat('metal_plate', { scale: 0.5, color: 0x40454d, metalness: 0.75, roughness: 0.85, low: this.low });
     const span = this.pit ? 2 * this.pit.wall : W + 6; // + side post stands on the pit wall
     for (const zz of [span / 2, -span / 2]) {
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.9, 8.4, 0.9), steel); post.position.set(0, 4.2, zz); post.castShadow = true; g.add(post);
@@ -1465,8 +1476,8 @@ export class Race3D {
           break;
         }
       }
-      instanced(new THREE.BoxGeometry(2.4, 2.4, 2.2).translate(0, 1.2, 0), new THREE.MeshStandardMaterial({ color: 0xe9e9e6, roughness: 0.7 }), huts);
-      instanced(new THREE.BoxGeometry(2.9, 0.22, 2.7), new THREE.MeshStandardMaterial({ color: 0xf07d10, roughness: 0.6 }), roofs);
+      instanced(new THREE.BoxGeometry(2.4, 2.4, 2.2).translate(0, 1.2, 0), triMat('concrete_wall_008', { scale: 0.45, color: 0xf2f2ef, roughness: 1, low: this.low }), huts);
+      instanced(new THREE.BoxGeometry(2.9, 0.22, 2.7), triMat('metal_plate', { scale: 0.6, color: 0xf07d10, roughness: 0.8, low: this.low }), roofs);
       const led = canvasTex(64, 64, (c, w, h) => { c.fillStyle = '#050607'; c.fillRect(0, 0, w, h); for (let y = 6; y < h - 4; y += 6) for (let x = 6; x < w - 4; x += 6) { c.fillStyle = 'rgba(40,255,90,0.95)'; c.fillRect(x, y, 3, 3); } });
       instanced(new THREE.BoxGeometry(1.2, 1.0, 0.12), new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xffffff, emissiveMap: led, emissiveIntensity: 0.9, roughness: 0.4 }), panels, false);
     }
@@ -1482,8 +1493,8 @@ export class Race3D {
         dummy.position.set(c.pos.x, top, c.pos.z); dummy.rotation.set(0, -rot, 0); dummy.scale.set(1, 1, 1); dummy.updateMatrix(); decks.push(dummy.matrix.clone());
         this.obstacles.push({ x: c.pos.x, z: c.pos.z, r: 2.4, h: 0 });
       }
-      instanced(new THREE.BoxGeometry(0.24, 1, 0.24), new THREE.MeshStandardMaterial({ color: 0x9aa1a8, metalness: 0.7, roughness: 0.45 }), legs);
-      instanced(new THREE.BoxGeometry(2.6, 0.16, 2.6), new THREE.MeshStandardMaterial({ color: 0x5b6067, roughness: 0.8, metalness: 0.3 }), decks);
+      instanced(new THREE.BoxGeometry(0.24, 1, 0.24), triMat('metal_plate', { scale: 0.8, color: 0xaab1b8, metalness: 0.7, roughness: 0.8, low: this.low }), legs);
+      instanced(new THREE.BoxGeometry(2.6, 0.16, 2.6), triMat('metal_plate', { scale: 0.6, color: 0x6b7077, roughness: 1, metalness: 0.3, low: this.low }), decks);
     }
     // sponsor footbridge over the middle of the longest straight (away from the start)
     {
@@ -1493,7 +1504,7 @@ export class Race3D {
         let i = best % N; if (Math.min(i, N - i) < this.pitSpan + 30) i = (i + Math.round(bestLen / 4)) % N;
         const g = new THREE.Group();
         const wl = this.wallOff(i, 1) + 2, wr = this.wallOff(i, -1) + 2, H = 7.2;
-        const steelM = new THREE.MeshStandardMaterial({ color: 0x3a3f46, metalness: 0.7, roughness: 0.4 });
+        const steelM = triMat('metal_plate', { scale: 0.45, color: 0x464c55, metalness: 0.7, roughness: 0.85, low: this.low });
         for (const zz of [wl, -wr]) { const t = new THREE.Mesh(new THREE.BoxGeometry(2.2, H + 2.4, 2.2), steelM); t.position.set(0, (H + 2.4) / 2, zz); t.castShadow = true; g.add(t); }
         const brands = ['PIRELLO', 'LAVAZZO', 'DHX', 'ROLEXA']; const brand = brands[i % brands.length];
         const bt = canvasTex(1024, 128, (c, w, h) => { const gr = c.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#ffd400'); gr.addColorStop(1, '#f1b700'); c.fillStyle = gr; c.fillRect(0, 0, w, h); c.fillStyle = '#111'; c.font = 'italic 900 92px "Exo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(brand, w / 2, h / 2 + 4); });
@@ -1943,7 +1954,7 @@ export class Race3D {
     const F = this.pitBack, bw = ds * 3;
     const d = new THREE.Object3D();
     const frame = (q) => { const i = ((Math.round(q) % N) + N) % N; this.placeAt(d, q, 0, this.geo.h ? this.geo.h[i] : 0); d.updateMatrix(); return d.matrix.clone(); };
-    const G = { shell: [], glass: [], roof: [], vc: [], glow: [], art: [], head: [], screen: [], mark: [] };
+    const G = { shell: [], glass: [], roof: [], vc: [], glow: [], art: [], head: [], screen: [], mark: [], bal: [] };
     const col = new THREE.Color();
     const put = (list, geo, M, color) => {
       for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(k)) geo.deleteAttribute(k);
@@ -2023,6 +2034,13 @@ export class Race3D {
       put(G.glass, box(bw, 3.3, 12.4, 0, 7.1, F + 7.6), M);
       put(G.roof, box(bw + 0.05, 0.45, 15, 0, 8.95, F + 6.8), M);
       put(G.head, tilePlane(bw - 1.4, 0.72, 0, 4.5, F - 0.02, T ? b.team : 31, 4, 8), M);
+      // hospitality balcony in front of the first-floor suites: slab, glass balustrade on
+      // stainless posts with a handrail, and the team name on the roof fascia
+      put(G.shell, box(bw, 0.3, 1.45, 0, 5.3, F - 0.62), M);
+      put(G.bal, box(bw - 0.1, 1.0, 0.03, 0, 5.95, F - 1.26), M);
+      put(G.vc, box(bw, 0.06, 0.09, 0, 6.47, F - 1.26), M, '#cfd4da');
+      put(G.vc, box(0.06, 1.05, 0.06, -bw / 2 + 0.05, 5.95, F - 1.26), M, '#9aa1a8');
+      put(G.head, tilePlane(bw - 0.3, 0.4, 0, 8.95, F - 0.71, T ? b.team : 31, 4, 8), M);
       if (!T) { put(G.art, tilePlane(bw - 0.8, 4.0, 0, 2.0, F + 0.35, 15, 4, 4), M); continue; }
       // interior: epoxy floor with team stripe, white partitions, dark ceiling with light strips
       const iw = bw - 0.8;
@@ -2060,7 +2078,7 @@ export class Race3D {
     }
     // ---- pit wall: concrete wall + debris fence; team stands with canopy, monitors, engineers
     {
-      const concrete = new THREE.MeshStandardMaterial({ color: 0xd9dcdf, roughness: 0.8 });
+      const concrete = triMat('concrete_wall_008', { scale: 0.3, color: 0xe6e7e8, roughness: 1, low: this.low });
       const wallG = [];
       const vs = (q0, q1, off, y0, y1, flip) => { const pos = [], uv = [], idx = []; for (let q = q0, n = 0; q <= q1; q++, n++) { const i = ((q % N) + N) % N; const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]); const hh = this.geo.h ? this.geo.h[i] : 0; const px = this.geo.x[i] + nx * off, pz = this.geo.y[i] + nz * off; pos.push(px, hh + y0, pz, px, hh + y1, pz); uv.push(n * ds / 3, 0, n * ds / 3, 1); if (q < q1) { const k = n * 2; flip ? idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2) : idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); } } const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); return g; };
       const q0 = -P - 3, q1 = P + 3, a = pit.wall - 0.3, b2 = pit.wall + 0.3;
@@ -2105,7 +2123,7 @@ export class Race3D {
       }
     }
     // ---- merge and add
-    const shellMat = new THREE.MeshStandardMaterial({ color: 0xd3d8de, roughness: 0.5, metalness: 0.2 });
+    const shellMat = triMat('concrete_wall_008', { scale: 0.22, color: 0xe9ebee, roughness: 0.9, metalness: 0.05, low: this.low });
     // first-floor glazing: tinted panes with mullions and transoms (lit offices at night)
     const glassTex = canvasTex(256, 128, (c, w, h) => {
       const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#2a3b52'); g.addColorStop(0.6, '#152233'); g.addColorStop(1, '#1d2c40'); c.fillStyle = g; c.fillRect(0, 0, w, h);
@@ -2129,7 +2147,7 @@ export class Race3D {
     const lit = (map, k) => new THREE.MeshStandardMaterial({ map, roughness: 0.55, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: k });
     const out = [
       [G.shell, shellMat, true], [G.glass, glassMat, false], [G.roof, roofMat, true], [G.vc, vcMat, true],
-      [G.glow, new THREE.MeshBasicMaterial({ color: 0xfff7e8 }), false], [G.art, (this._pitArt = lit(artTex, this.night ? 0.55 : 0.32)), false],
+      [G.glow, new THREE.MeshBasicMaterial({ color: 0xfff7e8 }), false], [G.bal, new THREE.MeshStandardMaterial({ color: 0xa9c4d2, transparent: true, opacity: 0.32, roughness: 0.04, metalness: 0.2, depthWrite: false }), false], [G.art, (this._pitArt = lit(artTex, this.night ? 0.55 : 0.32)), false],
       [G.head, lit(headTex, this.night ? 0.6 : 0.2), false], [G.screen, new THREE.MeshBasicMaterial({ map: scrTex }), false],
     ];
     for (const [list, mat, cast] of out) {
@@ -2516,7 +2534,7 @@ export class Race3D {
     this.setLampLevel?.(n);
     this._lit = { sun: this.sun.intensity, bg: this.hdr ? this.scene.backgroundIntensity : 1, fog: this.scene.fog.color.clone() }; this._wetApplied = -1;
     if (this.forest) this.forest.material.uniforms.light.value = 1 - n * 0.8;
-    this.renderer.toneMappingExposure = T.exp - n * 0.2;
+    this.renderer.toneMappingExposure = (T.exp - n * 0.2) * (this._expK || 1);
   }
 
   // visible sun: soft disc + glow sprite on the sun painted in the HDRI (the 1k map clips it to
@@ -2649,9 +2667,9 @@ export class Race3D {
       const fogT = (this._rainFog ||= new THREE.Color());
       fogT.copy(hor).multiplyScalar(0.92);
       this.scene.fog.color.copy(base.fog).lerp(fogT, Math.min(1, ovc * 0.9 + wet * 0.1));
-      if (this.composer?.grade) this.composer.grade.uniforms.uSat.value = (this.tod?.sat ?? 1.08) - 0.18 * ovc - 0.12 * wet;
+      if (this.composer?.grade) this.composer.grade.uniforms.uSat.value = ((this.tod?.sat ?? 1.08) - 0.18 * ovc - 0.12 * wet) * (this._gSat || 1);
       // moody overcast: cooler highlights, deeper contrast instead of a flat grey image
-      if (this.composer?.grade) { const gu = this.composer.grade.uniforms; gu.uWarm.value = (this.tod?.warm ?? 0.035) * (1 - ovc) - 0.016 * ovc * (1 - nite); gu.uCon.value = 1.08 + 0.07 * ovc + 0.04 * storm; gu.uVig.value = 0.32 + 0.1 * ovc; }
+      if (this.composer?.grade) { const gu = this.composer.grade.uniforms; gu.uWarm.value = (this.tod?.warm ?? 0.035) * (1 - ovc) - 0.016 * ovc * (1 - nite); gu.uCon.value = (this._gCon || 1.08) + 0.07 * ovc + 0.04 * storm; gu.uVig.value = 0.32 + 0.1 * ovc; }
     }
     if (!this.asphaltMat.userData.wetPatch) { this.asphaltMat.roughness = 0.82 - wet * 0.5; this.asphaltMat.metalness = 0.04 + wet * 0.12; if (this.asphaltMat.color) { this._asphBase ??= this.asphaltMat.color.getHex(); this.asphaltMat.color.setHex(this._asphBase).multiplyScalar(1 - wet * 0.45); } }
     WET.value = wet;
@@ -3386,8 +3404,7 @@ export class Race3D {
       this.camera.lookAt(look);
       this.camPos.copy(this.camera.position); this.camLook.copy(look);
       this.skyDome.position.copy(this.camera.position);
-      const sc = this.sun.shadow.camera; if (sc.right !== 70) { sc.left = -70; sc.right = 70; sc.top = 70; sc.bottom = -70; sc.updateProjectionMatrix(); }
-      this.sun.position.copy(look).addScaledVector(this.sunDir, 400); this.sun.target.position.copy(look);
+      stabilizeShadow(this.sun, look, this.sunDir, 70);
       if (this.composer?.dof) this.composer.dof.enabled = false;
       if (this.introT <= 0) this._intro = null;
       this._camCar = null;
@@ -3611,12 +3628,10 @@ export class Race3D {
     // the frustum is only as wide as the view needs: close cameras get ~3 cm shadow texels
     // (crisp self-shadowing on the cars), the helicopter keeps the wide one
     const half = mode === 'heli' ? 70 : mode === 'tv' ? 60 : mode === 'chase' || mode === 'garage' ? 40 : 46;
-    const sc = this.sun.shadow.camera;
-    if (sc.right !== half) { sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.updateProjectionMatrix(); this.sun.shadow.normalBias = 0.03 * Math.max(0.5, half / 70); }
-    const fc = mode === 'tv' || mode === 'heli' ? target.clone() : this.camera.position.clone().lerp(target, 0.5).addScaledVector(fwd, half * 0.45);
-    const tex = (2 * half) / this.sun.shadow.mapSize.x; fc.x = Math.round(fc.x / tex) * tex; fc.z = Math.round(fc.z / tex) * tex;
-    this.sun.position.copy(fc).addScaledVector(this.sunDir, 400);
-    this.sun.target.position.copy(fc);
+    if (this.sun.shadow.camera.right !== half) this.sun.shadow.normalBias = 0.02 * Math.max(0.5, half / 70);
+    const fc = (this._shC ||= new THREE.Vector3());
+    if (mode === 'tv' || mode === 'heli') fc.copy(target); else fc.copy(this.camera.position).lerp(target, 0.5).addScaledVector(fwd, half * 0.45);
+    stabilizeShadow(this.sun, fc, this.sunDir, half);
     this.skyDome.position.copy(this.camera.position);
     if (this.clouds) this.clouds.position.set(this.camera.position.x, 0, this.camera.position.z);
     // depth of field: shallow in the pit-lane camera, a hint of it on long TV lenses
