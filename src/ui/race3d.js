@@ -443,6 +443,48 @@ export class Race3D {
     const runoffMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x777b82, roughness: 0.9 }) : D(pbr('concrete_floor_worn_001', { color: street > 0.7 ? 0x8a8a8a : 0xb8b8b8 }), { macro: 0.12, macroScale: 0.05, wet: true });
     const grassCol = this.biome.grass;
     const groundMat = this.low ? new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x84817b : 0x3f7a34, roughness: 1 }) : D(pbr(street > 0.7 ? 'concrete_floor_worn_001' : 'aerial_grass_rock', { repeat: [1400, 1400], color: street > 0.7 ? 0xb9b4aa : grassCol }), { macro: street > 0.7 ? 0.34 : 0.22, macroScale: street > 0.7 ? 0.03 : 0.012, tint: street > 0.7 ? 0x9a8f80 : this.biome.dry, tintAmt: street > 0.7 ? 0.5 : this.biome.dryAmt });
+    // street circuits: the town around the track is laid out on a block grid aligned with the
+    // main straight. The ground shows the streets (asphalt, lane markings), pavements, courtyards
+    // and parks; buildSkyline puts its buildings on the same blocks
+    if (street > 0.7) {
+      const th = this.geo.hdg[0], B = 96, RW = 15, ox = Math.random() * B, oz = Math.random() * B;
+      const cs = Math.cos(th), sn = Math.sin(th);
+      const toG = (x, z) => [(x * cs + z * sn + ox) / B, (-x * sn + z * cs + oz) / B];
+      const hash = (i, j) => { const v = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return v - Math.floor(v); };
+      this.city = { th, B, RW, toG, hash, fromG: (u, v) => { const a = u * B - ox, b = v * B - oz; return [a * cs - b * sn, a * sn + b * cs]; }, park: (i, j) => hash(i, j) > 0.84 };
+      if (!this.low) {
+        const prev = groundMat.onBeforeCompile;
+        groundMat.onBeforeCompile = (sh, r) => {
+          prev(sh, r);
+          sh.fragmentShader = sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+            {
+              vec2 w = vWPos.xz; vec2 g = vec2(w.x * ${cs.toFixed(6)} + w.y * ${sn.toFixed(6)} + ${ox.toFixed(3)}, -w.x * ${sn.toFixed(6)} + w.y * ${cs.toFixed(6)} + ${oz.toFixed(3)});
+              vec2 cell = floor(g / ${B.toFixed(1)}), f = g - cell * ${B.toFixed(1)};
+              vec2 e = min(f, ${B.toFixed(1)} - f);                       // distance to the block edge (m)
+              float ed = min(e.x, e.y);
+              float road = 1.0 - step(${(RW / 2).toFixed(1)}, ed);
+              float kerb = (1.0 - road) * (1.0 - step(${(RW / 2 + 0.35).toFixed(2)}, ed));
+              float pave = (1.0 - road) * (1.0 - step(${(RW / 2 + 4.5).toFixed(2)}, ed));
+              float hv = fract(sin(cell.x * 127.1 + cell.y * 311.7) * 43758.5453);
+              vec3 c = diffuseColor.rgb;
+              // block interior: courtyards / car parks between the buildings, or a park
+              vec3 inner = hv > 0.84 ? c * vec3(0.42, 0.62, 0.3) * (0.8 + 0.4 * dfbm(w * 0.15)) : c * (0.82 + 0.12 * step(0.5, fract((f.x + f.y) / 6.0)));
+              c = mix(inner, c * 1.08, pave);                                 // pale paving slabs
+              c = mix(c, c * 1.25, kerb);
+              // street: dark asphalt, a dashed centre line, zebra crossings near the junctions
+              float alongX = step(e.y, e.x); // which street we are on
+              float lat = alongX > 0.5 ? e.y : e.x, lon = alongX > 0.5 ? f.x : f.y;
+              float dash = step(0.55, fract(lon / 6.0)) * (1.0 - step(0.12, abs(lat - 0.0)));
+              float zebra = step(0.5, fract(lat / 1.1)) * (1.0 - step(5.0, min(lon, ${B.toFixed(1)} - lon))) * step(${(RW / 2 + 0.8).toFixed(1)}, min(lon, ${B.toFixed(1)} - lon));
+              vec3 asph = vec3(0.16, 0.165, 0.17) * (0.85 + 0.3 * dvn(w * 0.4));
+              asph = mix(asph, vec3(0.8), max(dash * 0.75, zebra * 0.85));
+              c = mix(c, asph, road);
+              diffuseColor.rgb = c;
+            }`);
+        };
+        const k0 = groundMat.customProgramCacheKey; groundMat.customProgramCacheKey = () => k0() + '|city' + th.toFixed(4) + ox.toFixed(2);
+      }
+    }
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(12000, 12000), groundMat);
     ground.rotation.x = -Math.PI / 2; ground.position.set((this.geo.bbox[0] + this.geo.bbox[2]) / 2, -0.25, (this.geo.bbox[1] + this.geo.bbox[3]) / 2);
     ground.receiveShadow = true;
@@ -699,12 +741,37 @@ export class Race3D {
       const offs = [3.4, 6, 10, 17, 28, 45, 70, 105, 150, 210, 290, 420, 900], st = this.low ? 2 : 1;
       const lat = [...offs.slice().reverse().map((o) => -o), ...offs], P = lat.length, rows = Math.floor((N - 1) / st) + 1;
       const pos = new Float32Array(rows * P * 3), uv = new Float32Array(rows * P * 2), idx = [];
+      // free lateral room on each side of every row: half the distance to the next stretch of road
+      // across (hairpin legs, parallel switchbacks) and, on the inside of a bend, the bend radius,
+      // so cross-sections never fold through each other or poke up through the road
+      const room = [new Float32Array(rows).fill(1e9), new Float32Array(rows).fill(1e9)];
+      {
+        const HC = 220, hc = new Map();
+        for (let j = 0; j < N; j += 2) { const k = Math.floor(gx[j] / HC) + ',' + Math.floor(gz[j] / HC); if (!hc.has(k)) hc.set(k, []); hc.get(k).push(j); }
+        const hd = this.geo.hdg, ds = this.geo.ds;
+        for (let r = 0; r < rows; r++) {
+          const i = Math.min(N - 1, r * st), c = Math.cos(hd[i]), sn = Math.sin(hd[i]);
+          const cx = Math.floor(gx[i] / HC), cz = Math.floor(gz[i] / HC);
+          for (let a = -4; a <= 4; a++) for (let b = -4; b <= 4; b++) { const l = hc.get((cx + a) + ',' + (cz + b)); if (l) for (const j of l) {
+            const vx = gx[j] - gx[i], vz = gz[j] - gz[i], lon = vx * c + vz * sn, la = -vx * sn + vz * c;
+            if (Math.abs(lon) > Math.abs(la) * 0.7 || Math.abs(la) < 1) continue;
+            const sd = la > 0 ? 0 : 1, h = Math.abs(la) / 2; if (h < room[sd][r]) room[sd][r] = h;
+          } }
+          const i0 = Math.max(0, i - 2), i1 = Math.min(N - 1, i + 2);
+          let dh = hd[i1] - hd[i0]; while (dh > Math.PI) dh -= 2 * Math.PI; while (dh < -Math.PI) dh += 2 * Math.PI;
+          const kk = dh / Math.max(1e-6, (i1 - i0) * ds);
+          if (Math.abs(kk) > 1 / 900) { const sd = kk > 0 ? 0 : 1; room[sd][r] = Math.min(room[sd][r], 0.92 / Math.abs(kk)); }
+        }
+        // smooth the limits along the road so neighbouring rows stay close (no jagged edges)
+        for (const R of room) { const t = Float32Array.from(R); for (let r = 0; r < rows; r++) { let m = 1e9; for (let q = -3; q <= 3; q++) m = Math.min(m, t[Math.min(rows - 1, Math.max(0, r + q))]); R[r] = Math.max(W / 2 + 2.6, m); } }
+      }
       for (let r = 0; r < rows; r++) {
         const i = Math.min(N - 1, r * st), nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
-        lat.forEach((o, q) => {
+        lat.forEach((o0, q) => {
+          const lim = room[o0 > 0 ? 0 : 1][r], o = Math.sign(o0) * Math.min(Math.abs(o0), lim);
           const x = gx[i] + nx * o, z = gz[i] + nz * o, k = r * P + q;
           pos[k * 3] = x; pos[k * 3 + 1] = Math.abs(o) > 500 ? hMin - 3.2 : terrH(x, z, i, Math.abs(o)); pos[k * 3 + 2] = z; uv[k * 2] = x / 21; uv[k * 2 + 1] = z / 21;
-          if (r < rows - 1 && q < P - 1 && !(o < 0 && lat[q + 1] > 0)) idx.push(k, k + 1, k + P, k + 1, k + P + 1, k + P);
+          if (r < rows - 1 && q < P - 1 && !(o0 < 0 && lat[q + 1] > 0)) idx.push(k, k + 1, k + P, k + 1, k + P + 1, k + P);
         });
       }
       // under the road: one quad per row between the two inner edges, just below the verge
@@ -1121,13 +1188,50 @@ export class Race3D {
       if (items.some((it) => (it.x - px) ** 2 + (it.z - pz) ** 2 < ((it.w + wd) * 0.62) ** 2)) continue;
       const core = Math.exp(-((da / c.w) ** 2) * 2.2);
       const h = 35 + c.peak * core * (0.35 + Math.random() * 0.75) + Math.random() * 30;
-      items.push({ x: px, z: pz, w: wd, dp, h, y: this.hillH ? this.hillH(px, pz) - 3 : -3, rot: Math.random() * 6.283, t: tints[Math.floor(Math.random() * tints.length)] });
+      let tx = px, tz = pz, rot = Math.random() * 6.283;
+      if (this.city) {
+        // on the street grid: one tower per block, square to the streets, never in a park
+        const C = this.city, [u, v] = C.toG(px, pz), bi = Math.floor(u), bj = Math.floor(v);
+        if (C.park(bi, bj) || items.some((it) => it.bi === bi && it.bj === bj)) continue;
+        [tx, tz] = C.fromG(bi + 0.5, bj + 0.5); rot = -C.th;
+        if (this.seaMask?.(tx, tz) || !this.clearOfTrack(tx, tz, this.TW / 2 + 30 + wd)) continue;
+        items.push({ x: tx, z: tz, w: Math.min(wd, 58), dp: Math.min(dp, 58), h, y: -3, rot, t: tints[Math.floor(Math.random() * tints.length)], bi, bj, s: Math.random() < 0.5 ? 2 : 0 });
+        k++; continue;
+      }
+      items.push({ x: tx, z: tz, w: wd, dp, h, y: this.hillH ? this.hillH(px, pz) - 3 : -3, rot, t: tints[Math.floor(Math.random() * tints.length)] });
       k++;
       // a stepped crown / podium on some towers
       if (h > 110 && Math.random() < 0.5) items.push({ x: px, z: pz, w: wd * 0.62, dp: dp * 0.62, h: h + 12 + Math.random() * 25, y: this.hillH ? this.hillH(px, pz) - 3 : -3, rot: items[items.length - 1].rot, t: items[items.length - 1].t });
     }
     // street circuits: low and mid-rise blocks fill the city between the circuit and the towers
-    if (full) {
+    if (full && this.city) {
+      // block by block: perimeter buildings on 2-4 lots, square to the streets, varied heights and
+      // facades (stone / plaster town houses, office bands, glass); parks stay open
+      const C = this.city, B = C.B, inner = B - C.RW - 9;
+      const [gx, gz] = C.toG(cx, cz), Rb = Math.ceil((R0 + 260) / B);
+      const cap = Math.round(700 * (this.low ? 0.4 : 1)); let cnt = 0;
+      const blocks = [];
+      for (let bi = Math.floor(gx) - Rb; bi <= Math.floor(gx) + Rb; bi++) for (let bj = Math.floor(gz) - Rb; bj <= Math.floor(gz) + Rb; bj++) blocks.push([bi, bj, Math.hypot(bi + 0.5 - gx, bj + 0.5 - gz)]);
+      blocks.sort((a, b) => a[2] - b[2]);
+      for (const [bi, bj] of blocks) {
+        if (cnt >= cap) break;
+        if (C.park(bi, bj) || items.some((it) => it.bi === bi && it.bj === bj)) continue;
+        const nl = 2 + Math.floor(C.hash(bi + 3, bj) * 3), tall = C.hash(bi, bj + 5);
+        for (let l = 0; l < nl; l++) {
+          // lots along one axis of the block, each a building facing the street
+          const along = (l + 0.5) / nl, wd = inner / nl - 2, dp = inner * (0.45 + 0.4 * C.hash(bi + l, bj - l));
+          const side = l % 2 ? 1 : -1;
+          const [px, pz] = C.fromG(bi + 0.5 + (along - 0.5) * inner / B, bj + 0.5 + side * (inner - dp) / (2 * B) * (nl > 2 ? 1 : 0));
+          const rad = Math.hypot(wd, dp) / 2;
+          if (this.seaMask?.(px, pz) || !this.clearOfTrack(px, pz, this.TW / 2 + 18 + rad)) continue;
+          if ((this.obstacles || []).some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.r + rad) ** 2)) continue;
+          const h = 10 + (tall > 0.7 ? 18 + Math.random() * 30 : Math.random() * 16) + Math.floor(Math.random() * 3) * 3.4;
+          const st = tall > 0.7 ? (Math.random() < 0.5 ? 1 : 2) : (Math.random() < 0.25 ? 1 : 3);
+          items.push({ x: px, z: pz, w: Math.max(8, wd), dp, h, y: -0.5, rot: -C.th, t: [0xd8cfc0, 0xc9c2b6, 0xe6dccb, 0xe0d6c4, 0xd2c3ae, 0xb8bec6][Math.floor(Math.random() * 6)], s: st });
+          cnt++;
+        }
+      }
+    } else if (full) {
       const [bx0, bz0, bx1, bz1] = this.geo.bbox; const rIn = Math.hypot(bx1 - bx0, bz1 - bz0) * 0.2;
       const nf = Math.round(260 * (this.low ? 0.4 : 1));
       for (let k = 0, guard = 0; k < nf && guard < nf * 6; guard++) {
@@ -1144,10 +1248,13 @@ export class Race3D {
     if (!items.length) return;
     const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.55, roughness: 0.22, envMapIntensity: 1.2, ...(this.night ? { emissive: 0xffd9a0, emissiveIntensity: 2.1 } : {}) });
     const nightK = { value: this.night ? 1 : 0 }; this._skylineNight = nightK;
+    const facT = this.low ? null : [loadTex('tex/facade006_diff_1k.jpg'), loadTex('tex/facade001_diff_1k.jpg')];
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uNight = nightK;
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec4 vTw;')
+      if (facT) { sh.uniforms.tFac1 = { value: facT[0] }; sh.uniforms.tFac2 = { value: facT[1] }; }
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec4 vTw; attribute float aSt; varying float vSt;')
         .replace('#include <uv_vertex>', `#include <uv_vertex>
+          vSt = aSt;
           vec3 tsc = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
           vTw = vec4(uv.x * (abs(normal.x) > 0.5 ? tsc.z : tsc.x), position.y * tsc.y, normal.y, instanceMatrix[3].x * 0.011 + instanceMatrix[3].z * 0.017);`);
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec4 vTw; uniform float uNight;\nfloat th(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }')
@@ -1160,15 +1267,37 @@ export class Race3D {
           float var = th(vec2(floor(vTw.x / 1.6), floor(vTw.y / 3.8)) + vTw.w);
           diffuseColor.rgb *= mix(vec3(0.42), vec3(0.55 + 0.25 * var), win);
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.22), roofT);
-          float lit = step(0.7, th(vec2(floor(vTw.x / 6.4) + vTw.w * 13.0, floor(vTw.y / 3.8)))) * win;`)
+          float lit = step(0.7, th(vec2(floor(vTw.x / 6.4) + vTw.w * 13.0, floor(vTw.y / 3.8)))) * win;
+          ${facT ? `if (vSt > 0.5) {
+            vec3 fc; float fwin;
+            if (vSt < 1.5) { fc = texture2D(tFac1, vTw.xy / vec2(22.0, 26.0) + vec2(vTw.w, 0.0)).rgb; fwin = smoothstep(0.62, 0.42, dot(fc, vec3(0.333))); }
+            else if (vSt < 2.5) { fc = texture2D(tFac2, vTw.xy / vec2(17.0, 19.0) + vec2(vTw.w, 0.0)).rgb * 1.25; fwin = 0.85; }
+            else {
+              // plaster town house: shuttered windows on each floor, a darker ground-floor shop band
+              float fl2 = fract(vTw.y / 3.3), cl2 = fract(vTw.x / 3.4);
+              float w2 = step(0.28, fl2) * step(fl2, 0.82) * step(0.32, cl2) * step(cl2, 0.68) * step(3.3, vTw.y);
+              float sh2 = step(0.28, fl2) * step(fl2, 0.82) * (step(0.2, cl2) * step(cl2, 0.32) + step(0.68, cl2) * step(cl2, 0.8)) * step(3.3, vTw.y);
+              float shop = 1.0 - step(3.0, vTw.y);
+              fc = vec3(0.92) * (0.9 + 0.1 * th(floor(vTw.xy * 0.5)));
+              fc = mix(fc, vec3(0.16, 0.18, 0.2), w2);
+              fc = mix(fc, vec3(0.3, 0.42, 0.32) * 1.4, sh2);
+              fc = mix(fc, vec3(0.25, 0.24, 0.23), shop * step(0.15, cl2) * step(cl2, 0.85));
+              fwin = w2 + shop * 0.5;
+            }
+            diffuseColor.rgb = mix(fc, vec3(0.24), roofT);
+            win = fwin * (1.0 - roofT);
+            lit = step(0.72, th(vec2(floor(vTw.x / 4.0) + vTw.w * 13.0, floor(vTw.y / 3.4)))) * win;
+          }` : ''}`)
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(0.85, 0.12, win);')
         .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(0.05, 0.7, win);')
         .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance *= lit * uNight * (0.6 + 0.8 * var);');
     };
     mat.customProgramCacheKey = () => 'skyline' + (this.night ? 'n' : '');
     const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), mat, items.length);
-    items.forEach((it, k) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.set(it.w, it.h, it.dp); d.updateMatrix(); im.setMatrixAt(k, d.matrix); im.setColorAt(k, col.setHex(it.t)); });
-    im.castShadow = false; im.receiveShadow = false; im.computeBoundingSphere();
+    const stA = new Float32Array(items.length);
+    items.forEach((it, k) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.set(it.w, it.h, it.dp); d.updateMatrix(); im.setMatrixAt(k, d.matrix); im.setColorAt(k, col.setHex(it.t)); stA[k] = it.s || 0; });
+    im.geometry.setAttribute('aSt', new THREE.InstancedBufferAttribute(stA, 1));
+    im.castShadow = !!this.city && !this.low; im.receiveShadow = !!this.city && !this.low; im.computeBoundingSphere();
     this.scene.add(im); this.skyline = im; this.towers = items;
     // aircraft warning lights on the tallest towers at night
     if (this.night) {

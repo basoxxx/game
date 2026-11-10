@@ -195,9 +195,12 @@ export function buildDecals(r3, street) {
   // resurfacing: darker fresh tarmac and paler old patches, each outlined by tar seams
   const nP = Math.round(N / 55);
   for (let k = 0; k < nP; k++) {
-    const i0 = Math.floor(Math.random() * N), len = 5 + Math.floor(Math.random() * 22), fresh = Math.random() < 0.6;
-    const full = Math.random() < 0.45, a = full ? -W / 2 + 0.45 : Math.random() < 0.5 ? -W / 2 + 0.45 : rnd(-1.5, 1.5), b = full ? W / 2 - 0.45 : a < -W / 4 ? rnd(-1, 2.5) : W / 2 - 0.45;
-    const tone = fresh ? [0.02, 0.02, 0.025, rnd(0.2, 0.36)] : [0.62, 0.61, 0.6, rnd(0.035, 0.07)];
+    // lengths in metres (samples are 5 m apart): lane-width patches 6-30 m, the rare full-width
+    // relay 8-18 m and fainter, so no long dark slab ever covers the whole track
+    const full = Math.random() < 0.18, fresh = Math.random() < 0.6;
+    const len = Math.max(1, Math.round((full ? rnd(8, 18) : rnd(6, 30)) / g.ds)), i0 = Math.floor(Math.random() * N);
+    const a = full ? -W / 2 + 0.45 : Math.random() < 0.5 ? -W / 2 + 0.45 : rnd(-1.5, 1.5), b = full ? W / 2 - 0.45 : a < -W / 4 ? rnd(-1, 2.5) : W / 2 - 0.45;
+    const tone = fresh ? [0.02, 0.02, 0.025, rnd(0.16, 0.3) * (full ? 0.6 : 1)] : [0.62, 0.61, 0.6, rnd(0.035, 0.07)];
     strip(i0, i0 + len, a, b, tone, 0.047);
     const seam = [0.015, 0.015, 0.018, 0.5];
     for (const o of [a, b]) if (Math.abs(o) < W / 2 - 0.6) strip(i0, i0 + len, o - 0.05, o + 0.05, seam, 0.049);
