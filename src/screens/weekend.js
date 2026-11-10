@@ -22,7 +22,7 @@ import { Race3D, webglAvailable } from '../ui/race3d.js';
 import { trackGeometry, drsZones, partSensitivity, trackStats } from '../engine/trackphys.js';
 import { planOptions, stintBar, degChartSVG, drawTelemetry, breakdownHTML, openLessons, wearError } from './engineer.js';
 import { SETUP_PARAMS, idealFor, setupQuality } from './setup.js';
-import { isLiveSession, sessionRender, sessionMount, sessionStop, sessionActions, sessionKey, simulateQualifying } from './sessions.js';
+import { isLiveSession, sessionRender, sessionMount, sessionStop, sessionActions, sessionKey, simulateQualifying, sessionHub } from './sessions.js';
 import { plannerPanel, plannerActions, raceStrategyHTML, adviceHTML, ensurePlan, isDryPlan, racePlan } from './planner.js';
 import { optimise, normalizePlan } from '../engine/strategy.js';
 import { tvUpdate, trackerUpdate, stintChartSVG, liveStandingsHTML, analysisHTML, defaultSel } from './broadcast.js';
@@ -138,10 +138,11 @@ registerScreen({
     mode(el) { R.sim?.setMode(el.dataset.key, el.dataset.m); updateControls(true); },
     ers(el) { R.sim?.setErs(el.dataset.key, el.dataset.m); updateControls(true); },
     orders(el) { const st = S(); R.sim?.setOrders(st.playerTeam, el.dataset.o); updateControls(true); },
-    dec(el) { R.hub?.answer(el.dataset.id, +el.dataset.i); R.last = performance.now(); updateControls(true); },
-    'dec-cfg'() { R.hub?.toggleCfg(); },
-    'dec-mode'(el) { R.hub?.setMode(el.dataset.v); },
-    'dec-minor'() { R.hub?.toggleMinor(); },
+    // the decision hub is shared by the race and by the live practice / qualifying sessions
+    dec(el) { const h = R.hub || sessionHub(); h?.answer(el.dataset.id, +el.dataset.i); if (R.hub && R.sim) { R.last = performance.now(); updateControls(true); } },
+    'dec-cfg'() { (R.hub || sessionHub())?.toggleCfg(); },
+    'dec-mode'(el) { (R.hub || sessionHub())?.setMode(el.dataset.v); },
+    'dec-minor'() { (R.hub || sessionHub())?.toggleMinor(); },
     'moments-off'() { R.hub?.setMode('engineer'); },
     radio(el) { R.sim?.answerRadio(+el.dataset.id, el.dataset.y === '1'); sfx.radio(); updateControls(true); },
     so(el) { const c = rc(el); if (!c) return; const v = el.dataset.v === 'toggle' ? !c.so?.[el.dataset.k] : el.dataset.v; R.sim.setOrder(c.key, el.dataset.k, v); setSettings({ standingOrders: { ...c.so } }); updateControls(true); },

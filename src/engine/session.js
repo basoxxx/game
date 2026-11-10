@@ -183,6 +183,46 @@ export class SessionSim {
     c.pending = { ...spec }; c.workUntil = Math.max(c.workUntil, this.time + delay);
     return null;
   }
+  // send out now, or as soon as the mechanics are done
+  goWhenReady(key, spec) {
+    const c = this.car(key); if (!c) return 'Auto non trovata';
+    if (c.state === 'garage' && !this.chequered && !this.red && this.time < c.workUntil) { c.pending = { ...spec }; return null; }
+    return this.sendOut(key, spec);
+  }
+  // one run chosen by the race engineer for a player car (decision default / "the engineer decides")
+  engineerSpec(c) {
+    const wet = this.wetComp(); const est = this.track.lap * 1.02; const rem = this.remaining;
+    if (this.isQuali) return { c: wet || 'soft', pattern: 'single', laps: 1, fuel: 3.2, mode: 'push', kind: 'q', label: `giro secco su ${COMPOUNDS[wet || 'soft'].name}` };
+    const done = new Set(c.runs.map((r) => r.kind));
+    const hard = this.C.compounds.includes('hard') ? 'hard' : 'medium';
+    let s;
+    if (!done.has('setup')) s = { c: wet || 'medium', laps: 4, fuel: 10, mode: 'normal', kind: 'setup', label: 'lavoro di assetto' };
+    else if (!done.has('long') && rem > est * 11) s = { c: wet || 'medium', laps: 8, fuel: 20, mode: 'normal', kind: 'long', label: 'long run (degrado gomme)' };
+    else if (!done.has('quali')) s = { c: wet || 'soft', laps: 2, fuel: 4.5, mode: 'push', kind: 'quali', label: 'simulazione di qualifica' };
+    else s = { c: wet || hard, laps: 6, fuel: 14, mode: 'normal', kind: 'long', label: `long run su ${COMPOUNDS[wet || hard].name}` };
+    s.laps = Math.max(1, Math.min(s.laps, Math.floor((rem - est * 2.4) / est)));
+    s.fuel = Math.min(Math.floor(this.fm.tank), Math.max(s.fuel, s.laps + 2));
+    if (s.kind === 'setup') { const u = usedSets(this.setsOf(c.key), s.c)[0]; if (u) s.setId = u.id; }
+    return s;
+  }
+  engineerRun(key) { const c = this.car(key); if (!c) return 'Auto non trovata'; const { label, ...spec } = this.engineerSpec(c); return this.goWhenReady(key, spec); }
+  // slow cars (out / in / cool laps) within `win` seconds ahead of a car about to start a push lap
+  trafficAhead(c, win = 7) {
+    const out = [];
+    for (const o of this.cars) {
+      if (o === c || o.state !== 'run' || !o.lap || o.lap.type === 'timed') continue;
+      let g = o.dist - c.dist; g -= Math.floor(g);
+      if (g * this.track.lap > 0 && g * this.track.lap < win) out.push(o);
+    }
+    return out;
+  }
+  // back off on the out lap to find clear track for the push lap
+  makeGap(key) {
+    const c = this.car(key); if (!c?.lap || c.lap.type !== 'out') return false;
+    c.lap.sec[c.secIdx] += 5 * this.ls; c.clearNext = true;
+    if (c.isPlayer) this.log(`📻 Ingegnere a ${this.driver(c).name.split(' ')[0]}: «Rallenta nell’ultimo settore, ti creiamo spazio per il giro.»`, 'radio', key, true);
+    return true;
+  }
   callIn(key) { const c = this.car(key); if (c && c.state === 'run') { c.callIn = true; if (c.isPlayer) this.log(`📻 Box, box: ${this.driver(c).name} rientra a fine giro.`, 'radio', key, true); } }
   abortLap(key) {
     const c = this.car(key); if (!c || c.state !== 'run' || !c.lap) return;
@@ -390,6 +430,7 @@ export class SessionSim {
     const run = this.cars.filter((c) => c.state === 'run' && c.lap);
     for (const c of run) {
       if (c.lap.type !== 'timed' || c.lap.trafficDone) continue;
+      if (c.clearNext) { c.clearNext = false; c.lap.trafficDone = true; continue; }
       for (const o of run) {
         if (o === c || o.lap.type === 'timed') continue;
         let g = (o.dist - c.dist); g -= Math.floor(g); // laps ahead (0..1)

@@ -47,7 +47,7 @@ export class DecisionHub {
   note(title, text, type = '') { try { this.o.note?.(title, text, type); } catch { /* ignore */ } }
   record(item, i, by, why = null) {
     const opt = item.options?.[i];
-    this.log.push({ t: this.clock.now(), title: item.title, who: item.who || null, choice: opt ? opt.label : null, by, why });
+    this.log.push({ t: this.clock.now(), stage: this.o.stage?.() ?? null, title: item.title, who: item.who || null, choice: opt ? opt.label : null, by, why });
     if (this.log.length > 80) this.log.shift();
   }
   finish(item, i, by) {
@@ -80,7 +80,7 @@ export class DecisionHub {
     if (this.cur && !this.items.includes(this.cur)) this.closeModal();
     // the game got faster while a call is open (e.g. un-paused at 32x): keep the real-time window
     { const sp = this.clock.paused ? 0 : this.clock.speed;
-      for (const it of this.items) if (it.shown && it.until != null && sp > (it.armSpeed || 0)) { it.armSpeed = sp; const min = now + MIN_REAL * sp; if (it.until < min) it.until = min; it.span = Math.max(it.span || 1, it.until - now); } }
+      for (const it of this.items) if (it.shown && it.until != null && sp > (it.armSpeed || 0)) { it.armSpeed = sp; const min = now + MIN_REAL * sp; if (it.until < min) it.until = min; if (it.hardUntil != null) it.until = Math.min(it.until, it.hardUntil); it.span = Math.max(it.span || 1, it.until - now); } }
     if (!this.cur) {
       const next = this.items.filter((x) => this.blocking(x)).sort((a, b) => b.prio - a.prio || (a.seq || 0) - (b.seq || 0))[0];
       if (next) this.openModal(next);
@@ -91,6 +91,8 @@ export class DecisionHub {
   }
   arm(it, speed) {
     if (it.ttl != null) it.until = this.clock.now() + Math.max(it.ttl, MIN_REAL * Math.max(1, speed));
+    // hardUntil: the moment the call becomes moot (e.g. the lap starts): the default is applied just before
+    if (it.hardUntil != null && it.until != null) it.until = Math.min(it.until, it.hardUntil);
     it.armSpeed = speed;
     it.span = it.until != null ? Math.max(1, it.until - this.clock.now()) : null;
   }

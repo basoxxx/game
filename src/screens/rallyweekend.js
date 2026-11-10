@@ -17,6 +17,7 @@ import { tyreBadge, teamStripe, driverChip } from './common.js';
 import { sfx, engineStart, engineSet, engineStop, music } from '../ui/audio.js';
 import { celebrate } from './results.js';
 import { shortName } from './weekend.js';
+import { DecisionHub, hubLogHTML } from './decisions.js';
 import { Race3D, webglAvailable, stageGeometry, stageSampleAt } from '../ui/race3d.js';
 
 const RP = [
@@ -71,10 +72,14 @@ registerScreen({
   unmount() { stopRun(); },
   onKey(e) {
     if (S().weekend?.phase !== 'run') return;
-    if (e.code === 'Space') { e.preventDefault(); X.paused = !X.paused; speedUI(); }
+    if (e.code === 'Space') { e.preventDefault(); if (document.activeElement?.matches?.('button, [data-a]')) document.activeElement.blur(); X.paused = !X.paused; X.last = performance.now(); speedUI(); return; }
+    if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.code === 'Minus' || e.code === 'NumpadSubtract') { const L = [1, 4, 8, 16, 32, 64]; const i = Math.max(0, L.indexOf(X.speed)); X.speed = L[Math.max(0, Math.min(L.length - 1, i + (e.code === 'Equal' || e.code === 'NumpadAdd' ? 1 : -1)))]; speedUI(); return; }
+    // co-driver calls: A/B (or arrows) as always, plus the shared 1/2/Enter of every decision card
+    const cur = X.hub?.cur;
+    if (cur && (e.code === 'KeyA' || e.key === 'ArrowLeft')) { e.preventDefault(); X.hub.answer(cur.id, 0); return; }
+    if (cur && (e.code === 'KeyB' || e.key === 'ArrowRight')) { e.preventDefault(); X.hub.answer(cur.id, 1); return; }
+    if (X.hub?.key(e)) return;
     const sp = { Digit1: 1, Digit2: 4, Digit3: 8, Digit4: 16, Digit5: 32, Digit6: 64 }[e.code]; if (sp) { X.speed = sp; X.paused = false; speedUI(); }
-    if (X.decision && (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft')) decide('a');
-    if (X.decision && (e.key === 'b' || e.key === 'B' || e.key === 'ArrowRight')) decide('b');
   },
   actions: {
     exit() { App.go(S().quick ? (S().challenge ? 'challenges' : 'quickrace') : 'hub'); },
@@ -97,9 +102,15 @@ registerScreen({
     space(el) { const ch = X.choices[el.dataset.key]; ch.paces[+el.dataset.s] = el.dataset.p; App.refresh(); },
     livepace(el) { const c = X.ev?.crews.find((x) => x.key === el.dataset.key); if (c && X.ev.setLivePace(c, el.dataset.p)) { X.choices[c.key] && (X.choices[c.key].paces = c.plan.paces.slice()); sfx.radio?.(); App.toast(el.dataset.p === 'push' ? 'Attacco!' : el.dataset.p === 'safe' ? 'Si rallenta' : 'Ritmo equilibrato', `${X.ev.driver(c).name}: ${PACE_MODES[el.dataset.p].name.toLowerCase()} fino alla fine della prova.`, el.dataset.p === 'push' ? 'bad' : ''); renderUI(true); } },
     'go-stage'() { const st = S(); X.ev.planStage(X.choices); st.weekend.phase = 'run'; App.refresh(); },
-    speed(el) { X.speed = +el.dataset.v; X.paused = false; speedUI(); },
-    pause() { X.paused = !X.paused; speedUI(); },
-    decide(el) { decide(el.dataset.c); },
+    speed(el) { X.speed = +el.dataset.v; X.paused = false; X.last = performance.now(); speedUI(); },
+    pause() { X.paused = !X.paused; X.last = performance.now(); speedUI(); },
+    dec(el) { X.hub?.answer(el.dataset.id, +el.dataset.i); },
+    'dec-cfg'() { X.hub?.toggleCfg(); },
+    'dec-mode'(el) { X.hub?.setMode(el.dataset.v); },
+    'dec-minor'() { X.hub?.toggleMinor(); },
+    recce(el) { X.ev?.setRecce(el.dataset.key, el.dataset.v === '1'); App.refresh(); },
+    lightpod(el) { const ch = X.choices[el.dataset.key]; ch.lightPod = !ch.lightPod; App.refresh(); },
+    roadside(el) { const r = X.ev?.roadsideRepair(el.dataset.key, el.dataset.c); if (r) { App.toast(r.late ? 'Riparazione riuscita, ma in ritardo' : 'Riparazione riuscita', r.text, r.late ? 'bad' : 'good'); if (r.late) sfx.bad(); else sfx.ok(); } App.refresh(); },
     rcam(el) { X.view3d = el.dataset.c; X.cam = X.view3d; rallyEnable3D(X.view3d); rallyViewBtns(); },
     rview2d() { rallyDisable3D(); rallyViewBtns(); },
     rfocus(el) { X.focus = el.dataset.key; X.userFocus = true; },
@@ -150,8 +161,8 @@ function prepChoices() {
   const adv = ev.loopTyreAdvice();
   for (const c of ev.crews.filter((x) => x.isPlayer)) {
     const prev = X.choices[c.key] || {};
-    X.choices[c.key] = loopStart ? { tyre: adv, spare: adv, spares: 2, paces: prev.paces ? prev.paces.slice() : ['normal', 'normal', 'normal'], useSpare: false }
-      : { tyre: c.tyre, spare: c.spare, spares: c.spares, paces: prev.paces ? prev.paces.slice() : ['normal', 'normal', 'normal'], useSpare: false };
+    X.choices[c.key] = loopStart ? { tyre: adv, spare: adv, spares: 2, paces: prev.paces ? prev.paces.slice() : ['normal', 'normal', 'normal'], useSpare: false, lightPod: ev.loopHasNight() }
+      : { tyre: c.tyre, spare: c.spare, spares: c.spares, paces: prev.paces ? prev.paces.slice() : ['normal', 'normal', 'normal'], useSpare: false, lightPod: !!c.lightPod };
   }
 }
 // engineer: full repairs by severity while they fit in the time budget, patches for the rest
@@ -218,12 +229,12 @@ function prep(st, tr) {
   return `<div class="rx-prep anim-in">
     <div class="col gap16">
       <div class="panel glow rx-hero"><div class="row between wrap gap8"><div><div class="tiny upper muted">Prova speciale ${stg.idx + 1} di ${ev.stages.length} · Giro ${loopN}${stg.power ? ' · <span class="warn">POWER STAGE (punti bonus)</span>' : ''}</div><h2 style="font-size:30px;font-style:italic">${esc(stg.name)}</h2></div>
-        <div class="row wrap gap6"><span class="chip" style="border-color:${SURFACES[stg.surface].color}">${SURFACES[stg.surface].name}</span><span class="chip">${stg.km} km</span>${wxChip(stg, true)}</div></div>
+        <div class="row wrap gap6"><span class="chip" style="border-color:${SURFACES[stg.surface].color}">${SURFACES[stg.surface].name}</span><span class="chip">${stg.km} km</span>${wxChip(stg, true)}${stg.night ? '<span class="chip warn">Notturna</span>' : ''}</div></div>
         <div class="rx-map">${trackSVG(path, { w: 640, h: 150, glow: SURFACES[stg.surface].color, color: '#e9edf3', width: 4 })}</div>
         <div class="tiny upper muted mb8">Note del copilota</div>${sectorStrip(stg)}
       </div>
       <div class="panel rx-loop"><div class="panel-head"><h3>Giro ${loopN} · ${loop.length} prove senza assistenza</h3><span class="small muted">${loopStart ? 'Scegli le gomme per tutto il giro' : 'Gomme montate in assistenza'}</span></div>
-        <div class="rx-loopstages">${loop.map((s) => `<div class="rx-ls ${s.idx === stg.idx ? 'cur' : s.idx < stg.idx ? 'done' : ''}"><span class="rx-ls-n">PS${s.idx + 1}</span><b>${esc(s.name)}</b><span class="rx-surf" style="--sc:${SURFACES[s.surface].color}">${SURFACES[s.surface].name}</span><span class="small muted">${s.km} km</span>${wxChip(s, s.idx === stg.idx)}${s.power ? '<span class="chip warn tiny">Power</span>' : ''}</div>`).join('')}</div>
+        <div class="rx-loopstages">${loop.map((s) => `<div class="rx-ls ${s.idx === stg.idx ? 'cur' : s.idx < stg.idx ? 'done' : ''}"><span class="rx-ls-n">PS${s.idx + 1}</span><b>${esc(s.name)}</b><span class="rx-surf" style="--sc:${SURFACES[s.surface].color}">${SURFACES[s.surface].name}</span><span class="small muted">${s.km} km</span>${wxChip(s, s.idx === stg.idx)}${s.night ? '<span class="chip warn tiny">Notte</span>' : ''}${s.power ? '<span class="chip warn tiny">Power</span>' : ''}</div>`).join('')}</div>
         <div class="small muted mt8">${icon('info', 'ico', 'style="width:13px;vertical-align:-2px"')} Consiglio del copilota per il giro: <b style="color:#fff">${RALLY_TYRES[advice].name}</b>${new Set(loop.map((s) => (s.surface === 'rough' ? 'gravel' : s.surface))).size > 1 ? ' · <span class="warn">superfici miste: valuta le scorte di un altro tipo</span>' : ''}</div>
       </div>
       ${mine.map((c) => crewPrep(st, c, loop, loopStart)).join('')}
@@ -255,6 +266,14 @@ function crewPrep(st, c, loop, loopStart) {
     <div class="row between mt16 mb8"><span class="tiny upper muted">Ritmo per sezione (note)</span><div class="row gap4">${Object.entries(PACE_MODES).map(([k, p]) => `<button class="btn sm ${all(k) ? 'active' : ''}" data-a="pace" data-key="${c.key}" data-p="${k}">Tutto ${p.name.toLowerCase()}</button>`).join('')}</div></div>
     <div class="rx-paces">${stg.sectors.map((s, i) => `<div><div class="tiny muted">S${i + 1} · ${SECTOR_TYPES[s].name}</div><div class="seg">${Object.entries(PACE_MODES).map(([k, p]) => `<div class="${ch.paces[i] === k ? 'on ' + PACE_CLS[k] : ''}" data-a="space" data-key="${c.key}" data-s="${i}" data-p="${k}">${p.name.slice(0, 4)}.</div>`).join('')}</div></div>`).join('')}</div>
     <div class="rx-est"><div><span>Tempo stimato</span><b class="${est.dt < -0.05 ? 'good' : est.dt > 0.05 ? 'warn' : ''}">${est.dt >= 0 ? '+' : '−'}${Math.abs(est.dt).toFixed(1)}s</b><small>vs equilibrato</small></div><div><span>Rischio di uscita</span><b class="${riskCls(est.risk)}">${(est.risk * 100).toFixed(0)}%</b><small>${bar(Math.min(100, est.risk * 500), est.risk > 0.12 ? 'red' : est.risk > 0.06 ? 'gold' : 'green')}</small></div><div><span>Setup</span><b>${Math.round(c.setupQ * 100)}%</b><small>fiducia assetto</small></div></div>
+    ${(() => {
+      const ri = ev.roadInfo(c, stg); const loose = stg.surface !== 'tarmac';
+      const road = `<div class="rx-opt"><div><b>Ordine di partenza: ${ri.pos}° su ${ri.n}</b><div class="tiny muted">${loose ? (stg.wet && stg.surface !== 'snow' ? 'Fondo bagnato: chi parte dopo trova solchi e fango' : 'Chi apre la strada spazza la ghiaia (o la neve) smossa per gli altri') : 'Asfalto: i tagli portano terra in traiettoria a chi parte dopo'} · ${ev.stageIdx < 2 ? 'primo giro in ordine di campionato' : 'ordine inverso di classifica'}</div></div><span class="chip ${ri.secs > 1.5 ? 'bad' : ri.secs > 0.5 ? 'warn' : 'good'}">${ri.secs < 0.05 ? 'strada pulita' : `−${ri.secs.toFixed(1)}s`}</span></div>`;
+      const notes = `<div class="rx-opt"><div><b>Note del copilota: ${c.recce > 0.78 ? 'precise' : c.recce > 0.58 ? 'buone' : 'approssimative'}</b><div class="tiny muted">Note imprecise = più rischio di uscita in ogni settore. ${ev.stageIdx === 0 ? 'Un passaggio di ricognizione in più le migliora, ma toglie tempo alla messa a punto (−5% assetto).' : 'La ricognizione si fa prima della prima prova.'}</div></div>${ev.stageIdx === 0 ? `<button class="btn sm ${c.recceDeep ? 'active' : ''}" data-a="recce" data-key="${c.key}" data-v="${c.recceDeep ? 0 : 1}">${c.recceDeep ? 'Ricognizione extra: SÌ' : 'Ricognizione extra: NO'}</button>` : `<span class="chip">${Math.round(c.recce * 100)}%</span>`}</div>`;
+      const hasNight = ev.loopHasNight();
+      const pod = loopStart ? `<div class="rx-opt"><div><b>Rampa fari supplementari</b><div class="tiny muted">${hasNight ? '<span class="warn">C’è una prova notturna in questo giro:</span> senza fari si perde ~3% e il rischio quasi raddoppia.' : 'Nessuna prova notturna nel giro: i fari sono solo peso e resistenza (−0,1%).'}</div></div><button class="btn sm ${ch.lightPod ? 'active' : ''}" data-a="lightpod" data-key="${c.key}">${ch.lightPod ? 'Fari montati' : 'Senza fari'}</button></div>` : (hasNight ? `<div class="rx-opt"><div><b>Rampa fari</b><div class="tiny muted">Scelta fatta in assistenza per tutto il giro.</div></div><span class="chip ${c.lightPod ? 'good' : 'bad'}">${c.lightPod ? 'Montata' : 'Non montata'}</span></div>` : '');
+      return road + notes + pod;
+    })()}
   </div>`;
 }
 
@@ -290,27 +309,36 @@ function mountRun() {
   X.view3d = getSettings().view3d !== false && webglAvailable() ? (X.cam || 'chase') : null;
   rallyViewBtns();
   if (X.view3d) rallyEnable3D(X.view3d);
+  X.hub = new DecisionHub({
+    host: () => document.getElementById('decision'), stack: () => document.getElementById('dec-stack'), unit: 'di prova', stage: () => X.ev?.stageIdx,
+    clock: { get speed() { return X.speed; }, set speed(v) { X.speed = v; }, get paused() { return X.paused; }, set paused(v) { X.paused = v; X.last = performance.now(); }, now: () => X.t },
+    onSpeed: speedUI, onOpen: (it) => { if (it.focus) { X.focus = it.focus; X.userFocus = true; } }, onClose: () => { X.last = performance.now(); },
+    note: (title, text) => X.ev?.pushLog(`${title}: ${text}`, 'info', null),
+    extraCfg: 'Nei rally il copilota chiama i pericoli (A/B o 1/2) e a ogni intermedio puoi cambiare ritmo dalla card rapida.',
+  });
+  X.hub.log = (X.decLog ||= []);
   X.t = 0; X.paused = false; X.userFocus = false; X.decision = null; X.tvN = X.ev.tvId; X.tvQ = []; X.tvCur = 0; X.last = performance.now(); X.speed = Math.max(8, Math.min(64, (getSettings().raceSpeed || 8) * 2)); X.finished = false;
   music.setMood('race');
   engineStart('rally');
   const loop = (t) => {
     const dt = Math.min(0.1, (t - X.last) / 1000); X.last = t;
-    if (!X.paused && !X.decision && !X.finished) {
+    if (!X.paused && !X.finished) {
       let rem = dt * X.speed;
-      while (rem > 0 && !X.decision) { const d = Math.min(1, rem); const req = X.ev.advance(d); X.t += d; rem -= d; if (req) { openDecision(req); break; } }
-      if (X.ev.allDone()) { X.finished = true; engineStop(); sfx.notify(); renderUI(true); }
+      // a crew waiting on a co-driver call stands still (the others keep going): the hub pauses or slows the game
+      while (rem > 0) { const d = Math.min(1, rem); const req = X.ev.advance(d); X.t += d; rem -= d; if (req && offerCall(req)) break; splitCalls(); }
+      if (X.ev.allDone()) { X.finished = true; X.hub?.reset(); engineStop(); sfx.notify(); renderUI(true); }
     }
-    if (X.decision) { X.decT -= dt; const bar = document.getElementById('dectimer'); if (bar) bar.style.width = `${Math.max(0, X.decT / 9) * 100}%`; if (X.decT <= 0) decide('b'); }
+    if (X.hub && !X.finished) X.hub.tick();
     if (X.r3d) rallyUpdate3D(dt);
     drawRally();
-    engineSet(X.paused || X.decision || X.finished ? 0 : X.r3d && X.focusSpeed != null ? X.focusSpeed / 200 : 0.5 + Math.sin(t / 700) * 0.3, { rain: X.ev.stage.wet ? 0.7 : 0, crowd: 0.2 });
+    engineSet(X.paused || X.hub?.open || X.finished ? 0 : X.r3d && X.focusSpeed != null ? X.focusSpeed / 200 : 0.5 + Math.sin(t / 700) * 0.3, { rain: X.ev.stage.wet ? 0.7 : 0, crowd: 0.2 });
     X.uiT += dt; if (X.uiT > 0.25) { X.uiT = 0; renderUI(); }
     X.raf = requestAnimationFrame(loop);
   };
   renderUI(true); speedUI();
   X.raf = requestAnimationFrame(loop);
 }
-function stopRun() { cancelAnimationFrame(X.raf); X.view?.destroy(); X.view = null; X.r3d?.destroy(); X.r3d = null; engineStop(); }
+function stopRun() { X.hub = null; cancelAnimationFrame(X.raf); X.view?.destroy(); X.view = null; X.r3d?.destroy(); X.r3d = null; engineStop(); }
 function rallyViewBtns() {
   const el = document.getElementById('view-btns'); if (!el) return;
   el.innerHTML = [['2d', 'Mappa 2D'], ['chase', 'Camera car'], ['onboard', 'Onboard'], ['tv', 'TV'], ['heli', 'Elicottero']].map(([k, n]) => `<button class="btn sm ${((X.view3d || '2d') === k) ? 'active' : ''}" data-a="${k === '2d' ? 'rview2d' : 'rcam'}" data-c="${k}" ${k !== '2d' && !webglAvailable() ? 'disabled' : ''}>${n}</button>`).join('');
@@ -376,10 +404,11 @@ function runScreen(st, tr) {
       <div class="tb-stat" id="rx-delta"><b>—</b><span>Delta</span></div>
       <div class="grow"></div>
       <div class="speed-btns" id="speedbtns">${[1, 4, 8, 16, 32, 64].map((v) => `<button class="btn sm" data-a="speed" data-v="${v}">${v === 1 ? '1x LIVE' : v + 'x'}</button>`).join('')}</div>
+      <button class="btn sm dec-open" data-a="dec-cfg" data-tip="Decisioni a gioco accelerato: pausa automatica, rallenta a 1x o decide il copilota">${icon('settings')} Decisioni</button>
       <button class="btn sm" data-a="skip-stage">${icon('ff')} Fine prova</button>
     </div>
     <div class="race-board" id="board"></div>
-    <div class="race-view" id="race-view"><canvas id="rally-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="tvg-layer" id="tvg"></div><div class="rx-secbar" id="rx-secbar"></div><div id="decision"></div></div>
+    <div class="race-view" id="race-view"><canvas id="rally-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="tvg-layer" id="tvg"></div><div class="rx-secbar" id="rx-secbar"></div><div class="dec-stack" id="dec-stack"></div><div id="decision"></div></div>
     <div class="race-side" id="side"></div>
     <div class="race-feed" id="feed"></div>
   </div>`;
@@ -465,32 +494,51 @@ function rallyTV() {
   el.innerHTML = html; X.tvCur = now + (g.mine ? 3600 : 2600);
 }
 
-function openDecision(crew) {
-  const dec = crew.plan.decision; const d = X.ev.driver(crew);
-  X.decision = { crew }; X.decT = 9;
-  sfx.notify();
-  const sec = X.ev.sectorAt(crew.progress || 0);
-  const el = document.getElementById('decision');
-  if (el) el.innerHTML = `<div class="decision rx-dec"><div class="row">${icon('mic', 'ico', 'style="width:26px;height:26px;color:var(--warn)"')}<div><div class="tiny upper warn" style="letter-spacing:.2em">Il copilota chiama · ${esc(d.name)} · S${sec + 1} ${SECTOR_TYPES[X.ev.stage.sectors[sec]].name}</div><div style="font-size:18px;font-weight:700;margin-top:4px">${esc(dec.t.text)}</div></div></div>
-    <div class="opts"><div class="opt" data-a="decide" data-c="a"><b>${esc(dec.t.a.label)}</b> <span class="kbd">A</span><div class="small muted mt8">${esc(dec.t.a.desc)}</div></div><div class="opt" data-a="decide" data-c="b"><b>${esc(dec.t.b.label)}</b> <span class="kbd">B</span><div class="small muted mt8">${esc(dec.t.b.desc)}</div></div></div>
-    <div class="row between tiny muted mt8"><span>Rispondi entro il tempo: altrimenti si sceglie la via sicura</span><span>Scorte: ${crew.spares}</span></div><div class="timer" id="dectimer" style="width:100%"></div></div>`;
+// co-driver call -> decision hub (major: pauses / slows the game; on timeout the safe line is taken)
+function offerCall(crew) {
+  const hub = X.hub; const dc = crew.plan?.decision; if (!hub || !dc || dc.done) return false;
+  const id = `c${crew.key}|${X.ev.stageIdx}|${dc.t.id}`;
+  if (hub.has(id) || dc.offered) return false;
+  dc.offered = true;
+  const d = X.ev.driver(crew); const sec = X.ev.sectorAt(crew.progress || 0);
+  hub.offer({ id, prio: 3, who: d.name, focus: crew.key, color: 'var(--warn)', eyebrow: `Il copilota chiama · ${d.name} · S${sec + 1} ${SECTOR_TYPES[X.ev.stage.sectors[sec]].name}`, title: dc.t.text,
+    text: `Scorte a bordo: ${crew.spares}. L’equipaggio è fermo sul punto della decisione: gli altri continuano a correre.`,
+    options: [{ label: dc.t.a.label, desc: dc.t.a.desc }, { label: dc.t.b.label, desc: dc.t.b.desc }], def: 1, ttl: 10,
+    valid: () => (dc.done || crew.done || !crew.plan ? 'la prova è andata avanti' : null),
+    resolve: (i, by) => {
+      const r = X.ev.resolveDecision(crew, i === 0 ? 'a' : 'b');
+      X.ev.pushTV({ kind: 'decision', key: crew.key, good: r.good, text: r.gain < 0 ? `${r.gain.toFixed(1)}s` : r.good ? 'Nessun rischio' : `+${Math.round(r.gain)}s` });
+      App.toast(`${by === 'player' ? '' : 'Decide il copilota · '}${r.good ? 'Ottima scelta!' : 'Problemi!'}`, r.text, r.good ? 'good' : 'bad');
+      if (r.good) sfx.ok(); else sfx.bad();
+      setTimeout(() => { const L = X.decLog; if (L?.length) L[L.length - 1].choice = `${L[L.length - 1].choice || ''} → ${r.text}`; }, 0);
+      X.last = performance.now();
+    } });
+  return true;
 }
-function decide(choice) {
-  if (!X.decision) return;
-  const crew = X.decision.crew;
-  const r = X.ev.resolveDecision(crew, choice);
-  X.decision = null;
-  const el = document.getElementById('decision'); if (el) el.innerHTML = '';
-  X.ev.pushTV({ kind: 'decision', key: crew.key, good: r.good, text: r.gain < 0 ? `${r.gain.toFixed(1)}s` : r.good ? 'Nessun rischio' : `+${Math.round(r.gain)}s` });
-  App.toast(r.good ? 'Ottima scelta!' : 'Problemi!', r.text, r.good ? 'good' : 'bad');
-  if (r.good) sfx.ok(); else sfx.bad();
-  X.last = performance.now();
+// at every split the co-driver offers a pace change for the rest of the stage (minor, non-blocking card)
+function splitCalls() {
+  const hub = X.hub, ev = X.ev; if (!hub) return;
+  for (const c of ev.crews) {
+    if (!c.isPlayer || !c.plan || c.done) continue;
+    const n = c.splits?.length || 0; if (n === (c._splitSeen || 0)) continue;
+    c._splitSeen = n; if (n < 1 || n > 2) continue;
+    const sp = n === 1 ? 1 / 3 : 2 / 3; const ref = ev.refAt(sp); const t = c.splitTimes?.[sp];
+    const dl = ref != null && t != null ? t - ref : null;
+    const cur = c.plan.paces[ev.sectorAt(c.progress || 0)];
+    const d = ev.driver(c); const P3 = ['push', 'normal', 'safe'];
+    const next = SECTOR_TYPES[ev.stage.sectors[Math.min(2, n)]];
+    const left = c.pieces.slice(c.pieceIdx).reduce((a, p) => a + (p.dur < 9999 ? p.dur : 0), 0) - (c.pieceT || 0);
+    hub.offer({ id: `s${c.key}|${ev.stageIdx}|${n}`, prio: 1, who: d.name, focus: c.key, color: 'var(--info)', eyebrow: 'Intermedio', title: `Intermedio ${n} · ${d.name}`,
+      text: `${dl == null ? 'Primo riferimento in prova.' : dl <= 0 ? `Miglior tempo all’intermedio (${dl.toFixed(1)}s).` : `+${dl.toFixed(1)}s dal migliore.`} Prossimo settore: ${next.name.toLowerCase()} (${next.note.toLowerCase()}). Ritmo attuale: ${PACE_MODES[cur].name.toLowerCase()}.`,
+      options: P3.map((p) => ({ label: PACE_MODES[p].name, desc: p === 'push' ? 'Più veloce, molto più rischio' : p === 'safe' ? 'Meno rischi, si perde tempo' : 'Compromesso' })), def: Math.max(0, P3.indexOf(cur)), ttl: 12, hardUntil: X.t + Math.max(2, Math.min(left - 3, 45 * Math.max(1, X.speed / 8))),
+      valid: () => (c.done || !c.plan || (c.splits?.length || 0) !== n ? 'settore già concluso' : null),
+      resolve: (i) => { const p = P3[i]; if (p !== cur && ev.setLivePace(c, p)) { X.choices[c.key] && (X.choices[c.key].paces = c.plan.paces.slice()); sfx.radio?.(); } } });
+  }
 }
-
 function skipStage() {
   let g = 0;
   while (!X.ev.allDone() && g++ < 1e5) { const r = X.ev.advance(2); if (r) X.ev.resolveDecision(r, 'b'); }
-  X.decision = null; const el = document.getElementById('decision'); if (el) el.innerHTML = '';
+  X.decision = null; X.hub?.reset(); const el = document.getElementById('decision'); if (el) el.innerHTML = '';
   X.finished = true; renderUI(true);
 }
 
@@ -523,6 +571,8 @@ function stageResults(st) {
         ${mine.map((c) => { const i = ov.indexOf(c); const a = ov[i - 1], bb = ov[i + 1]; return `<div class="rx-mine mt8"><b>${esc(ev.driver(c).name)}</b> · P${i + 1}${a ? ` · <span class="warn">-${(c.total - a.total).toFixed(1)}s</span> da ${esc(shortName(ev.driver(a).name))}` : ''}${bb ? ` · <span class="good">+${(bb.total - c.total).toFixed(1)}s</span> su ${esc(shortName(ev.driver(bb).name))}` : ''}</div>`; }).join('')}</div>` : ''}
       <div class="panel"><div class="panel-head"><h3>Classifica assoluta</h3></div>${overallTable(st, 12, { before: s.before, int: true })}</div>
       ${moments.length ? `<div class="panel tight"><div class="tiny upper muted mb8">Momenti della prova</div>${moments.map((l) => `<div class="feed-item ${l.player ? 'player' : ''} ${l.kind === 'crash' || l.kind === 'out' ? 'crash' : ''}"><span>${esc(l.text)}</span></div>`).join('')}</div>` : ''}
+      ${mine.filter((c) => ev.canRoadside(c)).map((c) => `<div class="panel tight rx-roadside"><div class="tiny upper muted mb8">Trasferimento · riparazione a bordo strada · ${esc(ev.driver(c).name)}</div><div class="small muted mb8">Niente assistenza prima della prossima prova: l’equipaggio può rattoppare <b>un</b> componente con gli attrezzi di bordo (circa −40% di danno). Più il danno è grave, più si rischia il ritardo al controllo orario (10s al minuto).</div><div class="row wrap gap6">${Object.entries(c.damage).filter(([, v]) => v > 0.08).map(([k, v]) => `<button class="btn sm" data-a="roadside" data-key="${c.key}" data-c="${k}">${icon('wrench')} ${DMG[k]} ${Math.round(v * 100)}%</button>`).join('')}</div></div>`).join('')}
+      ${hubLogHTML((X.decLog || []).filter((d) => d.stage === s.idx), 'Decisioni della prova')}
       <button class="btn primary xl" data-a="next">${ev.finished() ? 'Classifica finale' : ev.isServiceAfter(ev.stageIdx - 1) ? 'Parco assistenza' : 'Prossima prova'} ${icon('right')}</button></div>
   </div>`;
 }

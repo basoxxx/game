@@ -125,3 +125,12 @@
   .rx-dmg { grid-template-columns: 84px 1fr 196px; gap: 8px; }
   .rx-secbar > div { min-width: 96px; }
 }
+
+/* rally: road order / recce / light pod rows, roadside repair, decision cards */
+.rx-opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0 0; margin-top: 9px; border-top: 1px solid var(--line); }
+.rx-opt b { font-size: 14.5px; }
+.rx-opt .tiny { line-height: 1.4; margin-top: 2px; }
+.rx-opt .btn, .rx-opt .chip { flex: none; }
+.rx-roadside .btn .ico { width: 14px; height: 14px; }
+.rally-screen .dec-stack { top: 64px; }
+.rally-screen #decision .decision { z-index: 8; }
