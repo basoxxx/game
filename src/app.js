@@ -6,6 +6,8 @@ import { S, saveGame, getSettings, setSettings } from './engine/state.js';
 import { initGamepad, moveFocus } from './ui/gamepad.js';
 import { maybeTour } from './ui/tour.js';
 import { fmtM, playerTeam, cat } from './engine/season.js';
+import { trackArt } from './ui/trackart.js';
+import { disposeStage } from './ui/garage3d.js';
 
 const screens = {};
 export function registerScreen(s) { screens[s.id] = s; }
@@ -117,6 +119,8 @@ export const App = {
   go(id, params = {}) {
     const prev = screens[this.cur];
     prev?.unmount?.();
+    // the live race views own a WebGL context of their own: hand ours back before they start
+    if (id === 'weekend' || id === 'rally' || id === 'derby') disposeStage();
     this.cur = id; this.params = params;
     this.closeModal();
     document.querySelector('.coach')?.remove();
@@ -271,6 +275,18 @@ export const App = {
     document.body.appendChild(v);
     return () => v.remove();
   },
+  // ---- Full-screen loading card (track art + a tip) shown while a heavy screen builds.
+  // run() is called once the card has painted; the card leaves after `min` ms at the earliest.
+  loading({ eyebrow = 'Caricamento', title = '', sub = '', art = '', tip = '' } = {}, run, min = 650) {
+    document.querySelector('.load-screen')?.remove();
+    const v = document.createElement('div');
+    v.className = 'load-screen'; v.setAttribute('role', 'status'); v.setAttribute('aria-live', 'polite');
+    v.innerHTML = `<div class="ls-art">${art}</div><div class="ls-info"><div class="ls-eyebrow">${esc(eyebrow)}</div><div class="ls-title">${title}</div>${sub ? `<div class="ls-sub">${esc(sub)}</div>` : ''}<div class="ls-bar"><i></i></div>${tip ? `<div class="ls-tip"><span>${icon('bulb')} Lo sapevi?</span>${esc(tip)}</div>` : ''}</div>`;
+    document.body.appendChild(v);
+    const t0 = performance.now();
+    const done = () => { const left = Math.max(0, min - (performance.now() - t0)); setTimeout(() => { v.classList.add('out'); setTimeout(() => v.remove(), 320); }, left); };
+    requestAnimationFrame(() => setTimeout(() => { try { run?.(); } finally { done(); } }, 30));
+  },
   // ---- Notification centre: every toast is kept here for the session
   notes: [],
   unreadNotes() { return this.notes.filter((n) => !n.read).length; },
@@ -333,9 +349,28 @@ const globalActions = {
   continue() {
     const st = S();
     if (st.round >= st.calendar.length) { App.go('seasonend'); return; }
-    App.go(st.category === 'rally' ? 'rally' : 'weekend');
+    const to = st.category === 'rally' ? 'rally' : 'weekend';
+    const ev = st.calendar[st.round], tr = ev ? getTrack(st.category, ev.trackId) : null;
+    if (document.querySelector('.load-screen')) return; // already on its way
+    if (!tr || App.cur === to) { App.go(to); return; }
+    let art = '';
+    try { art = trackArt(st.category, tr, { w: 760, h: 520, accent: teamColor(playerTeam(st).car.livery), legend: false }); } catch {}
+    App.loading({ eyebrow: `Round ${st.round + 1} / ${st.calendar.length} · ${st.weekend ? 'Si torna in pista' : 'Weekend di gara'}`, title: `${flagSVG(tr.nat, 54, 36)}<span>${esc(tr.name)}</span>`, sub: tr.circuit || (ev.stages ? `${ev.stages.length} prove speciali` : ''), art, tip: LOAD_TIPS[(st.round * 7 + st.season) % LOAD_TIPS.length] }, () => App.go(to));
   },
 };
+
+const LOAD_TIPS = [
+  'Le prove libere servono a trovare l’assetto: più giri completi, più il feedback dei piloti diventa preciso.',
+  'Un pit stop anticipato (undercut) funziona meglio sulle piste dove le gomme nuove guadagnano molto nel primo giro.',
+  'Il fattore chiave del circuito indica il componente che pesa di più sul tempo sul giro: sviluppalo prima degli eventi che lo premiano.',
+  'Con il rischio pioggia alto conviene tenere un treno di intermedie pronto e non impegnare tutte le gomme da asciutto in qualifica.',
+  'La fiducia del consiglio sale con i risultati rispetto all’obiettivo, non in assoluto: un quinto posto può valere più di un podio atteso.',
+  'I progetti R&D aggressivi rendono di più ma possono fallire: usali quando hai margine di budget e di tempo.',
+  'Un pilota con il morale alto commette meno errori sotto pressione. Rinnovi e promesse mantenute contano.',
+  'Sulle piste dove i sorpassi sono difficili la posizione in griglia vale doppio: spingi in qualifica.',
+  'Gli sponsor assegnano un obiettivo diverso a ogni evento: centrarlo paga un premio extra.',
+  'Nel Centro Tecnico passa sui componenti per vederli evidenziati sulla vettura nel box.',
+];
 
 export function teamColor(L) {
   const ok = (c) => { const l = luminance(c); return l > 0.16 && l < 0.82; };
