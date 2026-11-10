@@ -408,12 +408,13 @@ export function signProspect(st, id) {
   return { ok: true };
 }
 export function releaseJunior(st, id) {
-  const d = st.drivers[id]; if (!d || d.academy !== st.playerTeam) return;
+  const d = st.drivers[id]; if (!d || d.academy !== st.playerTeam || d.loan) return;
   d.academy = null; d.salary = salaryFor(d, st.category);
 }
 export function promoteJunior(st, id, replaceId) {
   const d = st.drivers[id]; const pt = playerTeam(st);
   if (!d || d.academy !== pt.id) return { ok: false, msg: 'Pilota non disponibile.' };
+  if (d.loan) return { ok: false, msg: 'È in prestito fino a fine stagione: potrai promuoverlo quando rientra.' };
   const free = seatsPerTeam(st) - teamDrivers(st, pt).length;
   if (replaceId && !pt.drivers.includes(replaceId)) replaceId = null;
   if (free <= 0 && !replaceId) return { ok: false, msg: 'Scegli quale titolare sostituire.' };
@@ -445,6 +446,7 @@ function academySeason(st) {
 function feederResults(st) {
   const out = [];
   for (const d of academyDrivers(st)) {
+    if (d.loanSeason === st.season) continue; // spent the year on loan in the main series
     const ov = driverOverall(d, st.category);
     const pos = clamp(Math.round(gauss(14 - (ov - 62) * 0.55 - (d.morale - 70) * 0.03 - (satelliteSeat(playerTeam(st)) ? 1.5 : 0) - (playerTeam(st).invest?.juniorActive ? 1 : 0), 2.6)), 1, 20);
     (d.feeder ||= []).push({ season: st.season, pos });

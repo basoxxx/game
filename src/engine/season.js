@@ -10,7 +10,7 @@ import { bindMarket, evaluateOffer, marketTick, developDriver, seasonMarket, aiS
 import { postRaceComponents } from './components.js';
 import { processStewards } from './stewards.js';
 import { updateLegacy, recordCareerRace, legacyInfo } from './legacy.js';
-import { ensureDepth, eraDevMult, winterCars, tokenCheck, tokenSpend, puDevFactor, leaderDrag, corrRoll, afterProject, aiDevFactor, ptsPenalty, capAudit, depthPostRound, depthEndSeason, depthNewSeason, queueStaff, recordRetirement, clearTrackMods, applyTrackMods, basePart } from './depth.js';
+import { juniorGraduation, ensureDepth, eraDevMult, winterCars, tokenCheck, tokenSpend, puDevFactor, leaderDrag, corrRoll, afterProject, aiDevFactor, ptsPenalty, capAudit, depthPostRound, depthEndSeason, depthNewSeason, queueStaff, recordRetirement, clearTrackMods, applyTrackMods, basePart } from './depth.js';
 import { invLevel, dynPostRound, dynEndSeason, dynNewSeason, teamTrait, facilityCap, STATUS, statusIdx, repSpan, strengthRanking, principalReact } from './dynasty.js';
 
 export const fmtM = (v) => `${v < 0 ? '-' : ''}€${Math.abs(v).toFixed(Math.abs(v) >= 100 ? 0 : 1)}M`;
@@ -122,7 +122,7 @@ export function specCeiling(state, partId, cur) {
   if (state.category !== 'junior') return 1;
   const vals = Object.values(state.teams).map((t) => t.car.parts[partId]).filter(Number.isFinite);
   const avg = vals.reduce((a, b) => a + b, 0) / Math.max(1, vals.length);
-  return clamp(1 - (cur - avg - 1) / 5, 0.15, 1);
+  return clamp(1 - (cur - avg - 0.5) / 3.5, 0.1, 1);
 }
 
 function completeProject(state, team, proj) {
@@ -685,6 +685,7 @@ export function newSeason(state) {
       addNews(state, `${d.name} annuncia il ritiro a ${d.age} anni. Leggenda.`);
     }
   }
+  try { juniorGraduation(state); } catch (e) { console.warn('depth graduation', e); }
   // contracts, pre-contract transfers, rookies and AI signings
   seasonMarket(state);
   // prune retired drivers with no team older than 3 seasons

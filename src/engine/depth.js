@@ -172,8 +172,8 @@ export function techBase(st, t) {
   const fac = ((t.facilities.factory || 1) + (t.facilities.windtunnel || 1) + (t.facilities.simulator || 1) - 3) / 12;
   const td = clamp((tdOf(st, t) - 60) / 35, 0, 1);
   const res = clamp(bud * 0.4 + fac * 0.32 + td * 0.28 + (t.isPlayer ? invLevel(t, 'tunnel') * 0.03 + invLevel(t, 'hq') * 0.03 : (st.dp?.ai?.[t.id]?.mom || 0) * 0.1), 0, 1.1);
-  const span = st.category === 'junior' ? 7 : 17;
-  return +((st.category === 'junior' ? 77 : 73) + span * res).toFixed(1);
+  const span = st.category === 'junior' ? 5 : 17;
+  return +((st.category === 'junior' ? 78 : 73) + span * res).toFixed(1);
 }
 // Winter car update. Replaces the plain regression of the old engine. Returns a report for the mails.
 export function winterCars(st) {
@@ -223,11 +223,13 @@ export function winterCars(st) {
   // 3) convergence: solutions get copied over the winter. The leader's edge shrinks, chasers close in
   if (!isEra) for (const p of perfParts(st)) {
     const vals = teams.map((t) => t.car.parts[p.id]).sort((a, b) => b - a);
-    const ref = (vals[1] ?? vals[0]) + 1; const best = vals[0];
+    const jr = st.category === 'junior'; // spec series: the organiser equalises the cars every winter
+    const ref = (vals[1] ?? vals[0]) + (jr ? 0.3 : 1); const best = vals[0];
     for (const t of teams) {
       const v = t.car.parts[p.id];
-      if (v > ref) t.car.parts[p.id] = +(v - (v - ref) * 0.4).toFixed(1);
-      else if (best - v > 7) t.car.parts[p.id] = +(v + (best - v - 7) * 0.12 * (t.isPlayer ? 1 : diffK)).toFixed(1);
+      if (v > ref) t.car.parts[p.id] = +(v - (v - ref) * (jr ? 0.75 : 0.4)).toFixed(1);
+      else if (t.isPlayer && best - v > 4) t.car.parts[p.id] = +(v + (best - v - 4) * 0.22).toFixed(1); // copying is easier than inventing
+      else if (best - v > 7) t.car.parts[p.id] = +(v + (best - v - 7) * 0.12 * diffK).toFixed(1);
     }
   }
   // 4) the Federation trims performance every winter: keeps the scale stable over long careers (no cars piling up at the ceiling)
@@ -489,6 +491,7 @@ export function reserveCandidates(st) {
   const free = Object.values(st.drivers).filter((d) => !d.teamId && !d.retired && !d.academy && !d.nextTeam && (!d.reserveFor || d.reserveFor === st.playerTeam)).sort((a, b) => driverOverall(b, C) - driverOverall(a, C)).slice(0, 8);
   return [...acad, ...free].map((d) => ({ d, ov: driverOverall(d, C), fee: d.academy ? 0 : +(salaryFor(d, C) * 0.08).toFixed(2), academy: !!d.academy }));
 }
+export function onLoan(st, d) { return d?.loan ? st.teams[d.loan.to] : null; }
 export function currentReserve(st) { const pt = playerTeam(st); const r = pt.reserve ? st.drivers[pt.reserve] : null; return r && !r.teamId && !r.retired ? r : null; }
 export function setReserve(st, id) {
   const pt = playerTeam(st); const d = st.drivers[id];
@@ -499,6 +502,49 @@ export function setReserve(st, id) {
   if (fee) addFinance(st, `Gettone terzo pilota ${d.name}`, -fee);
   pt.reserve = d.id; d.reserveFor = pt.id;
   return { ok: true };
+}
+
+// ---- loans: an academy junior races a season for a smaller team and comes back grown ----
+export function loanTargets(st, d) {
+  const C = st.category; const ov = driverOverall(d, C);
+  if (!d || d.academy !== st.playerTeam || d.teamId || d.loan) return [];
+  if (st.round > Math.floor(st.calendar.length * 0.4)) return [];
+  const taken = new Set(Object.values(st.drivers).filter((x) => x.loan).map((x) => x.teamId));
+  return Object.values(st.teams).filter((t) => !t.isPlayer && !taken.has(t.id)).map((t) => {
+    const ds = t.drivers.map((id) => st.drivers[id]).filter((x) => x && !isInjured(st, x)).sort((a, b) => driverOverall(a, C) - driverOverall(b, C));
+    const w = ds[0]; const rel = principal(st, t.id)?.rel || 0;
+    return w && driverOverall(w, C) <= ov + 2 + (rel >= 15 ? 2 : 0) && rel > -45 ? { team: t, out: w, outOv: driverOverall(w, C) } : null;
+  }).filter(Boolean).sort((a, b) => avgPart(b.team) - avgPart(a.team)).slice(0, 3);
+}
+export function loanJunior(st, id, teamId) {
+  const d = st.drivers[id]; const pt = playerTeam(st);
+  const tg = loanTargets(st, d).find((x) => x.team.id === teamId) || null;
+  if (!tg) return { ok: false, msg: 'Nessuna squadra disposta a dargli un sedile: deve valere almeno quanto il loro pilota più debole, e i prestiti si chiudono entro il 40% della stagione.' };
+  const t = tg.team; const w = tg.out;
+  t.drivers = t.drivers.filter((x) => x !== w.id); if (t.number1 === w.id) t.number1 = null;
+  w.teamId = null; w.contract = 0; w.salary = salaryFor(w, st.category);
+  if (pt.reserve === d.id) { pt.reserve = null; d.reserveFor = null; }
+  d.teamId = t.id; d.contract = 1; d.salary = 0; d.morale = 85; d._s0 = d.stats.starts; d.loan = { from: pt.id, to: t.id, season: st.season };
+  t.drivers.push(d.id);
+  adjustRel(st, t.id, 6);
+  addNews(st, `${d.name} (accademia ${pt.name}) in prestito a ${t.name} per la stagione ${st.season}.`);
+  press(st, { kind: 'brief', tone: 'good', h: `Prestito: ${d.name} da ${pt.short} a ${t.name}`, t: '', tag: 'Mercato' });
+  return { ok: true, team: t };
+}
+function loansReturn(st) {
+  const pt = playerTeam(st);
+  for (const d of Object.values(st.drivers)) {
+    if (!d.loan) continue;
+    const t = st.teams[d.teamId];
+    if (t && !t.isPlayer) { t.drivers = t.drivers.filter((x) => x !== d.id); if (t.number1 === d.id) t.number1 = null; }
+    const races = d.stats.starts - (d._s0 ?? d.stats.starts);
+    const best = Math.min(99, ...st.calendar.flatMap((ev) => (ev.results?.classification || []).filter((r) => r.driverIds.includes(d.id) && r.status !== 'dnf').map((r) => r.pos)));
+    if (d.teamId !== pt.id) { d.teamId = null; d.contract = 0; d.salary = 0; }
+    d.nextTeam = null; d.nextSalary = null; d.nextYears = null; d.rivalOffer = null;
+    d.attrs.exp = clamp(d.attrs.exp + Math.min(8, races), 0, 99);
+    addMail(st, { from: 'Accademia', icon: 'star', type: 'good', subject: `${d.name} rientra dal prestito`, body: `${d.name} ha chiuso la stagione con ${t?.name || 'la squadra che lo ospitava'}: ${races} gare disputate${best < 99 ? `, miglior risultato ${best}°` : ''}. Un anno da titolare vale più di uno nelle serie minori: quest’inverno crescerà a pieno ritmo. È di nuovo a disposizione dell’accademia.` });
+    d.loanSeason = st.season; d.loan = null;
+  }
 }
 
 // =====================================================================================
@@ -759,6 +805,47 @@ function rumoursVerify(st) {
 export function rumourList(st) { return ensureDepth(st).rum.slice().reverse(); }
 export function rumourStat(st) { return ensureDepth(st).rumStat; }
 
+// Formula Apex 2 is a school: the champion cannot defend the title and the best graduate to Formula Apex.
+// Called by season.newSeason before the winter market, so the seats are filled again by rookies and free agents.
+export function juniorGraduation(st) {
+  if (st.category !== 'junior' || st.quick) return;
+  const P = ensureDepth(st); const pt = playerTeam(st); const C = st.category;
+  const champName = (st.champions || []).filter((c) => c.season === st.season - 1 && c.category === 'junior').slice(-1)[0]?.driver;
+  const f1 = TEAMS.formula || [];
+  const out = [];
+  for (const d of Object.values(st.drivers)) {
+    if (d.retired || d.academy) continue;
+    const ov = driverOverall(d, C); const champ = d.name === champName && !!d.teamId;
+    const mine = d.teamId === pt.id;
+    let go = champ;
+    if (!go && d.nextTeam === pt.id) continue; // he has already signed for us
+    if (!go && d.teamId && !mine) go = (ov >= 82 && chance(0.8)) || (ov >= 78 && d.age >= 23 && chance(0.5)) || (d.age >= 26 && chance(0.6));
+    // no Formula Apex 2 contract can hold a driver the top series calls up: you get the training fee instead
+    if (!go && mine) go = (d.contract <= 1 && (ov >= 80 || d.age >= 25)) || (ov >= 82 && chance(0.75)) || d.age >= 26;
+    if (!go && !d.teamId) go = d.age >= 26 || (ov >= 82 && chance(0.6)); // free agents move on too
+    if (!go) continue;
+    const to = pick(f1)?.name || 'Formula Apex';
+    const t = d.teamId ? st.teams[d.teamId] : null;
+    if (t) { t.drivers = t.drivers.filter((x) => x !== d.id); if (t.number1 === d.id) t.number1 = null; }
+    if (t || ov >= 80) out.push({ d, ov, champ, to, mine, team: t });
+    if (mine) {
+      const fee = +(salaryFor(d, C) * (champ ? 2.5 : 1.5) + (champ ? 0.6 : 0.2)).toFixed(2);
+      addFinance(st, `Indennizzo di formazione ${d.name}`, fee);
+      pt.rep = clamp(+(pt.rep + (champ ? 1.5 : 0.6)).toFixed(1), 20, 100);
+      addMail(st, { from: 'Ufficio Contratti', icon: 'star', type: 'good', subject: `${d.name} promosso in Formula Apex`, body: `${champ ? 'Da regolamento il campione non può difendere il titolo: ' : ''}${d.name} sale in Formula Apex con ${to}. Per la squadra è un vanto e un incasso: indennizzo di formazione di ${fmtM(fee)} e prestigio in crescita. Il sedile è libero: scegli il prossimo talento dal Mercato o dall’accademia.` });
+    }
+    d.teamId = null; d.contract = 0; d.retired = true; d.graduated = st.season; d.nextTeam = null; d.rivalOffer = null;
+    if (d.stats.titles > 0 || d.stats.wins >= 3) P.hof.unshift({ name: d.name, nat: d.nat, wins: d.stats.wins, titles: d.stats.titles, podiums: d.stats.podiums, poles: d.stats.poles, starts: d.stats.starts, team: `→ ${to}`, season: st.season - 1, age: d.age });
+  }
+  if (P.hof.length > 40) P.hof.length = 40;
+  for (const [id, d] of Object.entries(st.drivers)) if (d.graduated && d.graduated <= st.season - 3) delete st.drivers[id];
+  const top = out.sort((a, b) => (b.champ ? 99 : b.ov) - (a.champ ? 99 : a.ov)).slice(0, 5);
+  if (top.length) {
+    worldLog(st, `Promossi in Formula Apex: ${top.map((x) => `${x.d.name} (${x.to})`).join(', ')}.`, 'grad');
+    press(st, { kind: 'team', tone: 'info', h: `La classe del ${st.season - 1} sale di categoria`, t: `${top.map((x) => `${x.d.name}${x.champ ? ', campione,' : ''} con ${x.to}`).join('; ')}. In Formula Apex 2 si liberano i sedili migliori.`, img: { k: 'trophy' }, tag: 'Mercato' });
+  }
+}
+
 // =====================================================================================
 // HALL OF FAME & RECORDS
 // =====================================================================================
@@ -826,6 +913,16 @@ export function depthEndSeason(st, sum) {
   if (o.ok) { addFinance(st, `Premio della proprietà (${o.name})`, o.reward); st.board.confidence = clamp(st.board.confidence + 6, 0, 100); }
   else st.board.confidence = clamp(st.board.confidence - 5, 0, 100);
   addMail(st, { from: 'La Proprietà', icon: 'board', type: o.ok ? 'good' : 'bad', subject: o.ok ? 'La proprietà è soddisfatta' : 'La proprietà non è soddisfatta', body: `${o.motto}\n\nObiettivo della proprietà: ${o.goal}. Risultato: ${o.now}.\n\n${o.ok ? `Obiettivo centrato: premio di ${fmtM(o.reward)} e fiducia +6.` : 'Obiettivo mancato: fiducia -5.'}` });
+  loansReturn(st);
+  // idle cash does not stay in the team forever: the owners take a dividend on what exceeds a full season budget
+  const excess = pt.money - pt.baseBudget;
+  if (excess > pt.baseBudget * 0.05) {
+    const div = +(excess * 0.4).toFixed(1);
+    addFinance(st, 'Dividendo alla proprietà', -div);
+    st.board.confidence = clamp(st.board.confidence + 3, 0, 100);
+    sum.dividend = div;
+    addMail(st, { from: 'La Proprietà', icon: 'money', type: 'info', subject: `Dividendo di fine stagione: ${fmtM(div)}`, body: `La cassa supera il budget di un’intera stagione (${fmtM(pt.baseBudget)}). La proprietà preleva il 40% dell’eccedenza come dividendo: ${fmtM(div)}. In cambio, fiducia +3.\n\nIl denaro fermo non fa andare più forte la macchina: investilo in strutture, sviluppo, piloti o negli investimenti fuori dal budget cap prima della fine dell’anno.` });
+  }
   sum.owner = o;
   sum.fans = fansInfo(st);
   P.lastSeason = { season: st.season, pos: sum.teamPos, target: sum.target };
