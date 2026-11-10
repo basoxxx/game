@@ -67,7 +67,7 @@ export function buildCoast(r3, biome, street) {
   const a = biome.sea.a * Math.PI / 180, dx = Math.cos(a), dz = Math.sin(a);
   let D = -1e9; const { N, x, y } = r3.geo;
   for (let i = 0; i < N; i++) D = Math.max(D, (x[i] - cx) * dx + (y[i] - cz) * dz);
-  D += street > 0.7 ? 120 : 150;
+  D += street > 0.7 ? 70 : 150;
   const proj = (px, pz) => (px - cx) * dx + (pz - cz) * dz;
   r3.seaMask = (px, pz) => proj(px, pz) > D - 14;
   r3.coastK = (px, pz) => sm(0, 1, (D - 30 - proj(px, pz)) / 260);
@@ -104,7 +104,7 @@ export function buildCoast(r3, biome, street) {
   const bg = mergeGeometries(hull); const list = [], cols = []; const d = new THREE.Object3D();
   const nb = Math.round((street > 0.7 ? 150 : 50) * (r3.low ? 0.3 : 1));
   for (let k = 0; k < nb; k++) {
-    const far = Math.random() < 0.25, off = far ? rnd(200, 1400) : rnd(10, 150), lat = (Math.random() - 0.5) * (far ? 3600 : 1700), L = far ? rnd(30, 90) : rnd(12, 46);
+    const far = Math.random() < 0.25, off = far ? rnd(200, 1200) : rnd(8, 150), lat = (Math.random() - 0.5) * (far ? 3600 : 1700), L = far ? rnd(16, 45) : rnd(10, 38);
     d.position.set(cx + dx * (D + off) - dz * lat, -0.15, cz + dz * (D + off) + dx * lat); d.rotation.set(0, far ? Math.random() * 6.28 : -a + (Math.random() < 0.5 ? 0 : Math.PI) + rnd(-0.12, 0.12), 0); d.scale.set(L, L * 0.8, L * 0.85); d.updateMatrix();
     list.push(d.matrix.clone()); cols.push(['#ffffff', '#f2f2ee', '#1d2a3a', '#e9e4d8', '#ffffff'][k % 5]);
   }
@@ -194,13 +194,6 @@ export function buildDecals(r3, street) {
     // chequered start / finish line: two rows of squares
     const sq = W / 16;
     for (let r = 0; r < 2; r++) for (let c = 0; c < 16; c++) { const v = (r + c) % 2 ? 0.93 : 0.03; rect(0.02 + (r - 0.5) * sq / g.ds, -W / 2 + sq * (c + 0.5), sq / 2, sq / 2, [v, v, v, 1], 0.056); }
-    // grid slots: staggered white brackets with a yellow centre mark
-    const slots = Math.min(26, Math.max(10, r3._gridN || 22));
-    for (let k = 0; k < slots; k++) {
-      const s = N - (7 + k * 8) / g.ds, ln = k % 2 ? -2.7 : 2.7, wt = [0.92, 0.92, 0.9, 0.92];
-      rect(s, ln, 0.08, 1.25, wt); for (const sd of [-1, 1]) rect(s - 0.75 / g.ds, ln + sd * 1.21, 0.75, 0.05, wt);
-      rect(s, ln, 0.3, 0.06, [0.95, 0.78, 0.1, 0.9]);
-    }
     for (const cn of g.corners) {
       const span = Math.min(30, Math.max(10, Math.round(cn.r / 12))), side = cn.dir > 0 ? 1 : -1;
       if (pit(cn.i - span) || pit(cn.i + span)) continue;
@@ -376,4 +369,20 @@ export function buildRallyExtras(r3, near, surf, look) {
     }
     instanced(scene, hg, tintWhite(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }), 'hut'), list, { colors: cols });
   }
+}
+
+// grid slots painted where the cars actually line up (called once, on the first frame of a race start)
+export function buildGridSlots(r3) {
+  const pos = [], idx = [];
+  const quad = (cx, cz, fx, fz, lon, lat, hl, hw, y) => { const nx = -fz, nz = fx, x = cx + fx * lon + nx * lat, z = cz + fz * lon + nz * lat, b = pos.length / 3; pos.push(x - fx * hl - nx * hw, y, z - fz * hl - nz * hw, x - fx * hl + nx * hw, y, z - fz * hl + nz * hw, x + fx * hl - nx * hw, y, z + fz * hl - nz * hw, x + fx * hl + nx * hw, y, z + fz * hl + nz * hw); idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); };
+  for (const car of r3.cars.values()) {
+    const m = car.mesh; if (!m.visible) continue;
+    const fx = Math.cos(m.rotation.y), fz = -Math.sin(m.rotation.y), y = m.position.y + 0.04;
+    quad(m.position.x, m.position.z, fx, fz, 2.9, 0, 0.08, 1.3, y);
+    for (const sd of [-1, 1]) quad(m.position.x, m.position.z, fx, fz, 2.1, sd * 1.26, 0.85, 0.05, y);
+  }
+  if (!idx.length) return;
+  const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); bg.setIndex(idx); bg.computeVertexNormals();
+  const mesh = new THREE.Mesh(bg, new THREE.MeshStandardMaterial({ color: 0xe9e9e6, roughness: 0.7, transparent: true, opacity: 0.9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+  mesh.receiveShadow = true; mesh.renderOrder = 2; r3.scene.add(mesh);
 }

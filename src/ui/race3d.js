@@ -10,7 +10,7 @@ import { buildCar, setTyreColor, setCarLOD, MAT } from './cars3d.js';
 import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, updateSunFlare, updateGodRays } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { biomeOf, RALLY_LOOK } from './env/biomes.js';
-import { buildCoast, buildMidTerrain, buildDecals, buildLife, buildRallyExtras } from './env/scenery.js';
+import { buildCoast, buildMidTerrain, buildDecals, buildLife, buildRallyExtras, buildGridSlots } from './env/scenery.js';
 
 // Tree geometry (origin at the base, height 1) with vertex colours: trunk + layered foliage
 function colorize(g, hex) { const c = new THREE.Color(hex); const n = g.attributes.position.count; const a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const k = 0.85 + Math.random() * 0.3; a[i * 3] = c.r * k; a[i * 3 + 1] = c.g * k; a[i * 3 + 2] = c.b * k; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; }
@@ -432,7 +432,7 @@ export class Race3D {
     this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x3b3e44, roughness: 0.85 }) : D(pbr('asphalt_02', { color: 0x75757a, roughness: 1, normalScale: 0.8 }), { macro: 0.1, macroScale: 0.06, wet: true, rough: [0.62, 1.0], key: 'asph', track: { halfW: W / 2, uScale: 6 } });
     const runoffMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x777b82, roughness: 0.9 }) : D(pbr('concrete_floor_worn_001', { color: street > 0.7 ? 0x8a8a8a : 0xb8b8b8 }), { macro: 0.12, macroScale: 0.05, wet: true });
     const grassCol = this.biome.grass;
-    const groundMat = this.low ? new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x84817b : 0x3f7a34, roughness: 1 }) : D(pbr(street > 0.7 ? 'concrete_floor_worn_001' : 'aerial_grass_rock', { repeat: [1400, 1400], color: street > 0.7 ? 0x8b8780 : grassCol }), { macro: street > 0.7 ? 0.34 : 0.22, macroScale: street > 0.7 ? 0.03 : 0.012, tint: street > 0.7 ? 0x9a8f80 : this.biome.dry, tintAmt: street > 0.7 ? 0.5 : this.biome.dryAmt });
+    const groundMat = this.low ? new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x84817b : 0x3f7a34, roughness: 1 }) : D(pbr(street > 0.7 ? 'concrete_floor_worn_001' : 'aerial_grass_rock', { repeat: [1400, 1400], color: street > 0.7 ? 0xb9b4aa : grassCol }), { macro: street > 0.7 ? 0.34 : 0.22, macroScale: street > 0.7 ? 0.03 : 0.012, tint: street > 0.7 ? 0x9a8f80 : this.biome.dry, tintAmt: street > 0.7 ? 0.5 : this.biome.dryAmt });
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(12000, 12000), groundMat);
     ground.rotation.x = -Math.PI / 2; ground.position.set((this.geo.bbox[0] + this.geo.bbox[2]) / 2, -0.25, (this.geo.bbox[1] + this.geo.bbox[3]) / 2);
     ground.receiveShadow = true;
@@ -1154,7 +1154,7 @@ export class Race3D {
     }
     // forest on the surrounding hills
     if (this.hillH) {
-      const [cx, cz] = this.hillC; const nH = Math.round((street > 0.7 ? 900 : 2600 * Math.min(1.4, B.dens + (desert ? 0 : 0.2))) * (this.low ? 0.3 : 1));
+      const [cx, cz] = this.hillC; const nH = Math.round((street > 0.7 ? 900 : 4600 * Math.min(1.4, B.dens + (desert ? 0 : 0.2))) * (this.low ? 0.3 : 1));
       const conif = B.trees.filter(([k]) => k !== 'bush').flatMap(([k]) => byKind(k));
       for (let k = 0, guard2 = 0; k < nH && conif.length && guard2 < nH * 3; guard2++) {
         const a = Math.random() * 6.283; const r = this.hillR0 + 30 + Math.random() ** 1.8 * 900;
@@ -1739,7 +1739,7 @@ export class Race3D {
   // parked cars along the kerbs, planters with trees and bollards. Three instanced draws.
   buildStreetProps() {
     const N = this.geo.N, W = this.TW, obs = this.obstacles || [];
-    const inObs = (px, pz, m) => obs.some((o) => { const ex = px - o.x, ez = pz - o.z; if (!o.hl) return ex * ex + ez * ez < (o.r + m) ** 2; const c = Math.cos(o.rot), s = Math.sin(o.rot); return Math.abs(ex * c - ez * s) < o.hl + m && Math.abs(ex * s + ez * c) < o.hd + m; });
+    const inObs = (px, pz, m) => this.seaMask?.(px, pz) || obs.some((o) => { const ex = px - o.x, ez = pz - o.z; if (!o.hl) return ex * ex + ez * ez < (o.r + m) ** 2; const c = Math.cos(o.rot), s = Math.sin(o.rot); return Math.abs(ex * c - ez * s) < o.hl + m && Math.abs(ex * s + ez * c) < o.hd + m; });
     const trackD2 = (px, pz) => { let b = 1e18; for (let j = 0; j < N; j += 2) { const d = (this.geo.x[j] - px) ** 2 + (this.geo.y[j] - pz) ** 2; if (d < b) b = d; } return b; };
     const cars = [], planters = [], plazas = [], houses = [], awnings = [], palms = [];
     const d = new THREE.Object3D(), col = new THREE.Color();
@@ -2644,7 +2644,8 @@ export class Race3D {
       fogT.copy(hor).multiplyScalar(0.92);
       this.scene.fog.color.copy(base.fog).lerp(fogT, Math.min(1, ovc * 0.9 + wet * 0.1));
       if (this.composer?.grade) this.composer.grade.uniforms.uSat.value = (this.tod?.sat ?? 1.08) - 0.18 * ovc - 0.12 * wet;
-      if (this.composer?.grade) this.composer.grade.uniforms.uWarm.value = (this.tod?.warm ?? 0.035) * (1 - ovc * 0.8);
+      // moody overcast: cooler highlights, deeper contrast instead of a flat grey image
+      if (this.composer?.grade) { const gu = this.composer.grade.uniforms; gu.uWarm.value = (this.tod?.warm ?? 0.035) * (1 - ovc) - 0.016 * ovc * (1 - nite); gu.uCon.value = 1.08 + 0.07 * ovc + 0.04 * storm; gu.uVig.value = 0.32 + 0.1 * ovc; }
     }
     if (!this.asphaltMat.userData.wetPatch) { this.asphaltMat.roughness = 0.82 - wet * 0.5; this.asphaltMat.metalness = 0.04 + wet * 0.12; if (this.asphaltMat.color) { this._asphBase ??= this.asphaltMat.color.getHex(); this.asphaltMat.color.setHex(this._asphBase).multiplyScalar(1 - wet * 0.45); } }
     WET.value = wet;
@@ -2745,6 +2746,7 @@ export class Race3D {
     }
     if (!focus) focus = [...this.cars.values()].find((c) => c.mesh.visible);
     this._envTick?.(dt);
+    if (!this._slots && !this.open) { this._slots = true; if (this.introT > 0) buildGridSlots(this); }
     this.updateCamera(focus, dt);
     this.updatePitCrew();
     // pass-by sounds for cars close to a fixed (TV) camera
