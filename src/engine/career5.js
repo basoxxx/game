@@ -356,7 +356,7 @@ export function strategyRoom(st) {
   // checklist of the choices that matter this season
   const todo = [];
   if (era.left === 1 && era.canSet) todo.push({ k: 'era', t: `Regolamento ${era.next}: linea «${era.pol.name}», stima ${era.swing >= 0 ? '+' : ''}${era.swing} sulla nuova vettura`, tab: 'regs', warn: era.swing < 0 });
-  if (pt.projects.length < slots) todo.push({ k: 'rd', t: `${slots - pt.projects.length} slot R&D liberi: priorità consigliata ${prio[0].name}`, tab: 'dev', warn: true });
+  if (pt.projects.length < slots) todo.push({ k: 'rd', t: `${slots - pt.projects.length} slot R&D ${slots - pt.projects.length === 1 ? "libero" : "liberi"}: priorità consigliata ${prio[0].name}`, tab: 'dev', warn: true });
   if (capOn && capProj > cap) todo.push({ k: 'cap', t: `Al ritmo attuale chiuderai a ${fmtM(capProj)} sul cap di ${fmtM(cap)}: rischio multa e punti`, tab: 'dev', warn: true });
   if (tk && !tk.frozen && tk.left <= 1 && left > 2) todo.push({ k: 'tok', t: `Restano ${tk.left} gettoni motore: sposta lo sviluppo sulla vettura ${st.season + 1}`, tab: 'dev' });
   if (pu && !pu.works && st.round === 0 && sups[0] && sups[0].id !== pu.sup) todo.push({ k: 'pu', t: `Il motore più potente è ${sups[0].name} (${sups[0].power}); il tuo fornitore è a ${sups.find((x) => x.id === pu.sup)?.power}`, tab: 'regs' });
