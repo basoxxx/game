@@ -468,7 +468,13 @@ export class Race3D {
               float hv = fract(sin(cell.x * 127.1 + cell.y * 311.7) * 43758.5453);
               vec3 c = diffuseColor.rgb;
               // block interior: courtyards / car parks between the buildings, or a park
-              vec3 inner = hv > 0.84 ? c * vec3(0.42, 0.62, 0.3) * (0.8 + 0.4 * dfbm(w * 0.15)) : c * (0.82 + 0.12 * step(0.5, fract((f.x + f.y) / 6.0)));
+              // inner yards: paved courtyards / car parks (bays, parked cars) and small gardens
+              vec2 sub = floor(f / 24.0); float hs = fract(sin(dot(cell * 3.0 + sub, vec2(12.9898, 78.233))) * 43758.5453);
+              vec3 yard = c * (0.7 + 0.1 * step(0.5, fract(f.x / 2.6)) * step(0.2, fract(f.y / 5.2)));
+              float carS = step(0.55, fract(sin(dot(floor(f / vec2(2.6, 5.2)) + cell * 7.0, vec2(41.3, 17.9))) * 9631.7)) * step(0.2, fract(f.y / 5.2)) * step(0.15, fract(f.x / 2.6)) * step(fract(f.x / 2.6), 0.85);
+              yard = mix(yard, vec3(0.25, 0.27, 0.3) * (0.4 + 1.2 * fract(hs * 13.0)), carS * step(0.45, hs) * 0.9);
+              yard = mix(yard, c * vec3(0.45, 0.62, 0.33) * (0.8 + 0.4 * dvn(w * 0.3)), step(0.82, hs));
+              vec3 inner = hv > 0.84 ? c * vec3(0.42, 0.62, 0.3) * (0.8 + 0.4 * dfbm(w * 0.15)) : yard;
               c = mix(inner, c * 1.08, pave);                                 // pale paving slabs
               c = mix(c, c * 1.25, kerb);
               // street: dark asphalt, a dashed centre line, zebra crossings near the junctions
@@ -476,7 +482,7 @@ export class Race3D {
               float lat = alongX > 0.5 ? e.y : e.x, lon = alongX > 0.5 ? f.x : f.y;
               float dash = step(0.55, fract(lon / 6.0)) * (1.0 - step(0.12, abs(lat - 0.0)));
               float zebra = step(0.5, fract(lat / 1.1)) * (1.0 - step(5.0, min(lon, ${B.toFixed(1)} - lon))) * step(${(RW / 2 + 0.8).toFixed(1)}, min(lon, ${B.toFixed(1)} - lon));
-              vec3 asph = vec3(0.16, 0.165, 0.17) * (0.85 + 0.3 * dvn(w * 0.4));
+              vec3 asph = vec3(0.05, 0.052, 0.056) * (0.8 + 0.4 * dvn(w * 0.4));
               asph = mix(asph, vec3(0.8), max(dash * 0.75, zebra * 0.85));
               c = mix(c, asph, road);
               diffuseColor.rgb = c;
