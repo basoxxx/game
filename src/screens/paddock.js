@@ -187,7 +187,7 @@ function careerCard(st) {
     <div class="grid3"><div class="kpi"><b>${rep}</b><span>Reputazione manager</span></div><div class="kpi"><b>${titles}</b><span>Titoli</span></div><div class="kpi"><b>${teamsRun || 1}</b><span>Squadre guidate</span></div></div>
     <div class="tiny muted mt8">La reputazione viaggia con te: decide le offerte di lavoro a fine stagione, anche in altre categorie. Punteggio eredità ${L.score}${L.next ? ` · prossimo rango «${esc(L.next.name)}» a ${L.next.min}` : ''}.</div>
     ${S.fx.length ? `<div class="tiny upper muted mt16">Eredità delle storie</div>${S.fx.slice(0, 3).map((f) => `<div class="tiny">• ${esc(f.text)} <span class="muted">(${f.s})</span></div>`).join('')}` : ''}
-    <div class="vote-row mt8"><div><b class="small">Difficoltà: ${esc(D.name)}</b><div class="tiny muted">Sviluppo AI ×${D.ai.toFixed(2)} · premi e diritti ×${D.econ.toFixed(2)} · obiettivi ${D.target < 0 ? 'più alti' : D.target > 0 ? 'più bassi' : 'standard'}</div></div></div>
+    <div class="vote-row mt8"><div><b class="small">Difficoltà: ${esc(D.name)}</b><div class="tiny muted">Sviluppo AI ×${(D.ai / 1.15).toFixed(2)} · premi e diritti ×${D.econ.toFixed(2)} · obiettivi ${D.target < 0 ? 'più alti' : D.target > 0 ? 'più bassi' : 'standard'}</div></div></div>
     <div class="vote-row"><div><b class="small">Modalità Ironman</b><div class="tiny muted">${isIronman(st) ? `Attiva dal ${st.ironman.since}: un solo salvataggio, scritto dopo ogni scelta.` : 'Un solo salvataggio, aggiornato dopo ogni decisione: nessun ripensamento. Si attiva in pre-stagione.'}</div></div>${isIronman(st) ? '<span class="chip good">Attiva</span>' : `<button class="btn sm" data-a="ironman" ${st.round === 0 ? '' : 'disabled'}>Attiva</button>`}</div>
   </div>`;
 }

@@ -46,6 +46,10 @@ export const MILESTONES = [
   { id: 'seasons10', name: 'Una vita ai box', desc: 'Completa 10 stagioni.', pts: 150, check: (s, c) => c.seasonsManaged >= 10 },
   { id: 'wins50', name: 'Mezzo secolo', desc: '50 vittorie in carriera.', pts: 220, check: (s, c) => c.stats.wins >= 50 },
   { id: 'titles6', name: 'Impero', desc: '6 titoli in carriera.', pts: 450, check: (s, c) => titles(c).length >= 6 },
+  { id: 'stories8', name: 'Romanziere del paddock', desc: 'Affronta 8 capitoli delle storie della stagione.', pts: 80, check: (s) => (s.dp?.story?.log?.length || 0) >= 8 },
+  { id: 'eraking', name: 'Signore delle ere', desc: 'Vinci il titolo costruttori nel primo anno di un nuovo regolamento tecnico.', pts: 220, check: (s, c) => (s.dp?.era?.n || 1) > 1 && titles(c, 'Costruttori').some((t) => t.season === s.dp.era.start && t.category === s.category) },
+  { id: 'ironman', name: 'Uomo di ferro', desc: 'Vinci un titolo in modalità Ironman.', pts: 250, check: (s, c) => !!s.ironman && titles(c).some((t) => t.season >= s.ironman.since) },
+  { id: 'legend', name: 'Leggenda vera', desc: 'Vinci un titolo a difficoltà Leggenda.', pts: 300, check: (s, c) => s.difficulty === 'legend' && titles(c).some((t) => t.season === s.season && t.category === s.category) },
 ];
 
 export function ensureLegacy(state) {
