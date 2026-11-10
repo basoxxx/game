@@ -26,7 +26,7 @@ const RP = [
   { id: 'height', name: 'Altezza da Terra', lo: 'Troppo bassa: picchia il fondo', hi: 'Troppo alta: rollio eccessivo' },
   { id: 'gear', name: 'Rapporti', lo: 'Corti: fuori giri sui veloci', hi: 'Lunghi: lenta in uscita' },
 ];
-const X = { ev: null, view: null, raf: 0, speed: 16, paused: false, decision: null, decT: 0, uiT: 0, last: 0, choices: {}, repairs: {}, svc: {}, holding: false };
+const X = window.__rx = { ev: null, view: null, raf: 0, speed: 16, paused: false, decision: null, decT: 0, uiT: 0, last: 0, choices: {}, repairs: {}, svc: {}, holding: false };
 document.addEventListener('mousedown', () => { X.holding = true; });
 document.addEventListener('mouseup', () => { setTimeout(() => { X.holding = false; }, 30); });
 

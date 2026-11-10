@@ -20,7 +20,7 @@ import { trackGeometry, drsZones } from '../engine/trackphys.js';
 import { SETUP_PARAMS, setupQuality, setupFeedback, fbTxt, trackSetupBase } from './setup.js';
 import { wearError } from './engineer.js';
 import { clamp, rand } from '../engine/rng.js';
-import { DecisionHub, hubLogHTML } from './decisions.js';
+import { DecisionHub, hubLogHTML, MIN_REAL } from './decisions.js';
 
 const P = window.__sess = { sim: null, id: null, view: null, r3d: null, raf: 0, speed: 8, paused: false, last: 0, uiT: 0, sel: null, tab: 'setup', spec: {}, focus: null, view3d: null, feedN: 0, sideSig: '', done: false };
 let holding = false;
@@ -268,7 +268,7 @@ function sessionDecisions(st, sim) {
       const tr = sim.trafficAhead(c, 7);
       if (tr.length) {
         const L = c.lap; const left = L.sec.slice(c.secIdx).reduce((a, b) => a + b, 0) - c.secT;
-        hub.offer({ id: 't' + c.key + Math.round(sim.time), prio: sim.isQuali ? 2 : 1, who: d.name, focus: c.key, eyebrow: 'Traffico', color: 'var(--warn)', title: `Traffico davanti a ${d.name}`,
+        hub.offer({ id: 't' + c.key + Math.round(sim.time), prio: sim.isQuali ? ((left - 2) / Math.max(1, P.speed) < MIN_REAL ? 3 : 2) : 1, who: d.name, focus: c.key, eyebrow: 'Traffico', color: 'var(--warn)', title: `Traffico davanti a ${d.name}`,
           text: `${tr.length === 1 ? `${sim.driver(tr[0]).name} è` : `${tr.length} auto sono`} in un giro lento nei 7 secondi davanti: il giro lanciato rischia di essere rovinato.`,
           options: [{ label: 'Crea spazio', desc: 'Rallenta nel giro di lancio (+5s): pista libera garantita' }, { label: 'Vai lo stesso', desc: 'Nessun tempo perso, ma rischi di trovarli in traiettoria' }],
           def: sim.remaining > left + est + 12 ? 0 : 1, ttl: 12, hardUntil: sim.time + Math.max(1, left - 2),

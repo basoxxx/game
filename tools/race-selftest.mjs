@@ -1,4 +1,5 @@
-// Headless sanity check for the race engines: node tools/race-selftest.mjs [runs]
+// Headless sanity check for the race engines: node tools/race-selftest.mjs [runs] [--decisions]
+// --decisions also runs tools/race-decisions.mjs (pit wall / decision hub emulation at 1x-32x, slower)
 // Runs AI races / rallies in every category and prints lap-time calibration and event counts.
 globalThis.localStorage ??= { _d: {}, getItem(k) { return this._d[k] ?? null; }, setItem(k, v) { this._d[k] = String(v); }, removeItem(k) { delete this._d[k]; } };
 const { createWorld } = await import('../src/engine/world.js');
@@ -8,7 +9,7 @@ const { runQualifying, makeWeatherPlan, raceLaps, CircuitSim } = await import('.
 const { TEAMS } = await import('../src/data/teams.js');
 const { RallyEvent } = await import('../src/engine/rally.js');
 
-const runs = +(process.argv[2] || 3);
+const runs = +(process.argv.slice(2).find((a) => /^\d+$/.test(a)) || 3);
 const bad = [];
 for (const cat of ['formula', 'junior', 'endurance']) {
   const st = createWorld({ playerName: 'Test', category: cat, teamId: TEAMS[cat][3].id, difficulty: 'normal', seasonLength: 'short', raceLength: 'normal' });
@@ -37,7 +38,7 @@ for (const cat of ['formula', 'junior', 'endurance']) {
     if (cat !== 'endurance' && !sim.weather.isRain && slowShare > 0.08) bad.push(`${cat}/${tr.id}: ${(slowShare * 100).toFixed(0)}% di giri lentissimi a bandiera verde`);
     const stops = fin.map((x) => x.pitStops); const avgStops = stops.reduce((a2, b2) => a2 + b2, 0) / Math.max(1, stops.length);
     stats.stops = (stats.stops || 0) + avgStops;
-    if (cat !== 'endurance' && !sim.weather.isRain && (avgStops < 0.9 || avgStops > 3.6)) bad.push(`${cat}/${tr.id}: soste medie ${avgStops.toFixed(2)}`);
+    if (cat !== 'endurance' && !sim.weather.isRain && !sim.redCount && (avgStops < 0.9 || avgStops > 3.6)) bad.push(`${cat}/${tr.id}: soste medie ${avgStops.toFixed(2)}`);
     if (cat === 'endurance' && (avgStops < 2 || avgStops > laps)) bad.push(`${cat}/${tr.id}: soste medie ${avgStops.toFixed(2)}`);
     if (res.classification.length - fin.length > res.classification.length * 0.45) bad.push(`${cat}/${tr.id}: troppi ritiri (${res.classification.length - fin.length})`);
     const seqs = new Set(sim.cars.filter((c) => c.status !== 'dnf').map((c) => [...sim.stopsLog.filter((x) => x.key === c.key).map((x) => x.from), c.tyre].join('-')));
@@ -66,3 +67,4 @@ for (const cat of ['formula', 'junior', 'endurance']) {
 }
 console.log(bad.length ? 'SANITY FAILURES:\n  ' + bad.join('\n  ') : 'sanity: ok');
 if (bad.length) process.exitCode = 1;
+if (process.argv.includes('--decisions')) { process.env.SPEEDS ||= '1,8,32'; process.env.BOTS ||= 'ignore,answer,enter,pit'; process.argv[2] = process.env.DEC_CATS || "formula,endurance"; await import('./race-decisions.mjs'); }

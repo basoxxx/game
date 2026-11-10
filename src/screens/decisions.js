@@ -80,7 +80,16 @@ export class DecisionHub {
     if (this.cur && !this.items.includes(this.cur)) this.closeModal();
     // the game got faster while a call is open (e.g. un-paused at 32x): keep the real-time window
     { const sp = this.clock.paused ? 0 : this.clock.speed;
-      for (const it of this.items) if (it.shown && it.until != null && sp > (it.armSpeed || 0)) { it.armSpeed = sp; const min = now + MIN_REAL * sp; if (it.until < min) it.until = min; if (it.hardUntil != null) it.until = Math.min(it.until, it.hardUntil); it.span = Math.max(it.span || 1, it.until - now); } }
+      for (const it of this.items) {
+        if (!it.shown || it.until == null || !sp || sp === it.armSpeed) continue;
+        const prev = it.armSpeed || 0; it.armSpeed = sp; const left0 = it.until - now;
+        if (sp > prev) { const min = now + MIN_REAL * sp; if (it.until < min) it.until = min; }
+        // slower again (e.g. 32x -> 1x): keep the real seconds that were left, but never below the call's own game-time window
+        else if (prev > 0) { const left = it.until - now; it.until = now + Math.max(left / prev * sp, Math.min(left, it.ttl ?? left), MIN_REAL * 0.5 * sp); }
+        if (it.hardUntil != null) it.until = Math.min(it.until, it.hardUntil);
+        // the bar keeps its fraction: only the pace of the countdown changes
+        const left1 = it.until - now; it.span = left0 > 0 && it.span ? Math.max(left1, it.span * left1 / left0) : Math.max(1, left1);
+      } }
     if (!this.cur) {
       const next = this.items.filter((x) => this.blocking(x)).sort((a, b) => b.prio - a.prio || (a.seq || 0) - (b.seq || 0))[0];
       if (next) this.openModal(next);
@@ -118,7 +127,8 @@ export class DecisionHub {
     if (s) {
       // restore what the player had, unless he picked another speed while the card was open
       if (!set || c.speed === set.speed) c.speed = s.speed;
-      c.paused = s.paused;
+      // ...and the same for the pause: Space pressed while the card was open is respected
+      if (!set || c.paused === set.paused) c.paused = s.paused;
     }
     this.o.onSpeed?.(); this.o.onClose?.();
     this.render(true);

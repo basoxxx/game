@@ -291,8 +291,29 @@ export function raceStrategyHTML(sim, c, R) {
     const m = sim.fuelMargin(c);
     html += `<div class="row mt8">${icon('fuel', 'ico', 'style="width:16px"')}<div class="grow"><div class="row between tiny"><span>Benzina ${Math.round(Math.max(0, c.fuel) * 100)} kg</span><span class="${m < 0 ? 'bad' : m < 0.4 ? 'warn' : 'good'}">${m >= 0 ? '+' : ''}${m.toFixed(1)} giri</span></div></div><button class="btn sm ${c.fuelSave ? 'active' : ''}" data-a="rs-lift" data-key="${c.key}" data-tip="Lift &amp; coast: −12% di consumo, circa 0,4s più lento al giro">Lift &amp; coast ${c.fuelSave ? 'ON' : 'OFF'}</button></div>`;
   }
+  html += forecastHTML(sim, c);
   html += adviceHTML(adv, c);
   return html;
+}
+// live strategy tools: tyre life with its uncertainty, reliability to the flag, what the rivals around are likely to do
+export function forecastHTML(sim, c) {
+  if (c.status !== 'running') return '';
+  let h = '';
+  const fc = sim.tyreForecast?.(c);
+  if (fc) {
+    const left = Math.max(0, sim.laps - c.dist);
+    const pct = (x) => Math.max(0, Math.min(100, (x / Math.max(left, fc.hi, 1)) * 100));
+    h += `<div class="ss-lbl" data-tip="Giri prima che il set sia finito al ritmo attuale. La fascia è l’incertezza: si stringe man mano che lo stint mostra il degrado reale; spingere o gomme fuori temperatura la accorciano">Vita gomme stimata</div>
+      <div class="rs-fc"><div class="rs-fc-bar"><i class="band" style="left:${pct(fc.lo).toFixed(1)}%;width:${(pct(fc.hi) - pct(fc.lo)).toFixed(1)}%"></i><i class="mid" style="left:${pct(fc.laps).toFixed(1)}%"></i><i class="flag" style="left:${pct(left).toFixed(1)}%"></i></div>
+      <div class="row between tiny"><span><b>~${Math.round(fc.laps)} giri</b> <span class="muted">(${fc.lo}–${fc.hi})</span></span><span class="${fc.toFlag ? 'good' : fc.lo < 2 ? 'bad' : 'muted'}">${fc.toFlag ? 'arrivano in fondo' : `ne mancano ${Math.ceil(left)}`}</span></div></div>`;
+  }
+  const rl = sim.reliability?.(c);
+  if (rl) h += `<div class="row between tiny mt8" data-tip="Probabilità di ritiro per guasto da qui alla bandiera, con mappa motore, ritmo e usura dei componenti attuali. La mappa Risparmio la riduce"><span class="muted">Rischio guasto al traguardo</span><span class="${rl.risk > 0.12 ? 'bad' : rl.risk > 0.06 ? 'warn' : 'good'}">${(rl.risk * 100).toFixed(rl.risk < 0.1 ? 1 : 0)}%${c.eng !== 'low' ? ` <span class="muted">(Risparmio ${(rl.nurse * 100).toFixed(1)}%)</span>` : ''}</span></div>`;
+  const rv = sim.rivalGuess?.(c, 2) || [];
+  if (rv.length && !sim.endurance) {
+    h += `<div class="ss-lbl" data-tip="Quello che il muretto vede dei rivali vicini: gomme, giri dello stint e sosta probabile (stima: il loro piano è segreto). Ultima colonna: il loro ultimo giro rispetto al tuo">Rivali vicini · strategia probabile</div><div class="rs-riv">${rv.map((x) => `<div class="rs-riv-row"><span class="mono">P${x.pos}</span><span class="grow ell">${esc(x.name.split(' ').pop())}</span><span class="mono">${x.gap > 0 ? '-' : '+'}${Math.abs(x.gap).toFixed(1)}s</span><span class="mono">${COMPOUNDS[x.tyre].short}·${x.age}</span><span class="mono ${x.stopIn != null && x.stopIn <= 2 ? 'warn' : 'muted'}">${x.stopIn == null ? 'no stop?' : x.stopIn <= 0 ? 'box ora?' : `box g.${x.stopLap}?`}</span><span class="mono ${x.pace == null ? 'muted' : x.pace < 0 ? 'bad' : 'good'}">${x.pace == null ? '' : (x.pace > 0 ? '+' : '') + x.pace.toFixed(1)}</span></div>`).join('')}</div>`;
+  }
+  return h;
 }
 export function adviceHTML(adv, c, compact = false) {
   if (!adv) return '';
