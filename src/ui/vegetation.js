@@ -20,6 +20,7 @@ export function vegOfKind(kinds) { return META.filter((m) => kinds.includes(m.ki
 
 const VERT = /* glsl */`
   attribute vec3 iPos; attribute float iScale; attribute float iSlot; attribute float iRot; attribute vec3 iTint;
+  uniform vec3 sunDir;
   varying vec2 vUv; varying vec3 vTint; varying float vShade;
   #include <common>
   #include <fog_pars_vertex>
@@ -40,14 +41,16 @@ const VERT = /* glsl */`
     float pyTop = row * 512.0 + vr * 256.0 + (1.0 - position.y) * 256.0;
     vUv = vec2(px / 4096.0, 1.0 - pyTop / 2048.0);
     vTint = iTint;
-    vShade = 0.72 + 0.28 * position.y;
+    // lit from the sun side: the half of the crown facing the sun is brighter, the top catches more light
+    float sl = dot(right.xz, normalize(sunDir.xz + vec2(1e-4)));
+    vShade = (0.7 + 0.3 * position.y) * (1.0 + 0.34 * sl * position.x * 2.0);
     vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
     gl_Position = projectionMatrix * mvPosition;
     #include <logdepthbuf_vertex>
     #include <fog_vertex>
   }`;
 const FRAG = /* glsl */`
-  uniform sampler2D map; uniform float light;
+  uniform sampler2D map; uniform float light; uniform float gain;
   varying vec2 vUv; varying vec3 vTint; varying float vShade;
   #include <common>
   #include <fog_pars_fragment>
@@ -60,7 +63,7 @@ const FRAG = /* glsl */`
     float lod = log2(max(1.0, max(length(dFdx(tx)), length(dFdy(tx)))));
     float a = c.a * (1.0 + lod * 0.7);
     if (a < 0.42) discard;
-    gl_FragColor = vec4(c.rgb * vTint * vShade * light, 1.0);
+    gl_FragColor = vec4(c.rgb * vTint * vShade * light * gain, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
     #include <fog_fragment>
@@ -86,7 +89,7 @@ export function makeForest(items) {
   g.setAttribute('iTint', new THREE.InstancedBufferAttribute(T, 3));
   g.instanceCount = n;
   const mat = new THREE.ShaderMaterial({
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: null }, light: { value: 1 } }]),
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: null }, light: { value: 1 }, gain: { value: 1.4 }, sunDir: { value: new THREE.Vector3(0.55, 0.62, 0.45) } }]),
     vertexShader: VERT, fragmentShader: FRAG, fog: true, side: THREE.DoubleSide,
   });
   mat.uniforms.map.value = atlasTex();
