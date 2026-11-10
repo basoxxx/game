@@ -8,8 +8,13 @@ export const SUB_SCALES = [[85, 'Piccoli'], [100, 'Normali'], [125, 'Grandi'], [
 export function applyAccessibility(s = getSettings()) {
   const el = document.documentElement;
   const k = Math.max(90, Math.min(130, +s.textScale || 100));
-  el.style.setProperty('--ui-zoom', String(k / 100));
-  el.classList.toggle('ui-zoomed', k !== 100);
+  // never zoom the content column below ~860 CSS px of layout width: big text on a small
+  // window would otherwise push tables and grids sideways
+  const room = Math.max(1, (innerWidth - 236 - 72) / 860);
+  const z = k > 100 ? Math.min(k / 100, Math.max(1, room)) : k / 100;
+  el.style.setProperty('--ui-zoom', z.toFixed(3));
+  el.classList.toggle('ui-zoomed', Math.abs(z - 1) > 0.001);
+  if (!applyAccessibility._rs) { applyAccessibility._rs = true; let t = 0; addEventListener('resize', () => { clearTimeout(t); t = setTimeout(() => applyAccessibility(), 150); }); }
   el.style.setProperty('--sub-scale', String(Math.max(0.8, Math.min(1.6, (+s.subScale || 100) / 100))));
   // status colours follow the 3D colour-blind mode unless set on their own
   const safe = s.safeColors ?? (s.gfxColorblind && s.gfxColorblind !== 'off');

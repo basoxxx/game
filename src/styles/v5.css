@@ -10,7 +10,6 @@
 
 /* ---- text scale: management screens, modals, tooltips and toasts (3D views keep their size) ---- */
 .ui-zoomed .main > *, .ui-zoomed .modal, .ui-zoomed .tip, .ui-zoomed .toasts, .ui-zoomed .palette, .ui-zoomed .full-screen:not(.race-view):not(.dz-root) { zoom: var(--ui-zoom, 1); }
-.ui-zoomed .sidebar .nav, .ui-zoomed .sidebar .nav-gh { zoom: min(var(--ui-zoom, 1), 1.12); }
 .race-sub { zoom: var(--sub-scale, 1); }
 
 /* ---- sidebar groups ---- */
