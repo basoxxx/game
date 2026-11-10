@@ -10,6 +10,7 @@ import { getTrack, driverOverall, avgPart, salaryFor } from './world.js';
 import { press, principal, adjustRel, expectedRank, academyDrivers, academySlots } from './dynasty.js';
 import { ensureDepth, eraInfo, tokenInfo, puDeal, supplierList, kitsEnabled, kitTracks, kitCost, buyKit, KITS, aiTrend, loanTargets } from './depth.js';
 import { saveGame } from './state.js';
+import { offerScore } from './market.js';
 
 const last = (n) => String(n || '').split(' ').slice(-1)[0];
 const scale = (st) => cat(st).budgetScale;
@@ -107,10 +108,10 @@ export function modalLoad(st) { const P = st.dp; if (!P?.mq) return 0; return (P
 // resolve[i](st, data, choice) -> { out, next: stepIndex|null, wait: rounds, fx?: lasting effect text }
 const ARCS = {
   takeover: {
-    name: 'Offerta di acquisizione', icon: 'money', min: 2, cool: 6,
+    name: 'Offerta di acquisizione', from: 'Ufficio del Presidente', icon: 'money', min: 2, cool: 6,
     start(st) { const pt = playerTeam(st); const pos = standings(st).teams.findIndex((x) => x.id === pt.id) + 1; if (pos < Math.ceil(Object.keys(st.teams).length * 0.35)) return null; return { who: pick(['il fondo sovrano Al-Safir', 'la holding Valmonte Industries', 'il consorzio Northbridge', 'il gruppo automobilistico Kaito']), amt: +(pt.baseBudget * 0.18).toFixed(1) }; },
     steps: [
-      (st, d) => ({ title: `${cap1(d.who)} vuole comprare la squadra`, text: `La proprietà ha ricevuto un’offerta ufficiale da ${d.who}. Promettono ${fmtM(d.amt)} subito e un budget più alto, ma vorrebbero mettere bocca su tutto. Il presidente chiede il tuo parere prima di rispondere.`, a: [{ t: 'Ascoltiamoli', note: 'La trattativa va avanti: nuove condizioni tra qualche evento' }, { t: 'La squadra non è in vendita', note: 'Fiducia +4 dalla vecchia proprietà · fine della storia' }, { t: 'Facciamo uscire la notizia sui giornali', note: 'Tifosi +2% e pressione sull’acquirente · rischio di farlo scappare', risk: true }] }),
+      (st, d) => ({ title: `${cap1(d.who)} vuole comprare la squadra`, text: `${cap1(d.who)} ha presentato alla proprietà un’offerta ufficiale per rilevare la squadra. Promettono ${fmtM(d.amt)} subito e un budget più alto, ma vorrebbero mettere bocca su tutto. Il presidente chiede il tuo parere prima di rispondere.`, a: [{ t: 'Ascoltiamoli', note: 'La trattativa va avanti: nuove condizioni tra qualche evento' }, { t: 'La squadra non è in vendita', note: 'Fiducia +4 dalla vecchia proprietà · fine della storia' }, { t: 'Facciamo uscire la notizia sui giornali', note: 'Tifosi +2% e pressione sull’acquirente · rischio di farlo scappare', risk: true }] }),
       (st, d) => ({ title: `Due diligence: ${d.who} detta le condizioni`, text: `Gli advisor di ${d.who} hanno studiato i conti. Sono pronti a chiudere, ma chiedono garanzie: o tagli ai costi, o obiettivi sportivi più alti. Il consiglio è diviso.`, a: [{ t: 'Accettiamo i tagli', note: `+${fmtM(d.amt)} subito · budget strutturale +8% · cambia la proprietà (Fondo d’investimento)` }, { t: 'Garanzie sportive', note: `+${fmtM(d.amt * 0.6)} · budget strutturale +14% · obiettivo del consiglio +1 posizione per due stagioni · proprietà «Marchio globale»`, risk: true }, { t: 'Salta tutto', note: 'Nessun cambiamento · fiducia -3 (il consiglio voleva i soldi)' }] }),
     ],
     resolve: [
@@ -122,7 +123,7 @@ const ARCS = {
     ],
   },
   unrest: {
-    name: 'Il campione scontento', icon: 'driver', min: 2, cool: 3,
+    name: 'Il campione scontento', from: 'Ufficio Stampa', icon: 'driver', min: 2, cool: 3,
     start(st) { const pt = playerTeam(st); const ds = teamDrivers(st, pt).sort((a, b) => driverOverall(b, st.category) - driverOverall(a, st.category)); const d = ds[0]; if (!d || driverOverall(d, st.category) < 80 || d.morale > 66 || d.contract > 2) return null; return { d: d.id, sal: +(d.salary * 0.25 + 0.2 * scale(st)).toFixed(2) }; },
     steps: [
       (st, d) => { const x = st.drivers[d.d]; return { title: `${last(x.name)} è inquieto`, text: `${x.name} non è contento: i risultati non arrivano, il suo agente parla con la stampa e nel box si respira tensione (morale ${x.morale}). Se non intervieni, le altre squadre fiuteranno l’occasione.`, a: [{ t: 'Gli prometto lo status di prima guida', note: 'Morale +10 · il compagno perde morale (-6)' }, { t: 'Aumento di stipendio', note: `${fmtM(d.sal)} a stagione in più · morale +6` }, { t: 'Lui ha un contratto: niente concessioni', note: 'Morale -4 · un rivale potrebbe farsi avanti', risk: true }] }; },
@@ -141,7 +142,7 @@ const ARCS = {
     ],
   },
   scandal: {
-    name: 'Scandalo tecnico', icon: 'rules', min: 3, cool: 4,
+    name: 'Scandalo tecnico', from: 'Federazione Internazionale', icon: 'rules', min: 3, cool: 4,
     start(st) { const pt = playerTeam(st); const parts = perfParts(st); const best = parts.find((p) => Object.values(st.teams).every((t) => t.car.parts[p] <= pt.car.parts[p])); if (!best) return null; const acc = Object.values(st.teams).filter((t) => !t.isPlayer).sort((a, b) => (principal(st, a.id)?.rel || 0) - (principal(st, b.id)?.rel || 0))[0]; return acc ? { part: best, acc: acc.id } : null; },
     steps: [
       (st, d) => { const t = st.teams[d.acc]; return { title: `Inchiesta della Federazione sul ${partName(st, d.part).toLowerCase()}`, text: `Su segnalazione di ${t.name}, la Federazione apre un’inchiesta sul vostro ${partName(st, d.part).toLowerCase()}, il migliore del gruppo. I tecnici federali chiedono i disegni e la telemetria. La stampa ci va a nozze.`, a: [{ t: 'Collaborazione totale', note: 'Tutto alla luce del sole: esito tra due eventi, probabile assoluzione (70%)' }, { t: 'Avvocati e ricorso preventivo', note: `${fmtM(1.1 * scale(st))} · tempi lunghi: esito tra tre eventi (80% di assoluzione) · rapporto con l’accusatore -10` }, { t: 'Contrattacco: facciamo uscire i loro segreti', note: 'Rapporto -25 · 50%: anche loro finiscono sotto inchiesta', risk: true }] }; },
@@ -159,7 +160,7 @@ const ARCS = {
     ],
   },
   rookie: {
-    name: 'Il debuttante terribile', icon: 'star', min: 3, cool: 3,
+    name: 'Il debuttante terribile', from: 'Ufficio Stampa', icon: 'star', min: 3, cool: 3,
     start(st) { const pt = playerTeam(st); const C = st.category; const rk = teamDrivers(st, pt).find((x) => x.age <= 22 && (x.form || 0) >= 0.8); if (!rk) return null; return { d: rk.id, fee: +(0.9 * scale(st)).toFixed(2) }; },
     steps: [
       (st, d) => { const x = st.drivers[d.d]; return { title: `${x.name}, la rivelazione dell’anno`, text: `A ${x.age} anni ${x.name} sta stupendo tutti (${driverOverall(x, st.category)} di valutazione, forma: in crescita). Giornali, sponsor e TV lo vogliono ovunque. Come gestiamo il fenomeno?`, a: [{ t: 'Lo proteggiamo dai media', note: 'Forma +0,5 · nessun introito extra' }, { t: 'Tour mediatico e sponsor personali', note: `+${fmtM(d.fee)} · tifosi +3% · 35%: si distrae (forma -1)`, risk: true }, { t: 'Rinnovo anticipato pluriennale', note: `Contratto fino al ${st.season + 3} · stipendio +40% · nessuno potrà portarcelo via a buon prezzo` }] }; },
@@ -177,7 +178,7 @@ const ARCS = {
     ],
   },
   decider: {
-    name: 'Notte prima del titolo', icon: 'trophy', min: 0, cool: 1, late: true,
+    name: 'Notte prima del titolo', from: 'Muretto box', icon: 'trophy', min: 0, cool: 1, late: true,
     start(st) { const n = st.calendar.length; if (n - st.round > 2 || st.round < n - 3) return null; const s = standings(st); const pt = playerTeam(st); const tpos = s.teams.findIndex((x) => x.id === pt.id); const left = n - st.round; const maxPts = left * (st.category === 'endurance' ? 50 : 26) * (st.category === 'formula' ? 2 : 1); const gap = tpos === 0 ? s.teams[0].pts - (s.teams[1]?.pts || 0) : s.teams[0].pts - s.teams[tpos].pts; if (tpos > 2 || gap > maxPts * 0.7) return null; return { lead: tpos === 0, gap }; },
     steps: [
       (st, d) => ({ title: d.lead ? 'Il titolo è a un passo: come lo difendiamo?' : `${d.gap} punti dal titolo: tutto o niente?`, text: d.lead ? `Siamo in testa con ${d.gap} punti di margine. Gli ingegneri propongono di correre in difesa, il marketing vuole uno show. La pressione sui piloti è enorme.` : `Siamo a ${d.gap} punti dalla vetta con pochissimi eventi da correre. Per vincere serve un azzardo. Il box aspetta una linea chiara.`, a: [{ t: 'Linea prudente: affidabilità prima di tutto', note: 'Affidabilità +4 fino a fine stagione · motore -1' }, { t: 'Massimo attacco', note: 'Motore +1,5 · affidabilità -5 · forma dei piloti +0,6', risk: true }, { t: 'Un ritiro a porte chiuse con i piloti', note: `${fmtM(0.5 * scale(st))} · morale +8, forma +0,3` }] }),
@@ -190,7 +191,7 @@ const ARCS = {
     ],
   },
   feud: {
-    name: 'Guerra tra team principal', icon: 'users', min: 2, cool: 4,
+    name: 'Guerra tra team principal', from: 'Radio Paddock', icon: 'users', min: 2, cool: 4,
     start(st) { const foe = Object.values(st.teams).filter((t) => !t.isPlayer && (principal(st, t.id)?.rel ?? 0) <= -30).sort((a, b) => principal(st, a.id).rel - principal(st, b.id).rel)[0]; return foe ? { t: foe.id } : null; },
     steps: [
       (st, d) => { const p = principal(st, d.t); const t = st.teams[d.t]; return { title: `${p.name} ti attacca in conferenza stampa`, text: `«${playerTeam(st).name}? Gente che vince solo a parole.» ${p.name} (${t.name}) ha scelto la conferenza del giovedì per sparare a zero su di te e sulla squadra. I giornalisti aspettano la tua replica.`, a: [{ t: 'Rispondo con eleganza', note: 'Reputazione + · rapporto +6' }, { t: 'Replica al vetriolo', note: 'Tifosi +2% · rapporto -12 · la faida continua', risk: true }, { t: 'Silenzio stampa', note: 'Nessun effetto immediato' }] }; },
@@ -240,7 +241,7 @@ export function storyMaybeDecision(st) {
 export function storyView(st, pd) {
   const P = ensureCareer5(st); const S = P?.story; if (!S?.active || S.active.arc !== pd.arc) return null;
   const A = ARCS[pd.arc]; const f = A?.steps[pd.step]; if (!f) return null;
-  try { const v = f(st, S.active.data); return v ? { tag: `Storia · ${A.name} · capitolo ${pd.step + 1}/${A.steps.length}`, from: A.name, ...v } : null; } catch { return null; }
+  try { const v = f(st, S.active.data); return v ? { tag: `Storia · ${A.name} · capitolo ${pd.step + 1}/${A.steps.length}`, from: A.from || 'Paddock', ...v } : null; } catch { return null; }
 }
 export function storyResolve(st, pd, i) {
   const P = ensureCareer5(st); const S = P.story; const act = S.active; if (!act) return '';
@@ -321,7 +322,7 @@ export function strategyRoom(st) {
   const bestJ = acad.slice().sort((a, b) => driverOverall(b, C2) - driverOverall(a, C2))[0];
   const loanOpen = acad.some((j) => loanTargets(st, j).length);
   // market: expiring drivers, rival offers and how the driver leans
-  const market = teamDrivers(st, pt).map((d) => ({ id: d.id, name: d.name, ov: driverOverall(d, C2), contract: d.contract, morale: d.morale, offer: d.rivalOffer ? { team: st.teams[d.rivalOffer.teamId]?.name, salary: d.rivalOffer.salary, deadline: d.rivalOffer.deadline - st.round } : null, leaving: d.nextTeam && d.nextTeam !== pt.id ? st.teams[d.nextTeam]?.name : null, clause: d.clause || 0 }));
+  const market = teamDrivers(st, pt).map((d) => ({ id: d.id, name: d.name, ov: driverOverall(d, C2), contract: d.contract, morale: d.morale, offer: d.rivalOffer && st.teams[d.rivalOffer.teamId] ? { team: st.teams[d.rivalOffer.teamId].name, salary: d.rivalOffer.salary, deadline: d.rivalOffer.deadline - st.round, lean: +(offerScore(st, d, st.teams[d.rivalOffer.teamId], d.rivalOffer.salary, d.rivalOffer.years) - offerScore(st, d, pt, d.salary, 2)).toFixed(2) } : null, leaving: d.nextTeam && d.nextTeam !== pt.id ? st.teams[d.nextTeam]?.name : null, clause: d.clause || 0 }));
   const silly = [
     { at: Math.floor(n * 0.45), t: 'Avviso contratti in scadenza' },
     { at: Math.floor(n * 0.5), t: 'Si aprono i precontratti e le offerte dei rivali' },
@@ -337,10 +338,10 @@ export function strategyRoom(st) {
   if (pu && !pu.works && st.round === 0 && sups[0] && sups[0].id !== pu.sup) todo.push({ k: 'pu', t: `Il motore più potente è ${sups[0].name} (${sups[0].power}); il tuo fornitore è a ${sups.find((x) => x.id === pu.sup)?.power}`, tab: 'regs' });
   if (bestJ && worst && driverOverall(bestJ, C2) > driverOverall(worst, C2)) todo.push({ k: 'acad', t: `${bestJ.name} (accademia, ${driverOverall(bestJ, C2)}) vale più di ${worst.name} (${driverOverall(worst, C2)})`, nav: 'drivers' });
   else if (loanOpen) todo.push({ k: 'loan', t: 'Finestra prestiti aperta: un junior in prestito cresce più in fretta', nav: 'drivers' });
-  for (const m of market) if (m.offer) todo.push({ k: 'mkt', t: `${m.offer.team} offre ${fmtM(m.offer.salary)} a ${m.name}: decide entro ${m.offer.deadline <= 1 ? 'il prossimo evento' : m.offer.deadline + ' eventi'}`, nav: 'drivers', warn: true });
+  for (const m of market) if (m.offer) todo.push({ k: 'mkt', t: `${m.offer.team} offre ${fmtM(m.offer.salary)} a ${m.name}: decide entro ${m.offer.deadline <= 1 ? 'il prossimo evento' : m.offer.deadline + ' eventi'} e ${m.offer.lean > 0 ? 'oggi firmerebbe con loro: serve un rinnovo migliore' : 'per ora preferisce restare'}`, nav: 'drivers', warn: m.offer.lean > 0 });
   if (kitsEnabled(st)) for (const k of Object.keys(KITS)) if (!P.kits[k] && kitTracks(st, k).length >= 2) todo.push({ k: 'kit', t: `${KITS[k].name}: utile in ${kitTracks(st, k).length} eventi rimasti`, tab: 'regs' });
   return {
-    pos: myPos, target: st.board.target, exp, projPos, left, rivals,
+    pos: myPos, myPts, target: st.board.target, exp, projPos, left, rivals,
     dev: { slots, used: pt.projects.length, cap, spent, capProj, tokens: tk, prio: prio.slice(0, 3), nextYear: pt.nextYear || null },
     era, pu: pu ? { ...pu, rank: sups.findIndex((x) => x.id === (pu.works ? pt.engine : pu.sup)) + 1, of: sups.length, best: sups[0] } : null,
     acad: { n: acad.length, slots: academySlots(pt), best: bestJ ? { name: bestJ.name, ov: driverOverall(bestJ, C2) } : null, worst: worst ? { name: worst.name, ov: driverOverall(worst, C2) } : null, loanOpen },
