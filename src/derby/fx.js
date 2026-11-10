@@ -212,7 +212,7 @@ export class LensFx {
     for (let i = 0; i < n && this.list.length < 70; i++) {
       const edge = Math.random() < 0.6; const x = edge ? (Math.random() < 0.5 ? Math.random() * 0.3 : 0.7 + Math.random() * 0.3) : Math.random(), y = Math.random() ** (kind === 'mud' ? 0.6 : 1);
       const life = kind === 'mud' ? 3.5 + Math.random() * 3 : 1.2 + Math.random() * 1.6;
-      this.list.push({ kind, x: x * 480, y: y * 270, r: (kind === 'mud' ? 7 + Math.random() * 24 : 3 + Math.random() * 9) * power, life, life0: life, vy: kind === 'mud' ? 2 + Math.random() * 5 : 10 + Math.random() * 40, seed: Math.random() * 100, blobs: Array.from({ length: kind === 'mud' ? 5 : 1 }, () => [(Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6, 0.35 + Math.random() * 0.6]) });
+      this.list.push({ kind, x: x * 480, y: y * 270, r: (kind === 'mud' ? 4 + Math.random() * 11 : 3 + Math.random() * 8) * power, life, life0: life, vy: kind === 'mud' ? 2 + Math.random() * 5 : 10 + Math.random() * 40, seed: Math.random() * 100, blobs: Array.from({ length: kind === 'mud' ? 5 : 1 }, () => [(Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6, 0.35 + Math.random() * 0.6]) });
     }
   }
   update(dt) {
@@ -222,7 +222,7 @@ export class LensFx {
       const s = L[i]; s.life -= dt; if (s.life <= 0) { L.splice(i, 1); continue; }
       s.y += s.vy * dt; const a = Math.min(1, s.life / (s.life0 * 0.5));
       if (s.kind === 'mud') {
-        for (const [ox, oy, k] of s.blobs) { const x = s.x + ox * s.r, y = s.y + oy * s.r, r = s.r * k; const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(58,42,26,${0.9 * a})`); gr.addColorStop(0.7, `rgba(72,54,34,${0.75 * a})`); gr.addColorStop(1, 'rgba(72,54,34,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
+        for (const [ox, oy, k] of s.blobs) { const x = s.x + ox * s.r, y = s.y + oy * s.r, r = s.r * k; const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(74,56,36,${0.72 * a})`); gr.addColorStop(0.6, `rgba(84,64,42,${0.5 * a})`); gr.addColorStop(1, 'rgba(72,54,34,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
         g.fillStyle = `rgba(62,46,28,${0.5 * a})`; g.fillRect(s.x - 1, s.y, 2.5, s.r * 1.4 * (1 - s.life / s.life0));
       } else {
         const gr = g.createRadialGradient(s.x - s.r * 0.3, s.y - s.r * 0.3, 0, s.x, s.y, s.r); gr.addColorStop(0, `rgba(255,255,255,${0.42 * a})`); gr.addColorStop(0.6, `rgba(190,205,220,${0.16 * a})`); gr.addColorStop(0.9, `rgba(40,50,60,${0.28 * a})`); gr.addColorStop(1, 'rgba(40,50,60,0)');

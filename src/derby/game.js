@@ -15,6 +15,7 @@ import { DerbySound } from './sound.js';
 import { Particles, SkidMarks, Streaks, Chunks, Rain, LensFx, Shockwaves, FXENV } from './fx.js';
 import { addDerbyPost } from './post.js';
 import { venueLook } from './atmos.js';
+import { buildExtras, headBeams } from './extras.js';
 import { aiInput, initAI } from './ai.js';
 import { buildGround, buildWaterMeshes, buildScenery, buildTrees, buildScorch, CROWD } from './scenery.js';
 import { buildHud, updateHud, message, showResults } from './hud.js';
@@ -71,9 +72,11 @@ export class DerbyGame {
     const hf = RAPIER.ColliderDesc.heightfield(T.nr, T.nc, T.H, { x: T.sx, y: 1, z: T.sz }).setTranslation(T.cx, 0, T.cz).setFriction(1.0).setRestitution(0.05);
     this.groundCol = this.world.createCollider(hf); this.handles.set(this.groundCol.handle, { kind: 'ground' });
     buildGround(this); buildWaterMeshes(this); buildScenery(this);
+    try { buildExtras(this, this.standsInfo || []); } catch (e) { console.warn('extras', e); }
     this.buildProps();
     buildTrees(this);
     this.buildCars();
+    if (this.o.thumb) { await this.envReady; return; }
     this.setupMode();
     buildHud(this);
     this.bindInput();
@@ -84,6 +87,27 @@ export class DerbyGame {
     this.last = performance.now();
     const loop = (t) => { if (this.dead) return; this.raf = requestAnimationFrame(loop); const dt = Math.min(0.05, (t - this.last) / 1000); if (dt > 0) { this.frame(dt); this.last = t; } };
     this.raf = requestAnimationFrame(loop);
+  }
+
+  // one still of the venue for the menu cards (no HUD, no sound, no loop): returns a JPEG data URL
+  static async thumbnail(venue, w = 480, h = 270) {
+    const box = document.createElement('div'); Object.assign(box.style, { position: 'fixed', left: '-9999px', top: '0', width: w + 'px', height: h + 'px' }); document.body.appendChild(box);
+    const g = new DerbyGame(box, { venue, opponents: venue.kind === 'stunt' ? 0 : 5, thumb: true, car: 'muscle', mode: 'race' });
+    try {
+      await g.start(); g.renderer.setPixelRatio(1); g.resize();
+      const T = g.terrain, tr = g.track, cam = g.camera; let look;
+      if (tr.arena) { cam.position.set(T.cx + tr.R * 0.95, 13, T.cz + tr.R * 0.5); look = new THREE.Vector3(T.cx, 0.5, T.cz); cam.fov = 52; }
+      else if (tr.stunt) { cam.position.set(tr.lipX - 46, 9, -30); look = new THREE.Vector3(tr.lipX + 25, 2, 6); cam.fov = 50; }
+      else { const p = tr.pts[tr.N - 34], q = tr.pts[tr.N - 6]; const nx = -Math.sin(p.h), nz = Math.cos(p.h); const x = p.x + nx * (tr.width * 0.5 + 3), z = p.z + nz * (tr.width * 0.5 + 3); cam.position.set(x, Math.max(p.y, T.heightAt(x, z)) + 4.2, z); look = new THREE.Vector3(q.x, q.y + 0.8, q.z); cam.fov = 46; }
+      cam.updateProjectionMatrix(); cam.lookAt(look);
+      for (const c of g.cars) g.syncCar(c, 0);
+      for (const k of Object.keys(g.propTypes)) g.syncProps(k, true);
+      g.look.rays = 0; g.look.flare = 0; g.scene.fog.density *= 0.7; g.sun.position.copy(look).addScaledVector(g.sunDir, 150); g.sun.target.position.copy(look); g.fxFrame(0, false);
+      let url = '';
+      for (let i = 0; i < 4; i++) { await new Promise((r) => setTimeout(r, i ? 350 : 60)); if (g.composer) g.composer.render(); else g.renderer.render(g.scene, g.camera); }
+      url = g.renderer.domElement.toDataURL('image/jpeg', 0.82);
+      return url;
+    } finally { try { g.destroy(); } catch {} box.remove(); }
   }
 
   destroy() {
@@ -276,7 +300,10 @@ export class DerbyGame {
   makeCar({ spec, color, num, name, isPlayer, pos, skill, look = {} }) {
     const mesh = buildBanger(spec.id, color, num, num * 31 + 7, look); this.scene.add(mesh);
     mesh.userData.shell.position.y = -0.12;
-    if (this.night) mesh.userData.lights.head.emissiveIntensity = 3.2; // the suspension settles: sit the body down over the wheels
+    if (this.night) {
+      const ud = mesh.userData; ud.lights.head.emissiveIntensity = 3.2; ud.shell.add(headBeams(ud.dims.L, 0.66));
+      if (isPlayer && !this.low) { const sp = new THREE.SpotLight(0xfff0d0, 420, 70, 0.5, 0.6, 1.5); sp.position.set(ud.dims.L, 0.8, 0); sp.target.position.set(ud.dims.L + 12, 0, 0); ud.shell.add(sp); ud.shell.add(sp.target); }
+    } // the suspension settles: sit the body down over the wheels
     // low setting: ~35 meshes per car each casting a shadow doubled the draw calls; only the shell and the cab cast
     if (this.low) { const keep = new Set([mesh.userData.body, mesh.userData.cab]); mesh.traverse((o) => { if (o.isMesh && !keep.has(o)) o.castShadow = false; }); }
     const { L, W } = mesh.userData.dims; const T = this.terrain;
@@ -1216,9 +1243,9 @@ export class DerbyGame {
     this.hurt = Math.max(0, (this.hurt || 0) - dt * 1.6);
     const sp = P.dyn?.speed || 0, chase = driving && this.state !== 'finished';
     if (pu) {
-      const blurT = chase ? Math.max(0, Math.min(1, (sp - 26) / 30)) * 0.045 * (this.camMode >= 2 ? 1.5 : 1) + (P.boost ? 0.055 : 0) : 0;
+      const blurT = chase ? Math.max(0, Math.min(1, (sp - 28) / 32)) * 0.022 * (this.camMode >= 2 ? 1.6 : 1) + (P.boost ? 0.03 : 0) : 0;
       pu.uBlur.value += (blurT - pu.uBlur.value) * Math.min(1, dt * 5);
-      pu.uCA.value += (((chase && P.boost) ? 1 : 0) + Math.min(1, this.shake || 0) * 0.8 - pu.uCA.value) * Math.min(1, dt * 6);
+      pu.uCA.value += (((chase && P.boost) ? 0.45 : 0) + Math.min(1, this.shake || 0) * 0.35 - pu.uCA.value) * Math.min(1, dt * 6);
       pu.uTime.value = (performance.now() / 1000) % 600; pu.uAspect.value = cam.aspect; pu.uHurt.value = Math.min(0.6, this.hurt || 0);
       // heat haze behind the nitro flames
       let heat = 0;
@@ -1238,6 +1265,7 @@ export class DerbyGame {
       if (P.inWater && sp > 7 && Math.random() < dt * 9) this.lens.splat('water', 2, 1.3);
     }
     this.lens.update(dt);
+    if (this.flares) { const F = this.flares, tt = performance.now() / 1000; F.mat.size = F.base * (0.8 + 0.2 * Math.sin(tt * 31) * Math.sin(tt * 17)); if (dt > 0 && Math.random() < dt * 14) { const f = F.list[Math.floor(Math.random() * F.list.length)]; if (cam.position.distanceToSquared(tmpV.set(f[0], f[1], f[2])) < 170 * 170) this.smoke.emit(f[0], f[1] + 0.3, f[2], (Math.random() - 0.5) * 0.6, 1.2 + Math.random(), (Math.random() - 0.5) * 0.6, 3 + Math.random() * 2, 1.2, f[3] ? 0.5 : 1, f[3] ? 0.9 : 0.45, 0.4, 0.3); } }
     // fire light: the nearest burning cars get a flickering point light
     if (this.fireLights.length) {
       const burning = this.cars.filter((c) => !c.removed && (c.burnT > 0 || (c.hp <= 15 && c.hp > 0) || (c.out && c.hp <= 0 && this.time - (c.outT || 0) < 25))).sort((a, b) => a.mesh.position.distanceToSquared(cam.position) - b.mesh.position.distanceToSquared(cam.position));

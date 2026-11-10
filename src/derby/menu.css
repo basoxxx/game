@@ -93,3 +93,12 @@
 .dz-ach.done { background: linear-gradient(90deg, rgba(61,220,132,.12), #15110e 60%); border-color: rgba(61,220,132,.25); }
 .dz-ach.done .dz-ach-i { background: rgba(61,220,132,.2); color: #3ddc84; } .dz-ach.done .dz-ach-p { color: #3ddc84; }
 @media (max-width: 1200px) { .dz-achs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* venue cards rendered from the 3D scene (track outline kept as an overlay) */
+.dz-thumb { position: relative; aspect-ratio: 16 / 9; background: #14100d center / cover no-repeat; border-radius: 4px; overflow: hidden; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; }
+.dz-thumb .dz-svg { width: 70%; height: 70%; }
+.dz-thumb.has .dz-svg { position: absolute; right: 6px; bottom: 6px; width: 34%; height: 34%; filter: drop-shadow(0 1px 2px rgba(0,0,0,.9)); color: #fff; opacity: .92; }
+.dz-thumb.has::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,.45) 100%); pointer-events: none; }
+.dz-thumb.big { width: 100%; height: 100%; min-height: 200px; margin: 0; aspect-ratio: auto; }
+.dz-thumb.big.has .dz-svg { width: 26%; height: 30%; right: 12px; bottom: 12px; }
+.dz-pv::after { display: none; }
