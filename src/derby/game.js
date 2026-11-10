@@ -5,14 +5,16 @@
 // the best crash, AI with personalities that races and rams, and a last-car-standing derby arena.
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { applyHDRI, makeComposer, hdriSun, hdriHorizon, applyFilterSettings, FILTER_PRESETS } from '../ui/gfx.js';
+import { applyHDRI, makeComposer, hdriSun, hdriHorizon, applyFilterSettings, FILTER_PRESETS, updateSunFlare, updateGodRays } from '../ui/gfx.js';
 import { engineStart, engineSet, engineStop, sfx } from '../ui/audio.js';
 import { getSettings, setSettings } from '../engine/state.js';
 import { buildTrack, buildTerrain, buildRacingLine, buildWater, SURFACES } from './tracks.js';
 import { buildBanger, dent, crackGlass, updateParts, scrape, BANGERS, AI_COLORS, LIVERIES, tuneSpec } from './cars.js';
 import { DIFFICULTY, medalFor, payout, recordCareer, prog, saveProg, checkChallenges } from './career.js';
 import { DerbySound } from './sound.js';
-import { Particles, SkidMarks } from './fx.js';
+import { Particles, SkidMarks, Streaks, Chunks, Rain, LensFx, Shockwaves, FXENV } from './fx.js';
+import { addDerbyPost } from './post.js';
+import { venueLook } from './atmos.js';
 import { aiInput, initAI } from './ai.js';
 import { buildGround, buildWaterMeshes, buildScenery, buildTrees, buildScorch, CROWD } from './scenery.js';
 import { buildHud, updateHud, message, showResults } from './hud.js';
@@ -58,7 +60,8 @@ export class DerbyGame {
     this.water = buildWater(this.venue, this.track);
     this.terrain = buildTerrain(this.venue, this.track, this.water);
     this.line = this.track.arena || this.track.stunt ? null : buildRacingLine(this.track, this.venue);
-    this.surface = SURFACES[this.venue.surface] || SURFACES.dirt;
+    this.look = venueLook(this.venue, this.o.weather); this.night = !!this.look.night; this.wet = this.look.wet || 0;
+    { const sf = SURFACES[this.venue.surface] || SURFACES.dirt; this.surface = { ...sf, grip: sf.grip * (this.look.grip || 1) }; }
     this.setupRenderer();
     this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
     this.events = new RAPIER.EventQueue(true);
@@ -92,35 +95,49 @@ export class DerbyGame {
 
   // ---------------------------------------------------------------- rendering setup
   setupRenderer() {
-    const r = this.renderer = new THREE.WebGLRenderer({ antialias: !this.low, powerPreference: 'high-performance' });
+    const look = this.look, night = this.night;
+    const r = this.renderer = new THREE.WebGLRenderer({ antialias: !this.low, powerPreference: 'high-performance', preserveDrawingBuffer: !!this.o.thumb });
     r.setPixelRatio(this.low ? 1 : Math.min(1.5, window.devicePixelRatio || 1));
     r.shadowMap.enabled = true; r.shadowMap.type = this.low ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
-    r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.0; r.outputColorSpace = THREE.SRGBColorSpace;
+    r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = look.exposure; r.outputColorSpace = THREE.SRGBColorSpace;
     this.c.appendChild(r.domElement); Object.assign(r.domElement.style, { position: 'absolute', inset: '0', width: '100%', height: '100%' });
     const s = this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(62, 1, 0.1, 3000);
-    const kind = this.venue.sky || 'day', night = kind === 'night';
-    s.fog = new THREE.FogExp2(night ? 0x10141c : 0xc9c2b2, night ? 0.0032 : this.venue.port ? 0.0013 : this.venue.kind === 'stunt' ? 0.0017 : kind === 'dusk' ? 0.0018 : 0.0022);
-    this.hemi = new THREE.HemisphereLight(night ? 0x8090b0 : 0xdde8ff, night ? 0x2a241c : 0x6b5a40, night ? 0.35 : 0.6); s.add(this.hemi);
-    const sun = this.sun = new THREE.DirectionalLight(night ? 0xe8efff : 0xfff0d8, night ? 1.6 : kind === 'dusk' ? 2.2 : 2.8);
-    sun.castShadow = true; const sm = this.low ? 1024 : 2048; sun.shadow.mapSize.set(sm, sm);
-    Object.assign(sun.shadow.camera, { left: -48, right: 48, top: 48, bottom: -48, near: 1, far: 400 }); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
+    s.fog = new THREE.FogExp2(look.fogCol, look.fog);
+    this.hemi = new THREE.HemisphereLight(look.hemiSky, look.hemiGnd, look.hemi); s.add(this.hemi);
+    const sun = this.sun = new THREE.DirectionalLight(look.sunCol, look.sun);
+    // tighter shadow frustum on the high setting: the same 2048 map covers 80 m instead of 96 m
+    sun.castShadow = true; const sm = this.low ? 1024 : 2048, sr = this.low ? 46 : 40; sun.shadow.mapSize.set(sm, sm);
+    Object.assign(sun.shadow.camera, { left: -sr, right: sr, top: sr, bottom: -sr, near: 1, far: 400 }); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.035; sun.shadow.radius = 2.2;
     s.add(sun); s.add(sun.target);
-    this.sunDir = night ? new THREE.Vector3(0.25, 0.9, 0.3).normalize() : new THREE.Vector3(0.5, 0.8, 0.35).normalize();
-    this.envReady = applyHDRI(r, s, kind, { intensity: night ? 0.6 : 0.9 }).then(() => {
-      const sd = hdriSun(kind); if (sd && !night) { this.sunDir.copy(sd); this.sunDir.y = Math.max(0.42, this.sunDir.y); this.sunDir.normalize(); }
-      const hz = hdriHorizon(kind); if (hz && !night) s.fog.color.copy(hz).lerp(new THREE.Color(0xcab89a), 0.35);
+    this.sunDir = night ? new THREE.Vector3(0.25, 0.9, 0.3).normalize() : look.rain ? new THREE.Vector3(0.3, 0.86, 0.4).normalize() : new THREE.Vector3(0.5, 0.8, 0.35).normalize();
+    this.envReady = applyHDRI(r, s, look.sky, { intensity: look.env }).then(() => {
+      const sd = hdriSun(look.sky); if (sd && !night && !look.rain) { this.sunDir.copy(sd); this.sunDir.y = Math.max(look.id === 'tramonto' ? 0.3 : 0.42, this.sunDir.y); this.sunDir.normalize(); }
+      const hz = hdriHorizon(look.sky); if (hz && look.fogMix < 1) s.fog.color.copy(hz).lerp(new THREE.Color(look.fogCol), look.fogMix);
+      if (look.flatSky != null) { s.background = new THREE.Color(look.flatSky).multiplyScalar(night ? 0.1 : 0.82); s.fog.color.copy(s.background); }
+      else if (night && look.rain) { s.backgroundIntensity = 0.2; }
     }).catch(() => {});
-    this.composer = makeComposer(r, s, this.camera, { bloom: night ? 0.45 : 0.28, low: this.low, ao: !this.low });
+    this.composer = makeComposer(r, s, this.camera, { bloom: look.bloom, low: this.low, ao: !this.low, flare: look.flare > 0, rays: !!look.rays });
+    if (this.composer?.grade) { const u = this.composer.grade.uniforms; u.uCon.value = look.con; u.uSat.value = look.sat; u.uWarm.value = look.warm; }
+    this.post = addDerbyPost(this.composer);
+    if (this.post) { this.post.uniforms.uTintLo.value.set(...look.lo); this.post.uniforms.uTintHi.value.set(...look.hi); this.post.uniforms.uDirt.value = look.rain ? 0.9 : night ? 0.8 : 0.55; this.post.uniforms.uLift.value = look.rain ? 0.012 : 0; }
     this._rs = () => this.resize(); window.addEventListener('resize', this._rs); this.resize();
     const L = this.low ? 0.6 : 1;
     this.dust = new Particles(s, Math.round(2600 * L), { gravity: -0.25, drag: 1.1, grow: 3.2, tex: 'puff', spin: 0.6 });
-    this.smoke = new Particles(s, Math.round(1100 * L), { gravity: -2.4, drag: 0.7, grow: 3.4, tex: 'puff', spin: 0.8 });
-    this.fire = new Particles(s, 700, { additive: true, gravity: -4.5, drag: 1.5, grow: -0.35, tex: 'puff', spin: 2 });
-    this.sparks = new Particles(s, 900, { additive: true, gravity: 9, drag: 0.6, grow: -0.6, sizeScale: 0.5 });
+    this.smoke = new Particles(s, Math.round(1300 * L), { gravity: -2.4, drag: 0.7, grow: 3.4, tex: 'puff', spin: 0.8 });
+    this.fire = new Particles(s, 800, { additive: true, gravity: -4.5, drag: 1.5, grow: -0.35, tex: 'puff', spin: 2 });
+    this.sparks = new Streaks(s, this.low ? 400 : 800);
     this.chips = new Particles(s, 700, { gravity: 14, drag: 0.4, grow: 0, sizeScale: 0.35, tex: 'chip', spin: 14, fog: true });
+    this.chunks = new Chunks(s, this.low ? 90 : 200);
     this.splash = new Particles(s, 900, { gravity: 9.5, drag: 0.6, grow: 1.6, tex: 'puff', spin: 1 });
-    this.skids = new SkidMarks(s, 4500, this.venue.surface === 'asphalt' ? [0.04, 0.04, 0.04] : [0.12, 0.09, 0.06]);
+    this.shock = new Shockwaves(s);
+    this.lens = new LensFx(this.c);
+    if (look.rain) this.rain = new Rain(s, this.low ? 600 : 1500, look.rain);
+    FXENV.amb.value = look.fxAmb; FXENV.light.value.set(look.sunCol).multiplyScalar(look.fxLight);
+    // flickering lights for the two nearest fires (high setting)
+    this.fireLights = this.low ? [] : [0, 1].map(() => { const l = new THREE.PointLight(0xff7a2a, 0, 26, 1.7); s.add(l); return l; });
+    const wetMud = this.venue.surface === 'mud' || this.wet;
+    this.skids = new SkidMarks(s, 4500, this.venue.surface === 'asphalt' ? [0.04, 0.04, 0.04] : wetMud ? [0.09, 0.065, 0.045] : [0.12, 0.09, 0.06]);
   }
   resize() { const w = this.c.clientWidth || 1280, h = this.c.clientHeight || 720; this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.composer?.setSize(w, h); }
 
@@ -208,6 +225,7 @@ export class DerbyGame {
     best.score = (best.score || 0) + 10; best.nitro = Math.min(100, best.nitro + 1.5);
     if (best.isPlayer) { this.playerProps = (this.playerProps || 0) + 1; this.propCombo = (this.time - (this.propComboT || -9) < 1.5 ? (this.propCombo || 0) : 0) + 1; this.propComboT = this.time; if (this.propCombo === 4 || this.propCombo === 10 || this.propCombo === 20) this.message(`Distruzione x${this.propCombo}!`, 'bonus', `+${this.propCombo * 10} punti`); }
     if (b.userData.type === 'barrel' || b.userData.type === 'crate') for (let k = 0; k < 6; k++) this.chips.emit(t.x, t.y + 0.3, t.z, (Math.random() - 0.5) * 6, 2 + Math.random() * 4, (Math.random() - 0.5) * 6, 1.2, 0.22, b.userData.type === 'crate' ? 0.55 : 0.7, b.userData.type === 'crate' ? 0.4 : 0.15, 0.2, 1);
+    if (b.userData.type === 'crate' || b.userData.type === 'fence') for (let k = 0; k < 5; k++) this.chunks.emit(t.x, t.y + 0.4, t.z, (Math.random() - 0.5) * 8, 2 + Math.random() * 5, (Math.random() - 0.5) * 8, 0.25, ...(b.userData.type === 'crate' ? [0.5, 0.36, 0.2] : [0.85, 0.2, 0.15]), 5, 0.18);
     if (b.userData.type === 'hay') for (let k = 0; k < 10; k++) this.dust.emit(t.x, t.y + 0.5, t.z, (Math.random() - 0.5) * 4, 1 + Math.random() * 2, (Math.random() - 0.5) * 4, 1.6, 0.8, 0.82, 0.68, 0.36, 0.5);
   }
 
@@ -257,7 +275,8 @@ export class DerbyGame {
 
   makeCar({ spec, color, num, name, isPlayer, pos, skill, look = {} }) {
     const mesh = buildBanger(spec.id, color, num, num * 31 + 7, look); this.scene.add(mesh);
-    mesh.userData.shell.position.y = -0.12; // the suspension settles: sit the body down over the wheels
+    mesh.userData.shell.position.y = -0.12;
+    if (this.night) mesh.userData.lights.head.emissiveIntensity = 3.2; // the suspension settles: sit the body down over the wheels
     // low setting: ~35 meshes per car each casting a shadow doubled the draw calls; only the shell and the cab cast
     if (this.low) { const keep = new Set([mesh.userData.body, mesh.userData.cab]); mesh.traverse((o) => { if (o.isMesh && !keep.has(o)) o.castShadow = false; }); }
     const { L, W } = mesh.userData.dims; const T = this.terrain;
@@ -349,7 +368,7 @@ export class DerbyGame {
     if (on) {
       if (this.state === 'photo') return;
       this._prePhoto = this.state === 'paused' ? this._pausedFrom || 'race' : this.state; this.state = 'photo';
-      this.hud.pause.classList.remove('on'); this.hud.root.classList.add('photo'); this.snd?.pause(true);
+      this.hud.pause.classList.remove('on'); this.hud.root.classList.add('photo'); this.snd?.pause(true); this.lens.c.style.display = 'none';
       const p = this.player.mesh.position, c = this.camera.position;
       this.photo = { tx: p.x, ty: p.y + 0.8, tz: p.z, yaw: Math.atan2(c.z - p.z, c.x - p.x), pitch: 0.25, dist: Math.max(5, Math.hypot(c.x - p.x, c.z - p.z)), fov: 50, roll: 0 };
       const el = this.renderer.domElement; let drag = null;
@@ -365,7 +384,7 @@ export class DerbyGame {
     } else {
       if (this.state !== 'photo') return;
       const el = this.renderer.domElement; el.removeEventListener('pointerdown', this._pd); el.removeEventListener('pointermove', this._pm); el.removeEventListener('pointerup', this._pu); el.removeEventListener('wheel', this._pw); el.removeEventListener('contextmenu', this._pc);
-      this.state = this._prePhoto || 'race'; this.hud.root.classList.remove('photo', 'photo-clean'); this.camPos = null; this.camera.fov = 64; this.snd?.pause(false);
+      this.state = this._prePhoto || 'race'; this.lens.c.style.display = ''; this.hud.root.classList.remove('photo', 'photo-clean'); this.camPos = null; this.camera.fov = 64; this.snd?.pause(false);
       if (this.state === 'race' || this.state === 'countdown') this.last = performance.now();
     }
   }
@@ -382,6 +401,7 @@ export class DerbyGame {
     this.camera.fov = P.fov; this.camera.updateProjectionMatrix();
     if (this.marker) this.marker.visible = false;
     this.sun.position.set(P.tx, P.ty, P.tz).addScaledVector(this.sunDir, 150); this.sun.target.position.set(P.tx, P.ty, P.tz);
+    this.fxFrame(0, false);
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
   }
   photoShot() {
@@ -715,6 +735,8 @@ export class DerbyGame {
         for (let k = 0; k < 40; k++) this.chips.emit(gp.x, gp.y, gp.z, (Math.random() - 0.5) * 6, 1 + Math.random() * 4, (Math.random() - 0.5) * 6, 0.9 + Math.random() * 0.6, 0.12 + Math.random() * 0.1, 0.75, 0.86, 0.95, 0.9);
       }
     }
+    if (wp && dmg > 7) { const rgb = this.paintRGB(car), lv = car.body.linvel(); for (let k = 0; k < Math.min(9, dmg * 0.3) * (this.low ? 0.5 : 1); k++) { const pc = Math.random() < 0.6 ? rgb : [0.45, 0.46, 0.48]; this.chunks.emit(wp.x, wp.y, wp.z, lv.x * 0.5 + (Math.random() - 0.5) * 7, 2 + Math.random() * 4, lv.z * 0.5 + (Math.random() - 0.5) * 7, 0.07 + Math.random() * 0.16, pc[0], pc[1], pc[2], 5); } }
+    if (car.isPlayer && dmg > 6) this.hurt = Math.min(0.7, (this.hurt || 0) + dmg / 40);
     if (wp && dmg > 5) for (let k = 0; k < Math.min(22, dmg * 0.8); k++) this.chips.emit(wp.x, wp.y, wp.z, (Math.random() - 0.5) * 5, 1 + Math.random() * 3, (Math.random() - 0.5) * 5, 1 + Math.random(), 0.16, ...this.paintRGB(car), 1);
     // parts in the hit zone lose hit points and may fly off
     for (const pt of [...ud.parts]) if (pt.userData.zone === zone) { const u = pt.userData; u.hp -= dmg * (dmg > 16 ? 1.4 : 1); if (u.hp <= 0) this.detach(car, pt); else if (!u.loose && u.hp < u.hp0 * 0.6) { u.loose = true; if (car.isPlayer && (u.kind === 'bonnet' || u.kind === 'door')) this.snd?.prop?.('fence', car.mesh.position); } }
@@ -773,7 +795,10 @@ export class DerbyGame {
     const p = car.body.translation();
     for (let k = 0; k < 40; k++) this.fire.emit(p.x, p.y + 0.8, p.z, (Math.random() - 0.5) * 6, 2 + Math.random() * 5, (Math.random() - 0.5) * 6, 0.4 + Math.random() * 0.5, 1.1, 1, 0.35 + Math.random() * 0.3, 0.06, 0.9);
     for (let k = 0; k < 20; k++) this.smoke.emit(p.x, p.y + 1, p.z, (Math.random() - 0.5) * 3, 2 + Math.random() * 2, (Math.random() - 0.5) * 3, 3, 1.6, 0.08, 0.08, 0.08, 0.75);
-    try { buildScorch(this, p.x, p.z); } catch {}
+    try { buildScorch(this, p.x, p.z); buildScorch(this, p.x + (Math.random() - 0.5) * 3, p.z + (Math.random() - 0.5) * 3, 2.2, 'oil'); } catch {}
+    this.shock.fire(p.x, this.terrain.heightAt(p.x, p.z), p.z, 30); this.shockFx = { t: 0, p: new THREE.Vector3(p.x, p.y + 0.8, p.z) };
+    { const rgb = this.paintRGB(car); for (let k = 0; k < (this.low ? 10 : 26); k++) { const a = Math.random() * 6.28, sp = 4 + Math.random() * 9; const pc = k % 3 === 0 ? [0.12, 0.12, 0.13] : k % 3 === 1 ? rgb : [0.5, 0.5, 0.52]; this.chunks.emit(p.x, p.y + 0.6, p.z, Math.cos(a) * sp, 4 + Math.random() * 8, Math.sin(a) * sp, 0.18 + Math.random() * 0.3, pc[0], pc[1], pc[2], 7); } for (let k = 0; k < 30; k++) this.sparks.emit(p.x, p.y + 0.8, p.z, (Math.random() - 0.5) * 22, 3 + Math.random() * 12, (Math.random() - 0.5) * 22, 0.5 + Math.random() * 0.6, 0.4); }
+    if (this.camera.position.distanceTo(car.mesh.position) < 22) { this.lens.splat('mud', 5, 1.1); this.shake = Math.min(1.2, this.shake + 0.5); }
     this.snd?.explode(car);
     if (car.lepre && this.state === 'race') { this.huntWreck = (this.huntDmg || 0) >= 30; car.out = true; car.outT = this.time; this.message('LEPRE DEMOLITA!', 'big'); this.finishOrder = this.standings(); this.finish(); return; }
     if (this.track.arena) {
@@ -832,7 +857,7 @@ export class DerbyGame {
     if (cut !== 1) { if (cut === 2) this.replayOff.applyAxisAngle(UP, dt * rate * 0.35); cp.copy(foc).add(this.replayOff); cp.y = Math.max(cp.y, this.terrain.heightAt(cp.x, cp.z) + 1.2); }
     this.camera.position.copy(cp); this.camera.lookAt(foc.x, foc.y + 0.6, foc.z);
     this.camera.fov += (this.replayFov - this.camera.fov) * Math.min(1, dt * 3); this.camera.updateProjectionMatrix();
-    this.dust.update(dt * rate); this.smoke.update(dt * rate); this.fire.update(dt * rate); this.sparks.update(dt * rate); this.chips.update(dt * rate);
+    this.dust.update(dt * rate); this.smoke.update(dt * rate); this.fire.update(dt * rate); this.sparks.update(dt * rate, this.terrain); this.chips.update(dt * rate); this.fxFrame(dt * rate, false);
     this.sun.position.copy(foc).addScaledVector(this.sunDir, 150); this.sun.target.position.copy(foc);
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
   }
@@ -1143,13 +1168,13 @@ export class DerbyGame {
           if (mud) this.chips.emit(P.x, P.y + 0.2, P.z, -fwd.x * speed * 0.25 + (Math.random() - 0.5) * 3, 1.5 + Math.random() * 3, -fwd.z * speed * 0.25 + (Math.random() - 0.5) * 3, 0.8, 0.2, 0.25, 0.19, 0.12, 1);
           this.dust.emit(P.x, P.y + 0.3, P.z, -lv.x * 0.12 + (Math.random() - 0.5) * 2, 0.5 + Math.random(), -lv.z * 0.12 + (Math.random() - 0.5) * 2, 1.6 + Math.random() * 1.6 * (mud ? 0.5 : 1), 0.8 + speed * 0.025 + slideAmt * 0.5, c[0], c[1], c[2], (mud ? 0.16 : 0.22) * Math.min(1.6, 0.6 + slideAmt));
         }
-        if (!dustC && slideAmt > 0.5 && Math.random() < 0.3) this.smoke.emit(P.x, P.y + 0.2, P.z, (Math.random() - 0.5), 0.6, (Math.random() - 0.5), 1.4, 0.8, 0.8, 0.8, 0.8, 0.18); // tyre smoke on asphalt
+        if (!dustC && slideAmt > 0.45 && Math.random() < Math.min(0.9, 0.35 + slideAmt * 0.4)) this.smoke.emit(P.x, P.y + 0.15, P.z, -lv.x * 0.08 + (Math.random() - 0.5) * 1.5, 0.5 + Math.random() * 0.6, -lv.z * 0.08 + (Math.random() - 0.5) * 1.5, 1.5 + Math.random(), 0.7 + slideAmt * 0.5, 0.86, 0.86, 0.88, Math.min(0.4, 0.14 + slideAmt * 0.12)); // tyre smoke on asphalt
       }
       this.skids.add(car.num * 10 + i, P, side, rear ? (lat > 3 || spin || (car.isPlayer && this.keys.Space) ? Math.min(1, slideAmt + 0.25) : dustC ? 0.12 : 0) : (lat > 5 ? Math.min(1, lat / 12) : 0), car.wheelLost[i] ? 0.06 : 0.14);
       if (car.wheelLost[i] && speed > 3 && Math.random() < 0.6) this.sparks.emit(P.x, P.y + 0.05, P.z, -lv.x * 0.3 + (Math.random() - 0.5) * 3, Math.random() * 2, -lv.z * 0.3 + (Math.random() - 0.5) * 3, 0.25, 0.3, 1, 0.7, 0.3, 1);
     }
     // roof scraping sparks when upside down and sliding
-    if (car.dyn?.up.y < -0.3 && speed > 3 && Math.random() < 0.7) { const rp = new THREE.Vector3(0, ud.dims.H, 0).applyQuaternion(q).add(car.mesh.position); for (let k = 0; k < 3; k++) this.sparks.emit(rp.x, rp.y, rp.z, -lv.x * 0.3 + (Math.random() - 0.5) * 4, Math.random() * 3, -lv.z * 0.3 + (Math.random() - 0.5) * 4, 0.3, 0.35, 1, 0.75, 0.35, 1); }
+    if (car.dyn?.up.y < -0.3 && speed > 3 && Math.random() < 0.7) { const rp = new THREE.Vector3(0, ud.dims.H, 0).applyQuaternion(q).add(car.mesh.position); for (let k = 0; k < 3; k++) this.sparks.emit(rp.x, rp.y, rp.z, -lv.x * 0.3 + (Math.random() - 0.5) * 4, Math.random() * 3, -lv.z * 0.3 + (Math.random() - 0.5) * 4, 0.3, 0.35, 1, 0.75, 0.35, 1); if (Math.random() < 0.2) scrape(car.mesh, { x: (Math.random() - 0.5) * 2, y: ud.dims.H, z: (Math.random() - 0.5) }, 0.12, 0.9); }
     // smoke and fire from damaged engines, burning wrecks, nitro flames
     car.smokeT -= dt; car.burnT = Math.max(0, car.burnT - dt);
     if ((car.hp < 55 || car.burnT > 0) && car.smokeT <= 0 && near) {
@@ -1159,16 +1184,17 @@ export class DerbyGame {
       const k = burning ? 0.06 : car.hp < 30 ? 0.16 : 0.45; this.smoke.emit(ep.x, ep.y + 0.2, ep.z, (Math.random() - 0.5) * 1.5 - lv.x * 0.2, 1.8 + Math.random(), (Math.random() - 0.5) * 1.5 - lv.z * 0.2, burning ? 3.2 : 2, burning ? 1.3 : 0.9, k, k * 0.95, k * 0.9, burning ? 0.7 : 0.5);
       if (burning) for (let n = 0; n < 2; n++) this.fire.emit(ep.x + (Math.random() - 0.5) * 0.7, ep.y, ep.z + (Math.random() - 0.5) * 0.7, (Math.random() - 0.5) - lv.x * 0.1, 1.6 + Math.random() * 2.2, (Math.random() - 0.5) - lv.z * 0.1, 0.35 + Math.random() * 0.35, car.burnT > 0 ? 0.8 : 0.55, 1, 0.3 + Math.random() * 0.25, 0.04, 0.75);
     }
-    if (car.boost) { const ep = new THREE.Vector3(-ud.dims.L - 0.2, 0.33, -0.5).applyQuaternion(q).add(car.mesh.position); for (let k = 0; k < 2; k++) this.fire.emit(ep.x, ep.y, ep.z, -fwd.x * 7 + lv.x * 0.8, 0.3, -fwd.z * 7 + lv.z * 0.8, 0.1, 0.32, 0.35 + Math.random() * 0.4, 0.45, 1, 0.8); }
+    if (car.boost && near) { const ey = ud.shape.y0 - 0.1; for (const ez of (ud.shape.scoop || ud.shape.hotrod ? [-0.5, 0.5] : [-0.5])) { const ep = new THREE.Vector3(-ud.dims.L - 0.25, ey, ez).applyQuaternion(q).add(car.mesh.position); for (let k = 0; k < 3; k++) { const u = Math.random(); this.fire.emit(ep.x - fwd.x * u * 0.5, ep.y, ep.z - fwd.z * u * 0.5, -fwd.x * (6 + u * 8) + lv.x, 0.2 + Math.random() * 0.5, -fwd.z * (6 + u * 8) + lv.z, 0.07 + u * 0.1, 0.42 - u * 0.15, k ? 0.3 + Math.random() * 0.3 : 1, k ? 0.5 : 0.55, k ? 1 : 0.2, 0.9); } if (Math.random() < 0.3) this.sparks.emit(ep.x, ep.y, ep.z, -fwd.x * 8 + lv.x + (Math.random() - 0.5) * 3, Math.random() * 2, -fwd.z * 8 + lv.z + (Math.random() - 0.5) * 3, 0.3, 0.3, 0.5, 0.7, 1); } }
   }
 
   render(dt, frozen, pin, dtReal = dt) {
     for (const car of this.cars) if (!car.removed) this.syncCar(car, frozen ? 0 : dt);
     for (const k of Object.keys(this.propTypes)) this.syncProps(k);
     for (const d of this.debris) { const t = d.body.translation(), r = d.body.rotation(); tmpQ.set(r.x, r.y, r.z, r.w); d.mesh.quaternion.copy(tmpQ).multiply(d.q0); d.mesh.position.copy(d.off).applyQuaternion(tmpQ).add(tmpV.set(t.x, t.y, t.z)); }
-    if (!frozen) { this.dust.update(dt); this.smoke.update(dt); this.fire.update(dt); this.sparks.update(dt); this.chips.update(dt); this.splash.update(dt); }
+    if (!frozen) { this.dust.update(dt); this.smoke.update(dt); this.fire.update(dt); this.sparks.update(dt, this.terrain); this.chips.update(dt); this.splash.update(dt); }
     this.updateCamera(dtReal);
     if (this.marker) { const p = this.player.mesh.position; this.marker.position.set(p.x, p.y + 2.4 + Math.sin(this.time * 4) * 0.1, p.z); this.marker.quaternion.copy(this.camera.quaternion); this.marker.visible = this.camMode < 2 && !this.lookBack && this.state !== 'finished'; }
+    this.fxFrame(frozen ? 0 : dtReal, true);
     if (this.ghost) this.updateGhost();
     if (this.lepreMark) { const p = this.lepre.mesh.position; this.lepreMark.position.set(p.x, p.y + 3.2 + Math.sin(this.time * 3) * 0.2, p.z); this.lepreMark.rotation.y = this.time * 2; this.lepreMark.visible = !this.lepre.out && this.camMode < 3; }
     // shadow camera follows the player
@@ -1179,6 +1205,44 @@ export class DerbyGame {
     this.snd?.update(dtReal);
     const P = this.player, eg = ENGINE_GEARS[P.spec.engine] || 7;
     try { engineSet(P.rpm < 0.09 && (pin?.thr || 0) < 0.05 ? 0 : Math.min(0.995, Math.max(0.02, P.rpm)) / eg, { crowd: 0.25 }); } catch {}
+  }
+
+  // per-frame update of the screen effects, lens, weather and effect lights (all camera modes)
+  fxFrame(dt, driving) {
+    const cam = this.camera, P = this.spectate || this.player, pu = this.post?.uniforms;
+    cam.updateMatrixWorld(); FXENV.sunV.value.copy(this.sunDir).transformDirection(cam.matrixWorldInverse);
+    this.chunks.update(dt, this.terrain); this.shock.update(dt);
+    this.rain?.update(dt, cam.position, driving ? P.body.linvel() : null);
+    this.hurt = Math.max(0, (this.hurt || 0) - dt * 1.6);
+    const sp = P.dyn?.speed || 0, chase = driving && this.state !== 'finished';
+    if (pu) {
+      const blurT = chase ? Math.max(0, Math.min(1, (sp - 26) / 30)) * 0.045 * (this.camMode >= 2 ? 1.5 : 1) + (P.boost ? 0.055 : 0) : 0;
+      pu.uBlur.value += (blurT - pu.uBlur.value) * Math.min(1, dt * 5);
+      pu.uCA.value += (((chase && P.boost) ? 1 : 0) + Math.min(1, this.shake || 0) * 0.8 - pu.uCA.value) * Math.min(1, dt * 6);
+      pu.uTime.value = (performance.now() / 1000) % 600; pu.uAspect.value = cam.aspect; pu.uHurt.value = Math.min(0.6, this.hurt || 0);
+      // heat haze behind the nitro flames
+      let heat = 0;
+      if (chase && P.boost && this.camMode < 2 && !this.lookBack) { const ud = P.mesh.userData; tmpV.set(-ud.dims.L - 0.6, 0.5, 0).applyQuaternion(P.mesh.quaternion).add(P.mesh.position).project(cam); if (tmpV.z < 1) { pu.uHeatPos.value.set(tmpV.x * 0.5 + 0.5, tmpV.y * 0.5 + 0.5); heat = 1; } }
+      pu.uHeat.value += (heat - pu.uHeat.value) * Math.min(1, dt * 8);
+      const sf = this.shockFx; if (sf && sf.t < 1) { sf.t += dt * 1.5; tmpV.copy(sf.p).project(cam); pu.uShockPos.value.set(tmpV.x * 0.5 + 0.5, tmpV.y * 0.5 + 0.5); pu.uShockT.value = tmpV.z < 1 ? sf.t : 0; } else pu.uShockT.value = 0;
+    }
+    if (this.composer?.flare) updateSunFlare(this.composer, cam, this.sunDir, this.look.flare || 0);
+    if (this.composer?.rays) updateGodRays(this.composer, cam, this.sunDir, 0.55 * (this.look.rays || 0));
+    // camera lens: rain drops, mud thrown up by the car ahead, water from fords
+    if (chase && dt > 0) {
+      if (this.rain && Math.random() < dt * (1.5 + sp * 0.12) * this.look.rain) this.lens.splat('water', 1);
+      if (this.camMode < 2 && (this.venue.surface === 'mud' || (this.wet && this.venue.surface !== 'asphalt')) && sp > 6) {
+        const f = P.dyn.fwd, pp = P.mesh.position;
+        for (const o of this.cars) { if (o === P || o.removed || (o.dyn?.speed || 0) < 7 || !o.dyn?.grounded) continue; const dx = o.mesh.position.x - pp.x, dz = o.mesh.position.z - pp.z, ah = dx * f.x + dz * f.z, la = Math.abs(-dx * f.z + dz * f.x); if (ah > 1 && ah < 13 && la < 3.5 && Math.random() < dt * 1.6 * (1 - ah / 14)) { this.lens.splat('mud', 1 + (Math.random() < 0.3 ? 1 : 0), 0.8); P.mesh.userData.dirt.value = Math.min(1, P.mesh.userData.dirt.value + 0.01); } }
+      }
+      if (P.inWater && sp > 7 && Math.random() < dt * 9) this.lens.splat('water', 2, 1.3);
+    }
+    this.lens.update(dt);
+    // fire light: the nearest burning cars get a flickering point light
+    if (this.fireLights.length) {
+      const burning = this.cars.filter((c) => !c.removed && (c.burnT > 0 || (c.hp <= 15 && c.hp > 0) || (c.out && c.hp <= 0 && this.time - (c.outT || 0) < 25))).sort((a, b) => a.mesh.position.distanceToSquared(cam.position) - b.mesh.position.distanceToSquared(cam.position));
+      this.fireLights.forEach((l, i) => { const c = burning[i]; const tt = performance.now() / 1000; if (c) { const ud = c.mesh.userData; l.position.set(ud.dims.L - 0.5, 1.5, 0).applyQuaternion(c.mesh.quaternion).add(c.mesh.position); l.intensity = (c.burnT > 0 ? 260 : 140) * (0.7 + 0.3 * Math.sin(tt * 23 + i * 2) * Math.sin(tt * 37 + i) + 0.15 * Math.sin(tt * 61)); } else l.intensity = 0; });
+    }
   }
 
   updateCamera(dt) {

@@ -420,8 +420,8 @@ function buildArena(game, R) {
 }
 
 // ------------------------------------------------------------------ scorch marks (persistent)
-let _scorchMat = null;
-export function buildScorch(game, x, z, r = 3.2) {
+let _scorchMat = null, _oilMat = null;
+export function buildScorch(game, x, z, r = 3.2, kind = 'scorch') {
   const T = game.terrain;
   if (!_scorchMat) {
     const t = canvasTex(128, 128, (g) => { const gr = g.createRadialGradient(64, 64, 4, 64, 64, 62); gr.addColorStop(0, 'rgba(8,6,5,0.95)'); gr.addColorStop(0.45, 'rgba(14,11,9,0.8)'); gr.addColorStop(1, 'rgba(20,16,12,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); for (let i = 0; i < 26; i++) { const a = Math.random() * 6.28, l = 30 + Math.random() * 30; g.strokeStyle = 'rgba(10,8,6,0.5)'; g.lineWidth = 2 + Math.random() * 4; g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + Math.cos(a) * l, 64 + Math.sin(a) * l); g.stroke(); } });
@@ -429,7 +429,11 @@ export function buildScorch(game, x, z, r = 3.2) {
   }
   const g = new THREE.CircleGeometry(r, 16); g.rotateX(-Math.PI / 2); g.rotateY(Math.random() * 6.28);
   const P = g.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, T.heightAt(P.getX(i) + x, P.getZ(i) + z) + 0.05);
-  const m = new THREE.Mesh(g, _scorchMat); m.position.set(x, 0, z); m.receiveShadow = true; m.renderOrder = 1; game.scene.add(m);
+  if (kind === 'oil' && !_oilMat) {
+    const t = canvasTex(128, 128, (g) => { for (let i = 0; i < 9; i++) { const x = 64 + (Math.random() - 0.5) * 60, y = 64 + (Math.random() - 0.5) * 60, r = 10 + Math.random() * 26; const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(6,5,6,0.95)'); gr.addColorStop(0.8, 'rgba(10,8,8,0.85)'); gr.addColorStop(1, 'rgba(10,8,8,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } });
+    _oilMat = new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.12, metalness: 0.3, polygonOffset: true, polygonOffsetFactor: -6 });
+  }
+  const m = new THREE.Mesh(g, kind === 'oil' ? _oilMat : _scorchMat); m.position.set(x, 0, z); m.receiveShadow = true; m.renderOrder = 1; game.scene.add(m);
   (game.scorches ||= []).push(m); if (game.scorches.length > 24) { const o = game.scorches.shift(); game.scene.remove(o); o.geometry.dispose(); }
 }
 
