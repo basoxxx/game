@@ -18,6 +18,10 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 4.0.1
+- Rally: il terreno ora segue la strada anche nelle prove lunghe (prima strada e auto potevano finire sotto il terreno).
+- Telecamera dei box che segue l'auto anche con ingressi box lunghi, griglia di partenza disegnata sotto le auto, cielo coperto più atmosferico, rocce e chiazze d'asfalto più leggere.
+
 ## Novità della versione 4.0
 - **Auto 3D rifatte**: nuovo kit procedurale per Formula, Hypercar, GT e Rally1 con passaruota, luci LED, livree più ricche e gomme/vernici più realistiche.
 - **Circuiti più veri**: ambienti diversi per ogni circuito (mare, deserto, colline, città), terreno intermedio, decalcomanie sull'asfalto, vita a bordo pista, prove rally più ricche.
