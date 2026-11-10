@@ -35,6 +35,9 @@ registerScreen({
             ${item('data-a="nav" data-to="quickrace"', 'speed', 'Gara Rapida', 'Un weekend singolo con qualsiasi squadra, su qualsiasi pista.')}
             ${item('data-a="nav" data-to="derby"', 'steering', 'Scontro Totale', 'Prendi il volante: corse a contatto, salti e derby della distruzione.', '<span class="tag">Guida tu</span>')}
             ${item('data-a="nav" data-to="challenges"', 'target', 'Sfide', 'Scenari con un obiettivo e medaglie da conquistare.')}
+            ${item('data-a="nav" data-to="mode-champ"', 'trophy', 'Campionato personalizzato', 'Crea il tuo campionato: piste, punteggi, sprint, meteo e griglia. Poi giocalo gara dopo gara.')}
+            ${item('data-a="nav" data-to="mode-daily"', 'calendar', 'Sfida del giorno', 'Ogni giorno una sfida nuova, uguale per tutti: un tentativo ufficiale, serie e risultato da condividere.')}
+            ${item('data-a="nav" data-to="mode-tp"', 'hourglass', 'Team Principal a tempo', 'Mini-stagione di 3 gare con un budget fisso di gettoni sviluppo.')}
             <div class="menu-sep"></div>
             ${item('data-a="load"', 'save', 'Carica Partita', 'Apri uno degli slot di salvataggio o importa un file.', '', `sm ${hasSave ? '' : 'disabled'}`)}
             ${item('data-a="nav" data-to="settings" data-back="menu"', 'settings', 'Impostazioni', 'Audio, grafica 3D, filtri, realismo e accessibilità.', '', 'sm')}
