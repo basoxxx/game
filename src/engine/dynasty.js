@@ -13,6 +13,7 @@ import { cat, playerTeam, teamDrivers, addMail, addNews, addFinance, fmtM, stand
 import { getTrack, generateRookie, salaryFor, driverOverall, avgPart } from './world.js';
 import { gainXP } from './progress.js';
 import { physicsLap } from './trackphys.js';
+import { ensureDepth, depthMaybeDecision, depthDecisionView, depthResolveDecision } from './depth.js';
 
 const hash = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; return h; };
 const scale = (st) => cat(st).budgetScale;
@@ -59,6 +60,7 @@ export function ensureDynasty(st, opts = {}) {
     else syncRaceGoals(st);
   }
   if (!D.prospects || D.prospects.season !== st.season) makeProspects(st);
+  try { ensureDepth(st); } catch (e) { console.warn('depth', e); }
   return D;
 }
 
@@ -406,12 +408,13 @@ export function signProspect(st, id) {
   return { ok: true };
 }
 export function releaseJunior(st, id) {
-  const d = st.drivers[id]; if (!d || d.academy !== st.playerTeam) return;
+  const d = st.drivers[id]; if (!d || d.academy !== st.playerTeam || d.loan) return;
   d.academy = null; d.salary = salaryFor(d, st.category);
 }
 export function promoteJunior(st, id, replaceId) {
   const d = st.drivers[id]; const pt = playerTeam(st);
   if (!d || d.academy !== pt.id) return { ok: false, msg: 'Pilota non disponibile.' };
+  if (d.loan) return { ok: false, msg: 'È in prestito fino a fine stagione: potrai promuoverlo quando rientra.' };
   const free = seatsPerTeam(st) - teamDrivers(st, pt).length;
   if (replaceId && !pt.drivers.includes(replaceId)) replaceId = null;
   if (free <= 0 && !replaceId) return { ok: false, msg: 'Scegli quale titolare sostituire.' };
@@ -443,6 +446,7 @@ function academySeason(st) {
 function feederResults(st) {
   const out = [];
   for (const d of academyDrivers(st)) {
+    if (d.loanSeason === st.season) continue; // spent the year on loan in the main series
     const ov = driverOverall(d, st.category);
     const pos = clamp(Math.round(gauss(14 - (ov - 62) * 0.55 - (d.morale - 70) * 0.03 - (satelliteSeat(playerTeam(st)) ? 1.5 : 0) - (playerTeam(st).invest?.juniorActive ? 1 : 0), 2.6)), 1, 20);
     (d.feeder ||= []).push({ season: st.season, pos });
@@ -552,6 +556,8 @@ export function maybeDynDecision(st, opts = {}) {
     st.pendingDyn = { kind: 'tycoon', amount: +(pt.baseBudget * 0.15).toFixed(1), who: pick(['Sir Reginald Ashcombe', 'Lorenzo Valmonte', 'Ingrid Halvorsen', 'Kenji Moriyama', 'Amira Al-Faris']) };
     return;
   }
+  // regulation era, Commission votes, team-mate feuds (depth.js)
+  if (!st.pendingTech && !st.pendingEvent) { depthMaybeDecision(st); if (st.pendingDyn) return; }
   if (st.round === 0 || opts.roll === false) return;
   // principals
   if (!chance(st.pendingTech ? 0.08 : st.pendingEvent ? 0.2 : 0.34)) return;
@@ -590,6 +596,7 @@ function principalDecision(st) {
 export function dynDecisionView(st) {
   const pd = st.pendingDyn; if (!pd) return null;
   const pt = playerTeam(st);
+  if (pd.kind === 'era' || pd.kind === 'vote' || pd.kind === 'feud') return depthDecisionView(st, pd);
   const t = pd.team ? st.teams[pd.team] : null;
   const p = pd.team ? principal(st, pd.team) : null;
   if (pd.team && (!t || !p || t.isPlayer)) return null;
@@ -639,6 +646,13 @@ export function dynDecisionView(st) {
 export function resolveDynDecision(st, i) {
   const pd = st.pendingDyn; if (!pd) return '';
   if (!dynDecisionView(st)) { st.pendingDyn = null; return ''; }
+  if (pd.kind === 'era' || pd.kind === 'vote' || pd.kind === 'feud') {
+    const view0 = dynDecisionView(st);
+    const out0 = depthResolveDecision(st, pd, i);
+    addMail(st, { from: view0?.from || 'Paddock', icon: pd.kind === 'feud' ? 'driver' : 'rules', type: 'info', subject: view0?.title || 'Decisione', body: `${view0?.text || ''}\n\nDecisione: ${view0?.a[i]?.t || ''}. ${out0}` });
+    st.pendingDyn = null;
+    return out0;
+  }
   const D = st.dyn; const pt = playerTeam(st); const sc = scale(st);
   const t = pd.team ? st.teams[pd.team] : null;
   const p = pd.team ? principal(st, pd.team) : null;

@@ -10,6 +10,7 @@ import { bindMarket, evaluateOffer, marketTick, developDriver, seasonMarket, aiS
 import { postRaceComponents } from './components.js';
 import { processStewards } from './stewards.js';
 import { updateLegacy, recordCareerRace, legacyInfo } from './legacy.js';
+import { juniorGraduation, ensureDepth, eraDevMult, winterCars, tokenCheck, tokenSpend, puDevFactor, leaderDrag, corrRoll, afterProject, aiDevFactor, ptsPenalty, capAudit, depthPostRound, depthEndSeason, depthNewSeason, queueStaff, recordRetirement, clearTrackMods, applyTrackMods, basePart } from './depth.js';
 import { invLevel, dynPostRound, dynEndSeason, dynNewSeason, teamTrait, facilityCap, STATUS, statusIdx, repSpan, strengthRanking, principalReact } from './dynasty.js';
 
 export const fmtM = (v) => `${v < 0 ? '-' : ''}€${Math.abs(v).toFixed(Math.abs(v) >= 100 ? 0 : 1)}M`;
@@ -77,6 +78,9 @@ export function startProject(state, partId, tier, nextYear = false, approach = '
   if (t.money < cost) return { ok: false, msg: 'Fondi insufficienti.' };
   if (state.category === 'formula' && capSpent(state) + cost > costCap(state) && !state._capOk) return { ok: false, msg: `Supereresti il budget cap (${fmtM(costCap(state))}). Sforarlo costa una multa e punti in classifica: conferma di nuovo per procedere.`, cap: true };
   if (nextYear && state.round < Math.floor(state.calendar.length * 0.25)) return { ok: false, msg: 'Lo sviluppo della vettura del prossimo anno si apre dopo il primo quarto di stagione.' };
+  const tk = state.quick ? { ok: true } : tokenCheck(state, partId, tier, nextYear);
+  if (!tk.ok) return { ok: false, msg: tk.msg };
+  if (tk.use) tokenSpend(state, tk.use);
   const td = state.staff[t.staff.td];
   const races = Math.max(1, T.races - (td && td.rating > 88 && tier !== 'base' ? 1 : 0) - (t.facilities.factory >= 5 && tier === 'revolution' ? 1 : 0));
   addFinance(state, `R&D: ${T.name} (${partName(state, partId)})`, -cost);
@@ -103,9 +107,10 @@ export function atrFactor(state, team) {
   const n = Object.keys(state.teams).length;
   const pos = team.lastPos || (overallCarRanking(state).indexOf(team.id) + 1);
   const pen = team.isPlayer && state.capPenalty?.season === state.season ? state.capPenalty.aeroMult : 1;
-  return +((0.72 + ((pos - 1) / Math.max(1, n - 1)) * 0.43) * pen).toFixed(2); // 1st 72% → last 115%
+  const slope = state.dp?.rules?.atrSlope ?? 0.43; // the Commission can vote a steeper or flatter scale
+  return +((0.935 - slope / 2 + ((pos - 1) / Math.max(1, n - 1)) * slope) * pen).toFixed(2); // default: 1st 72% → last 115%
 }
-export function costCap(state) { return +(92 * cat(state).budgetScale).toFixed(1); }
+export function costCap(state) { return +(92 * cat(state).budgetScale * (state.dp?.rules?.capMul ?? 1)).toFixed(1); }
 export function capSpent(state) {
   return -state.finance.filter((f) => f.season === state.season && f.amount < 0 && (f.label.startsWith('R&D') || f.label.startsWith('Produzione'))).reduce((a, b) => a + b.amount, 0);
 }
@@ -117,7 +122,7 @@ export function specCeiling(state, partId, cur) {
   if (state.category !== 'junior') return 1;
   const vals = Object.values(state.teams).map((t) => t.car.parts[partId]).filter(Number.isFinite);
   const avg = vals.reduce((a, b) => a + b, 0) / Math.max(1, vals.length);
-  return clamp(1 - (cur - avg - 1) / 5, 0.15, 1);
+  return clamp(1 - (cur - avg - 0.5) / 3.5, 0.1, 1);
 }
 
 function completeProject(state, team, proj) {
@@ -129,7 +134,7 @@ function completeProject(state, team, proj) {
   const trait = (id) => team.isPlayer && teamTrait(state, team, 'td', id);
   const ngt = team.isPlayer ? invLevel(team, 'tunnel') : 0; // next-generation wind tunnel (investment outside the cap)
   const failP = (T.fail * (1.3 - (td?.rating || 60) / 160) * A.fail + (proj.rushed ? 0.06 : 0)) * (trait('prudent') ? 0.5 : 1) * (1 - ngt * 0.12);
-  const cur = team.car.parts[proj.part];
+  const cur = team.isPlayer ? basePart(team, proj.part) : team.car.parts[proj.part];
   let gain;
   proj.failed = false;
   if (chance(failP)) { gain = rand(-0.5, 1); proj.failed = true; }
@@ -143,10 +148,35 @@ function completeProject(state, team, proj) {
     if (hasPerk(state, 'reverse')) { const vals = Object.values(state.teams).map((t) => t.car.parts[proj.part]).sort((a, b) => a - b); if (cur < vals[Math.floor(vals.length / 2)]) gain *= 1.2; }
   }
   if (state.category === 'junior' && gain > 0) gain *= 0.6 * specCeiling(state, proj.part, cur); // near-spec cars: development matters less than drivers
+  if (team.isPlayer && gain > 0 && !state.quick) {
+    proj.exp = +(gain * (proj.next ? 1 : eraDevMult(state, team)) * puDevFactor(state, team, proj.part) * leaderDrag(state, team, proj.part)).toFixed(1); // what the wind tunnel promised
+    gain = proj.exp * corrRoll(state); // what the track delivers (tunnel/track correlation)
+  }
   gain = +gain.toFixed(1);
   if (proj.next) { team.nextYear ||= {}; team.nextYear[proj.part] = +((team.nextYear[proj.part] || 0) + gain * 1.35).toFixed(1); return gain; }
-  team.car.parts[proj.part] = clamp(+(cur + gain).toFixed(1), 30, 99.5);
+  const before = team.car.parts[proj.part];
+  team.car.parts[proj.part] = clamp(+(before + gain).toFixed(1), 30, 99.5);
+  if (!state.quick) { const r = afterProject(state, team, proj, gain, before); if (r?.suspect) proj.suspect = true; }
   return gain;
+}
+// Forecast shown in the Technical Centre: expected gain of a project with today's car and staff
+export function projectForecast(state, partId, tier, approach = 'std', nextYear = false) {
+  const team = playerTeam(state); const T = RD_TIERS[tier]; const A = RD_APPROACH[approach] || RD_APPROACH.std;
+  const td = state.staff[team.staff.td];
+  const trait = (id) => teamTrait(state, team, 'td', id);
+  const ngt = invLevel(team, 'tunnel');
+  const cur = basePart(team, partId);
+  let m = (0.8 + (td?.rating || 60) / 250) * (1 + (team.facilities.windtunnel - 1) * 0.06) * diminish(cur) * atrFactor(state, team) * A.gain * (1 + ngt * 0.06);
+  if (trait('aero') && ['aero', 'chassis', 'suspension'].includes(partId)) m *= 1.15;
+  if (trait('motor') && ['engine', 'gearbox', 'efficiency'].includes(partId)) m *= 1.15;
+  if (trait('visionary') && nextYear) m *= 1.2;
+  if (hasPerk(state, 'rd_gain')) m *= 1.1;
+  if (state.category === 'junior') m *= 0.6 * specCeiling(state, partId, cur);
+  if (!nextYear) m *= eraDevMult(state, team) * puDevFactor(state, team, partId) * leaderDrag(state, team, partId);
+  if (nextYear) m *= 1.35;
+  const fail = clamp((T.fail * (1.3 - (td?.rating || 60) / 160) * A.fail) * (trait('prudent') ? 0.5 : 1) * (1 - ngt * 0.12), 0, 0.9);
+  const corr = state.dp?.corr ?? 0.9;
+  return { lo: +(T.gain[0] * m * Math.max(0.3, corr - 0.2)).toFixed(1), hi: +(T.gain[1] * m).toFixed(1), exp: +(((T.gain[0] + T.gain[1]) / 2) * m * Math.min(1, corr + 0.05)).toFixed(1), fail, drag: nextYear ? 1 : leaderDrag(state, team, partId), pu: puDevFactor(state, team, partId), era: nextYear ? 1 : eraDevMult(state, team) };
 }
 
 function aiDevelopment(state, team) {
@@ -155,8 +185,8 @@ function aiDevelopment(state, team) {
   const td = state.staff[team.staff.td];
   const all = Object.values(state.teams);
   const avgB = all.reduce((s, t) => s + t.baseBudget, 0) / all.length;
-  const budgetF = Math.sqrt(team.baseBudget / avgB);
-  const total = rand(0.9, 2.6) * (state.category === 'junior' ? 0.6 : 1) * diff * atrFactor(state, team) * clamp(budgetF, 0.75, 1.25) * (0.8 + (td?.rating || 70) / 250) * (1 + (team.facilities.windtunnel - 3) * 0.05);
+  const budgetF = team.baseBudget / avgB;
+  const total = rand(0.9, 2.6) * (state.category === 'junior' ? 0.6 : 1) * diff * atrFactor(state, team) * clamp(budgetF, 0.7, 1.3) * (0.8 + (td?.rating || 70) / 250) * (1 + (team.facilities.windtunnel - 3) * 0.05) * (state.quick ? 1 : aiDevFactor(state, team));
   // distribute
   const parts = C.parts.map((p) => p.id);
   let remaining = total;
@@ -210,6 +240,7 @@ export function standings(state) {
       tp[r.teamId] = (tp[r.teamId] || 0) + r.pts;
     }
   }
+  if (state.dp?.ptsPen?.[state.season]) for (const id of Object.keys(tp)) { const pen = ptsPenalty(state, id); if (pen) tp[id] -= pen; }
   const drivers = Object.keys(dp).map((id) => ({ id, pts: dp[id], wins: dWins[id] || 0, best: dBest[id] || 99 }))
     .sort((a, b) => b.pts - a.pts || b.wins - a.wins || a.best - b.best);
   const teams = Object.keys(tp).map((id) => ({ id, pts: tp[id], wins: tWins[id] || 0 }))
@@ -373,7 +404,7 @@ export function applyRoundResults(state, results) {
   state.weekend = null;
   if (pt.money < 0) addMail(state, { from: 'Direttore Finanziario', type: 'bad', icon: 'money', subject: 'Conti in rosso!', body: 'Il nostro bilancio è negativo. Il consiglio è preoccupato: riduci le spese di sviluppo o trova nuovi sponsor.' });
   if (pt.money < 0) state.board.confidence = clamp(state.board.confidence - 4, 0, 100);
-  if (!state.quick) dynPostRound(state, results, track);
+  if (!state.quick) { try { depthPostRound(state, results, track); } catch (e) { console.warn('depth round', e); } dynPostRound(state, results, track); }
 }
 
 // Board ultimatum: when confidence collapses mid-season the board sets a short-term points target
@@ -503,8 +534,9 @@ export function releaseDriver(state, d, payout) {
 
 export function aiFillSeats(state, team) { aiSignings(state, team, !team.isPlayer); }
 
-export function hireStaff(state, staffId) {
+export function hireStaff(state, staffId, opts = {}) {
   const s = state.staff[staffId];
+  const poached = !!(s.teamId && s.teamId !== state.playerTeam) && !state.quick;
   const t = playerTeam(state);
   const fee = +(s.salary * 0.5).toFixed(2);
   if (t.money < fee) return { ok: false, msg: 'Fondi insufficienti.' };
@@ -517,9 +549,11 @@ export function hireStaff(state, staffId) {
     const repl = makeStaff(s.role, s.rating - rand(4, 12), other.id);
     state.staff[repl.id] = repl; other.staff[s.role] = repl.id;
   }
+  addFinance(state, `Ingaggio ${s.name}`, -fee);
+  // gardening leave: a man taken from a rival cannot start right away (nor can he take their secrets with him)
+  if (poached && !opts.immediate) { s.teamId = t.id; const leave = clamp(Math.round(state.calendar.length * 0.15), 2, 4); queueStaff(state, s, leave); return { ok: true, leave }; }
   const old = state.staff[t.staff[s.role]];
   if (old) old.teamId = null;
-  addFinance(state, `Ingaggio ${s.name}`, -fee);
   s.teamId = t.id; t.staff[s.role] = s.id;
   return { ok: true };
 }
@@ -535,6 +569,12 @@ export function seasonSummary(state) {
   return { st, teamPos, champ: champD, champTeam: state.teams[champD.teamId], myDriverPos, target: state.board.target, constructors: state.teams[st.teams[0].id] };
 }
 
+// Constructors' prize money. The Commission can vote a flatter or steeper distribution around the mid-table value
+export function prizeFor(state, pos) {
+  const C = cat(state); const n = Object.keys(state.teams).length;
+  const mid = C.prizeTop - ((n - 1) / 2) * C.prizeStep;
+  return +(Math.max(C.prizeStep * 0.5, mid + ((n - 1) / 2 - (pos - 1)) * C.prizeStep * (state.dp?.rules?.prizeMul ?? 1))).toFixed(1);
+}
 export function endSeason(state) {
   const C = cat(state);
   const sum = seasonSummary(state);
@@ -549,10 +589,12 @@ export function endSeason(state) {
       state.capPenalty = { season: state.season + 1, aeroMult: 0.85 };
       addMail(state, { from: 'Federazione Internazionale', icon: 'rules', type: 'bad', subject: 'Sforamento del budget cap', body: `Hai superato il budget cap di ${fmtM(over)}. Multa: ${fmtM(fine)} e riduzione del 15% delle ore di galleria del vento per la prossima stagione.` });
       state.board.confidence = clamp(state.board.confidence - 10, 0, 100);
+      const pen = capAudit(state, over, costCap(state));
+      if (pen) addMail(state, { from: 'Federazione Internazionale', icon: 'rules', type: 'bad', subject: `Violazione grave del budget cap: -${pen} punti`, body: `Lo sforamento supera il 5% del tetto: è una violazione grave. Oltre alla multa, la squadra partirà con ${pen} punti di penalità nel campionato costruttori ${state.season + 1}.` });
     }
   }
   // prize money
-  const prize = +(Math.max(1, C.prizeTop - (sum.teamPos - 1) * C.prizeStep)).toFixed(1);
+  const prize = prizeFor(state, sum.teamPos);
   addFinance(state, `Montepremi costruttori (${sum.teamPos}°)`, prize);
   // titles
   sum.champ.stats.titles++;
@@ -589,7 +631,7 @@ export function endSeason(state) {
   sum.awards = awards;
   state.champions ||= [];
   state.champions.push({ season: state.season, category: state.category, driver: sum.champ.name, dTeam: sum.champTeam.name, team: sum.constructors.name, mine: sum.champ.teamId === pt.id || sum.st.teams[0].id === pt.id, records: mostR });
-  if (!state.quick) dynEndSeason(state, sum);
+  if (!state.quick) { try { depthEndSeason(state, sum); } catch (e) { console.warn('depth season', e); } dynEndSeason(state, sum); }
   sum.fired = !!sum.fired || state.board.confidence < 15;
   gainXP(state, 200 + Math.max(0, diff) * 120 + (sum.st.teams[0].id === pt.id ? 900 : 0) + (sum.champ.teamId === pt.id ? 700 : 0), `Stagione ${state.season}`);
   state.lastSummary = { season: state.season, teamPos: sum.teamPos, target: sum.target, champ: sum.champ.name, champTeam: sum.champTeam.name, constructors: sum.constructors.name, prize, fired: sum.fired };
@@ -638,29 +680,22 @@ export function newSeason(state) {
     const retireAge = catId === 'endurance' ? 44 : catId === 'rally' ? 42 : 39;
     if (d.age >= retireAge && chance(0.25 + (d.age - retireAge) * 0.2) && !(d.teamId === state.playerTeam && d.contract > 1) && !d.nextTeam) {
       if (d.teamId) { const t = state.teams[d.teamId]; t.drivers = t.drivers.filter((x) => x !== d.id); if (t.number1 === d.id) t.number1 = null; }
+      if (!state.quick) recordRetirement(state, d);
       d.teamId = null; d.retired = true;
       addNews(state, `${d.name} annuncia il ritiro a ${d.age} anni. Leggenda.`);
     }
   }
+  try { juniorGraduation(state); } catch (e) { console.warn('depth graduation', e); }
   // contracts, pre-contract transfers, rookies and AI signings
   seasonMarket(state);
   // prune retired drivers with no team older than 3 seasons
   for (const [id, d] of Object.entries(state.drivers)) if (d.retired && !d.teamId && d.age > 48) delete state.drivers[id];
 
-  // cars: regression + regulation change
-  const reg = chance(0.3) ? pick(C.parts.filter((p) => p.id !== 'reliability')) : null;
+  // cars: winter regression, convergence and (every few seasons) a new regulation era — see depth.js
+  if (!state.quick) ensureDepth(state);
+  clearTrackMods(state);
+  const winter = winterCars(state);
   for (const t of Object.values(state.teams)) {
-    for (const p of C.parts) {
-      let v = t.car.parts[p.id];
-      // remove concept mods before regression
-      const cm = C.concepts.find((c) => c.id === t.car.concept)?.mods?.[p.id] || 0;
-      v -= cm;
-      v = v * 0.82 + 76 * 0.18 + rand(-1.5, 1.5);
-      if (reg && reg.id === p.id) v = v * 0.85 + 70 * 0.15 + rand(-4, 4);
-      t.car.parts[p.id] = clamp(+v.toFixed(1), 35, 97);
-    }
-    if (t.nextYear) { for (const [k, v] of Object.entries(t.nextYear)) if (t.car.parts[k] != null) t.car.parts[k] = clamp(+(t.car.parts[k] + v).toFixed(1), 35, 99); t.nextYear = null; }
-    else if (!t.isPlayer) { for (const p of C.parts) t.car.parts[p.id] = clamp(+(t.car.parts[p.id] + rand(0, 2.2) * (t.baseBudget / 120)).toFixed(1), 35, 99); }
     t.car.concept = 'balanced';
     t.projects = [];
     // AI picks a concept
@@ -670,7 +705,6 @@ export function newSeason(state) {
     }
     t.sponsors = t.sponsors.map((s) => ({ ...s, seasonsLeft: s.seasonsLeft - 1 })).filter((s) => s.seasonsLeft > 0);
   }
-  if (reg) addMail(state, { from: 'Federazione Internazionale', icon: 'rules', type: 'info', subject: `Nuovo regolamento: ${reg.name}`, body: `La Federazione ha introdotto modifiche sostanziali al regolamento su: ${reg.name}. Tutti i team perdono parte del vantaggio accumulato: è il momento di recuperare!` });
   const pt = playerTeam(state);
   for (const s of pt.sponsors) if (s.seasonsLeft === 1) addMail(state, { from: 'Area Commerciale', icon: 'money', type: 'info', subject: `Ultima stagione con ${s.name}`, body: `Il contratto con ${s.name} scade a fine anno.` });
   state.sponsorOffers = makeSponsorOffers(pt.rep, catId, 5, statusIdx(state));
@@ -689,7 +723,7 @@ export function newSeason(state) {
   if (state.board.confidence < 30) state.board.confidence = 30;
   state.seasonStartRank = ranking.indexOf(pt.id) + 1;
   state.objectives = makeObjectives(state);
-  if (!state.quick) dynNewSeason(state);
+  if (!state.quick) { try { depthNewSeason(state, winter); } catch (e) { console.warn('depth new season', e); } dynNewSeason(state); }
   addMail(state, { from: 'Consiglio di Amministrazione', icon: 'board', type: 'info', subject: `Obiettivi stagione ${state.season}`, body: `Benvenuto nella stagione ${state.season}. Il consiglio si aspetta almeno il ${state.board.target}° posto nel campionato costruttori. Progetta la nuova vettura nel Centro Tecnico prima del primo evento.` });
 }
 
@@ -705,8 +739,9 @@ export function applyConcept(state, team, conceptId) {
 }
 
 export function changeEngine(state, team, supId) {
-  const old = ENGINE_SUPPLIERS.find((e) => e.id === team.engine);
-  const nw = ENGINE_SUPPLIERS.find((e) => e.id === supId);
+  const live = (e) => (e && state.dp?.sup?.[e.id] ? { ...e, ...state.dp.sup[e.id] } : e);
+  const old = live(ENGINE_SUPPLIERS.find((e) => e.id === team.engine));
+  const nw = live(ENGINE_SUPPLIERS.find((e) => e.id === supId));
   if (!nw || team.works) return;
   team.car.parts.engine = clamp(+(team.car.parts.engine + nw.power - old.power).toFixed(1), 30, 99.5);
   team.car.parts.reliability = clamp(+(team.car.parts.reliability + (nw.rel - old.rel) * 0.5).toFixed(1), 30, 99.5);

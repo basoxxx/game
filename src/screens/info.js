@@ -251,6 +251,7 @@ function legacyPanel(st) {
 }
 
 // ---------------- HALL OF FAME ----------------
+import { hallOfFame, allTimeRecords } from '../engine/depth.js';
 registerScreen({
   id: 'halloffame',
   render() {
@@ -263,9 +264,20 @@ registerScreen({
       <div class="panel"><div class="panel-head"><h3>Campioni</h3></div>${champs.length ? `<table class="tbl"><thead><tr><th>Stagione</th><th>Piloti</th><th>Costruttori</th></tr></thead><tbody>${champs.map((c) => `<tr class="${c.mine ? 'me' : ''}"><td><b>${c.season}</b> <span class="tiny muted">${CATEGORIES[c.category].name}</span></td><td>${icon('trophy', 'ico', 'style="width:14px;color:var(--gold);vertical-align:-2px"')} ${esc(c.driver)} <span class="tiny muted">${esc(c.dTeam)}</span></td><td>${esc(c.team)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">${icon('trophy')}<b>Nessun campione, per ora</b><span>Completa una stagione per scrivere la storia.</span></div>`}</div>
       <div class="panel"><div class="panel-head"><h3>Leggende in attività</h3></div><table class="tbl small"><thead><tr><th>Pilota</th><th class="right">Titoli</th><th class="right">Vittorie</th><th class="right">Podi</th><th class="right">Pole</th><th class="right">GP</th></tr></thead><tbody>${legends.map((d) => `<tr class="${d.teamId === st.playerTeam ? 'me' : ''}"><td>${driverChip(st, d, { size: 22 })}</td><td class="right mono"><b>${d.stats.titles}</b></td><td class="right mono">${d.stats.wins}</td><td class="right mono">${d.stats.podiums}</td><td class="right mono">${d.stats.poles}</td><td class="right mono">${d.stats.starts}</td></tr>`).join('')}</tbody></table></div>
     </div>
+    ${recordsPanel(st)}
     ${st.category !== 'rally' ? `<div class="panel mt16"><div class="panel-head"><h3>Record della pista (giro più veloce in gara)</h3></div>${recs.length ? `<table class="tbl"><thead><tr><th>Circuito</th><th class="right">Tempo</th><th>Pilota</th><th>Team</th><th class="right">Anno</th></tr></thead><tbody>${recs.map((r) => `<tr><td>${esc(r.track)}</td><td class="right mono"><b>${fmtLapT(r.time)}</b></td><td>${esc(r.driver || '')}</td><td class="small muted">${esc(r.team || '')}</td><td class="right">${r.season}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">${icon('speed')}<b>Nessun record</b><span>Corri qualche gara per stabilire i primi giri veloci.</span></div>`}</div>` : ''}`;
   },
 });
+function recordsPanel(st) {
+  if (st.quick) return '';
+  const R = allTimeRecords(st); const hof = hallOfFame(st);
+  const col = (title, rows, k) => `<div><div class="tiny upper muted mb8">${title}</div>${rows.length ? rows.map((r, i) => `<div class="row between small" style="padding:5px 0;border-bottom:1px solid var(--line)"><span>${i + 1}. ${esc(r.name)}${r.active ? '' : ' <span class="tiny muted">(rit.)</span>'}</span><b class="mono">${r[k]}</b></div>`).join('') : '<div class="small muted">—</div>'}</div>`;
+  return `<div class="panel mt16"><div class="panel-head"><h3>Record di tutti i tempi</h3><span class="small muted">Piloti in attività e ritirati, dall’inizio della carriera</span></div>
+      <div class="grid4">${col('Titoli', R.titles, 'titles')}${col('Vittorie', R.wins, 'wins')}${col('Podi', R.podiums, 'podiums')}${col('Pole', R.poles, 'poles')}</div>
+      ${R.teams.length ? `<div class="tiny upper muted mt16 mb8">Squadre più vincenti</div><div class="row wrap gap6">${R.teams.slice(0, 8).map((t) => `<span class="chip ${t.id === st.playerTeam ? 'good' : ''}">${esc(t.name)} · ${t.titles} ${t.titles === 1 ? 'titolo' : 'titoli'} · ${t.wins} vittorie</span>`).join('')}</div>` : ''}
+    </div>
+    <div class="panel mt16"><div class="panel-head"><h3>Hall of Fame</h3><span class="small muted">I grandi che hanno appeso il casco al chiodo</span></div>${hof.length ? `<table class="tbl small"><thead><tr><th>Pilota</th><th>Ultima squadra</th><th class="right">Ritiro</th><th class="right">Titoli</th><th class="right">Vittorie</th><th class="right">Podi</th><th class="right">Pole</th><th class="right">GP</th></tr></thead><tbody>${hof.map((h) => `<tr><td><b>${esc(h.name)}</b> <span class="tiny muted">${esc(h.nat || '')}</span></td><td class="muted">${esc(h.team || '—')}</td><td class="right">${h.season} <span class="tiny muted">(${h.age} anni)</span></td><td class="right mono"><b>${h.titles}</b></td><td class="right mono">${h.wins}</td><td class="right mono">${h.podiums}</td><td class="right mono">${h.poles}</td><td class="right mono">${h.starts}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">${icon('trophy')}<b>Ancora nessuno</b><span>I campioni e i plurivincitori entrano qui il giorno del ritiro.</span></div>`}</div>`;
+}
 function fmtLapT(t) { const m = Math.floor(t / 60); return `${m}:${(t - m * 60).toFixed(3).padStart(6, '0')}`; }
 
 // Impostazioni live in their own module

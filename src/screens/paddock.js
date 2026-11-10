@@ -7,6 +7,8 @@ import { S } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { cat, playerTeam, standings, fmtM } from '../engine/season.js';
 import { ensureDynasty, pressIssues, TP_PERSONAS, STATUS, MANDATES, statusInfo, relLabel, relColor, principal, strengthRanking, statusIdx } from '../engine/dynasty.js';
+import { ensureDepth, eraInfo, rulesInForce, voteHistory, worldEvents, rumourList, rumourStat, aiTrend, setPolicy } from '../engine/depth.js';
+import { avgPart } from '../engine/world.js';
 import { pressArt, portraitSVG, principalCard, relMeter, statusEmblem, statusLadder, teamCol, boardTable } from './career-ui.js';
 
 let tab = 'paper', issueKey = null;
@@ -17,15 +19,58 @@ registerScreen({
     const st = S();
     ensureDynasty(st);
     if (params?.tab) { tab = params.tab; params.tab = null; }
-    const tabs = [['paper', 'Il Giornale'], ['tp', 'Team Principal'], ['board', 'Consiglio & Dinastia']];
+    const tabs = [['paper', 'Il Giornale'], ['tp', 'Team Principal'], ['world', 'Commissione'], ['board', 'Consiglio & Dinastia']];
     return `<div class="screen-title"><div><div class="sub">${esc(cat(st).full)} · Stagione ${st.season}</div><h1>Paddock</h1></div><div class="tabs">${tabs.map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="ptab" data-t="${k}">${n}</div>`).join('')}</div></div>
-    <div class="anim-in">${tab === 'paper' ? paperTab(st) : tab === 'tp' ? tpTab(st) : boardTab(st)}</div>`;
+    <div class="anim-in">${tab === 'paper' ? paperTab(st) : tab === 'tp' ? tpTab(st) : tab === 'world' ? worldTab(st) : boardTab(st)}</div>`;
   },
   actions: {
     ptab(el) { tab = el.dataset.t; App.refresh(); },
     issue(el) { issueKey = el.dataset.k; App.refresh(); },
+    wpol(el) { const st = S(); setPolicy(st, el.dataset.k, !st.dp.pol[el.dataset.k]); App.refresh(); },
   },
 });
+
+// ---------------- COMMISSION & WORLD ----------------
+function worldTab(st) {
+  const P = ensureDepth(st); const e = eraInfo(st); const pt = playerTeam(st);
+  const n = st.calendar.length;
+  const nextVote = [Math.floor(n * 0.3), Math.floor(n * 0.7)].find((r) => r > st.round && r < n - 1);
+  const votes = voteHistory(st);
+  const teams = Object.values(st.teams).sort((a, b) => avgPart(b) - avgPart(a));
+  const s = standings(st).teams.map((x) => x.id);
+  const rum = rumourList(st).slice(0, 12); const rs = rumourStat(st);
+  const w = worldEvents(st);
+  const allies = teams.filter((t) => !t.isPlayer && (principal(st, t.id)?.rel || 0) >= 15).length;
+  const foes = teams.filter((t) => !t.isPlayer && (principal(st, t.id)?.rel || 0) <= -15).length;
+  return `<div class="grid2">
+    <div class="col gap16">
+      <div class="panel"><div class="panel-head"><h3>${icon('rules', 'ico', 'style="width:16px"')} La Commissione</h3><span class="chip">${nextVote != null ? `Prossimo voto dopo il round ${nextVote}` : 'Nessun voto in programma quest’anno'}</span></div>
+        <div class="small muted" style="line-height:1.55">Due volte a stagione le squadre votano una proposta di modifica alle regole. Ogni team vota secondo il proprio interesse: i piccoli vogliono tetti di spesa e premi più equi, chi insegue vuole rimescolare le carte, chi vince vuole stabilità. Con la lobby puoi chiedere un favore ai team principal in buoni rapporti.</div>
+        <div class="row gap8 mt16"><div class="kpi"><b class="good">${allies}</b><span>Alleati e cordiali</span></div><div class="kpi"><b class="bad">${foes}</b><span>Ostili e nemici</span></div><div class="kpi"><b>${e.next}</b><span>Nuovo regolamento</span></div></div>
+        <div class="tiny upper muted mt16 mb8">Regole in vigore</div>
+        ${rulesInForce(st).map((r) => `<div class="vote-row"><span class="muted">${r.k}</span><b class="${r.mod ? 'info' : ''}">${esc(r.v)}</b></div>`).join('')}
+        <div class="vote-row"><div><b class="small">Delega il voto</b><div class="tiny muted">Il delegato vota secondo l’interesse della squadra, senza lobby: nessuna finestra di decisione.</div></div><button class="btn sm ${P.pol.autoVote ? 'active' : ''}" data-a="wpol" data-k="autoVote">${P.pol.autoVote ? 'Attiva' : 'Disattiva'}</button></div>
+        <div class="tiny upper muted mt16 mb8">Ultime votazioni</div>
+        ${votes.length ? votes.slice(0, 6).map((v) => `<div class="vote-row"><div><b class="small">${esc(v.title)}</b><div class="tiny muted">${v.season} · abbiamo votato ${v.my === 'yes' ? 'sì' : 'no'}${v.lobby ? ` con lobby (${v.swung} voti spostati)` : ''}</div></div><span class="chip ${v.pass === (v.my === 'yes') ? 'good' : 'bad'}">${v.pass ? 'Approvata' : 'Bocciata'} ${v.yes}-${v.total - v.yes}</span></div>`).join('') : '<div class="small muted">Nessuna votazione finora.</div>'}
+      </div>
+      <div class="panel"><div class="panel-head"><h3>Voci di mercato</h3><span class="chip" data-tip="Quante voci dell’anno prima si sono rivelate vere">${rs.tot ? `Attendibilità storica ${Math.round((rs.ok / rs.tot) * 100)}%` : 'Attendibilità: da verificare'}</span></div>
+        ${rum.length ? rum.map((r) => `<div class="world-item"><span class="yr">${r.s}</span><span class="grow">${esc(r.name)} <span class="muted">(${esc(r.from)})</span> → <b>${esc(r.toName)}</b></span>${r.ok == null ? '<span class="chip tiny">In attesa</span>' : r.ok ? '<span class="chip tiny good">Confermata</span>' : '<span class="chip tiny bad">Bufala</span>'}</div>`).join('') : '<div class="small muted">Il mercato dorme: le voci iniziano a girare da metà stagione.</div>'}
+        <div class="tiny muted mt8">Alcune voci nascono da trattative vere, altre sono fumo. A inizio stagione scopri quali erano fondate.</div>
+      </div>
+    </div>
+    <div class="col gap16">
+      <div class="panel flush"><div class="panel-head" style="padding:14px 16px 0"><h3>Stato delle squadre</h3><span class="small muted">Valore vettura, classifica e tendenza</span></div>
+        <table class="tbl small"><thead><tr><th>Team</th><th class="right">Vettura</th><th class="right">Class.</th><th class="right">Budget</th><th>Tendenza</th></tr></thead><tbody>
+        ${teams.map((t) => { const tr = aiTrend(st, t.id); return `<tr class="${t.id === pt.id ? 'me' : ''}"><td><div class="row">${teamBadge(t, 22)}<div><b>${esc(t.name)}</b>${t.formerNames?.length ? `<div class="tiny muted">ex ${esc(t.formerNames[t.formerNames.length - 1].name)}</div>` : ''}</div></div></td><td class="right mono">${avgPart(t).toFixed(1)}</td><td class="right mono">${s.indexOf(t.id) + 1}°</td><td class="right mono">${fmtM(t.baseBudget)}</td><td class="tiny ${t.isPlayer ? 'muted' : tr.cls}">${t.isPlayer ? '—' : `${tr.arrow} ${tr.label}`}</td></tr>`; }).join('')}
+        </tbody></table>
+        <div class="tiny muted" style="padding:10px 16px 14px">La tendenza riassume slancio tecnico, budget e stabilità della dirigenza: una squadra in ascesa sviluppa più in fretta, una in crisi cambia direttore tecnico o team principal, e a volte proprietà.</div>
+      </div>
+      <div class="panel"><div class="panel-head"><h3>Cronache del paddock</h3><span class="small muted">Cambi di proprietà, esoneri, scandali</span></div>
+        ${w.length ? w.slice(0, 12).map((x) => `<div class="world-item"><span class="yr">${x.s}</span><span>${esc(x.text)}</span></div>`).join('') : '<div class="small muted">Nessun terremoto, per ora. Le novità arrivano soprattutto d’inverno.</div>'}
+      </div>
+    </div>
+  </div>`;
+}
 
 // ---------------- NEWSPAPER ----------------
 function paperTab(st) {

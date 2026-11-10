@@ -40,6 +40,9 @@ export function driverDemands(state, d, team) {
   const ov = driverOverall(d, C);
   const form = clamp((d.morale - 60) / 400, -0.06, 0.08);
   let ask = salaryFor(d, C) * (d.teamId && d.teamId !== team.id ? 1.15 : 1) * (1 + form) * (P === PERSONAS.mercenario ? 1.12 : 1) * (hasPerk(state, 'negotiator') ? 0.9 : 1);
+  // the price of success: everybody knows a title-winning team can pay
+  const titles = team.isPlayer ? (state.career?.trophies || []).filter((x) => x.type === 'Costruttori' && x.category === C && x.season >= state.season - 3).length : 0;
+  if (titles) ask *= 1 + Math.min(0.18, titles * 0.06);
   const mates = teammateOf(state, d, team);
   const bestMate = Math.max(0, ...mates.map((m) => driverOverall(m, C)));
   const wantsNo1 = (P === PERSONAS.ambizioso || ov >= 88) && ov >= bestMate - 1 && ov >= 80;
@@ -49,6 +52,8 @@ export function driverDemands(state, d, team) {
   if (prefYears === 1) notes.push('Preferisce un contratto breve');
   if (prefYears === 3) notes.push('Cerca stabilità: contratto lungo gradito');
   if (P === PERSONAS.ambizioso && carScore(state, team) < 0.45) notes.push('Dubita della competitività della vettura');
+  if (titles) notes.push(`Squadra campione: l’agente chiede il ${Math.round(Math.min(0.18, titles * 0.06) * 100)}% in più`);
+  if (d.backing > 0) notes.push(`Porta sponsor personali per ${H.fmtM(d.backing)} a stagione`);
   if (d.teamId === team.id && d.morale < 40) notes.push('Il rapporto con la squadra è logoro');
   return { ask: +ask.toFixed(2), persona: P, personaId: d.persona, agent: d.agent, wantsNo1, prefYears, notes, rival: d.rivalOffer && d.rivalOffer.teamId !== team.id ? d.rivalOffer : null };
 }
@@ -332,7 +337,7 @@ export function aiSignings(state, team, news = false) {
     const pool = H.freeAgents(state).filter((d) => !d.nextTeam);
     if (!pool.length) { const r = generateRookie(C); r.salary = salaryFor(r, C); state.drivers[r.id] = r; pool.push(r); }
     const youth = 0.25 + (1 - team.rep / 100) * 0.4; // smaller teams gamble more on youth
-    const value = (d) => ov(d) + (d.age <= 23 ? (d.pot - ov(d)) * youth : 0) - (d.age >= 35 ? (d.age - 34) * 1.5 : 0) + rand(0, 3) - (salaryFor(d, C) > team.baseBudget * 0.25 ? 6 : 0);
+    const value = (d) => ov(d) + (d.age <= 23 ? (d.pot - ov(d)) * youth : 0) - (d.age >= 35 ? (d.age - 34) * 1.5 : 0) + rand(0, 3) - (salaryFor(d, C) > team.baseBudget * 0.25 ? 6 : 0) + (d.backing > 0 ? (1 - team.rep / 100) * 5 : 0);
     const ranked = pool.sort((a, b) => value(b) - value(a));
     let chosen = null;
     for (let i = 0; i < Math.min(ranked.length, 6); i++) {
