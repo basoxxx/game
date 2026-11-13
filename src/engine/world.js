@@ -4,6 +4,8 @@ import { NAME_POOLS, NATS } from '../data/names.js';
 import { TRACKS, SEASON_LENGTH, SPONSORS, STAGE_NAMES } from '../data/tracks.js';
 import { rand, randInt, pick, clamp, shuffle, uid, gauss, mulberry32 } from './rng.js';
 import { staffTraitFor, strengthRanking } from './dynasty.js';
+import { getTrack } from './basics.js';
+export { getTrack }; // lives in basics.js so the shell can use it without the engine
 
 const HELMET_COLORS = ['#ff2d2d', '#ffd400', '#00d2be', '#1e90ff', '#ff8000', '#ffffff', '#111111', '#9b30ff', '#00c853', '#ff4fa3', '#c0c0c0', '#0a2a66', '#ffb400', '#00e5ff'];
 export function randomHelmet() {
@@ -98,10 +100,6 @@ export function makeSponsorOffers(rep, cat, n = 4, status = null) {
   return out;
 }
 
-function trackLap(t) {
-  const r = mulberry32(t.seed)();
-  return 76 + r * 26;
-}
 
 export function buildCalendar(cat, length) {
   const n = SEASON_LENGTH[cat][length] ?? SEASON_LENGTH[cat].normal;
@@ -128,10 +126,6 @@ export function buildCalendar(cat, length) {
   });
 }
 
-export function getTrack(cat, id) {
-  const t = TRACKS[cat].find((x) => x.id === id);
-  return t ? { ...t, lap: t.lap || trackLap(t) } : null;
-}
 
 function teamFromData(td, cat, diff, isPlayer) {
   const C = CATEGORIES[cat];

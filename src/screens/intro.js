@@ -9,8 +9,8 @@ import { TRACKS } from '../data/tracks.js';
 import { listSaves } from '../engine/state.js';
 import { sfx } from '../ui/audio.js';
 
-const FLAG = 'apexdynasty_intro';
-export function introSeen() { try { return !!localStorage.getItem(FLAG); } catch { return true; } }
+import { INTRO_FLAG as FLAG, introSeen } from './intro-flag.js';
+export { introSeen };
 // Shown at every launch for real players; automated browsers (tests) go straight to the menu
 export function shouldShowIntro() {
   const q = new URLSearchParams(location.search);
