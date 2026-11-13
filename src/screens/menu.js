@@ -12,7 +12,6 @@ import { ensureQuality } from '../ui/quality.js';
 import { TEAMS } from '../data/teams.js';
 import { loadWithBackup, restoreBackup, hasBackup } from '../ui/savesafe.js';
 let garage = null, showcase = null, menuGen = 0;
-import { migrateSave } from '../engine/migrate.js';
 
 // Main menu entries, in order. Other modes: append one object (rendered generically).
 //   to: screen id (data-a="nav") · a: action name · icon · label · desc (string or fn(ctx))
@@ -139,8 +138,9 @@ registerScreen({
   actions: {
     'continue-last'() {
       const s = listSaves().filter((x) => !x.empty).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0];
-      if (s && loadWithBackup(s.slot)) { sfx.ok(); App.go('hub'); }
-      else App.toast('Caricamento non riuscito', 'Il file di salvataggio è illeggibile. Se esiste un backup puoi ripristinarlo dal menu Carica.', 'bad');
+      const fail = () => App.toast('Caricamento non riuscito', 'Il file di salvataggio è illeggibile. Se esiste un backup puoi ripristinarlo dal menu Carica.', 'bad');
+      if (!s) { fail(); return; }
+      loadWithBackup(s.slot).then((ok) => { if (ok) { sfx.ok(); App.go('hub'); } else fail(); }, (e) => { console.warn('load', e); fail(); });
     },
     load() { openLoad(); },
     quit() { window.apex?.quit?.(); },
@@ -201,7 +201,10 @@ export function openLoad(saveMode = false) {
     <div class="row mt16 between"><div class="row"><label class="btn sm ghost">${icon('upload')} Importa file<input type="file" accept=".json,application/json" data-change="import" hidden></label></div><button class="btn ghost" data-a="close-modal">Chiudi</button></div>`;
   };
   const actions = {
-    'load-slot'(el) { if (loadWithBackup(+el.dataset.slot)) { App.closeModal(); sfx.ok(); App.go('hub'); } else App.toast('Caricamento non riuscito', 'Il file di salvataggio è illeggibile. Se esiste un backup puoi ripristinarlo.', 'bad'); },
+    'load-slot'(el) {
+      const fail = () => App.toast('Caricamento non riuscito', 'Il file di salvataggio è illeggibile. Se esiste un backup puoi ripristinarlo.', 'bad');
+      loadWithBackup(+el.dataset.slot).then((ok) => { if (ok) { App.closeModal(); sfx.ok(); App.go('hub'); } else fail(); }, (e) => { console.warn('load', e); fail(); });
+    },
     'restore-slot'(el) { const n = +el.dataset.slot; App.confirm('Ripristinare il backup?', `Lo slot ${n} tornerà alla copia salvata prima dell’ultimo aggiornamento del gioco.`, () => { if (restoreBackup(n)) { App.toast('Backup ripristinato', `Slot ${n}`, 'good'); openLoad(saveMode); } }, 'Ripristina'); },
     'save-slot'(el) { saveGame(+el.dataset.slot); App.toast('Partita salvata', `Slot ${el.dataset.slot}`, 'good'); App.closeModal(); },
     'del-slot'(el) {
@@ -211,7 +214,8 @@ export function openLoad(saveMode = false) {
     },
     import(el) {
       const f = el.files?.[0]; if (!f) return;
-      f.text().then((t) => { try { const s = migrateSave(importSave(t)); s.slot = s.slot || 1; saveGame(s.slot); App.closeModal(); App.go('hub'); } catch (e) { App.toast('Import fallito', e.message, 'bad'); } });
+      // the migration needs the engine (code-split): fetch it along with the file text
+      Promise.all([f.text(), import('../engine/migrate.js')]).then(([t, { migrateSave }]) => { try { const s = migrateSave(importSave(t)); s.slot = s.slot || 1; saveGame(s.slot); App.closeModal(); App.go('hub'); } catch (e) { App.toast('Import fallito', e.message, 'bad'); } }, (e) => App.toast('Import fallito', e.message, 'bad'));
     },
   };
   App.modal(render(), actions);

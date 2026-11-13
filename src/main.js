@@ -1,7 +1,7 @@
 import './styles/main.css';
 import { App, lazyScreens, preloadScreens } from './app.js';
-// first paint needs only the shell + the main menu (and the intro on a first launch)
-import './screens/menu.js';
+// first paint needs only the shell + the Sala Giochi launcher; the Apex menu, the title screen and the
+// game engine are code-split (the menu chunk is warmed first, on idle)
 import { launchTarget } from './screens/launcher.js';
 import * as Audio from './ui/audio.js';
 import { S, saveGame } from './engine/state.js';
@@ -15,6 +15,8 @@ const audioDebug = Audio.audioDebug;
 // registered eagerly makes the router load every group before giving up.
 const career = () => Promise.all([import('./screens/hub.js'), import('./screens/info.js'), import('./screens/car.js'), import('./screens/team.js'), import('./screens/results.js'), import('./screens/seasonend.js')]);
 lazyScreens({
+  menu: () => import('./screens/menu.js'),
+  intro: () => import('./screens/intro.js'),
   newgame: () => import('./screens/newgame.js'),
   settings: () => import('./screens/settings.js'),
   howto: () => import('./screens/howto.js'),
@@ -37,9 +39,9 @@ window.__apex = { App, S, audio: audioDebug, sound: Audio, perf: { boot: perform
 // Idle warm-up: quality probe (first run only), then the screen chunks in the order a player meets them
 const idle = (fn, t = 1200) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: t }) : setTimeout(fn, 200));
 idle(() => {
-  ensureQuality().then(() => {
+  preloadScreens(['menu']).catch((e) => console.warn('preload', e)).then(() => ensureQuality()).then(() => {
     window.__apex.perf.quality = performance.now();
-    preloadScreens(['newgame', 'hub', 'settings', 'howto', 'quickrace', 'challenges', 'weekend', 'rally'])
+    preloadScreens(['intro', 'newgame', 'hub', 'settings', 'howto', 'quickrace', 'challenges', 'weekend', 'rally'])
       .then(() => { window.__apex.perf.preloaded = performance.now(); if (gfxTier() !== 'low') loadStage().catch(() => {}); })
       .then(() => import('./devtools.js')).then((m) => m.install(window.__apex)).catch((e) => console.warn('preload', e));
   });

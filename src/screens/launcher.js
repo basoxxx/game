@@ -6,7 +6,7 @@ import { icon } from '../ui/icons.js';
 import { esc } from '../ui/dom.js';
 import { sfx } from '../ui/audio.js';
 import { listSaves } from '../engine/state.js';
-import { introSeen } from './intro.js';
+import { introSeen } from './intro-flag.js';
 import { vgLoad, vgBestOverall } from '../voragine/store.js';
 import '../styles/launcher.css';
 

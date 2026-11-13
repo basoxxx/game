@@ -5,8 +5,7 @@ import { sfx, music, setAudioScene, AUDIO_BUSES, applyVolumes } from './ui/audio
 import { S, saveGame, getSettings, setSettings } from './engine/state.js';
 import { initGamepad, moveFocus, rumble } from './ui/gamepad.js';
 import { maybeTour } from './ui/tour.js';
-import { fmtM, playerTeam, cat } from './engine/season.js';
-import { trackArt } from './ui/trackart.js';
+import { fmtM, playerTeam, cat, getTrack } from './engine/basics.js';
 import { disposeStage, freezeStage } from './ui/stage3d.js';
 import { installSaveGuard, rescueSnapshot } from './ui/savesafe.js';
 import { openPalette } from './ui/palette.js';
@@ -22,8 +21,13 @@ const loaders = {};
 export function lazyScreens(map) { Object.assign(loaders, map); }
 const loadAll = () => Promise.all([...new Set(Object.values(loaders))].map((f) => f()));
 export function loadScreen(id) { return screens[id] ? Promise.resolve() : (loaders[id] || loadAll)(); }
+// Circuit drawings for the career shell (topbar mini-map, loading screen art). They bring the circuit
+// data and geometry, so they stay off the first paint and arrive before the first non-full screen draws.
+let trackMods = null, trackModsP = null;
+const loadTrackMods = () => (trackModsP ||= Promise.all([import('./ui/trackview.js'), import('./ui/trackart.js')])
+  .then(([tv, ta]) => { trackMods = { circuitPath: tv.circuitPath, trackArt: ta.trackArt }; }, (e) => { console.warn('track art', e); trackMods = {}; }));
 // warm the chunks one after the other so they never fight the player for the main thread
-export function preloadScreens(ids) { return ids.reduce((p, id) => p.then(() => (screens[id] ? null : loaders[id]?.())), Promise.resolve()); }
+export function preloadScreens(ids) { return ids.reduce((p, id) => p.then(() => (screens[id] ? null : loaders[id]?.())), Promise.resolve()).then(loadTrackMods); }
 
 // Sidebar: flat order = number shortcuts (1…0), groups only add headings.
 export const NAV_GROUPS = [
@@ -198,6 +202,12 @@ export const App = {
       }, (e) => { end(); this._want = null; this.crash(e); });
       return;
     }
+    // management screens draw the shell (topbar track map): make sure its drawing code is here first
+    if (!screens[id].full && !trackMods) {
+      this._want = id;
+      loadTrackMods().then(() => { if (this._want === id) this.go(id, params); });
+      return;
+    }
     this._want = null;
     const prev = screens[this.cur];
     // history for Indietro (Backspace / Alt+←): management screens only
@@ -301,7 +311,7 @@ export const App = {
       <button class="crumb-search" data-a="palette" aria-label="Cerca e vai a… (Ctrl+K)">${icon('compass')}<span>Vai a…</span><span class="kbd">Ctrl</span><span class="kbd">K</span></button>
     </nav>`;
     let mini = '';
-    if (tr && st.category !== 'rally') { try { mini = trackSVG(circuitPath(tr.cid), { w: 120, h: 80, glow: null, color: '#fff', width: 4, start: false }); } catch {} }
+    if (tr && st.category !== 'rally') { try { mini = trackSVG(trackMods.circuitPath(tr.cid), { w: 120, h: 80, glow: null, color: '#fff', width: 4, start: false }); } catch {} }
     return `<div class="shell">
       <div class="topbar">
         <div class="tb-livery"></div>
@@ -460,8 +470,6 @@ export const App = {
   },
 };
 
-import { getTrack } from './engine/world.js';
-import { circuitPath } from './ui/trackview.js';
 export function trackName(st, ev) { return getTrack(st.category, ev.trackId)?.name || ev.trackId; }
 
 const globalActions = {
@@ -481,7 +489,7 @@ const globalActions = {
     if (document.querySelector('.load-screen')) return; // already on its way
     if (!tr || App.cur === to) { App.go(to); return; }
     let art = '';
-    try { art = trackArt(st.category, tr, { w: 760, h: 520, accent: teamColor(playerTeam(st).car.livery), legend: false }); } catch {}
+    try { art = trackMods.trackArt(st.category, tr, { w: 760, h: 520, accent: teamColor(playerTeam(st).car.livery), legend: false }); } catch {}
     App.loading({ eyebrow: `Round ${st.round + 1} / ${st.calendar.length} · ${st.weekend ? 'Si torna in pista' : 'Weekend di gara'}`, title: `${flagSVG(tr.nat, 54, 36)}<span>${esc(tr.name)}</span>`, sub: tr.circuit || (ev.stages ? `${ev.stages.length} prove speciali` : ''), art, tip: LOAD_TIPS[(st.round * 7 + st.season) % LOAD_TIPS.length] }, () => App.go(to));
   },
 };
