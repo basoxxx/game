@@ -27,6 +27,7 @@ export const MENU_ITEMS = [
   { to: 'mode-daily', icon: 'calendar', label: 'Sfida del giorno', desc: 'Ogni giorno una sfida nuova, uguale per tutti: un tentativo ufficiale, serie e risultato da condividere.' },
   { to: 'mode-tp', icon: 'hourglass', label: 'Team Principal a tempo', desc: 'Mini-stagione di 3 gare con un budget fisso di gettoni sviluppo.' },
   { sep: true },
+  { to: 'launcher', icon: 'gamepad', label: 'Sala Giochi', desc: 'Torna alla sala: Apex Dynasty, Scontro Totale e Voragine.', sm: true },
   { a: 'load', icon: 'save', label: 'Carica Partita', desc: 'Apri uno degli slot di salvataggio o importa un file.', sm: true, disabled: (c) => !c.hasSave },
   { to: 'settings', back: 'menu', icon: 'settings', label: 'Impostazioni', desc: 'Audio, qualità grafica, filtri, testo e accessibilità.', sm: true },
   { to: 'howto', back: 'menu', icon: 'book', label: 'Come si gioca', desc: 'Guida illustrata: la settimana tipo, il weekend, le decisioni in gara, i comandi.', sm: true },

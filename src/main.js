@@ -2,7 +2,7 @@ import './styles/main.css';
 import { App, lazyScreens, preloadScreens } from './app.js';
 // first paint needs only the shell + the main menu (and the intro on a first launch)
 import './screens/menu.js';
-import { shouldShowIntro } from './screens/intro.js';
+import { launchTarget } from './screens/launcher.js';
 import * as Audio from './ui/audio.js';
 import { S, saveGame } from './engine/state.js';
 import { ensureQuality } from './ui/quality.js';
@@ -22,13 +22,15 @@ lazyScreens({
   challenges: () => import('./screens/challenges.js'),
   ...Object.fromEntries(['mode-champ', 'mode-champ-new', 'mode-tp', 'mode-daily', 'mode-debrief'].map((id) => [id, () => import('./screens/challenges.js')])),
   derby: () => import('./screens/derby.js'),
+  voragine: () => import('./screens/voragine.js'),
   weekend: () => import('./screens/weekend.js'),
   rally: () => import('./screens/rallyweekend.js'),
   ...Object.fromEntries(['hub', 'inbox', 'standings', 'calendar', 'career', 'halloffame', 'car', 'drivers', 'market', 'staff', 'finance', 'paddock', 'results', 'seasonend'].map((id) => [id, career])),
 });
 
 App.init();
-App.go(shouldShowIntro() ? 'intro' : 'menu');
+// the Sala Giochi comes first; ?game=… opens a game directly, ?intro forces the Apex title screen
+App.go(launchTarget() || (new URLSearchParams(location.search).has('intro') ? 'intro' : 'launcher'));
 window.addEventListener('beforeunload', () => { if (S()) saveGame(); });
 window.__apex = { App, S, audio: audioDebug, sound: Audio, perf: { boot: performance.now() } };
 
