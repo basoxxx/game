@@ -140,6 +140,7 @@ registerScreen({
     'continue-last'() {
       const s = listSaves().filter((x) => !x.empty).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0];
       if (s && loadWithBackup(s.slot)) { sfx.ok(); App.go('hub'); }
+      else App.toast('Caricamento non riuscito', 'Il file di salvataggio è illeggibile. Se esiste un backup puoi ripristinarlo dal menu Carica.', 'bad');
     },
     load() { openLoad(); },
     quit() { window.apex?.quit?.(); },

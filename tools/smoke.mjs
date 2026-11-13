@@ -10,7 +10,7 @@ let pw; try { pw = require('playwright'); } catch { pw = require(execSync('npm r
 const { chromium } = pw;
 
 const BASE = (process.argv[2] || process.env.SMOKE_URL || 'http://127.0.0.1:4173/').replace(/\/?$/, '/');
-const URL = BASE + '?nointro';
+const URL = BASE + '?nointro&game=apex'; // straight to the Apex menu (the Sala Giochi launcher is skipped)
 // SMOKE_ONLY=desktop,saves,deep,mobile picks phases (deep is the slow one: ~10 min); SMOKE_CATS=formula,rally limits deep
 const PHASES = new Set((process.env.SMOKE_ONLY || 'desktop,saves,deep,mobile').split(','));
 const SIDEBAR = ['hub', 'inbox', 'car', 'drivers', 'market', 'staff', 'finance', 'paddock', 'standings', 'calendar', 'career', 'halloffame'];
