@@ -1,4 +1,4 @@
-import { helmet3D } from '../ui/garage3d.js';
+import { helmet3D } from '../ui/stage3d.js';
 // Shared visual fragments for the career/dynasty layer (portraits, press art, charts, status)
 import '../styles/career.css';
 import { icon } from '../ui/icons.js';

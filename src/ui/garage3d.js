@@ -381,14 +381,7 @@ function setCar(category, livery, opts) {
   if (ST.view) ST.view.swapT = performance.now();
 }
 
-// where the R&D areas live on each car (x forward, y up, z right) and how far the camera sits
-const PART_POS = {
-  formula: { aero: [2.5, 0.28, 0.5], engine: [-1.15, 0.72, 0.2], chassis: [0.55, 0.62, 0.3], tyre: [1.8, 0.36, 0.86], reliability: [-2.05, 0.42, 0.25] },
-  endurance: { aero: [-2.3, 1.0, 0.5], engine: [-1.3, 0.72, 0.3], efficiency: [0.2, 0.5, 0.95], tyre: [1.55, 0.36, 0.95], reliability: [-0.2, 0.95, 0.2] },
-  rally: { engine: [1.45, 0.86, 0.3], suspension: [1.3, 0.42, 0.88], chassis: [0, 1.25, 0.3], gearbox: [-0.2, 0.3, 0.9], reliability: [-1.75, 0.8, 0.4] },
-};
-export function partPositions(category) { return PART_POS[category === 'junior' ? 'formula' : category] || PART_POS.formula; }
-
+// how the camera moves around the car (R&D hotspot positions: partPositions() in stage3d.js)
 const SHOTS = [
   { p0: [6.6, 0.62, 4.3], p1: [5.3, 0.78, 5.5], l0: [0.4, 0.5, 0], l1: [0.2, 0.5, 0], fov: 27, dur: 13 },
   { p0: [-2.0, 0.8, 6.9], p1: [1.4, 0.8, 6.9], l0: [-1.0, 0.6, 0], l1: [0.6, 0.6, 0], fov: 31, dur: 12 },

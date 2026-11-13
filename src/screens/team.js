@@ -1,4 +1,4 @@
-import { helmet3D } from '../ui/garage3d.js';
+import { helmet3D } from '../ui/stage3d.js';
 // Drivers, Market, Staff & Facilities, Finance & Sponsors
 import { App, registerScreen } from '../app.js';
 import { icon } from '../ui/icons.js';
