@@ -168,7 +168,9 @@ async function deep(browser) {
 }
 
 async function mobile(browser) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  // SMOKE_VP=1024x768 checks a tablet instead of a phone; SMOKE_SHOTS=dir saves one screenshot per screen
+  const [vw, vh] = (process.env.SMOKE_VP || '390x844').split('x').map(Number);
+  const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: vw > 600 ? 1 : 2, isMobile: true, hasTouch: true });
   const page = await ctx.newPage(); hook(page, 'mobile');
   await page.goto(URL); await page.waitForFunction(() => window.__apex?.App?.cur === 'menu', null, { timeout: 20000 });
   await settle(page, 800);
@@ -182,6 +184,7 @@ async function mobile(browser) {
   for (const id of MOBILE) {
     await go(page, id, id === 'settings' ? { back: 'hub' } : undefined); await closeOverlays(page); await settle(page, 300);
     await checkCrash(page, 'mobile');
+    if (process.env.SMOKE_SHOTS) await page.screenshot({ path: `${process.env.SMOKE_SHOTS}/${vw}x${vh}-${id}.png` }).catch(() => {});
     const r = await page.evaluate(() => {
       const iw = window.innerWidth, sw = document.documentElement.scrollWidth;
       // the widest offenders, to point at the culprit

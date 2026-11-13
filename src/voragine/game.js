@@ -598,6 +598,7 @@ export class VoragineGame {
 
   // ---------- camera, HUD, labels
   updateCamera(dt, snap) {
+    if (this.camOverride) { this.camOverride(this.cam); return; } // key art / photo tools
     const me = this.me, r = me.r;
     const portrait = this.cam.aspect < 0.9 ? 1.35 : 1;
     const H = (21 + r * 3.3) * portrait, back = H * 0.62;
