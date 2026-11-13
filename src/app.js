@@ -229,8 +229,8 @@ export const App = {
     const s = screens[this.cur];
     if (!s) return;
     const st = S();
-    if (st) {
-      const t = playerTeam(st);
+    const t = st && playerTeam(st);
+    if (t?.car?.livery) { // guarded: the shell (and the menu) must still draw if the live state is damaged
       document.documentElement.style.setProperty('--team', teamColor(t.car.livery));
       document.documentElement.style.setProperty('--team2', t.car.livery.secondary);
     }
