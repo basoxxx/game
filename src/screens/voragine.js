@@ -57,6 +57,7 @@ function results(r, p) {
         <div><b>${r.mode === 'solitaria' ? r.pct.toFixed(1) + '%' : `${r.pos}/${r.of}`}</b><span>${r.mode === 'solitaria' ? 'della città' : 'posizione'}</span></div>
         <div><b>${fmt(r.eaten)}</b><span>oggetti</span></div>
         <div><b>${r.holes}</b><span>voragini</span></div>
+        <div><b>x${r.combo || 0}</b><span>combo max</span></div>
         <div><b>+${r.coins}</b><span>monete</span></div>
       </div>
       ${r.big ? `<div class="vg-res-big">Boccone più grande: <b>${esc(r.big)}</b></div>` : ''}

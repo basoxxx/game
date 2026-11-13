@@ -142,7 +142,7 @@ export class VoragineGame {
       <canvas class="vg-mini" id="vg-mini" width="160" height="160"></canvas>
       <button class="vg-pausebtn" id="vg-pausebtn" aria-label="Pausa">II</button>
       <div class="vg-labels" id="vg-labels"></div><div class="vg-pops" id="vg-pops"></div>
-      <div class="vg-toast" id="vg-toast"></div><div class="vg-count" id="vg-count"></div>
+      <div class="vg-toast" id="vg-toast"></div><div class="vg-combo" id="vg-combo"></div><div class="vg-count" id="vg-count"></div>
       <div class="vg-joy" id="vg-joy"><i></i></div>
     </div>`;
     this.cv = root.querySelector('.vg-cv');
@@ -182,6 +182,7 @@ export class VoragineGame {
 
     this.buildObjects();
     this.buildHoles();
+    this.buildDust();
     this.bindInput();
     this.resize();
     this.ro = new ResizeObserver(() => this.resize()); this.ro.observe(root);
@@ -248,6 +249,43 @@ export class VoragineGame {
     const x0 = Math.floor((x - rad) / CELL), x1 = Math.floor((x + rad) / CELL), z0 = Math.floor((z - rad) / CELL), z1 = Math.floor((z + rad) / CELL);
     for (let i = x0; i <= x1; i++) for (let j = z0; j <= z1; j++) { const a = this.grid.get(this.gridKey(i, j)); if (a) for (const ob of a) if (ob.st === 0) out.push(ob); }
     return out;
+  }
+
+  // ---------- dust and debris kicked up when something big goes down
+  buildDust() {
+    const N = this.o.tier === 'low' ? 240 : 700;
+    const g = new THREE.BufferGeometry();
+    this.dust = { n: N, i: 0, pos: new Float32Array(N * 3), col: new Float32Array(N * 3), vel: new Float32Array(N * 3), life: new Float32Array(N) };
+    this.dust.pos.fill(-999);
+    g.setAttribute('position', new THREE.BufferAttribute(this.dust.pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('color', new THREE.BufferAttribute(this.dust.col, 3));
+    const m = new THREE.PointsMaterial({ size: 0.9, vertexColors: true, transparent: true, opacity: 0.85, depthWrite: false, sizeAttenuation: true });
+    this.dustPts = new THREE.Points(g, m); this.dustPts.frustumCulled = false; this.scene.add(this.dustPts);
+  }
+  puff(x, z, r, color) {
+    const D = this.dust; if (!D) return;
+    const n = Math.min(60, Math.round(4 + r * 5)), c = new THREE.Color(color);
+    for (let k = 0; k < n; k++) {
+      const i = D.i = (D.i + 1) % D.n, a = Math.random() * Math.PI * 2, rr = r * (0.4 + Math.random() * 0.8), sp = 2 + Math.random() * (3 + r * 0.6);
+      D.pos[i * 3] = x + Math.cos(a) * rr; D.pos[i * 3 + 1] = 0.3 + Math.random() * r * 0.4; D.pos[i * 3 + 2] = z + Math.sin(a) * rr;
+      D.vel[i * 3] = Math.cos(a) * sp * 0.6; D.vel[i * 3 + 1] = 3 + Math.random() * (4 + r * 0.5); D.vel[i * 3 + 2] = Math.sin(a) * sp * 0.6;
+      const l = 0.55 + Math.random() * 0.35; D.col[i * 3] = c.r * l + 0.25; D.col[i * 3 + 1] = c.g * l + 0.23; D.col[i * 3 + 2] = c.b * l + 0.2;
+      D.life[i] = 0.7 + Math.random() * 0.8;
+    }
+    this.dustPts.geometry.attributes.color.needsUpdate = true;
+  }
+  updateDust(dt) {
+    const D = this.dust; if (!D) return;
+    let any = false;
+    for (let i = 0; i < D.n; i++) {
+      if (D.life[i] <= 0) continue;
+      any = true; D.life[i] -= dt;
+      if (D.life[i] <= 0) { D.pos[i * 3 + 1] = -999; continue; }
+      D.vel[i * 3 + 1] -= 14 * dt;
+      D.pos[i * 3] += D.vel[i * 3] * dt; D.pos[i * 3 + 1] = Math.max(0.05, D.pos[i * 3 + 1] + D.vel[i * 3 + 1] * dt); D.pos[i * 3 + 2] += D.vel[i * 3 + 2] * dt;
+    }
+    if (any || this._dustAny) this.dustPts.geometry.attributes.position.needsUpdate = true;
+    this._dustAny = any;
   }
 
   // ---------- holes
@@ -403,6 +441,7 @@ export class VoragineGame {
     this.moveHoles(dt);
     this.eat(dt);
     this.updateFalling(dt);
+    this.updateDust(dt);
     this.updateHud(dt);
     if (this.time <= 0) this.finish('time');
     else if (this.o.mode === 'battaglia' && this.h.filter((h) => !h.out).length <= 1) this.finish('last');
@@ -515,9 +554,15 @@ export class VoragineGame {
     ob.st = 1; ob.hole = h; ob.vy = 0; ob.ft = 0;
     // fall away from the edge it was closest to: tilt into the hole
     ob.tiltDir = Math.atan2(dz, dx);
-    h.pts += ob.pts; h.eaten++;
+    // combo: a quick string of gulps is worth a little more
+    const now = this.mode.time - this.time;
+    if (h.player) { this.combo = now - (this.lastEat ?? -9) < 0.9 ? (this.combo || 0) + 1 : 1; this.lastEat = now; }
+    const bonus = h.player ? 1 + Math.min(25, (this.combo || 1) - 1) * 0.01 : 1;
+    h.pts += ob.pts * bonus; h.eaten++;
     this.eatenPts += ob.pts;
+    if (ob.r >= 1.2 && Math.hypot(ob.x - this.me.x, ob.z - this.me.z) < 90) this.puff(ob.x, ob.z, Math.min(ob.r, 14), ob.k.r > 4 ? '#b8ad9c' : '#8f8678');
     if (h.player) {
+      this.stats.bestCombo = Math.max(this.stats.bestCombo || 0, this.combo);
       this.stats.eaten++;
       if (!this.stats.big || ob.pts > this.stats.big.pts) this.stats.big = ob;
       this.popAcc += ob.pts * 10;
@@ -571,17 +616,31 @@ export class VoragineGame {
     this.scene.fog.near = 120 + this.camH * 1.2; this.scene.fog.far = 420 + this.camH * 3;
   }
   updateLabels() {
-    const w = this.root.clientWidth, hgt = this.root.clientHeight;
+    const w = this.root.clientWidth, hgt = this.root.clientHeight, m = 34;
     for (const h of this.h) {
-      if (!h.alive || h.out) continue;
+      if (!h.alive || h.out) { h.lab.style.opacity = 0; continue; }
       tmpV.set(h.x, 0, h.z + h.r * 1.05).project(this.cam);
-      const vis = tmpV.z < 1 && Math.abs(tmpV.x) < 1.1 && Math.abs(tmpV.y) < 1.1;
-      h.lab.style.opacity = vis ? 1 : 0;
-      if (vis) h.lab.style.transform = `translate(${((tmpV.x + 1) / 2) * w}px, ${((1 - tmpV.y) / 2) * hgt + 4}px) translate(-50%, 0)`;
+      const vis = tmpV.z < 1 && Math.abs(tmpV.x) < 1.02 && Math.abs(tmpV.y) < 1.02;
+      if (vis) { h.lab.classList.remove('edge'); h.lab.style.opacity = 1; h.lab.style.transform = `translate(${((tmpV.x + 1) / 2) * w}px, ${((1 - tmpV.y) / 2) * hgt + 4}px) translate(-50%, 0)`; continue; }
+      if (h.player) { h.lab.style.opacity = 0; continue; }
+      // off screen: pin to the edge, pointing towards it (danger if bigger, prey if smaller)
+      let x = tmpV.x, y = tmpV.y; if (tmpV.z > 1) { x = -x; y = -y; }
+      const k = 1 / Math.max(Math.abs(x), Math.abs(y), 1e-3);
+      const px = Math.min(w - m, Math.max(m, ((x * k + 1) / 2) * w)), py = Math.min(hgt - m, Math.max(m + 60, ((1 - y * k) / 2) * hgt));
+      const d = Math.hypot(h.x - this.me.x, h.z - this.me.z);
+      if (d > 140) { h.lab.style.opacity = 0; continue; }
+      h.lab.classList.add('edge'); h.lab.classList.toggle('danger', h.r > this.me.r * 1.2); h.lab.classList.toggle('prey', this.me.r > h.r * 1.2);
+      h.lab.style.opacity = 0.9; h.lab.style.transform = `translate(${px}px, ${py}px) translate(-50%, -50%)`;
     }
   }
   updateHud(dt) {
     const me = this.me;
+    const ce = this.$('vg-combo');
+    if (ce) {
+      const live = this.combo >= 5 && (this.mode.time - this.time) - (this.lastEat ?? -9) < 0.9;
+      if (live) { const t = `Combo x${this.combo}`; if (ce.textContent !== t) { ce.textContent = t; ce.classList.remove('pop'); void ce.offsetWidth; ce.classList.add('pop'); } }
+      ce.classList.toggle('on', live);
+    }
     const t = Math.max(0, Math.ceil(this.time));
     const te = this.$('vg-timer'); te.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; te.classList.toggle('hot', t <= 10 && this.count <= 0);
     if (t <= 5 && t !== this._lastBeep && this.count <= 0) { this._lastBeep = t; this.sfx.beep(false); }
@@ -649,7 +708,7 @@ export class VoragineGame {
     this.sfx[pos === 1 || stars >= 2 ? 'level' : 'lost']();
     this.o.onEnd?.({
       why, pos, of: this.h.length, score, stars, coins, pct, mode: this.o.mode, city: this.o.city,
-      eaten: this.stats.eaten, holes: this.stats.holes, big: this.stats.big?.k?.label || '', radius: me.r,
+      eaten: this.stats.eaten, holes: this.stats.holes, combo: this.stats.bestCombo || 0, big: this.stats.big?.k?.label || '', radius: me.r,
       ranking: rank.map((h) => ({ name: h.name, color: h.color, score: Math.round(h.pts * 10), player: h.player, out: h.out })),
     });
   }
