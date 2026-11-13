@@ -9,9 +9,17 @@ import { createWorld } from '../engine/world.js';
 import { setState, saveGame, listSaves } from '../engine/state.js';
 import { addMail } from '../engine/season.js';
 import { sfx } from '../ui/audio.js';
+import { hasBackup } from '../ui/savesafe.js';
 import { ensureDynasty, setMandate, MANDATES } from '../engine/dynasty.js';
 import { setIronman } from '../engine/career5.js';
 
+// What happens to the chosen slot: nothing, a career overwritten, or an unreadable save (maybe with a backup) lost
+function slotWarn(s) {
+  if (!s) return '';
+  if (s.corrupt) return `<div class="small warn mt8">Attenzione: lo slot contiene un salvataggio illeggibile${hasBackup(s.slot) ? ' con un backup ancora ripristinabile dal menu Carica' : ''}. Iniziando qui verrà sovrascritto.</div>`;
+  if (!s.empty) return '<div class="small warn mt8">Attenzione: lo slot contiene già una partita e verrà sovrascritto.</div>';
+  return '';
+}
 const PALETTE = ['#e10600', '#ff8000', '#ffd400', '#22d37a', '#00594f', '#00d2be', '#00c2ff', '#005aff', '#1b2a6b', '#9b30ff', '#ff4fa3', '#ffffff', '#c0c0c0', '#1a1a1a', '#6b3e1e', '#c9a227'];
 const PATTERNS = ['Classica', 'Banda', 'Bicolore', 'Frecce', 'Sfumata', 'Retrò'];
 
@@ -35,7 +43,8 @@ registerScreen({
   id: 'newgame', full: true,
   unmount() { ngStage?.destroy(); ngStage = null; },
   render() {
-    const firstFree = listSaves().find((s) => s.empty)?.slot || 1;
+    const all = listSaves();
+    const firstFree = all.find((s) => s.empty && !s.corrupt)?.slot || all.find((s) => s.corrupt && !hasBackup(s.slot))?.slot || 1;
     if (W.step === 1 && !W._slotInit) { W.slot = firstFree; W._slotInit = true; }
     const steps = ['Categoria', 'Squadra', 'Carriera'];
     const pc = W.step === 1 ? CATEGORIES[W.cat]?.color : 'var(--accent)';
@@ -63,6 +72,11 @@ registerScreen({
     'opt'(el) { W[el.dataset.k] = el.dataset.v; App.refresh(); },
     'ng-iron'(el) { W.ironman = !W.ironman; App.refresh(); requestAnimationFrame(() => document.querySelector('[data-a="ng-iron"]')?.focus({ preventScroll: true })); },
     start() {
+      const cur = listSaves().find((s) => s.slot == W.slot);
+      if (cur && (!cur.empty || (cur.corrupt && hasBackup(cur.slot))) && !W._overwriteOk) {
+        App.confirm(`Sovrascrivere lo slot ${W.slot}?`, cur.corrupt ? 'Lo slot contiene un salvataggio illeggibile con un backup: iniziando qui il backup resta, ma lo slot verrà riscritto.' : `Lo slot contiene la carriera${cur.team ? ` con ${esc(cur.team)}` : ''}${cur.season ? ` (stagione ${cur.season})` : ''}, che andrà persa.`, () => { W._overwriteOk = true; try { this.actions.start.call(this); } finally { W._overwriteOk = false; } });
+        return;
+      }
       const name = (document.getElementById('pname')?.value || 'Giocatore').trim() || 'Giocatore';
       W.name = name;
       const st = createWorld({ playerName: name, category: W.cat, teamId: W.team, difficulty: W.diff, seasonLength: W.len, raceLength: W.race, customTeam: W.team === 'custom' ? W.custom : null });
@@ -149,8 +163,8 @@ function step3() {
       <div class="panel-head" style="margin-top:28px"><h3>Il tuo mandato</h3><span class="small muted">Cosa prometti al consiglio</span></div>
       <div class="grid3">${Object.entries(MANDATES).map(([k, m]) => opt('mandate', k, m.name, m.desc)).join('')}</div>
       <div class="panel-head" style="margin-top:28px"><h3>Slot di salvataggio</h3></div>
-      <div class="row gap6">${saves.map((s) => `<button class="btn ${W.slot == s.slot ? 'active' : ''}" data-a="opt" data-k="slot" data-v="${s.slot}" data-tip="${s.empty ? 'Slot vuoto' : 'Contiene una partita'}">Slot ${s.slot}${s.empty ? '' : ' ·'}</button>`).join('')}</div>
-      ${!saves.find((s) => s.slot == W.slot)?.empty ? '<div class="small warn mt8">Attenzione: lo slot contiene già una partita e verrà sovrascritto.</div>' : ''}
+      <div class="row gap6">${saves.map((s) => `<button class="btn ${W.slot == s.slot ? 'active' : ''}" data-a="opt" data-k="slot" data-v="${s.slot}" data-tip="${s.corrupt ? (hasBackup(s.slot) ? 'Salvataggio illeggibile, con backup ripristinabile' : 'Salvataggio illeggibile') : s.empty ? 'Slot vuoto' : 'Contiene una partita'}">Slot ${s.slot}${s.corrupt ? ' !' : s.empty ? '' : ' ·'}</button>`).join('')}</div>
+      ${slotWarn(saves.find((s) => s.slot == W.slot))}
     </div>
     <div class="panel"><div class="panel-head"><h3>Durata stagione</h3></div>
       <div class="grid3">${opt('len', 'short', 'Corta', 'Meno eventi')}${opt('len', 'normal', 'Standard', 'Consigliata')}${opt('len', 'full', 'Completa', 'Tutto il calendario')}</div>
