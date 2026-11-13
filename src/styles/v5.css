@@ -165,3 +165,44 @@
 .save-tag.diff-legend, .save-tag.diff-hard { color: var(--bad); }
 .mc-tags { display: flex; gap: 6px; margin-top: 8px; }
 .mc-tags .save-tag { margin-left: 0; }
+
+/* ---- phone width (≤ 760px): the management shell stacks instead of squeezing the page
+   next to the sidebar. Top bar wraps, the sidebar becomes a scrollable tab strip, wide
+   grids drop to one column and tables scroll sideways. ---- */
+@media (max-width: 760px) {
+  .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); }
+  .shell .topbar { grid-column: 1; flex-wrap: wrap; padding: 0; }
+  .shell .tb-livery { background: var(--team); height: 2px; }
+  .shell .brand { display: none; }
+  .shell .tb-team { flex: 1 1 0; min-width: 0; padding: 8px 12px; }
+  .shell .tb-team::after { display: none; }
+  .shell .tb-team b { max-width: none; font-size: 16px; }
+  .shell .tb-stats { order: 3; width: 100%; overflow-x: auto; scrollbar-width: none; border-top: 1px solid var(--line); }
+  .shell .tb-stat { padding: 7px 12px; }
+  .shell .tb-stat b { font-size: 17px; }
+  .shell .tb-stat + .tb-stat::before { top: 8px; bottom: 8px; }
+  .shell .tb-actions { padding: 0 6px; gap: 2px; }
+  .shell .tb-actions [data-a="shortcuts"] { display: none; }
+  .shell .topbar .continue-btn { order: 4; flex: 1 1 100%; margin: 0 10px 10px; justify-content: center; }
+  .shell .sidebar { flex-direction: row; align-items: stretch; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding: 0; border-right: 0; border-bottom: 1px solid var(--line); }
+  .shell .nav-group { flex-direction: row; }
+  .shell .nav-group + .nav-group { margin-top: 0; border-left: 1px solid var(--line); }
+  .shell .nav-gh, .shell .sidebar > .nav-sep, .shell .sidebar > .grow, .shell .nav-event { display: none; }
+  .shell .nav { height: 44px; padding: 0 12px; gap: 8px; font-size: 14px; }
+  .shell .nav.active::before { top: auto; width: auto; right: 0; height: 3px; }
+  .shell .main { padding: 14px 12px 32px; }
+  .shell .crumbs { margin: 0 0 10px; }
+  .shell .crumb-search .kbd { display: none; }
+  .shell .screen-title { flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .shell .screen-title h1 { font-size: 32px; }
+  .shell .main .tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .shell .main .tbl { display: block; max-width: 100%; overflow-x: auto; }
+  .shell .main .grid2, .shell .main .grid3, .shell .main .grid4,
+  .shell .main .hub-hero, .shell .main .hub-grid, .shell .main .mail-layout, .shell .main .res-grid, .shell .main .res-grid > .col,
+  .shell .main .stand-wrap, .shell .main .stand-side, .shell .main .cal-wrap { grid-template-columns: minmax(0, 1fr) !important; /* beats inline column counts */ }
+  .shell .screen-title > * { min-width: 0; max-width: 100%; }
+  .shell .main .mail-layout { height: auto; }
+  .shell .main .hub-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shell .main .hub-kpis b { font-size: 32px; }
+  .shell .main .row { flex-wrap: wrap; }
+}

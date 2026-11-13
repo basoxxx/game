@@ -13,6 +13,7 @@ import { openPalette } from './ui/palette.js';
 import { applyAccessibility } from './ui/a11y.js';
 
 const screens = {};
+const PHONE = window.matchMedia('(max-width: 760px)'); // same breakpoint as the phone shell in v5.css
 export function registerScreen(s) { screens[s.id] = s; }
 export const hasScreen = (id) => !!screens[id];
 
@@ -258,6 +259,8 @@ export const App = {
     }
     this._lastRendered = this.cur;
     makeFocusable(this.root);
+    // phone width: the sidebar is a sideways tab strip, keep the current section in view
+    if (!s.full && PHONE.matches) this.root.querySelector('.sidebar .nav.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     try { s.mount?.(this.root, this.params); } catch (e) { console.warn('[apex] mount', this.cur, e); this.crash(e); }
     if (!same) { try { maybeTour(this.cur); } catch (e) { console.warn(e); } }
     if (st?._toast) { this.toast(st._toast.title, st._toast.text, 'good'); sfx.win(); st._toast = null; }

@@ -1,4 +1,4 @@
-import { carImg, helmet3D } from '../ui/garage3d.js';
+import { carImg, helmet3D } from '../ui/stage3d.js';
 import { App, registerScreen, trackName, teamColor } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { helmetSVG, flagSVG, teamBadge, carSVG } from '../ui/art.js';
@@ -60,7 +60,7 @@ registerScreen({
           <div class="hh-circ">${esc(wt.name)}${rally ? '' : w0.bestLap ? ` · giro migliore ${fmtTime(w0.bestLap)}` : ''}</div>
           <div class="podium">${top3[1] ? pod(top3[1], 'p2') : ''}${pod(top3[0], 'p1')}${top3[2] ? pod(top3[2], 'p3') : ''}</div>
         </div>
-        <div class="rh-car">${carImg(st.category, wt.car.livery, { number: wd.number, sponsor: wt.sponsors[0]?.name }, 900, 400)}</div>
+        <div class="rh-car">${carImg(st.category, wt.car.livery, { number: wd.number, sponsor: wt.sponsors[0]?.name }, 900, 400, carSVG(st.category, wt.car.livery, { number: wd.number, sponsor: wt.sponsors[0]?.name || wt.short }))}</div>
       </section>
       <div class="res-grid">
         <div class="panel flush"><table class="tbl"><thead><tr><th>Pos</th><th></th><th>${C.driversPerCar > 1 ? 'Equipaggio' : 'Pilota'}</th><th>Team</th>${rally ? '<th class="right">PS vinte</th><th class="right">Tempo</th>' : '<th class="right">Griglia</th><th>Gomme</th><th class="right">Soste</th><th class="right">Best</th>'}<th class="right">Distacco</th><th class="right">Pt</th></tr></thead><tbody>

@@ -2,9 +2,9 @@
 // Presets, last-used settings (own localStorage key) and a one-click rematch.
 import { App, registerScreen } from '../app.js';
 import { icon } from '../ui/icons.js';
-import { flagSVG, teamBadge, trackSVG } from '../ui/art.js';
+import { flagSVG, teamBadge, trackSVG, carSVG } from '../ui/art.js';
 import { esc, pageHead } from '../ui/dom.js';
-import { carImg } from '../ui/garage3d.js';
+import { carImg } from '../ui/stage3d.js';
 import { CATEGORIES } from '../data/categories.js';
 import { TEAMS } from '../data/teams.js';
 import { TRACKS } from '../data/tracks.js';
@@ -66,7 +66,7 @@ registerScreen({
               <div class="hh-facts">${stats ? fact(`${(stats.len / 1000).toFixed(3)}<small>km</small>`, 'Lunghezza') + fact(stats.corners, 'Curve') + fact(`${Math.round(stats.vmax)}<small>km/h</small>`, 'Velocità max') : fact(tr.surfaces?.length || 6, 'Prove speciali')}</div>
             </div>
             <div class="qh-map">${trackSVG(path, { w: 520, h: 300, glow: null, color: '#fff', width: 5, under: 'rgba(0,0,0,.4)' })}</div>
-            <div class="qh-car">${carImg(Q.cat, { primary: team.colors[0], secondary: team.colors[1], accent: team.colors[2], pattern: 1 }, { number: '', sponsor: team.short }, 760, 330)}</div>
+            <div class="qh-car">${carImg(Q.cat, { primary: team.colors[0], secondary: team.colors[1], accent: team.colors[2], pattern: 1 }, { number: '', sponsor: team.short }, 760, 330, carSVG(Q.cat, { primary: team.colors[0], secondary: team.colors[1], accent: team.colors[2], pattern: 1 }, { sponsor: team.short }))}</div>
           </section>
           <div class="panel"><div class="panel-head"><h3>Squadra</h3><span class="row" style="gap:10px">${teamBadge(team, 26)}<b style="font-family:var(--display);font-size:18px;text-transform:uppercase">${esc(team.name)}</b></span></div>
             <div class="team-pick">${TEAMS[Q.cat].map((t) => `<button class="btn sm ${Q.team === t.id ? 'active' : ''}" data-a="team" data-id="${t.id}">${teamBadge(t, 24)} ${esc(t.name)}</button>`).join('')}</div>
