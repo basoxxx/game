@@ -22,6 +22,9 @@ function continueCareer() {
   import('../ui/savesafe.js').then((m) => m.loadWithBackup(s.slot)).then((ok) => { if (ok) App.go('hub'); else fail(); }, (e) => { console.warn('load', e); fail(); });
 }
 
+// Key art rendered from the games themselves (tools/covers.mjs → public/covers). SVG art is the fallback.
+export const COVERS = { voragine: 'covers/voragine.webp' };
+const coverOf = (id) => (COVERS[id] ? `<img class="bh-cover-img" src="./${COVERS[id]}" alt="" decoding="async" onerror="this.remove()">` : '');
 const ART = {
   apex: () => `<svg viewBox="0 0 320 180" aria-hidden="true"><defs><linearGradient id="lg-a" x1="0" x2="1"><stop offset="0" stop-color="#e5141b"/><stop offset="1" stop-color="#ff8a3d"/></linearGradient><filter id="lg-g"><feGaussianBlur stdDeviation="4"/></filter></defs>
     <path d="M30 130 C 60 40, 120 40, 150 90 S 230 150, 260 70 S 300 30, 300 30" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="22" stroke-linecap="round"/>
@@ -91,7 +94,7 @@ function panel(g) {
   const modes = g.modes.filter((m) => !m.when || m.when());
   return `<section class="bh-panel" style="--acc:${g.accent}" aria-label="${esc(g.title)}">
     <div class="bh-hero">
-      <div class="lg-art">${ART[g.id]()}</div>
+      <div class="lg-art bh-cover">${ART[g.id]()}${coverOf(g.id)}<div class="bh-cover-shade"></div></div>
       <div class="bh-hero-body">
         <div class="lg-tags"><span class="lg-genre">${esc(g.genre)}</span>${g.id === lastGame() ? '<span class="lg-lastp">Ultimo giocato</span>' : ''}</div>
         <h2>${esc(g.title)}</h2>
@@ -113,7 +116,7 @@ registerScreen({
       <div class="lg-bg" aria-hidden="true"><i></i><i></i><i></i></div>
       <header class="lg-head bh-head">
         <div class="bh-logo"><span class="bh-mark">B</span><div><div class="bh-word">Baso<span>Hub</span></div><div class="lg-eyebrow">Manager · Flatout · Voragine</div></div></div>
-        <nav class="bh-tabs" role="tablist" aria-label="Giochi">${GAMES.map((x, i) => `<div class="bh-tab ${x.id === g.id ? 'on' : ''}" role="tab" aria-selected="${x.id === g.id}" data-a="bh-game" data-id="${x.id}" style="--acc:${x.accent}" tabindex="0"><span class="kbd">${i + 1}</span><b>${esc(x.section)}</b><small>${esc(x.title)}</small></div>`).join('')}</nav>
+        <nav class="bh-tabs" role="tablist" aria-label="Giochi">${GAMES.map((x, i) => `<div class="bh-tab ${x.id === g.id ? 'on' : ''}" role="tab" aria-selected="${x.id === g.id}" data-a="bh-game" data-id="${x.id}" style="--acc:${x.accent}${COVERS[x.id] ? `;--thumb:url(./${COVERS[x.id]})` : ''}" tabindex="0"><span class="kbd">${i + 1}</span><b>${esc(x.section)}</b><small>${esc(x.title)}</small></div>`).join('')}</nav>
       </header>
       ${panel(g)}
       <footer class="lg-foot">
