@@ -247,6 +247,7 @@ let backTo = 'menu';
 registerScreen({
   id: 'derby', full: true,
   render(params) {
+    if (params?.tab && !D.playing) D.tab = params.tab;
     if (params?.from) backTo = params.from; else if (params?.to === 'derby') backTo = 'menu';
     if (D.playing) return `<div class="dz-root" id="dz-root"><div class="dz-loading">Carico il motore fisico…</div></div>`;
     const P = prog();

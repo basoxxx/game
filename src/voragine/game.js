@@ -427,7 +427,7 @@ export class VoragineGame {
       let dx = 0, dz = 0, amt = 0;
       if (h.player) [dx, dz, amt] = this.inputDir();
       else[dx, dz, amt] = this.think(h, dt);
-      const sp = (6.6 + h.r * 0.26) * (h.player ? 1 : this.diff.speed);
+      const sp = (7.8 + h.r * 0.3) * (h.player ? 1 : this.diff.speed);
       const k = 1 - Math.exp(-dt * 7);
       h.vx += (dx * amt * sp - h.vx) * k; h.vz += (dz * amt * sp - h.vz) * k;
       h.x = Math.max(-BOUND, Math.min(BOUND, h.x + h.vx * dt)); h.z = Math.max(-BOUND, Math.min(BOUND, h.z + h.vz * dt));

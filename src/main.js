@@ -1,6 +1,6 @@
 import './styles/main.css';
 import { App, lazyScreens, preloadScreens } from './app.js';
-// first paint needs only the shell + the Sala Giochi launcher; the Apex menu, the title screen and the
+// first paint needs only the shell + the Baso Hub launcher; the Apex menu, the title screen and the
 // game engine are code-split (the menu chunk is warmed first, on idle)
 import { launchTarget } from './screens/launcher.js';
 import * as Audio from './ui/audio.js';
@@ -31,7 +31,7 @@ lazyScreens({
 });
 
 App.init();
-// the Sala Giochi comes first; ?game=… opens a game directly, ?intro forces the Apex title screen
+// the Baso Hub comes first; ?game=… opens a game directly, ?intro forces the Apex title screen
 App.go(launchTarget() || (new URLSearchParams(location.search).has('intro') ? 'intro' : 'launcher'));
 window.addEventListener('beforeunload', () => { if (S()) saveGame(); });
 window.__apex = { App, S, audio: audioDebug, sound: Audio, perf: { boot: performance.now() } };
