@@ -243,9 +243,11 @@ function champTab() {
     <div class="dz-champ-evs mt16">${CHAMPIONSHIP.events.map((id, i) => { const v = VENUES.find((x) => x.id === id); const h = c?.history?.[i]; return `<div class="dz-venue ${c && c.round === i && !c.done ? 'sel' : ''}">${trackSVG(v)}<b>${esc(v.name)}</b><div class="tiny">${h ? `Arrivato ${h.pos}°` : `Round ${i + 1}`}</div></div>`; }).join('')}</div></div>`;
 }
 
+let backTo = 'menu';
 registerScreen({
   id: 'derby', full: true,
-  render() {
+  render(params) {
+    if (params?.from) backTo = params.from; else if (params?.to === 'derby') backTo = 'menu';
     if (D.playing) return `<div class="dz-root" id="dz-root"><div class="dz-loading">Carico il motore fisico…</div></div>`;
     const P = prog();
     if (!P.owned.includes(D.car)) D.car = 'berlina';
@@ -254,7 +256,7 @@ registerScreen({
     const tabs = [['carriera', 'Carriera', 'star'], ['libero', 'Evento libero', 'flag'], ['garage', 'Garage', 'wrench'], ['campionato', 'Campionato', 'trophy'], ['guida', 'Guida', 'gamepad']];
     const body = D.tab === 'guida' ? driveTab() : D.tab === 'libero' ? freeTab(P) : D.tab === 'garage' ? garageTab(P) : D.tab === 'campionato' ? champTab() : careerTab(P);
     return `<div class="full-screen dz-menu">
-      ${pageHead({ eyebrow: 'Modalità di guida · Guidi tu', title: 'Scontro Totale', sub: 'Corse a contatto, salti, lamiere che volano e il derby della distruzione.', right })}
+      ${pageHead({ back: backTo, eyebrow: 'Modalità di guida · Guidi tu', title: 'Scontro Totale', sub: 'Corse a contatto, salti, lamiere che volano e il derby della distruzione.', right })}
       <div class="dz-tabs">${tabs.map(([id, n, ic]) => `<div class="dz-tab ${D.tab === id ? 'on' : ''}" data-a="dz-tab" data-id="${id}">${icon(ic)} ${n}</div>`).join('')}<div class="dz-tabcar">${icon('car')} ${esc(BANGERS.find((b) => b.id === D.car)?.name || '')}</div></div>
       ${body}
       <div class="dz-keys">${[['W S', 'gas e freno'], ['A D', 'sterzo'], ['Spazio', 'freno a mano'], ['Shift', 'nitro'], ['R', 'riposiziona'], ['C', 'camera'], ['Q', 'guarda dietro'], ['O', 'modalità foto']].map(([k, l]) => `<span>${k.split(' ').map((x) => `<span class="kbd">${x}</span>`).join('')} ${l}</span>`).join('')}<span>${icon('gamepad', 'ico', 'style="width:18px;height:18px"')} grilletti, stick sinistro, A nitro, B freno a mano, X camera, Y riposiziona</span></div>

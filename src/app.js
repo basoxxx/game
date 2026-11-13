@@ -5,14 +5,14 @@ import { sfx, music, setAudioScene, AUDIO_BUSES, applyVolumes } from './ui/audio
 import { S, saveGame, getSettings, setSettings } from './engine/state.js';
 import { initGamepad, moveFocus, rumble } from './ui/gamepad.js';
 import { maybeTour } from './ui/tour.js';
-import { fmtM, playerTeam, cat } from './engine/season.js';
-import { trackArt } from './ui/trackart.js';
+import { fmtM, playerTeam, cat, getTrack } from './engine/basics.js';
 import { disposeStage, freezeStage } from './ui/stage3d.js';
 import { installSaveGuard, rescueSnapshot } from './ui/savesafe.js';
 import { openPalette } from './ui/palette.js';
 import { applyAccessibility } from './ui/a11y.js';
 
 const screens = {};
+const PHONE = window.matchMedia('(max-width: 760px)'); // same breakpoint as the phone shell in v5.css
 export function registerScreen(s) { screens[s.id] = s; }
 export const hasScreen = (id) => !!screens[id];
 
@@ -21,8 +21,13 @@ const loaders = {};
 export function lazyScreens(map) { Object.assign(loaders, map); }
 const loadAll = () => Promise.all([...new Set(Object.values(loaders))].map((f) => f()));
 export function loadScreen(id) { return screens[id] ? Promise.resolve() : (loaders[id] || loadAll)(); }
+// Circuit drawings for the career shell (topbar mini-map, loading screen art). They bring the circuit
+// data and geometry, so they stay off the first paint and arrive before the first non-full screen draws.
+let trackMods = null, trackModsP = null;
+const loadTrackMods = () => (trackModsP ||= Promise.all([import('./ui/trackview.js'), import('./ui/trackart.js')])
+  .then(([tv, ta]) => { trackMods = { circuitPath: tv.circuitPath, trackArt: ta.trackArt }; }, (e) => { console.warn('track art', e); trackMods = {}; }));
 // warm the chunks one after the other so they never fight the player for the main thread
-export function preloadScreens(ids) { return ids.reduce((p, id) => p.then(() => (screens[id] ? null : loaders[id]?.())), Promise.resolve()); }
+export function preloadScreens(ids) { return ids.reduce((p, id) => p.then(() => (screens[id] ? null : loaders[id]?.())), Promise.resolve()).then(loadTrackMods); }
 
 // Sidebar: flat order = number shortcuts (1…0), groups only add headings.
 export const NAV_GROUPS = [
@@ -197,6 +202,12 @@ export const App = {
       }, (e) => { end(); this._want = null; this.crash(e); });
       return;
     }
+    // management screens draw the shell (topbar track map): make sure its drawing code is here first
+    if (!screens[id].full && !trackMods) {
+      this._want = id;
+      loadTrackMods().then(() => { if (this._want === id) this.go(id, params); });
+      return;
+    }
     this._want = null;
     const prev = screens[this.cur];
     // history for Indietro (Backspace / Alt+←): management screens only
@@ -204,12 +215,12 @@ export const App = {
     if (screens[id]?.full) this.history.length = 0;
     prev?.unmount?.();
     // the live race views own a WebGL context of their own: hand ours back before they start
-    if (id === 'weekend' || id === 'rally' || id === 'derby') disposeStage();
+    if (id === 'weekend' || id === 'rally' || id === 'derby' || id === 'voragine') disposeStage();
     this.cur = id; this.params = params;
     this.closeModal();
     document.querySelector('.coach')?.remove();
     setAudioScene(id);
-    const mood = { intro: 'menu', menu: 'menu', newgame: 'menu', howto: S() ? 'manage' : 'menu', settings: S() ? 'manage' : 'menu', weekend: null, rally: null, results: 'win', seasonend: 'win', quickrace: 'menu', challenges: 'menu', derby: 'derby' }[id];
+    const mood = { intro: 'menu', menu: 'menu', newgame: 'menu', howto: S() ? 'manage' : 'menu', settings: S() ? 'manage' : 'menu', weekend: null, rally: null, results: 'win', seasonend: 'win', quickrace: 'menu', challenges: 'menu', derby: 'derby', launcher: 'menu', voragine: 'derby' }[id];
     if (mood !== null) music.setMood(mood || 'manage');
     else if (music.mood === 'menu' || music.mood === 'win') music.setMood('manage'); // paddock before the lights go out
     if (prev && prev.id !== id) this.wipe();
@@ -229,8 +240,8 @@ export const App = {
     const s = screens[this.cur];
     if (!s) return;
     const st = S();
-    if (st) {
-      const t = playerTeam(st);
+    const t = st && playerTeam(st);
+    if (t?.car?.livery) { // guarded: the shell (and the menu) must still draw if the live state is damaged
       document.documentElement.style.setProperty('--team', teamColor(t.car.livery));
       document.documentElement.style.setProperty('--team2', t.car.livery.secondary);
     }
@@ -258,6 +269,8 @@ export const App = {
     }
     this._lastRendered = this.cur;
     makeFocusable(this.root);
+    // phone width: the sidebar is a sideways tab strip, keep the current section in view
+    if (!s.full && PHONE.matches) this.root.querySelector('.sidebar .nav.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     try { s.mount?.(this.root, this.params); } catch (e) { console.warn('[apex] mount', this.cur, e); this.crash(e); }
     if (!same) { try { maybeTour(this.cur); } catch (e) { console.warn(e); } }
     if (st?._toast) { this.toast(st._toast.title, st._toast.text, 'good'); sfx.win(); st._toast = null; }
@@ -298,7 +311,7 @@ export const App = {
       <button class="crumb-search" data-a="palette" aria-label="Cerca e vai a… (Ctrl+K)">${icon('compass')}<span>Vai a…</span><span class="kbd">Ctrl</span><span class="kbd">K</span></button>
     </nav>`;
     let mini = '';
-    if (tr && st.category !== 'rally') { try { mini = trackSVG(circuitPath(tr.cid), { w: 120, h: 80, glow: null, color: '#fff', width: 4, start: false }); } catch {} }
+    if (tr && st.category !== 'rally') { try { mini = trackSVG(trackMods.circuitPath(tr.cid), { w: 120, h: 80, glow: null, color: '#fff', width: 4, start: false }); } catch {} }
     return `<div class="shell">
       <div class="topbar">
         <div class="tb-livery"></div>
@@ -457,8 +470,6 @@ export const App = {
   },
 };
 
-import { getTrack } from './engine/world.js';
-import { circuitPath } from './ui/trackview.js';
 export function trackName(st, ev) { return getTrack(st.category, ev.trackId)?.name || ev.trackId; }
 
 const globalActions = {
@@ -478,7 +489,7 @@ const globalActions = {
     if (document.querySelector('.load-screen')) return; // already on its way
     if (!tr || App.cur === to) { App.go(to); return; }
     let art = '';
-    try { art = trackArt(st.category, tr, { w: 760, h: 520, accent: teamColor(playerTeam(st).car.livery), legend: false }); } catch {}
+    try { art = trackMods.trackArt(st.category, tr, { w: 760, h: 520, accent: teamColor(playerTeam(st).car.livery), legend: false }); } catch {}
     App.loading({ eyebrow: `Round ${st.round + 1} / ${st.calendar.length} · ${st.weekend ? 'Si torna in pista' : 'Weekend di gara'}`, title: `${flagSVG(tr.nat, 54, 36)}<span>${esc(tr.name)}</span>`, sub: tr.circuit || (ev.stages ? `${ev.stages.length} prove speciali` : ''), art, tip: LOAD_TIPS[(st.round * 7 + st.season) % LOAD_TIPS.length] }, () => App.go(to));
   },
 };

@@ -4,7 +4,6 @@
 //  - every save write pulses the "Salvato" indicator
 //  - rescue copy of the live game when the error boundary trips
 import { SAVE_PREFIX, loadGame, S } from '../engine/state.js';
-import { migrateSave } from '../engine/migrate.js';
 
 export const BACKUP_PREFIX = 'apexdynasty_backup_';
 export const RESCUE_KEY = 'apexdynasty_rescue';
@@ -12,10 +11,13 @@ const ls = () => { try { return window.localStorage; } catch { return null; } };
 
 const versionOf = (raw) => { try { return JSON.parse(raw)?.version ?? 0; } catch { return -1; } };
 
-// load + migrate; when the migration changed the save version, the original text is kept as a backup
-export function loadWithBackup(slot) {
+// load + migrate; when the migration changed the save version, the original text is kept as a backup.
+// Async: the migration needs the engine, which is code-split off the first paint. The engine is fetched
+// before the slot is read, so loading and migrating still happen in one go.
+export async function loadWithBackup(slot) {
   const st = ls(); const raw = st?.getItem(SAVE_PREFIX + slot);
   if (!raw) return null;
+  const { migrateSave } = await import('../engine/migrate.js');
   const s = loadGame(slot); if (!s) return null;
   const v0 = versionOf(raw);
   try { migrateSave(s); } catch (e) { console.warn('migrate', e); }

@@ -1,4 +1,4 @@
-import { helmet3D } from '../ui/garage3d.js';
+import { helmet3D } from '../ui/stage3d.js';
 import { App, registerScreen } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { helmetSVG, teamBadge, carSVG, flagSVG } from '../ui/art.js';

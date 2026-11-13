@@ -27,24 +27,33 @@ export function webglOK() {
 export function stageEnabled() { return webglOK() && getSettings().view3d !== false; }
 // animated 3D backdrops behind menus: not on quality "Bassa"
 export function liveBackdrop() { return stageEnabled() && gfxTier() !== 'low'; }
-const stills = () => !!mod && webglOK() && gfxTier() !== 'low';
+// still renders: SVG until the chunk is here (asked for on first use), and always on "Bassa"
+const stills = () => { if (!webglOK() || gfxTier() === 'low') return false; if (!mod) loadStage().catch(() => {}); return !!mod; };
 
 export function helmet3D(h, size = 40) { return stills() ? mod.helmet3D(h, size) : helmetSVG(h, size); }
 export function carImg(category, livery, opts = {}, w = 640, h = 300, fallback = '') { return stills() ? mod.carImg(category, livery, opts, w, h, fallback) : fallback; }
 
 export function mountStage(host, opts = {}) {
   if (!host || !stageEnabled()) return null;
-  let h = null, dead = false;
-  const attach = (m) => { if (dead || !host.isConnected) return; h = m.mountStage(host, opts); };
+  let h = null, dead = false, spots = null, foc;
+  // hotspots / focus asked for before the chunk arrived are applied once the scene attaches
+  const attach = (m) => { if (dead || !host.isConnected) return; h = m.mountStage(host, opts); if (spots) h?.setHotspots(spots); if (foc !== undefined) h?.focus(foc); };
   // already loaded: attach synchronously so re-renders keep the camera where it was
   if (mod) attach(mod);
   else loadStage().then((m) => requestAnimationFrame(() => attach(m))).catch((e) => console.warn('stage chunk', e));
   return {
-    focus: (id) => h?.focus(id),
-    setHotspots: (list) => h?.setHotspots(list),
+    focus: (id) => { foc = id; return h?.focus(id); },
+    setHotspots: (list) => { spots = list; return h?.setHotspots(list); },
     destroy() { dead = true; h?.destroy(); h = null; },
   };
 }
+// where the R&D areas live on each car (x forward, y up, z right): the Centro Tecnico hotspots
+const PART_POS = {
+  formula: { aero: [2.5, 0.28, 0.5], engine: [-1.15, 0.72, 0.2], chassis: [0.55, 0.62, 0.3], tyre: [1.8, 0.36, 0.86], reliability: [-2.05, 0.42, 0.25] },
+  endurance: { aero: [-2.3, 1.0, 0.5], engine: [-1.3, 0.72, 0.3], efficiency: [0.2, 0.5, 0.95], tyre: [1.55, 0.36, 0.95], reliability: [-0.2, 0.95, 0.2] },
+  rally: { engine: [1.45, 0.86, 0.3], suspension: [1.3, 0.42, 0.88], chassis: [0, 1.25, 0.3], gearbox: [-0.2, 0.3, 0.9], reliability: [-1.75, 0.8, 0.4] },
+};
+export function partPositions(category) { return PART_POS[category === 'junior' ? 'formula' : category] || PART_POS.formula; }
 export function disposeStage() { mod?.disposeStage(); }
 // pause the stage render loop (window in background, heavy overlay on top...)
 export function freezeStage(v) { try { window.__stage?.freeze(v); } catch {} }

@@ -18,6 +18,14 @@
 - **Progressione**: livelli manager, albero di abilità, obiettivi stagionali, trofei
 - **Gara Rapida** e **garage 3D**
 
+## Novità della versione 5.1
+- **Sala Giochi**: all'avvio un launcher con tutti i giochi della raccolta — Apex Dynasty, Scontro Totale e il nuovo Voragine. Si naviga con mouse, frecce, tasti 1-3 o controller; ricorda l'ultimo gioco e mostra record e progressi. Link diretti con `?game=apex`, `?game=derby`, `?game=voragine`.
+- **Voragine (nuovo gioco arcade)**: sei una voragine che si apre in città. Inghiotti tutto ciò che è più piccolo di te (pedoni, auto, case, palazzi, grattacieli, il monumento in piazza), cresci di livello e divora le voragini rivali più piccole.
+  - 3 modalità: **Classica** (2 minuti contro 7 rivali), **Battaglia** (chi viene inghiottito è fuori), **Solitaria** (percentuale di città divorata, stelle).
+  - 3 città procedurali: Centro Città, Quartiere Giardino al tramonto, Città di Notte con finestre accese; traffico e pedoni in movimento.
+  - Rivali con IA che cerca cibo, caccia i più piccoli e fugge dai più grandi; 3 difficoltà.
+  - Mouse, tastiera, touch (stick virtuale) e controller; minimappa, classifica live, livelli con "ora puoi inghiottire…", monete e 6 voragini da sbloccare, record per modalità e città.
+
 ## Novità della versione 5.0
 - **Circuiti originali**: tutti i tracciati sono ora disegni originali ispirati al carattere delle piste (lunghezza, tipo di curve, punti di sorpasso), con nomi di fantasia per circuiti ed eventi.
 - **Nuove modalità**: Campionato personalizzato, 18 Scenari storici d'invenzione con medaglie, Sfida del giorno, Team Principal a tempo, Gara Rapida con preset e rivincita.

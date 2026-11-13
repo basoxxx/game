@@ -14,10 +14,8 @@ import { juniorGraduation, ensureDepth, eraDevMult, winterCars, tokenCheck, toke
 import { diffOf, hasFacPerk, career5PostRound, career5NewSeason, careerAwards } from './career5.js';
 import { invLevel, dynPostRound, dynEndSeason, dynNewSeason, teamTrait, facilityCap, STATUS, statusIdx, repSpan, strengthRanking, principalReact } from './dynasty.js';
 
-export const fmtM = (v) => `${v < 0 ? '-' : ''}€${Math.abs(v).toFixed(Math.abs(v) >= 100 ? 0 : 1)}M`;
-
-export function cat(state) { return CATEGORIES[state.category]; }
-export function playerTeam(state) { return state.teams[state.playerTeam]; }
+import { fmtM, cat, playerTeam } from './basics.js';
+export { fmtM, cat, playerTeam }; // light helpers live in basics.js (no engine imports) so the shell can use them
 export function teamDrivers(state, team) { return team.drivers.map((id) => state.drivers[id]).filter(Boolean); }
 
 export function addMail(state, { from, subject, body, type = 'info', icon, card }) {
