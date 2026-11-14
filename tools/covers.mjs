@@ -64,4 +64,22 @@ if (!ONLY || ONLY === 'derby') {
   await shot(page, 'derby');
   await page.close();
 }
+// ---- Manager (Apex Dynasty): a TV shot from the highlights of a simulated Grand Prix
+if (!ONLY || ONLY === 'apex') {
+  const page = await browser.newPage({ viewport: { width: W, height: H } });
+  await page.addInitScript((s) => localStorage.setItem('apexdynasty_settings', s), settings);
+  await page.goto(BASE + '?nointro&game=apex'); await page.waitForFunction(() => window.__apex?.App?.cur === 'menu', null, { timeout: 60000 });
+  await page.evaluate(() => window.__apex.App.go('newgame')); await page.waitForTimeout(800);
+  await page.click('[data-a="next"]'); await page.locator('[data-a="pick-team"]').first().click(); await page.click('[data-a="next"]'); await page.click('[data-a="start"]');
+  await page.waitForFunction(() => window.__apex.App.cur === 'hub' && window.__apex.ready, null, { timeout: 60000 });
+  await page.evaluate(() => { document.querySelector('.tour-mask')?.remove(); window.__apex.simRound(); });
+  await page.evaluate(() => window.__apex.highlights(0, {}));
+  await page.waitForSelector('.hl-wrap', { timeout: 60000 });
+  // let the reel reach a racing moment, then hide the TV furniture
+  await page.waitForTimeout(Number(process.env.COVER_WAIT || 70000));
+  await page.evaluate(() => { for (const s of ['.hl-bug', '.hl-top-r', '.hl-tower', '.hl-replay', '.hl-lower', '.hl-letter', '.hl-ctrl', '.hl-bar', '.hl-chapters', '.hl-end', '.tip']) document.querySelectorAll(s).forEach((e) => (e.style.display = 'none')); });
+  await page.waitForTimeout(3000);
+  await shot(page, 'apex');
+  await page.close();
+}
 await browser.close();
