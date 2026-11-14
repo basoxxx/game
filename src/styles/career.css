@@ -364,3 +364,7 @@ html.reduce-motion .se-cup, html.reduce-motion .se-shine, html.reduce-motion .se
   .se-num b { font-size: 24px; }
   .se-objs { padding: 14px 16px; }
 }
+@media (max-width: 760px) { .shell .main .career-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; } .career-kpis .kpi b { font-size: 26px; } }
+.trophy-empty .se-cup { filter: drop-shadow(0 10px 18px rgba(0,0,0,.5)); opacity: .55; animation: none; }
+.trophy-empty .se-shine { animation: cupShine 4s ease-in-out 1s infinite; }
+.trophy-mini .se-cup { animation: none; width: 64px; height: 64px; }

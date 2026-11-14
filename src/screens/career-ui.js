@@ -172,3 +172,13 @@ export function signFx(stamp, title, sub = '', art = '', tone = '') {
   setTimeout(() => el.classList.add('out'), 1900);
   setTimeout(() => el.remove(), 2400);
 }
+
+// ---------- trophy art (season end, empty trophy cabinet) ----------
+let cupN = 0;
+export function trophySVG(col = 'var(--gold)', size = 150) {
+  const gid = `cupg${++cupN}`;
+  return `<svg class="se-cup" width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" stop-color="#fff6c8"/><stop offset=".45" stop-color="${col}"/><stop offset="1" stop-color="#8a6400"/></linearGradient></defs>
+    <path d="M34 14h52v18c0 22-11 38-26 40C45 70 34 54 34 32z" fill="url(#${gid})"/><path d="M34 22H18c0 16 8 26 20 28M86 22h16c0 16-8 26-20 28" fill="none" stroke="${col}" stroke-width="6"/>
+    <rect x="54" y="70" width="12" height="16" fill="url(#${gid})"/><path d="M38 86h44l6 16H32z" fill="url(#${gid})"/><rect x="28" y="102" width="64" height="8" fill="#3a2a00"/>
+    <path d="M60 26l4 8.5 9.3 1-7 6.3 2 9.2L60 46.3 51.7 51l2-9.2-7-6.3 9.3-1z" fill="rgba(0,0,0,.25)"/><rect class="se-shine" x="20" y="-20" width="14" height="160" fill="rgba(255,255,255,.45)" transform="rotate(25 60 60)"/></svg>`;
+}

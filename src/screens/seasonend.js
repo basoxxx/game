@@ -13,7 +13,7 @@ import { celebrate } from './results.js';
 import { sfx } from '../ui/audio.js';
 import { getTrack } from '../engine/world.js';
 import { STATUS, MANDATES, principal, TP_PERSONAS } from '../engine/dynasty.js';
-import { lineChart, chartLegend, statusEmblem, teamCol, portraitSVG, objectiveRow } from './career-ui.js';
+import { lineChart, chartLegend, statusEmblem, teamCol, portraitSVG, objectiveRow, trophySVG } from './career-ui.js';
 import { seasonStats } from '../engine/progress.js';
 
 let summary = null, offers = null;
@@ -88,12 +88,6 @@ registerScreen({
 });
 
 // ---------- the verdict up top: title / target, the season in numbers, the season objectives ----------
-export function trophySVG(col = 'var(--gold)', size = 150) {
-  return `<svg class="se-cup" width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="cupg" x1="0" x2="1"><stop offset="0" stop-color="#fff6c8"/><stop offset=".45" stop-color="${col}"/><stop offset="1" stop-color="#8a6400"/></linearGradient></defs>
-    <path d="M34 14h52v18c0 22-11 38-26 40C45 70 34 54 34 32z" fill="url(#cupg)"/><path d="M34 22H18c0 16 8 26 20 28M86 22h16c0 16-8 26-20 28" fill="none" stroke="${col}" stroke-width="6"/>
-    <rect x="54" y="70" width="12" height="16" fill="url(#cupg)"/><path d="M38 86h44l6 16H32z" fill="url(#cupg)"/><rect x="28" y="102" width="64" height="8" fill="#3a2a00"/>
-    <path d="M60 26l4 8.5 9.3 1-7 6.3 2 9.2L60 46.3 51.7 51l2-9.2-7-6.3 9.3-1z" fill="rgba(0,0,0,.25)"/><rect class="se-shine" x="20" y="-20" width="14" height="160" fill="rgba(255,255,255,.45)" transform="rotate(25 60 60)"/></svg>`;
-}
 function seasonHero(st, sm, pt, ok, champMine, consMine) {
   const ss = seasonStats(st);
   const title = consMine && champMine ? 'Doppietta iridata' : consMine ? 'Campioni costruttori' : champMine ? 'Campione del mondo' : sm.fired ? 'Fine del ciclo' : ok ? 'Obiettivo centrato' : 'Obiettivo mancato';
