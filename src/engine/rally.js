@@ -565,6 +565,8 @@ export class RallyEvent {
     ov.forEach((c, i) => c.posHist.push(c.status === 'out' ? null : i + 1));
     st.gapsAfter = Object.fromEntries(ov.filter((c) => c.status !== 'out').map((c) => [c.key, c.total - ov[0].total]));
     this.stageIdx++;
+    // back at the service park: the meteo crew updates the forecast for the loops still to run
+    if (!this.finished() && this.isLoopStart(this.stageIdx)) this.forecast();
     this.setRoadOrder();
     return ranking;
   }
@@ -591,7 +593,6 @@ export class RallyEvent {
       c.tyreWear = 0; c.spares = 2;
     }
     for (const c of this.crews) c.total = c.stageTimes.reduce((s, x) => s + (x || 0), 0) + c.penalty;
-    this.forecast();
     return notes;
   }
 
