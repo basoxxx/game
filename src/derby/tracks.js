@@ -1,3 +1,4 @@
+import { PACE } from './pace.js';
 // Demolition-racing venues: procedural closed tracks (with jumps and elevation), figure-of-eights
 // with a level crossing, a muddy farm circuit and a derby arena. Each venue also produces a
 // terrain heightfield that is flattened under the track and raised into berms beside it, plus
@@ -113,11 +114,11 @@ export function buildRacingLine(tr, v) {
   for (let i = 0; i < N; i++) { const a = (i - 1 + N) % N, b = (i + 1) % N; head[i] = Math.atan2(Z[b] - Z[a], X[b] - X[a]); }
   for (let i = 0; i < N; i++) { let d = head[(i + 2) % N] - head[(i - 2 + N) % N]; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; kap[i] = d / (4 * tr.ds); }
   const sf = SURFACES[v.surface] || SURFACES.dirt;
-  const aLat = 10.5 * sf.grip, aBrk = 8.5 * Math.min(1.1, sf.grip), aAcc = 5.5, vMax = 48;
+  const PL = PACE.line, aLat = PL.aLat * sf.grip, aBrk = PL.aBrk * Math.min(1.1, sf.grip), aAcc = PL.aAcc, vMax = PL.vMax;
   const spd = new Float32Array(N);
   for (let i = 0; i < N; i++) { let km = 0; for (let k = -2; k <= 2; k++) km = Math.max(km, Math.abs(kap[(i + k + N) % N])); spd[i] = Math.min(vMax, Math.sqrt(aLat / Math.max(km, 1e-4))); }
   // slow down a little before jump kickers so cars land straight
-  for (const jp of tr.jumps || []) { const c = Math.floor(jp * N); for (let k = -10; k <= 2; k++) { const i = (c + k + N) % N; spd[i] = Math.min(spd[i], 33); } }
+  for (const jp of tr.jumps || []) { const c = Math.floor(jp * N); for (let k = -10; k <= 2; k++) { const i = (c + k + N) % N; spd[i] = Math.min(spd[i], PL.jump); } }
   for (let pass = 0; pass < 2; pass++) for (let i = N - 1; i >= 0; i--) { const n = spd[(i + 1) % N]; spd[i] = Math.min(spd[i], Math.sqrt(n * n + 2 * aBrk * tr.ds)); }
   for (let pass = 0; pass < 2; pass++) for (let i = 0; i < N; i++) { const p = spd[(i - 1 + N) % N]; spd[i] = Math.min(spd[i], Math.sqrt(p * p + 2 * aAcc * tr.ds)); }
   for (let pass = 0; pass < 2; pass++) for (let i = N - 1; i >= 0; i--) { const n = spd[(i + 1) % N]; spd[i] = Math.min(spd[i], Math.sqrt(n * n + 2 * aBrk * tr.ds)); }

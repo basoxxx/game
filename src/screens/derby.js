@@ -13,7 +13,7 @@ import { getSettings, setSettings } from '../engine/state.js';
 import { WEATHERS } from '../derby/atmos.js';
 import '../derby/menu.css';
 import '../derby/v5.css';
-import { PRESETS, driveOpts, setDriveOpts } from '../derby/handling.js';
+import { PRESETS, driveOpts, setDriveOpts, PACE } from '../derby/handling.js';
 import { RIVALS, portrait, cupStory } from '../derby/rivals.js';
 
 const D = { tab: 'carriera', venue: 'cava', mode: 'race', car: 'berlina', opponents: 7, weather: 'auto', ev: null, playing: false, game: null };
@@ -59,7 +59,8 @@ const money = (n) => `€ ${Math.round(n).toLocaleString('it-IT')}`;
 const modesFor = (v) => (v.kind === 'derby' ? ['derby', 'squadre', 're', 'ondate'] : v.kind === 'stunt' ? ['stunt'] : v.kind === 'park' ? ['parco'] : ['race', 'elim', 'time', 'caccia', 'distruzione']);
 function carStats(spec, base = null) {
   const r = (k, n) => [spec[k] / n, base ? base[k] / n : null];
-  return `<div class="dz-stats"><span>Potenza</span>${bar(...r('power', 1.6))}<span>Velocità</span>${bar(...r('top', 1.3))}<span>Resistenza</span>${bar(...r('armor', 2.3))}<span>Tenuta</span>${bar(...r('grip', 1.4))}</div>`;
+  const vmax = Math.round(PACE.vmax * spec.top * 3.6), vN = Math.round(PACE.vmax * spec.top * PACE.nitroTop * 3.6);
+  return `<div class="dz-stats"><span>Potenza</span>${bar(...r('power', 1.6))}<span>Velocità</span>${bar(...r('top', 1.3))}<span>Resistenza</span>${bar(...r('armor', 2.3))}<span>Tenuta</span>${bar(...r('grip', 1.4))}</div><div class="dz-vmax">${vmax} km/h · ${vN} km/h col nitro</div>`;
 }
 
 // controller / keyboard navigation of the menu: the shared pad helper focuses elements and clicks

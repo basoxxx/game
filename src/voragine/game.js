@@ -7,6 +7,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { KINDS, MILESTONES, CITIES, layoutCity, HALF, ROAD, BLOCK, NB, roadC, rng } from './city.js';
+import { vsfx } from '../ui/audio.js';
 
 export const MODES = {
   classica: { name: 'Classica', sub: '2 minuti contro 7 voragini rivali. Vince la più grande.', time: 120, rivals: 7, respawn: true },
@@ -34,37 +35,20 @@ const radiusOf = (pts) => R0 + GROW * Math.sqrt(Math.max(0, pts));
 const BOUND = HALF + 4;
 const CELL = 14;
 
-// ---------- tiny procedural sound kit (own context: works even when the menu music is off)
+// ---------- sound: a thin bridge to the game-wide audio engine (shared context and effects bus,
+// so it follows the volume settings and voice limits; works with the music turned off)
+const KIND_ID = new Map(Object.entries(KINDS).map(([id, k]) => [k, id]));
 class Sfx {
-  constructor(vol) {
-    try { this.c = new (window.AudioContext || window.webkitAudioContext)(); this.g = this.c.createGain(); this.g.gain.value = vol; this.g.connect(this.c.destination); } catch { this.c = null; }
-    this.last = 0;
-  }
-  tone(f, dur, type = 'sine', peak = 0.2, slide = 0.5, delay = 0) {
-    const c = this.c; if (!c) return;
-    const t = c.currentTime + delay, o = c.createOscillator(), g = c.createGain();
-    o.type = type; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(Math.max(30, f * slide), t + dur);
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(this.g); o.start(t); o.stop(t + dur + 0.05);
-  }
-  noise(dur, peak = 0.2, f = 400) {
-    const c = this.c; if (!c) return;
-    const n = Math.floor(c.sampleRate * dur), b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n) ** 2;
-    const s = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain();
-    s.buffer = b; fl.type = 'lowpass'; fl.frequency.value = f; g.gain.value = peak;
-    s.connect(fl); fl.connect(g); g.connect(this.g); s.start();
-  }
-  gulp(size) { // size 0..1: bigger things, deeper gulp
-    const now = performance.now(); if (now - this.last < 45 && size < 0.3) return; this.last = now;
-    this.tone(900 - size * 700 + Math.random() * 120, 0.12 + size * 0.25, 'sine', 0.12 + size * 0.12, 0.35);
-    if (size > 0.35) this.noise(0.35 + size * 0.5, 0.18 * size, 300 + 500 * (1 - size));
-  }
-  level() { [0, 4, 7, 12].forEach((s, i) => this.tone(440 * 2 ** (s / 12), 0.18, 'triangle', 0.12, 1, i * 0.07)); }
-  eatHole() { this.noise(0.6, 0.3, 900); this.tone(220, 0.5, 'sawtooth', 0.08, 0.25); }
-  lost() { this.tone(330, 0.6, 'triangle', 0.14, 0.4); }
-  beep(hi) { this.tone(hi ? 880 : 520, hi ? 0.35 : 0.14, 'square', 0.06, 1); }
-  close() { try { this.c?.close(); } catch {} }
+  constructor(vol) { this.on = vol > 0; }
+  gulp(size, k) { if (this.on) vsfx.gulp(size, KIND_ID.get(k) || ''); }
+  level() { if (this.on) vsfx.level(); }
+  eatHole() { if (this.on) vsfx.rival(); }
+  rivalGone() { if (this.on) vsfx.rivalGone(); }
+  lost() { if (this.on) vsfx.lost(); }
+  beep(hi) { if (this.on) vsfx.beep(hi); }
+  tick(sec) { if (this.on) vsfx.tick(sec); }
+  end(win) { if (this.on) vsfx.end(win); }
+  close() {}
 }
 
 // ---------- ground: one painted canvas for roads, kerbs, parks and plazas
@@ -600,7 +584,7 @@ export class VoragineGame {
       this.stats.eaten++;
       if (!this.stats.big || ob.pts > this.stats.big.pts) this.stats.big = ob;
       this.popAcc += ob.pts * 10;
-      this.sfx.gulp(Math.min(1, ob.r / 12));
+      this.sfx.gulp(Math.min(1, ob.r / 12), ob.k);
       if (ob.r > 5) this.shake = Math.min(1, (this.shake || 0) + ob.r / 20);
     }
   }
@@ -611,6 +595,7 @@ export class VoragineGame {
     else { b.out = true; b.outAt = this.mode.time - this.time; }
     if (a.player) { this.stats.holes++; this.sfx.eatHole(); this.toast(`Hai inghiottito ${b.name}!`); this.popAcc += (b.pts * 0.5 + 8) * 10; this.shake = 1; }
     else if (b.player) { this.sfx.lost(); this.toast(this.mode.respawn ? `${a.name} ti ha inghiottito! Riparti tra 3 secondi…` : `${a.name} ti ha inghiottito!`, true); }
+    else this.sfx.rivalGone();
     if (b.player && !this.mode.respawn) setTimeout(() => this.finish('eaten'), 1400);
   }
   updateFalling(dt) {
@@ -679,7 +664,7 @@ export class VoragineGame {
     }
     const t = Math.max(0, Math.ceil(this.time));
     const te = this.$('vg-timer'); te.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; te.classList.toggle('hot', t <= 10 && this.count <= 0);
-    if (t <= 5 && t !== this._lastBeep && this.count <= 0) { this._lastBeep = t; this.sfx.beep(false); }
+    if (t <= 5 && t !== this._lastBeep && this.count <= 0) { this._lastBeep = t; this.sfx.tick(t); }
     this.$('vg-score').textContent = Math.round(me.pts * 10).toLocaleString('it-IT');
     if (this.o.mode === 'solitaria') this.$('vg-eat').textContent = `${((this.eatenPts / this.totalPts) * 100).toFixed(1)}% della città`;
     else this.$('vg-eat').textContent = `${this.stats.eaten} oggetti · ${this.stats.holes} voragini`;
@@ -741,7 +726,7 @@ export class VoragineGame {
     const solo = this.o.mode === 'solitaria';
     const stars = solo ? (pct >= 70 ? 3 : pct >= 45 ? 2 : pct >= 20 ? 1 : 0) : pos === 1 ? 3 : pos <= 3 ? 2 : pos <= 5 ? 1 : 0;
     const coins = Math.round(Math.sqrt(score) / 2) + stars * 8 + this.stats.holes * 5;
-    this.sfx[pos === 1 || stars >= 2 ? 'level' : 'lost']();
+    this.sfx.end(pos === 1 || stars >= 2);
     this.o.onEnd?.({
       why, pos, of: this.h.length, score, stars, coins, pct, mode: this.o.mode, city: this.o.city,
       eaten: this.stats.eaten, holes: this.stats.holes, combo: this.stats.bestCombo || 0, big: this.stats.big?.k?.label || '', radius: me.r,

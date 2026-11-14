@@ -10,7 +10,7 @@ mkdirSync('public/covers', { recursive: true });
 const browser = await pw.chromium.launch({ args: ['--use-gl=angle', '--ignore-gpu-blocklist'] });
 const W = 1600, H = 900;
 async function shot(page, name) {
-  const buf = await page.screenshot({ type: 'png' });
+  const buf = await page.screenshot({ type: 'png', timeout: 240000 });
   const out = await page.evaluate(async (b64) => {
     const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
     const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0);
@@ -39,6 +39,29 @@ if (!ONLY || ONLY === 'voragine') {
   });
   await page.waitForTimeout(2500);
   await shot(page, 'voragine');
+  await page.close();
+}
+// ---- Flatout (Scontro Totale): the pack piling into each other on the dirt, low photo-mode camera
+if (!ONLY || ONLY === 'derby') {
+  const page = await browser.newPage({ viewport: { width: W, height: H } });
+  await page.addInitScript((s) => localStorage.setItem('apexdynasty_settings', s), settings);
+  await page.goto(BASE + '?game=derby'); await page.waitForSelector('.dz-menu');
+  await page.click('.dz-tab[data-id=libero]'); await page.waitForTimeout(400);
+  await page.click('.dz-venue[data-id=cava]').catch(() => {}); await page.waitForTimeout(300);
+  await page.click('[data-a=dz-go]');
+  await page.waitForFunction(() => window.__derby?.state === 'countdown', null, { timeout: 120000 });
+  // the game crawls in software WebGL: run the physics without drawing, then freeze it in photo mode
+  await page.evaluate(() => {
+    const g = window.__derby, render = g.render; g.render = () => {};
+    g.countdown = 0.02;
+    const keys = g.keys || g.input || null; void keys;
+    for (let i = 0; i < 60 * 9; i++) g.frame(1 / 60);
+    g.render = render;
+    g.photoMode(true); g.hud.root.classList.add('photo-clean');
+    const P = g.photo; P.pitch = 0.1; P.dist = 7.5; P.fov = 40; P.yaw += 2.4;
+  });
+  await page.waitForTimeout(4000);
+  await shot(page, 'derby');
   await page.close();
 }
 await browser.close();

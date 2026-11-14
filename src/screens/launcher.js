@@ -23,7 +23,7 @@ function continueCareer() {
 }
 
 // Key art rendered from the games themselves (tools/covers.mjs → public/covers). SVG art is the fallback.
-export const COVERS = { voragine: 'covers/voragine.webp' };
+export const COVERS = { voragine: 'covers/voragine.webp', derby: 'covers/derby.webp' };
 const coverOf = (id) => (COVERS[id] ? `<img class="bh-cover-img" src="./${COVERS[id]}" alt="" decoding="async" onerror="this.remove()">` : '');
 const ART = {
   apex: () => `<svg viewBox="0 0 320 180" aria-hidden="true"><defs><linearGradient id="lg-a" x1="0" x2="1"><stop offset="0" stop-color="#e5141b"/><stop offset="1" stop-color="#ff8a3d"/></linearGradient><filter id="lg-g"><feGaussianBlur stdDeviation="4"/></filter></defs>

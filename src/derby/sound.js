@@ -95,6 +95,15 @@ export class DerbySound {
     else if (type === 'cone') this.tone(t, 0.1, 0.1 * a, 420, 300, 'triangle');
     else { this.tone(t, 0.25, 0.3 * a, 90, 55); this.noise(t, 0.15, 0.15 * a, 'lowpass', 500, 150); }
   }
+  // the nitro bottle opening: a low thump in the chest and a rising whoosh
+  boostOpen() { if (!this.on) return; const t = this.c.currentTime + 0.005; this.tone(t, 0.32, 0.22, 95, 42); this.noise(t, 0.55, 0.16, 'bandpass', 380, 2600, 1.2); this.noise(t + 0.05, 0.4, 0.07, 'highpass', 2500, 6000, 0.6); }
+  // slow motion kicks in: a deep sub drop and a muffled whoosh (deeper for the heaviest hits)
+  slowHit(big) { if (!this.on) return; const t = this.c.currentTime + 0.005; this.tone(t, big ? 1.1 : 0.7, big ? 0.3 : 0.2, big ? 70 : 85, 28); this.noise(t, big ? 1.0 : 0.6, 0.12, 'lowpass', 1600, 180, 0.8); }
+  // exhaust pop / backfire (a double crack when lifting off at high revs)
+  backfire(car, pos, n = 1) {
+    if (!this.on) return; const a = this.att(pos); if (a < 0.12) return; const t = this.c.currentTime + 0.003;
+    for (let k = 0; k < n; k++) { const tt = t + k * (0.06 + Math.random() * 0.05); this.noise(tt, 0.09, 0.32 * a, 'bandpass', 900 + Math.random() * 500, 300, 1.4); this.tone(tt, 0.08, 0.2 * a, 140 + Math.random() * 40, 60, 'square'); }
+  }
   horn() { if (!this.on) return; const t = this.c.currentTime + 0.01; for (const [f, d] of [[311, 0], [233, 0.42]]) { this.tone(t + d, 0.38, 0.12, f, 0, 'square'); this.tone(t + d, 0.38, 0.06, f * 1.5, 0, 'sawtooth'); } }
   crowd(x) { this.crowdV = Math.min(1.3, this.crowdV + x * 0.8); }
   scrape(x) { this.scrapeV = Math.min(1, this.scrapeV + x); }
@@ -110,7 +119,8 @@ export class DerbySound {
     this.sqF.frequency.setTargetAtTime(900 + sp * 12, t, 0.1);
     const rollV = grounded >= 2 ? Math.min(1, sp / 30) * (hard && onTrack ? 0.05 : 0.16) * (1 + sq) : 0;
     this.roll.g.gain.setTargetAtTime(rollV, t, 0.08); this.roll.f.frequency.setTargetAtTime(hard && onTrack ? 600 : 300 + sp * 6, t, 0.2);
-    this.wind.g.gain.setTargetAtTime(Math.min(0.06, (sp / 45) ** 2 * 0.06) + (grounded === 0 && sp > 8 ? 0.02 : 0), t, 0.2);
+    // wind roar: grows with the square of the speed up to ~240 km/h and brightens as it grows (the speed you hear)
+    this.wind.g.gain.setTargetAtTime(Math.min(0.095, (sp / 55) ** 2 * 0.07) + (grounded === 0 && sp > 8 ? 0.02 : 0) + (P.boost && live ? 0.015 : 0), t, 0.2); this.wind.f.frequency.setTargetAtTime(900 + Math.min(70, sp) * 32, t, 0.25);
     this.nitroL.g.gain.setTargetAtTime(P.boost && live ? 0.22 : 0, t, P.boost ? 0.04 : 0.15); this.nitroL.f.frequency.setTargetAtTime(P.boost ? 1300 : 500, t, 0.3);
     this.scrapeV = Math.max(0, this.scrapeV - dt * 3.5);
     this.scrapeL.g.gain.setTargetAtTime(this.scrapeV * 0.22 * Math.min(1, sp / 8), t, 0.04);
