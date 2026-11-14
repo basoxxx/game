@@ -85,7 +85,6 @@ export class IncidentFx {
   }
   update(dt) {
     if (!(dt > 0)) return;
-    const gY = (x) => x.y0 ?? 0.03;
     for (const d of this.debris) {
       d.life -= dt;
       if (d.rest) continue;
@@ -94,7 +93,6 @@ export class IncidentFx {
       d.m.rotation.x += d.w.x * dt; d.m.rotation.y += d.w.y * dt; d.m.rotation.z += d.w.z * dt;
       const floor = (d.y0 ??= d.m.position.y - 0.5) + 0.03;
       if (d.m.position.y < floor) { d.m.position.y = floor; d.v.y *= -0.32; d.v.x *= 0.55; d.v.z *= 0.55; d.w.multiplyScalar(0.5); if (Math.abs(d.v.y) < 0.6 && d.v.lengthSq() < 0.5) d.rest = true; }
-      void gY;
     }
     for (const p of this.puffs) {
       p.age += dt; const k = p.age / p.life;

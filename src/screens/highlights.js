@@ -16,7 +16,6 @@ import { sfx, engineStart, engineSet, engineStop, music, crowdCheer } from '../u
 let R3D = null; // lazily loaded 3D module (keeps three.js out of the results screen chunk)
 async function load3D() { if (!R3D) { const [a, b] = await Promise.all([import('../ui/race3d.js'), import('../ui/race3d-incidents.js')]); R3D = { ...a, IncidentFx: b.IncidentFx }; } return R3D; }
 
-const lastName = (n) => { const p = String(n || '').split(' '); return p.slice(1).join(' ') || n; };
 const short3 = (n) => { const p = String(n || '').split(' '); return (p[p.length - 1] || n).replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase(); };
 const INCIDENT = new Set(['crash', 'multi', 'spin', 'contact', 'off', 'damage', 'puncture', 'issue', 'red']);
 const IMPACT = { crash: 0.9, roll: 0.7, contact: 0.05, spin: 0.35, off: 0.6 }; // seconds after t0 when the car hits something
@@ -29,12 +28,12 @@ export function clipStates(reel, clip, t, ctx) {
   const out = [];
   const order = [];
   reel.cars.forEach((car, i) => {
-    let u, f = 0, moving = true, kv = null;
+    let u, f = 0, moving = true;
     const uAt = rally ? (x) => kfAt(clip.kf?.[car.key], x)?.p ?? null : (x) => clipU(clip, i, x);
     if (rally) {
       const a = kfAt(clip.kf?.[car.key], t);
       if (!a || (a.w && car.key !== clip.focus) || (a.end && a.p >= 0.999 && t - a.tEnd > 5)) { out.push({ key: car.key, hidden: true }); return; }
-      u = a.p; moving = a.moving; kv = a.v;
+      u = a.p; moving = a.moving;
     } else {
       u = clipU(clip, i, t); if (u == null) { out.push({ key: car.key, hidden: true }); return; }
       f = clipF(clip, i, t);
@@ -66,7 +65,6 @@ export function clipStates(reel, clip, t, ctx) {
     }
     if (!car.gt && !(f & 4)) order.push({ key: car.key, u });
     out.push({ key: car.key, s, u, speed, inPit: !!(f & 1), pitting: !!(f & 2), fx, tyreColor: undefined, me: !!car.me });
-    void kv;
   });
   // running order from the recorded positions (labels + mini tower)
   order.sort((a, b) => b.u - a.u);
@@ -303,7 +301,7 @@ class HighlightsViewer {
       else if (k === 'Space' || k === 'KeyK') this.toggle();
       else if (k === 'ArrowRight' || k === 'KeyL') this.go(this.idx + 1);
       else if (k === 'ArrowLeft' || k === 'KeyJ') this.go(this.idx - 1);
-      else return;
+      else { if (k !== 'Tab' && k !== 'F11') e.stopPropagation(); return; }
       e.preventDefault(); e.stopPropagation();
     };
     window.addEventListener('keydown', this.onKey, true);

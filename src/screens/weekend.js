@@ -28,7 +28,7 @@ import { optimise, normalizePlan } from '../engine/strategy.js';
 import { tvUpdate, trackerUpdate, stintChartSVG, liveStandingsHTML, analysisHTML, defaultSel } from './broadcast.js';
 import { IncidentFx } from '../ui/race3d-incidents.js';
 import { saveReel, HL_TYPES } from '../engine/highlights.js';
-import { ClipPlayer, openHighlights } from './highlights.js';
+import { ClipPlayer, openHighlights, highlightsOpen } from './highlights.js';
 
 function shortName(n) { const p = n.split(' '); return (p[p.length - 1] || n).replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase(); }
 export { shortName };
@@ -285,6 +285,7 @@ function mountRace() {
   startLights(() => { R.paused = false; R.last = performance.now(); updateSpeedUI(); engineStart(st.category); });
   const loop = (t) => {
     const dt = Math.min(0.1, (t - R.last) / 1000); R.last = t;
+    if (highlightsOpen()) { R.raf = requestAnimationFrame(loop); return; } // the reel owns the GPU while it plays
     if (!R.paused && !R.sim.finished && !R.replay) {
       R.sim.uiSpeed = R.speed;
       let rem = dt * R.speed; const id0 = R.sim.radioId;
