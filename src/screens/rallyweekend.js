@@ -19,6 +19,8 @@ import { celebrate } from './results.js';
 import { shortName } from './weekend.js';
 import { DecisionHub, hubLogHTML } from './decisions.js';
 import { Race3D, webglAvailable, stageGeometry, stageSampleAt } from '../ui/race3d.js';
+import { saveReel } from '../engine/highlights.js';
+import { openHighlights } from './highlights.js';
 
 const RP = [
   { id: 'susp', name: 'Escursione Sospensioni', lo: 'Troppo rigida: rimbalza sulle buche', hi: 'Troppo morbida: imprecisa nei cambi di direzione' },
@@ -128,9 +130,12 @@ registerScreen({
     'repair-fit'(el) { fitRepairs(X.ev.crews.find((x) => x.key === el.dataset.key)); App.refresh(); },
     'end-service'() { const notes = X.ev.service(X.repairs, X.svc); X.repairs = {}; X.svc = {}; notes.forEach((n) => App.toast('Assistenza', n, 'bad')); S().weekend.phase = X.ev.finished() ? 'final' : 'prep'; prepChoices(); App.refresh(); },
     'next'() { const st = S(); const w = st.weekend; if (X.ev.finished()) w.phase = 'final'; else if (X.ev.isServiceAfter(X.ev.stageIdx - 1)) w.phase = 'service'; else { w.phase = 'prep'; prepChoices(); } App.refresh(); },
+    'rally-hl'(el) { const r = rallyReel(el.dataset.s != null ? +el.dataset.s : null); if (r) openHighlights(r); },
     'finish-rally'() {
       const st = S(); const res = X.ev.results(); res.track = st.weekend.trackId;
-      const idx = st.round; X.ev = null;
+      const idx = st.round;
+      try { const reel = rallyReel(); if (reel) saveReel(st, reel, idx); } catch (e) { console.warn('highlights', e); }
+      X.ev = null;
       applyRoundResults(st, res); saveGame(); App.go('results', { idx });
     },
     'sim-rest'() {
@@ -573,6 +578,7 @@ function stageResults(st) {
       ${moments.length ? `<div class="panel tight"><div class="tiny upper muted mb8">Momenti della prova</div>${moments.map((l) => `<div class="feed-item ${l.player ? 'player' : ''} ${l.kind === 'crash' || l.kind === 'out' ? 'crash' : ''}"><span>${esc(l.text)}</span></div>`).join('')}</div>` : ''}
       ${mine.filter((c) => ev.canRoadside(c)).map((c) => `<div class="panel tight rx-roadside"><div class="tiny upper muted mb8">Trasferimento · riparazione a bordo strada · ${esc(ev.driver(c).name)}</div><div class="small muted mb8">Niente assistenza prima della prossima prova: l’equipaggio può rattoppare <b>un</b> componente con gli attrezzi di bordo (circa −40% di danno). Più il danno è grave, più si rischia il ritardo al controllo orario (10s al minuto).</div><div class="row wrap gap6">${Object.entries(c.damage).filter(([, v]) => v > 0.08).map(([k, v]) => `<button class="btn sm" data-a="roadside" data-key="${c.key}" data-c="${k}">${icon('wrench')} ${DMG[k]} ${Math.round(v * 100)}%</button>`).join('')}</div></div>`).join('')}
       ${hubLogHTML((X.decLog || []).filter((d) => d.stage === s.idx), 'Decisioni della prova')}
+      ${ev.hl?.clips.some((c) => c.stage.idx === s.idx) ? `<button class="btn lg" data-a="rally-hl" data-s="${s.idx}">${icon('replay')} Highlights della prova</button>` : ''}
       <button class="btn primary xl" data-a="next">${ev.finished() ? 'Classifica finale' : ev.isServiceAfter(ev.stageIdx - 1) ? 'Parco assistenza' : 'Prossima prova'} ${icon('right')}</button></div>
   </div>`;
 }
@@ -614,7 +620,16 @@ function finalView(st) {
   <div class="col gap16"><div class="finish-card" style="padding:24px 34px 18px"><div class="tiny upper muted mt8">Arrivo</div><div class="fc-t">Rally concluso</div></div>
     <div class="panel"><div class="panel-head"><h3>Vincitori di prova</h3></div><div class="rx-sw">${ev.stages.map((s, i) => { const w = crews[s.winner]; return `<div class="${w?.isPlayer ? 'me' : ''}"><span>PS${i + 1}</span><i style="background:${SURFACES[s.surface].color}"></i><b>${w ? esc(shortName(ev.driver(w).name)) : '—'}</b><small>${s.best ? fmtLong(s.best) : ''}</small></div>`; }).join('')}</div></div>
     <div class="panel"><div class="panel-head"><h3>Distacchi prova dopo prova</h3></div>${gapChartSVG(ev)}</div>
+    ${ev.hl?.clips.length ? `<button class="btn lg" data-a="rally-hl">${icon('replay')} Highlights del rally</button>` : ''}
     <button class="btn primary xl pulse" data-a="finish-rally">Podio e punti ${icon('right')}</button></div></div>`;
+}
+// the reel of the whole rally (or of one stage)
+function rallyReel(stage = null) {
+  const ev = X.ev; if (!ev?.hl) return null;
+  const st = S(); const tr = getTrack('rally', st.weekend.trackId);
+  if (stage == null) return ev.hl.finalize({ title: tr.name, sub: `Round ${st.round + 1} · Rally` });
+  const base = ev.hl.finalize({ title: `${tr.name} · PS${stage + 1}`, sub: ev.stages[stage]?.name || '' }, 0);
+  return { ...base, clips: ev.hl.clips.filter((c) => c.stage.idx === stage).sort((a, b) => a.t0 - b.t0) };
 }
 
 function speedUI() {

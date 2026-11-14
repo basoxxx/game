@@ -15,19 +15,19 @@ export const HL_TYPES = {
   multi: { tag: 'Carambola', col: '#ff3b3b', ic: 'burst' },
   spin: { tag: 'Testacoda', col: '#ff9f1a', ic: 'replay' },
   contact: { tag: 'Contatto', col: '#ff6b2b', ic: 'burst' },
-  off: { tag: 'Fuori pista', col: '#ff9f1a', ic: 'warn' },
+  off: { tag: 'Fuori pista', col: '#ff9f1a', ic: 'alert' },
   damage: { tag: 'Ala danneggiata', col: '#ff9f1a', ic: 'wrench' },
   pass: { tag: 'Sorpasso', col: '#3aa0ff', ic: 'right' },
   lead: { tag: 'Nuovo leader', col: '#ffcc33', ic: 'trophy' },
   pit: { tag: 'Pit stop', col: '#b06bff', ic: 'wrench' },
-  fastest: { tag: 'Giro più veloce', col: '#b06bff', ic: 'clock' },
-  sc: { tag: 'Safety car', col: '#ffd23a', ic: 'warn' },
+  fastest: { tag: 'Giro più veloce', col: '#b06bff', ic: 'hourglass' },
+  sc: { tag: 'Safety car', col: '#ffd23a', ic: 'alert' },
   red: { tag: 'Bandiera rossa', col: '#ff2d2d', ic: 'flag' },
   restart: { tag: 'Ripartenza', col: '#22d37a', ic: 'flag' },
   finish: { tag: 'Arrivo', col: '#ffffff', ic: 'chequered' },
-  puncture: { tag: 'Foratura', col: '#ff9f1a', ic: 'warn' },
+  puncture: { tag: 'Foratura', col: '#ff9f1a', ic: 'alert' },
   issue: { tag: 'Guasto', col: '#ff9f1a', ic: 'wrench' },
-  stage: { tag: 'Miglior tempo', col: '#ffcc33', ic: 'clock' },
+  stage: { tag: 'Miglior tempo', col: '#ffcc33', ic: 'hourglass' },
 };
 
 // ---------------- incident pose: recorded positions -> spinning / stopping car ----------------
@@ -177,12 +177,37 @@ export class CircuitRecorder {
   finalize(meta = {}, max = 10) {
     for (const cl of this.open.slice()) { cl.t1 = this.sim.time; this.close(cl); }
     const clips = pickReel(this.done, max).map((cl) => this.pack(cl));
+    return { ...this.meta(), clips, ...meta };
+  }
+  meta() {
     const sim = this.sim;
     return {
       v: 1, kind: 'circuit', cat: sim.cat, cid: sim.track.cid, lapRef: sim.track.lap, laps: sim.laps, street: sim.track.street || 0,
-      night: !!sim.track.night && !sim.endurance, endurance: !!sim.endurance,
-      cars: this.keys.map((k) => carMeta(sim, k)), clips, ...meta,
+      night: !!sim.track.night && !sim.endurance, endurance: !!sim.endurance, trackName: sim.track.name || '',
+      cars: this.keys.map((k) => carMeta(sim, k)),
     };
+  }
+  // recorded position of car i at time t from the live history (extrapolated a few seconds ahead)
+  ringU(i, t) {
+    const R = this.ring; if (!R.length) return null;
+    const last = R[R.length - 1];
+    if (t >= last.t) { if (t - last.t > 8) return null; const c = this.sim.cars[i]; const v = c && c.status === 'running' && c.inPit <= 0 ? 1 / (c.lapTarget || this.sim.track.lap) : 0; return last.u[i] + v * (t - last.t); }
+    if (t <= R[0].t) return R[0].u[i];
+    let lo = 0, hi = R.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (R[m].t <= t) lo = m; else hi = m; }
+    const f = (t - R[lo].t) / ((R[hi].t - R[lo].t) || 1);
+    return R[lo].u[i] + (R[hi].u[i] - R[lo].u[i]) * f;
+  }
+  // live view: the incident pose of car i right now (spinning, parked off line), or null
+  livePose(i, W = 6) {
+    const sim = this.sim, c = sim.cars[i]; if (!c || !sim.incidents?.length) return null;
+    for (let k = sim.incidents.length - 1; k >= 0; k--) {
+      const inc = sim.incidents[k]; if (inc.key !== c.key) continue;
+      const age = sim.time - inc.t0;
+      if (age > ((inc.kind === 'crash' || inc.kind === 'park') ? PARKED_LIVE : 40)) break;
+      const p = incidentPose(inc, sim.time, (t) => this.ringU(i, t), W);
+      if (p) return p;
+    }
+    return null;
   }
 }
 function carMeta(sim, key) {
@@ -193,15 +218,20 @@ function carMeta(sim, key) {
 }
 // best moments: the start and the finish always, then the highest scores, in race order
 export function pickReel(clips, max = 10, maxDur = 190) {
-  const must = clips.filter((c) => c.type === 'start' || c.type === 'finish');
-  const rest = clips.filter((c) => !must.includes(c)).sort((a, b) => b.score - a.score);
+  const fin = clips.find((c) => c.type === 'finish');
+  const must = clips.filter((c) => c.type === 'start' || c === fin);
+  // the reel ends with the chequered flag: what happens behind afterwards is not shown
+  const rest = clips.filter((c) => !must.includes(c) && !(fin && c.tc > fin.tc + 1)).sort((a, b) => b.score - a.score);
   const out = must.slice(); let dur = must.reduce((a, c) => a + (c.t1 - c.t0), 0);
+  const n = {};
   for (const c of rest) {
     if (out.length >= max) break;
     const len = c.t1 - c.t0;
     if (dur + len > maxDur) continue;
-    // a second pass between the same two cars a few seconds later adds nothing
+    // a second pass between the same two cars a few seconds later adds nothing; passes do not take over the reel
     if (c.type === 'pass' && out.some((o) => o.type === 'pass' && o.keys[0] === c.keys[0] && Math.abs(o.tc - c.tc) < 60)) continue;
+    const g = c.type === 'pass' || c.type === 'lead' ? 'pass' : c.type;
+    if ((n[g] = (n[g] || 0) + 1) > (g === 'pass' ? 4 : g === 'pit' || g === 'fastest' || g === 'sc' ? 1 : 6)) continue;
     out.push(c); dur += len;
   }
   return out.sort((a, b) => a.t0 - b.t0);

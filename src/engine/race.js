@@ -1527,7 +1527,7 @@ export class CircuitSim {
     const nm = (k) => { const c = car(k); return c ? this.driver(c).name : ''; };
     switch (g.kind) {
       case 'pass': { const a = car(g.key), b = car(g.other); const s = (g.pos === 1 ? 6.5 : g.pos <= 3 ? 4.5 : 2.6) + (g.err ? 0.6 : 0) + ((a?.isPlayer || b?.isPlayer) ? 2 : 0); this.hlMark({ type: 'pass', keys: [g.key, g.other], title: `${nm(g.key)} su ${nm(g.other)}`, text: `Sorpasso per la P${g.pos}${g.drs ? ' con il DRS' : g.err ? ' dopo un errore' : ''}`, score: s, pre: 7, post: 4 }); break; }
-      case 'lead': this.hlMark({ type: 'lead', keys: [g.key], title: `${nm(g.key)} in testa`, text: 'Cambio al vertice', score: 7, pre: 7, post: 4 }); break;
+      case 'lead': this.hlMark({ type: 'lead', keys: [g.key], title: `${nm(g.key)} in testa`, text: 'Cambio al vertice', score: 3.2, pre: 7, post: 4 }); break;
       case 'pit': { const c = car(g.key); if (g.slow || c?.isPlayer || g.pos <= 3) this.hlMark({ type: 'pit', keys: [g.key], title: `${g.slow ? 'Sosta lenta' : 'Pit stop'} · ${nm(g.key)}`, text: `${g.stat.toFixed(1)}s da fermo${g.slow ? ': problemi al cambio gomme' : ''}`, score: (g.slow ? 3.4 : 1.6) + (c?.isPlayer ? 1.2 : 0), pre: 3, post: 9 }); break; }
       case 'fastest': if (this.hl) this.hl.done = this.hl.done.filter((x) => x.type !== 'fastest'); this.hlMark({ type: 'fastest', keys: [g.key], title: `Giro più veloce · ${nm(g.key)}`, text: `${fmtLapShort(g.time)}`, score: 2.4, pre: 6, post: 3 }); break;
       case 'sc': { const red = /rossa/i.test(g.title || ''); this.hlMark({ type: red ? 'red' : 'sc', keys: [], title: g.title, text: g.text, score: red ? 6 : 3, pre: 3, post: 6, quiet: !red }); break; }
@@ -1640,7 +1640,7 @@ export class CircuitSim {
     }
     for (const [b, a, i] of gains) if (i <= 8 || a.isPlayer || b.isPlayer) { this.log(`⇄ ${start ? 'Partenza' : 'Ripartenza'}: ${this.driver(b).name} ${start ? 'scatta meglio di' : 'infila'} ${this.driver(a).name} per la P${i}!`, 'overtake', b.key, a.isPlayer || b.isPlayer); this.onOvertake?.(b, a); }
     if (start) this.firstLapChaos(order);
-    if (start) this.hlMark({ type: 'start', keys: [order[0]?.key, ...this.cars.filter((c) => c.isPlayer).map((c) => c.key)], title: 'Semafori spenti!', text: gains.length ? `${gains.length} posizioni cambiate al via` : 'Partenza pulita', score: 7, pre: 3, post: 13 });
+    if (start) this.hlMark({ type: 'start', keys: [order[0]?.key, ...this.cars.filter((c) => c.isPlayer).map((c) => c.key)], title: 'Semafori spenti!', text: gains.length ? gains.length === 1 ? 'Una posizione cambiata al via' : `${gains.length} posizioni cambiate al via` : 'Partenza pulita', score: 7, pre: 3, post: 13 });
     else if (gains.length) this.hlMark({ type: 'restart', keys: [gains[0][0].key], title: 'Ripartenza', text: `${gains.length} ${gains.length === 1 ? 'sorpasso' : 'sorpassi'} al via lanciato`, score: 3.5 + Math.min(2, gains.length * 0.5), pre: 3, post: 8 });
     if (gains.length) this.pushTV({ kind: 'restart', title: start ? 'Partenza' : 'Ripartenza', text: `${gains.length} ${gains.length === 1 ? 'posizione guadagnata' : 'posizioni guadagnate'} ${start ? 'allo spegnimento dei semafori' : 'al via lanciato'}` });
     for (const c of this.cars) { c.restart = null; c.lapTarget = this.computeLap(c); }
