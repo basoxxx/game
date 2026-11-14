@@ -7,8 +7,8 @@ export const MODES = {
 };
 export const DIFFS = {
   facile: { name: 'Facile', speed: 0.84, smart: 0.42, aggro: 0.3, react: 0.75 },
-  normale: { name: 'Normale', speed: 0.95, smart: 0.72, aggro: 0.6, react: 0.5 },
-  difficile: { name: 'Difficile', speed: 1.03, smart: 1, aggro: 0.95, react: 0.32 },
+  normale: { name: 'Normale', speed: 0.93, smart: 0.7, aggro: 0.6, react: 0.55 },
+  difficile: { name: 'Difficile', speed: 0.97, smart: 0.9, aggro: 0.8, react: 0.4 },
 };
 // cost: coins in the shop · track: unlocked by the progression track only
 export const SKINS = [
@@ -46,27 +46,27 @@ export function trackReward(lvl) {
   const trail = TRAILS.find((t) => t.track === lvl); if (trail) return { type: 'trail', id: trail.id, name: `Scia ${trail.name}`, color: trail.colors[0] };
   return { type: 'coins', n: 40 + lvl * 15, name: `${40 + lvl * 15} monete` };
 }
-export const matchXp = (r) => Math.round(Math.sqrt(Math.max(0, r.score)) * 1.5 + r.stars * 15 + (r.missions || []).filter((m) => m.done).length * 20);
+export const matchXp = (r) => Math.round(Math.sqrt(Math.max(0, r.score)) * 1.0 + r.stars * 15 + (r.missions || []).filter((m) => m.done).length * 20);
 
 // ---- missions: three per match, picked from the templates that make sense in this city and mode
-const M = (id, text, kinds, ns, coins) => ({ id, type: 'eat', text, kinds, ns, coins });
+const M = (id, text, kinds, ns, coins, text1) => ({ id, type: 'eat', text, kinds, ns, coins, text1 });
 export const MISSION_POOL = [
   M('pedoni', 'Inghiotti {n} pedoni', ['person'], [30, 50, 80], [12, 18, 25]),
   M('auto', 'Inghiotti {n} auto', ['car', 'taxi'], [8, 14, 20], [15, 20, 28]),
-  M('bus', 'Inghiotti {n} autobus', ['bus'], [1, 2, 3], [15, 25, 35]),
+  M('bus', 'Inghiotti {n} autobus', ['bus'], [1, 2, 3], [15, 25, 35], 'Inghiotti un autobus'),
   M('alberi', 'Inghiotti {n} alberi', ['tree', 'pine', 'snowpine', 'xtree'], [10, 18, 28], [12, 18, 25]),
   M('case', 'Inghiotti {n} case', ['house', 'chalet'], [4, 8, 14], [15, 22, 30]),
   M('palazzi', 'Inghiotti {n} palazzi o uffici', ['apartment', 'office'], [2, 4, 7], [20, 28, 38]),
   M('grattacielo', 'Inghiotti un grattacielo', ['tower'], [1], [35]),
   M('lampioni', 'Inghiotti {n} lampioni', ['lamp'], [15, 25, 40], [12, 16, 22]),
-  M('fontane', 'Inghiotti {n} fontane', ['fountain'], [1, 2], [15, 25]),
+  M('fontane', 'Inghiotti {n} fontane', ['fountain'], [1, 2], [15, 25], 'Inghiotti una fontana'),
   M('container', 'Inghiotti {n} container', ['container', 'stack', 'stack2'], [5, 10, 16], [15, 22, 30]),
   M('barche', 'Inghiotti {n} barche', ['boat', 'yacht'], [2, 4], [18, 28]),
   M('gru', 'Inghiotti una gru del porto', ['crane'], [1], [35]),
   M('pupazzi', 'Inghiotti {n} pupazzi di neve', ['snowman'], [5, 10, 16], [12, 18, 25]),
   M('negozi', 'Inghiotti {n} negozi', ['shop', 'kiosk'], [3, 6, 10], [15, 22, 30]),
   { id: 'rivale', type: 'rival', text: 'Divora {n} voragini rivali', text1: 'Divora una voragine rivale', ns: [1, 2, 3], coins: [20, 32, 45], vs: true },
-  { id: 'combo', type: 'combo', text: 'Fai una combo x{n}', ns: [15, 25, 40], coins: [12, 20, 30] },
+  { id: 'combo', type: 'combo', text: 'Fai una combo x{n}', ns: [30, 60, 90], coins: [12, 20, 30] },
   { id: 'livello', type: 'level', text: 'Raggiungi il livello {n}', ns: [7, 8, 9], coins: [15, 22, 32] },
   { id: 'potere', type: 'power', text: 'Raccogli {n} potenziamenti', text1: 'Raccogli un potenziamento', ns: [1, 2, 3], coins: [10, 18, 26] },
   { id: 'citta', type: 'pct', text: 'Divora il {n}% della città', ns: [35, 50, 65], coins: [15, 25, 40], solo: true },

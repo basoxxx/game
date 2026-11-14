@@ -128,8 +128,8 @@ function wellTexture(color) {
 // variety, animated water. Same code for every material, so programs are shared.
 function patchObject(mat, uni) {
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uAo = uni.ao; sh.uniforms.uFac = uni.fac; sh.uniforms.uTime = uni.time;
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform vec2 uFac; varying vec3 vLocal;')
+    sh.uniforms.uAo = uni.ao; sh.uniforms.uFac = uni.fac; sh.uniforms.uTime = uni.time; sh.uniforms.uCut = uni.cut; sh.uniforms.uCamP = uni.camP;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform vec2 uFac; varying vec3 vLocal; varying vec3 vWorld;')
       .replace('#include <uv_vertex>', `#include <uv_vertex>
 #if defined(USE_MAP) && defined(USE_INSTANCING)
   if (uFac.x > 0.0) { float hI = fract(sin(float(gl_InstanceID) * 12.9898 + 4.1) * 43758.5453); vec2 sh = vec2(floor(hI * uFac.x) / uFac.x, floor(fract(hI * 7.13) * uFac.y) / uFac.y); vMapUv += sh;
@@ -138,8 +138,15 @@ function patchObject(mat, uni) {
   #endif
   }
 #endif`)
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLocal = position;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uAo; uniform float uTime; varying vec3 vLocal;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLocal = position;\n{ vec4 wp = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\n wp = instanceMatrix * wp;\n#endif\n vWorld = (modelMatrix * wp).xyz; }');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uAo; uniform float uTime; uniform vec4 uCut; uniform vec3 uCamP; varying vec3 vLocal; varying vec3 vWorld;')
+      .replace('void main() {', `void main() {
+  // see-through dither on whatever stands between the camera and the player's hole
+  if (uCut.w > 0.0 && vWorld.y > 3.5 && length(vWorld.xz - uCut.xz) > uCut.w * 1.02) {
+    vec3 a = uCamP, ab = vec3(uCut.x, 0.0, uCut.z) - a; float t = clamp(dot(vWorld - a, ab) / dot(ab, ab), 0.0, 1.0);
+    float d = length(vWorld - (a + ab * t)), R = uCut.w * 1.15 + 3.0;
+    if (t < 0.995 && d < R) { vec2 f = floor(mod(gl_FragCoord.xy, 4.0)); float b = mod(f.x * 2.0 + f.y * 3.0 + f.x * f.y, 4.0) / 4.0 + 0.125; if (smoothstep(R, R * 0.55, d) * 0.85 > b) discard; }
+  }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
   diffuseColor.rgb *= mix(uAo.y, 1.0, smoothstep(0.0, uAo.x, vLocal.y));
   if (uAo.z > 0.5) { float w = sin(length(vLocal.xz) * 7.0 - uTime * 4.0) * 0.5 + 0.5; float w2 = sin(vLocal.x * 5.0 + uTime * 2.3) * sin(vLocal.z * 4.0 - uTime * 1.7); diffuseColor.rgb += w * 0.16 + w2 * 0.07; }`);
@@ -153,7 +160,7 @@ class Particles {
   constructor(scene, n, additive) {
     this.n = n; this.i = 0; this.alive = 0;
     this.pos = new Float32Array(n * 3).fill(-9999); this.vel = new Float32Array(n * 3); this.col = new Float32Array(n * 3);
-    this.size = new Float32Array(n); this.alpha = new Float32Array(n); this.life = new Float32Array(n); this.max = new Float32Array(n); this.grav = new Float32Array(n); this.drag = new Float32Array(n); this.floor = new Float32Array(n);
+    this.amax = new Float32Array(n); this.size = new Float32Array(n); this.alpha = new Float32Array(n); this.life = new Float32Array(n); this.max = new Float32Array(n); this.grav = new Float32Array(n); this.drag = new Float32Array(n); this.floor = new Float32Array(n);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
     g.setAttribute('color', new THREE.BufferAttribute(this.col, 3).setUsage(THREE.DynamicDrawUsage));
@@ -162,16 +169,16 @@ class Particles {
     this.uScale = { value: 400 };
     const m = new THREE.ShaderMaterial({
       uniforms: { uScale: this.uScale },
-      vertexShader: 'attribute float size; attribute float alpha; attribute vec3 color; varying vec3 vC; varying float vA; uniform float uScale; void main(){ vC = color; vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = alpha > 0.0 ? max(1.0, size * uScale / max(1.0, -mv.z)) : 0.0; }',
-      fragmentShader: `varying vec3 vC; varying float vA; void main(){ vec2 d = gl_PointCoord - 0.5; float r = dot(d, d) * 4.0; if (r > 1.0) discard; float a = vA * (${additive ? '1.0 - r' : 'smoothstep(1.0, 0.55, r)'}); gl_FragColor = vec4(vC${additive ? ' * a' : ''}, ${additive ? '1.0' : 'a'}); }`,
+      vertexShader: 'attribute float size; attribute float alpha; attribute vec3 color; varying vec3 vC; varying float vA; uniform float uScale; void main(){ vC = color; vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = alpha > 0.0 ? clamp(size * uScale / max(1.0, -mv.z), 1.0, 48.0) : 0.0; }',
+      fragmentShader: `varying vec3 vC; varying float vA; void main(){ vec2 d = gl_PointCoord - 0.5; float r = dot(d, d) * 4.0; if (r > 1.0) discard; float a = vA * (${additive ? '1.0 - r' : 'pow(1.0 - r, 1.3)'}); gl_FragColor = vec4(vC${additive ? ' * a' : ''}, ${additive ? '1.0' : 'a'}); }`,
       transparent: true, depthWrite: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
     });
     this.pts = new THREE.Points(g, m); this.pts.frustumCulled = false; this.pts.renderOrder = 5; scene.add(this.pts);
   }
-  emit(x, y, z, vx, vy, vz, c, size, life, grav = 14, drag = 0.5, floor = 0.05) {
+  emit(x, y, z, vx, vy, vz, c, size, life, grav = 14, drag = 0.5, floor = 0.05, amax = 1) {
     const i = this.i = (this.i + 1) % this.n, j = i * 3;
     this.pos[j] = x; this.pos[j + 1] = y; this.pos[j + 2] = z; this.vel[j] = vx; this.vel[j + 1] = vy; this.vel[j + 2] = vz;
-    this.col[j] = c.r; this.col[j + 1] = c.g; this.col[j + 2] = c.b; this.size[i] = size; this.life[i] = this.max[i] = life; this.grav[i] = grav; this.drag[i] = drag; this.floor[i] = floor; this.alpha[i] = 1;
+    this.col[j] = c.r; this.col[j + 1] = c.g; this.col[j + 2] = c.b; this.size[i] = size; this.life[i] = this.max[i] = life; this.grav[i] = grav; this.drag[i] = drag; this.floor[i] = floor; this.alpha[i] = amax; this.amax[i] = amax;
     this.dirty = true;
   }
   update(dt) {
@@ -186,7 +193,7 @@ class Particles {
       this.vel[j] *= d; this.vel[j + 2] *= d; this.vel[j + 1] = this.vel[j + 1] * d - this.grav[i] * dt;
       this.pos[j] += this.vel[j] * dt; this.pos[j + 1] += this.vel[j + 1] * dt; this.pos[j + 2] += this.vel[j + 2] * dt;
       if (this.pos[j + 1] < this.floor[i] && this.floor[i] > -100) { this.pos[j + 1] = this.floor[i]; this.vel[j + 1] *= -0.3; this.vel[j] *= 0.7; this.vel[j + 2] *= 0.7; }
-      const t = this.life[i] / this.max[i]; this.alpha[i] = Math.min(1, t * 2.5);
+      const t = this.life[i] / this.max[i]; this.alpha[i] = Math.min(1, t * 2.5) * this.amax[i];
     }
     const a = this.pts.geometry.attributes;
     a.position.needsUpdate = a.alpha.needsUpdate = a.color.needsUpdate = a.size.needsUpdate = true;
@@ -211,22 +218,22 @@ export class VoragineGame {
     this.keys = new Set(); this.pointer = null; this.joy = null;
     this.h = []; this.objs = []; this.movers = []; this.grid = new Map(); this.popAcc = 0; this.popT = 0;
     this.stats = { eaten: 0, holes: 0, biggest: '', start: 0, powers: 0, kinds: {} };
-    this.uTime = { value: 0 }; this.clock = 0; this.timers = []; this.waves = []; this.wobbling = new Set(); this.powers = []; this.powerT = 14;
+    this.uTime = { value: 0 }; this.uCut = { value: new THREE.Vector4(0, 0, 0, 0) }; this.uCamP = { value: new THREE.Vector3() }; this.clock = 0; this.timers = []; this.waves = []; this.wobbling = new Set(); this.powers = []; this.powerT = 14;
     this.shake = 0; this.slow = null;
   }
 
   async start() {
     const o = this.o, root = this.root;
     root.innerHTML = `<canvas class="vg-cv"></canvas><div class="vg-hud">
+      <div class="vg-slow" id="vg-slow"><b id="vg-slow-t"></b></div><div class="vg-flash" id="vg-flash"></div>
       <div class="vg-top"><div class="vg-timer" id="vg-timer">2:00</div><div class="vg-mode">${o.daily ? 'Sfida del giorno · ' : ''}${this.mode.name} · ${CITIES[o.city]?.name || ''}</div><div class="vg-pw" id="vg-pw"></div></div>
-      <div class="vg-left"><ol class="vg-board" id="vg-board"></ol><ul class="vg-miss" id="vg-miss"></ul></div>
-      <div class="vg-score"><div class="vg-score-k">Punti</div><div class="vg-score-v" id="vg-score">0</div><div class="vg-eat" id="vg-eat"></div></div>
+      <div class="vg-left" id="vg-left"><ol class="vg-board" id="vg-board"></ol><ul class="vg-miss" id="vg-miss"></ul></div>
+      <div class="vg-score" id="vg-sc"><div class="vg-score-k">Punti</div><div class="vg-score-v" id="vg-score">0</div><div class="vg-eat" id="vg-eat"></div></div>
       <div class="vg-level"><div class="vg-level-row"><span id="vg-lvl">Livello 1</span><span id="vg-next"></span></div><div class="vg-bar"><i id="vg-bar"></i></div></div>
       <canvas class="vg-mini" id="vg-mini" width="160" height="160"></canvas>
       <button class="vg-pausebtn" id="vg-pausebtn" aria-label="Pausa">II</button>
       <div class="vg-labels" id="vg-labels"></div><div class="vg-pops" id="vg-pops"></div>
-      <div class="vg-slow" id="vg-slow"><b id="vg-slow-t"></b></div><div class="vg-flash" id="vg-flash"></div>
-      <div class="vg-toast" id="vg-toast"></div><div class="vg-combo" id="vg-combo"></div><div class="vg-count" id="vg-count"></div>
+            <div class="vg-toast" id="vg-toast"></div><div class="vg-combo" id="vg-combo"></div><div class="vg-count" id="vg-count"></div>
       <div class="vg-joy" id="vg-joy"><i></i></div>
     </div>`;
     this.cv = root.querySelector('.vg-cv');
@@ -319,7 +326,7 @@ export class VoragineGame {
   // ---------- city objects as instanced meshes
   matFor(role, k, fac) {
     const cfg = this.cfg, night = cfg.night;
-    const uni = { ao: { value: new THREE.Vector3(k.ao, 0.5, role === 'water' ? 1 : 0) }, fac: { value: new THREE.Vector2(0, 0) }, time: this.uTime };
+    const uni = { ao: { value: new THREE.Vector3(k.ao, 0.5, role === 'water' ? 1 : 0) }, fac: { value: new THREE.Vector2(0, 0) }, time: this.uTime, cut: this.uCut, camP: this.uCamP };
     if (role === 'glow') return night ? new THREE.MeshBasicMaterial({ vertexColors: true, color: '#d8d0bc' }) : new THREE.MeshLambertMaterial({ vertexColors: true, color: cfg.sunset ? '#c7b9a0' : '#8fa3b8', emissive: cfg.sunset ? '#3a2a14' : '#000000' });
     if (role === 'beam' || role === 'pool') return new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
     if (role === 'water') return patchObject(new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.88, emissive: night ? '#0d2a44' : '#123c58' }), uni);
@@ -424,7 +431,7 @@ export class VoragineGame {
     for (let k = 0; k < n; k++) {
       const a = this.rand() * Math.PI * 2, rr = r * (0.4 + this.rand() * 0.8), sp = 2 + this.rand() * (3 + r * 0.6), l = 0.55 + this.rand() * 0.35;
       TC.setRGB(c.r * l + 0.25, c.g * l + 0.23, c.b * l + 0.2);
-      this.fx.emit(x + Math.cos(a) * rr, 0.3 + this.rand() * r * 0.4, z + Math.sin(a) * rr, Math.cos(a) * sp * 0.6, 3 + this.rand() * (4 + r * 0.5), Math.sin(a) * sp * 0.6, TC, 0.5 + Math.min(1.6, r * 0.12) + this.rand() * 0.5, 0.7 + this.rand() * 0.8, 14, 0.8);
+      this.fx.emit(x + Math.cos(a) * rr, 0.3 + this.rand() * r * 0.4, z + Math.sin(a) * rr, Math.cos(a) * sp * 0.6, 3 + this.rand() * (4 + r * 0.5), Math.sin(a) * sp * 0.6, TC, 0.45 + Math.min(1.2, r * 0.09) + this.rand() * 0.4, 0.6 + this.rand() * 0.7, 14, 0.9, 0.05, 0.6);
     }
   }
   confetti(x, z, r, n = 110) {
@@ -690,6 +697,8 @@ export class VoragineGame {
     this.updateCamera(dt);
     this.flush();
     if (this.sky) this.sky.position.copy(this.cam.position);
+    if (this.me?.alive && !this.camOverride) this.uCut.value.set(this.me.x, 0, this.me.z, this.me.r); else this.uCut.value.w = 0;
+    this.uCamP.value.copy(this.cam.position);
     this.animateRims(now / 1000);
     this.updateSnow(dt);
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.cam);
@@ -756,6 +765,7 @@ export class VoragineGame {
       const target = radiusOf(h.pts) * (h.pw?.type === 'size' ? 1.3 : 1);
       h.r += (target - h.r) * (1 - Math.exp(-dt * 3.5));
       h.pulse = Math.max(0, (h.pulse || 0) - dt * 4);
+      if (h.shield > 0) { h.shield -= dt; h.g.visible = h.shield <= 0 || Math.sin(this.clock * 18) > -0.3; }
       this.applyHoleSize(h);
       if (h.rainbow) { const [a, b] = h.hue || [0, 1]; const c = TC.setHSL(a + (((performance.now() / 4000) % 1) * (b - a)), 0.9, 0.6); h.rim.material.color.copy(c); h.glow.material.color.copy(c); }
       // magnet: pull the edible things around into the hole
@@ -774,8 +784,8 @@ export class VoragineGame {
   respawn(h) {
     const free = this.spots.map(([x, z]) => ({ x, z, d: Math.min(...this.h.filter((o) => o !== h && o.alive).map((o) => Math.hypot(o.x - x, o.z - z) - o.r)) })).sort((a, b) => b.d - a.d)[0];
     h.x = free.x; h.z = free.z; h.vx = h.vz = 0; h.alive = true; h.r = radiusOf(h.pts) * 0.6; h.g.visible = true; h.lab.style.display = ''; h.pw = null;
-    h.ai.t = 0; this.applyHoleSize(h);
-    if (h.player) this.toast('Sei di nuovo in gioco!');
+    h.ai.t = 0; h.shield = 3; this.applyHoleSize(h);
+    if (h.player) this.toast('Sei di nuovo in gioco! Protetto per 3 secondi');
   }
 
   // AI: go for the best food nearby, hunt smaller holes, run from bigger ones, grab power-ups
@@ -792,7 +802,7 @@ export class VoragineGame {
       ai.flee = flee && R() < 0.4 + D.smart * 0.6 ? flee : null;
       let best = null, bs = 0;
       if (R() < D.aggro) for (const o of this.h) {
-        if (o === h || !o.alive || o.out || !(h.r > o.r * 1.25)) continue;
+        if (o === h || !o.alive || o.out || o.shield > 0 || !(h.r > o.r * 1.25)) continue;
         const d = Math.hypot(o.x - h.x, o.z - h.z);
         if (d < 45 + h.r * 2) { const s = (o.pts * 0.5 + 6) / (d + 10) * 1.6; if (s > bs) { bs = s; best = { x: o.x, z: o.z, hole: o }; } }
       }
@@ -862,7 +872,7 @@ export class VoragineGame {
     for (const a of this.h) {
       if (!a.alive || a.out) continue;
       for (const b of this.h) {
-        if (a === b || !b.alive || b.out || !(a.r > b.r * 1.2)) continue;
+        if (a === b || !b.alive || b.out || !(a.r > b.r * 1.2) || a.shield > 0 || b.shield > 0) continue;
         const d = Math.hypot(a.x - b.x, a.z - b.z);
         if (d < a.r - b.r * 0.45) this.swallowHole(a, b);
       }
@@ -922,7 +932,7 @@ export class VoragineGame {
   swallowHole(a, b) {
     a.pts += b.pts * 0.5 + 8; a.kills++;
     b.alive = false; b.g.visible = false; b.lab.style.display = 'none'; b.pw = null;
-    if (this.mode.respawn) { b.respawn = 3; b.pts *= 0.35; }
+    if (this.mode.respawn) { b.respawn = 3; b.pts *= 0.5; }
     else { b.out = true; b.outAt = this.mode.time - this.time; }
     const near = Math.hypot(b.x - this.me.x, b.z - this.me.z) < 110;
     if (near) { this.shockwave(b.x, b.z, b.r, b.color); this.firework(b.x, 1.5, b.z, b.color, a.player ? 120 : 50, 10 + b.r); this.puff(b.x, b.z, b.r + 2, '#9a8f7e'); }
@@ -930,7 +940,7 @@ export class VoragineGame {
       this.stats.holes++; this.sfx.eatHole(); this.toast(`Hai divorato ${b.name}!`); this.popAcc += (b.pts * 0.5 + 8) * 10; this.shake = 1.2; this.flash(b.color);
       this.later(0.25, () => this.firework(b.x + 4, 14 + a.r, b.z - 3, '#ffffff', 60, 12));
       this.progress('rival', 1);
-    } else if (b.player) { this.sfx.lost(); this.flash('#ff2040'); this.shake = 1; this.toast(this.mode.respawn ? `${a.name} ti ha inghiottito! Riparti tra 3 secondi…` : `${a.name} ti ha inghiottito!`, true); }
+    } else if (b.player) { this.stats.deaths = (this.stats.deaths || 0) + 1; this.sfx.lost(); this.flash('#ff2040'); this.shake = 1; this.toast(this.mode.respawn ? `${a.name} ti ha inghiottito! Riparti tra 3 secondi…` : `${a.name} ti ha inghiottito!`, true); }
     else this.sfx.rivalGone();
     if (b.player && !this.mode.respawn) setTimeout(() => this.finish('eaten'), 1400);
   }
@@ -992,7 +1002,7 @@ export class VoragineGame {
     if (this.camOverride) { this.camOverride(this.cam); return; } // key art / photo tools
     const me = this.me, r = me.r;
     const portrait = this.cam.aspect < 0.9 ? 1.35 : 1;
-    const zoom = this.slow ? 0.82 : 1;
+    const zoom = this.slow ? 0.93 : 1;
     const H = (21 + r * 3.3) * portrait * zoom;
     let sx = 0, sz = 0, sy = 0;
     if (this.shake > 0) {
@@ -1014,7 +1024,8 @@ export class VoragineGame {
   }
   updateLabels() {
     const w = this.root.clientWidth, hgt = this.root.clientHeight, m = 34;
-    const mini = this.$('vg-mini')?.getBoundingClientRect(), root = this.root.getBoundingClientRect();
+    const root = this.root.getBoundingClientRect();
+    if (!this._rects || (this._rectT = (this._rectT || 0) - 1) <= 0) { this._rectT = 30; this._rects = ['vg-mini', 'vg-left', 'vg-sc'].map((id) => this.$(id)?.getBoundingClientRect()).filter((r) => r && r.width).map((r) => ({ l: r.left - root.left - 50, r: r.right - root.left + 50, t: r.top - root.top - 14, b: r.bottom - root.top + 14 })); }
     for (const h of this.h) {
       if (!h.alive || h.out) { h.lab.style.opacity = 0; continue; }
       tmpV.set(h.x, 0, h.z + h.r * 1.05).project(this.cam);
@@ -1026,7 +1037,7 @@ export class VoragineGame {
       const k = 1 / Math.max(Math.abs(x), Math.abs(y), 1e-3);
       let px = Math.min(w - m - 20, Math.max(m + 20, ((x * k + 1) / 2) * w)), py = Math.min(hgt - m - 30, Math.max(m + 70, ((1 - y * k) / 2) * hgt));
       // keep clear of the minimap and the leaderboard
-      if (mini && mini.width) { const l = mini.left - root.left - 60, t = mini.top - root.top - 16, b = mini.bottom - root.top + 16; if (px > l && py > t && py < b) { if (t > hgt / 2) py = t; else py = b; } }
+      for (const R of this._rects) if (px > R.l && px < R.r && py > R.t && py < R.b) py = R.t > hgt / 2 ? R.t : R.b;
       const d = Math.hypot(h.x - this.me.x, h.z - this.me.z);
       if (d > 140) { h.lab.style.opacity = 0; continue; }
       h.lab.classList.add('edge'); h.lab.classList.toggle('danger', h.r > this.me.r * 1.2); h.lab.classList.toggle('prey', this.me.r > h.r * 1.2);
@@ -1135,7 +1146,7 @@ export class VoragineGame {
     });
   }
   // test / tools hook: how the match is going
-  debugInfo() { return { mine: +((this.myPts / this.totalPts) * 100).toFixed(1), city: +((this.eatenPts / this.totalPts) * 100).toFixed(1), r: +this.me.r.toFixed(1), lvl: this.me.lvl, missions: this.missions?.map((m) => `${m.done ? 'OK' : '..'} ${m.text} ${Math.floor(m.have)}/${m.n}`), powers: this.stats.powers, holes: this.stats.holes }; }
+  debugInfo() { return { mine: +((this.myPts / this.totalPts) * 100).toFixed(1), city: +((this.eatenPts / this.totalPts) * 100).toFixed(1), r: +this.me.r.toFixed(1), lvl: this.me.lvl, missions: this.missions?.map((m) => `${m.done ? 'OK' : '..'} ${m.text} ${Math.floor(m.have)}/${m.n}`), powers: this.stats.powers, holes: this.stats.holes, deaths: this.stats.deaths || 0 }; }
   // older tools call these names
   updateDust(dt) { this.updateFx(dt); }
 

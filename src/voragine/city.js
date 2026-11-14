@@ -217,7 +217,7 @@ export const MILESTONES = ['person', 'bench', 'tree', 'car', 'van', 'house', 'bu
 // "big moments": swallowing one of these slows time down for a beat
 export const BIG = new Set(['tower', 'landmark', 'crane', 'ship', 'bell', 'office']);
 
-// pal = ground palette; sub = kind substitutions for the theme
+// pal = ground palette; swap = kind substitutions for the theme
 export const CITIES = {
   centro: { name: 'Centro Città', sub: 'Viali, uffici e un monumento in piazza', seed: 11, sky: '#9ec9f0', fog: '#bcd8f0', sun: '#fff2dc', amb: 0.62, night: false, landmark: 'landmark',
     pal: { grass: '#6fae55', asph: '#41444c', walk: '#c9c4ba', conc: '#b3afa6', line: '#f4f1e6', tile: '#d8cfbf', water: '#3c7fae' }, outer: '#5f9a4a', hill: '#4f8b45',
@@ -233,7 +233,7 @@ export const CITIES = {
     w: { yard: 0.34, shops: 0.14, res: 0.12, parking: 0.12, plaza: 0.1, downtown: 0.1, park: 0.08 } },
   neve: { name: 'Neve', sub: 'Chalet, abeti innevati e pista di pattinaggio', seed: 83, sky: '#b9cfe6', fog: '#e2ebf4', sun: '#fff0e2', amb: 0.72, night: false, snow: true, landmark: 'bell',
     pal: { grass: '#eef3f8', asph: '#5a5e66', walk: '#d9dee5', conc: '#cdd3db', line: '#f8f8f2', tile: '#e1e5ea', water: '#a9d4ec' }, outer: '#e8eef5', hill: '#dfe7f0',
-    sub: { house: 'chalet', tree: 'snowpine', pine: 'snowpine', fountain: 'xtree', bush: 'snowbush', van: 'plow' },
+    swap: { house: 'chalet', tree: 'snowpine', pine: 'snowpine', fountain: 'xtree', bush: 'snowbush', van: 'plow' },
     w: { res: 0.36, park: 0.2, shops: 0.16, plaza: 0.12, rink: 0.08, parking: 0.08 } },
 };
 
@@ -248,7 +248,7 @@ export function layoutCity(cityId, seed) {
   const cfg = CITIES[cityId] || CITIES.centro;
   const r = rng(seed ?? cfg.seed);
   const items = [], movers = [], blocks = [];
-  const sub = cfg.sub || {};
+  const sub = cfg.swap || {};
   const add = (kind, x, z, rot = r() * Math.PI * 2, s = 0.92 + r() * 0.16) => items.push({ kind: sub[kind] || kind, x, z, rot, s });
   const mid = Math.floor(NB / 2);
   for (let bx = 0; bx < NB; bx++) for (let bz = 0; bz < NB; bz++) {

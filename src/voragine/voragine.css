@@ -152,7 +152,7 @@
 .vg-pw.on { display: block; animation: vgcombo .25s ease-out; }
 .vg-pw i { display: block; height: 4px; margin-top: 3px; background: linear-gradient(90deg, var(--c) var(--p, 100%), rgba(255,255,255,.15) var(--p, 100%)); }
 .vg-slow { position: absolute; inset: 0; opacity: 0; transition: opacity .25s; background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.55) 100%); display: flex; align-items: flex-start; justify-content: center; }
-.vg-slow::before, .vg-slow::after { content: ''; position: absolute; left: 0; right: 0; height: 7vh; background: #000; transition: transform .35s; }
+.vg-slow::before, .vg-slow::after { content: ''; position: absolute; left: 0; right: 0; height: 5vh; background: #000; transition: transform .35s; }
 .vg-slow::before { top: 0; transform: translateY(-100%); } .vg-slow::after { bottom: 0; transform: translateY(100%); }
 .vg-slow.on { opacity: 1; } .vg-slow.on::before, .vg-slow.on::after { transform: none; }
 .vg-slow b { margin-top: 24vh; font-size: clamp(30px, 6vw, 64px); font-weight: 800; font-style: italic; text-transform: uppercase; color: #ffe066; letter-spacing: .02em; text-shadow: 0 4px 18px rgba(0,0,0,.6); transform: rotate(-4deg); }
@@ -207,7 +207,8 @@
 .vg-res-xp b { color: #fff; font-family: var(--display); font-size: 17px; }
 .vg-res-xp .vg-bar { margin-top: 5px; }
 .vg-res-unl { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
-.vg-res-unl span { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: color-mix(in srgb, var(--gold) 14%, var(--s2)); border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent); animation: vgcombo .4s ease-out both; }
+.vg-res-unl span { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: color-mix(in srgb, var(--gold) 14%, var(--s2)); border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent); animation: vgunl .5s ease-out both; }
+@keyframes vgunl { from { opacity: 0; transform: scale(1.15); } to { opacity: 1; transform: none; } }
 @media (max-width: 1100px) { .vg-opts.vg-cities { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 900px) { .vg-opts.vg-cities { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 640px) {
