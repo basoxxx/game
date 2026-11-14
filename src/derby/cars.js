@@ -55,12 +55,12 @@ const lerp = (a, b, t) => a + (b - a) * t, clamp01 = (t) => Math.max(0, Math.min
 
 // Paint shader patch: mud rising from the sills as uDirt grows (0..1, object-space height) and
 // scraped paint from the per-vertex attribute aScr: a ring of primer, then bare shiny metal.
-function paintPatch(mat, uni) {
+function paintPatch(mat, uni, rust = { value: 0 }) {
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uDirt = uni;
+    sh.uniforms.uDirt = uni; sh.uniforms.uRust = rust;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aScr; varying float vScr; varying vec3 vOP;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvOP = position; vScr = aScr;');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      varying vec3 vOP; varying float vScr; uniform float uDirt;
+      varying vec3 vOP; varying float vScr; uniform float uDirt; uniform float uRust;
       float dh(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719))) * 43758.5453); }
       float dn(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
         return mix(mix(mix(dh(i),dh(i+vec3(1,0,0)),f.x),mix(dh(i+vec3(0,1,0)),dh(i+vec3(1,1,0)),f.x),f.y),mix(mix(dh(i+vec3(0,0,1)),dh(i+vec3(1,0,1)),f.x),mix(dh(i+vec3(0,1,1)),dh(i+vec3(1,1,1)),f.x),f.y),f.z); }`)
@@ -70,15 +70,21 @@ function paintPatch(mat, uni) {
         float sM = smoothstep(0.42, 0.8, vScr + (sN - 0.5) * 0.7);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.37, 0.38) * (0.75 + sN * 0.4), sP * 0.92);
         diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.66, 0.67, 0.70), vec3(0.42, 0.22, 0.10), smoothstep(0.62, 0.9, dn(vOP * 7.0))), sM);
+        // rust: blooms along the sills, wheel arches and panel edges, and creeps out of the scraped metal
+        float rN = dn(vOP * 5.3) * 0.55 + dn(vOP * 17.0) * 0.3 + dn(vOP * 41.0) * 0.15;
+        float rLow = smoothstep(0.62, 0.2, vOP.y) * 0.55 + sM * 0.9 + sP * 0.25;
+        float rAmt = smoothstep(1.02 - uRust * 0.75, 1.2 - uRust * 0.75, rN + rLow * 0.45) * step(0.01, uRust);
+        vec3 rustC = mix(vec3(0.33, 0.13, 0.05), vec3(0.55, 0.27, 0.1), dn(vOP * 29.0)) * (0.7 + rN * 0.5);
+        diffuseColor.rgb = mix(diffuseColor.rgb, rustC, clamp(rAmt, 0.0, 0.95));
         float dN = dn(vOP * 3.1) * 0.6 + dn(vOP * 9.0) * 0.4;
         float dLine = 0.35 + uDirt * 1.25 + dN * 0.35;
         float dAmt = smoothstep(dLine, dLine - 0.35, vOP.y) * clamp(uDirt * 1.6, 0.0, 1.0);
         dAmt = max(dAmt, uDirt * 0.35 * smoothstep(0.55, 0.85, dN));
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.30, 0.235, 0.16) * (0.75 + dN * 0.4), clamp(dAmt, 0.0, 0.92));`)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(mix(roughnessFactor, 0.85, sP), 0.32, sM); roughnessFactor = mix(roughnessFactor, 1.0, clamp(dAmt, 0.0, 1.0));')
-      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.95, sM * (1.0 - clamp(dAmt, 0.0, 1.0)));');
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(mix(roughnessFactor, 0.85, sP), 0.32, sM); roughnessFactor = mix(roughnessFactor, 0.92, clamp(rAmt, 0.0, 1.0)); roughnessFactor = mix(roughnessFactor, 1.0, clamp(dAmt, 0.0, 1.0));')
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.95, sM * (1.0 - clamp(dAmt, 0.0, 1.0))); metalnessFactor *= 1.0 - clamp(rAmt, 0.0, 1.0) * 0.8;');
   };
-  mat.customProgramCacheKey = () => 'dzpaint2';
+  mat.customProgramCacheKey = () => 'dzpaint3';
   return mat;
 }
 
@@ -366,10 +372,12 @@ export function buildBanger(type, color, number = 7, seed = 1, look = {}) {
   const car = new THREE.Group(), shell = new THREE.Group(); car.add(shell);
   const R = rand(seed * 131 + 7);
   const dirt = { value: 0 };
+  // rust: old bangers carry it from the start (clean looks none), it spreads with the damage (see juice.js)
+  const rust = { value: look.clean ? 0 : look.rust ?? 0.25 + R() * 0.45, base: 0 }; rust.base = rust.value;
   const S = SHAPE_OF(type), L = S.L, Wd = S.W, roofY = S.roof, beltY = S.belt;
   const paintTex = bangerPaint(S, color, number, seed, look);
-  const paint = paintPatch(new THREE.MeshPhysicalMaterial({ map: paintTex, roughness: look.clean ? 0.36 : 0.55, metalness: 0.3, clearcoat: look.clean ? 0.8 : 0.35, clearcoatRoughness: look.clean ? 0.18 : 0.42, side: THREE.DoubleSide }), dirt);
-  const pm = paintPatch(new THREE.MeshPhysicalMaterial({ color, roughness: 0.55, metalness: 0.3, clearcoat: 0.3, side: THREE.DoubleSide }), dirt);
+  const paint = paintPatch(new THREE.MeshPhysicalMaterial({ map: paintTex, roughness: look.clean ? 0.36 : 0.55, metalness: 0.3, clearcoat: look.clean ? 0.8 : 0.35, clearcoatRoughness: look.clean ? 0.18 : 0.42, side: THREE.DoubleSide }), dirt, rust);
+  const pm = paintPatch(new THREE.MeshPhysicalMaterial({ color, roughness: 0.55, metalness: 0.3, clearcoat: 0.3, side: THREE.DoubleSide }), dirt, rust);
   const B = buildShell(S), G = B.geos;
   const body = mesh(G.shell, paint); shell.add(body);
   const deform = [body];
@@ -472,11 +480,12 @@ export function buildBanger(type, color, number = 7, seed = 1, look = {}) {
   shell.add(box(0.28, 0.16, cw * 2 - 0.04, M.dark, cabF - 0.2, shM - 0.04, 0)); // dashboard
   const seat = (z, m) => { shell.add(box(0.46, 0.1, 0.44, m, dX, seatY + 0.05, z)); const bk = box(0.1, 0.62, 0.44, m, dX - 0.26, seatY + 0.36, z); bk.rotation.z = 0.14; shell.add(bk); shell.add(box(0.09, 0.16, 0.24, m, dX - 0.32, seatY + 0.74, z)); for (const s of [1, -1]) shell.add(box(0.36, 0.14, 0.05, m, dX - 0.02, seatY + 0.13, z + s * 0.22)); };
   seat(dZ, M.seat);
+  const drv = new THREE.Group(); drv.name = 'driver'; shell.add(drv);
   const suit = new THREE.MeshStandardMaterial({ color: HELMETS[Math.floor(R() * HELMETS.length)], roughness: 0.7 });
-  const torso = mesh(new THREE.CapsuleGeometry(0.15, 0.3, 4, 10), suit); torso.scale.set(0.85, 1, 1.15); torso.position.set(dX - 0.14, seatY + 0.42, dZ); torso.rotation.z = 0.12; shell.add(torso);
-  for (const s of [1, -1]) { shell.add(tube(V(dX - 0.12, seatY + 0.56, dZ + s * 0.19), V(dX + 0.12, seatY + 0.42, dZ + s * 0.2), 0.05, suit, 8)); shell.add(tube(V(dX + 0.12, seatY + 0.42, dZ + s * 0.2), V(dX + 0.36, seatY + 0.52, dZ + s * 0.13), 0.045, suit, 8)); shell.add(tube(V(dX - 0.08, seatY + 0.12, dZ + s * 0.1), V(dX + 0.3, seatY + 0.14, dZ + s * 0.12), 0.07, suit, 8)); shell.add(box(0.03, 0.34, 0.05, M.belt, dX - 0.06, seatY + 0.5, dZ + s * 0.07)); }
-  const helmet = mesh(new THREE.SphereGeometry(0.15, 16, 12), new THREE.MeshPhysicalMaterial({ color: HELMETS[Math.floor(R() * HELMETS.length)], roughness: 0.22, clearcoat: 1 })); helmet.scale.set(1.08, 1, 0.95); helmet.position.set(dX - 0.1, seatY + 0.79, dZ); shell.add(helmet);
-  const visor = mesh(new THREE.SphereGeometry(0.153, 14, 8, -0.95, 1.9, 1.15, 0.6), new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.08, metalness: 0.9 })); visor.scale.copy(helmet.scale); visor.position.copy(helmet.position); shell.add(visor);
+  const torso = mesh(new THREE.CapsuleGeometry(0.15, 0.3, 4, 10), suit); torso.scale.set(0.85, 1, 1.15); torso.position.set(dX - 0.14, seatY + 0.42, dZ); torso.rotation.z = 0.12; drv.add(torso);
+  for (const s of [1, -1]) { drv.add(tube(V(dX - 0.12, seatY + 0.56, dZ + s * 0.19), V(dX + 0.12, seatY + 0.42, dZ + s * 0.2), 0.05, suit, 8)); drv.add(tube(V(dX + 0.12, seatY + 0.42, dZ + s * 0.2), V(dX + 0.36, seatY + 0.52, dZ + s * 0.13), 0.045, suit, 8)); drv.add(tube(V(dX - 0.08, seatY + 0.12, dZ + s * 0.1), V(dX + 0.3, seatY + 0.14, dZ + s * 0.12), 0.07, suit, 8)); shell.add(box(0.03, 0.34, 0.05, M.belt, dX - 0.06, seatY + 0.5, dZ + s * 0.07)); }
+  const helmet = mesh(new THREE.SphereGeometry(0.15, 16, 12), new THREE.MeshPhysicalMaterial({ color: HELMETS[Math.floor(R() * HELMETS.length)], roughness: 0.22, clearcoat: 1 })); helmet.scale.set(1.08, 1, 0.95); helmet.position.set(dX - 0.1, seatY + 0.79, dZ); drv.add(helmet);
+  const visor = mesh(new THREE.SphereGeometry(0.153, 14, 8, -0.95, 1.9, 1.15, 0.6), new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.08, metalness: 0.9 })); visor.scale.copy(helmet.scale); visor.position.copy(helmet.position); drv.add(visor);
   shell.add(box(0.1, 0.07, 0.14, M.dark, dX - 0.0, seatY + 0.7, dZ));
   const sw = mesh(new THREE.TorusGeometry(0.17, 0.018, 6, 18), M.dark); sw.rotation.y = Math.PI / 2; sw.position.set(dX + 0.38, seatY + 0.52, dZ); shell.add(sw);
   shell.add(tube(V(dX + 0.38, seatY + 0.52, dZ), V(cabF - 0.2, shM - 0.06, dZ), 0.02, M.steel));
@@ -524,9 +533,9 @@ export function buildBanger(type, color, number = 7, seed = 1, look = {}) {
   for (const [x, z, r, w] of [[wx, S.wzF, wrF, wwF], [wx, -S.wzF, wrF, wwF], [-wx + 0.05, S.wzR, S.wr, S.ww], [-wx + 0.05, -S.wzR, S.wr, S.ww]]) { const wl = wheel(r, w, S.rimStyle || 0, !look.clean && R() < 0.2 ? Math.floor(R() * 4) : rimI); wl.position.set(x, r, z); car.add(wl); wheels.push(wl); wheelPos.push([x, z]); wrs.push(r); }
   // one mesh per material for everything that never moves on its own (cage, trims, interior, lights...);
   // each detachable part is merged the same way so a bumper or a rack costs one or two draw calls
-  mergeStatic(shell, new Set([body, cab, ...parts]));
+  mergeStatic(shell, new Set([body, cab, drv, ...parts])); mergeStatic(drv);
   for (const pt of parts) if (pt.isGroup && pt.children.length > 1) mergeStatic(pt, new Set(pt.userData.panel ? [pt.userData.panel] : []));
-  car.userData = { wheels, wheelPos, wr: S.wr, wrs, ww: S.ww, shell, body, cab, parts, deform, dims: { L, W: Wd, H: roofY, beltY }, paint, dirt, glass: { tex: winTex, WIN, cracked: {} }, sign, lights: { head: headM, tail: tailM }, shape: S };
+  car.userData = { wheels, wheelPos, wr: S.wr, wrs, ww: S.ww, shell, body, cab, parts, deform, dims: { L, W: Wd, H: roofY, beltY }, paint, dirt, glass: { tex: winTex, WIN, cracked: {} }, driver: drv, suitColor: suit.color.getHex(), helmetMat: helmet.material, rust, sign, lights: { head: headM, tail: tailM }, shape: S };
   return car;
 }
 // Dent the body around a local-space point. dir: local direction of the push. amount in metres.

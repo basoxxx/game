@@ -10,7 +10,7 @@ import { engineStart, engineSet, engineStop, sfx } from '../ui/audio.js';
 import { getSettings, setSettings } from '../engine/state.js';
 import { buildTrack, buildTerrain, buildRacingLine, buildWater, SURFACES } from './tracks.js';
 import { buildBanger, dent, crackGlass, updateParts, scrape, BANGERS, AI_COLORS, LIVERIES, tuneSpec } from './cars.js';
-import { DIFFICULTY, medalFor, payout, recordCareer, prog, saveProg, checkChallenges } from './career.js';
+import { DIFFICULTY, medalFor, payout, recordCareer, prog, saveProg, checkChallenges, stuntTargets, recordDaily } from './career.js';
 import { DerbySound } from './sound.js';
 import { Particles, SkidMarks, Streaks, Chunks, Rain, LensFx, Shockwaves, FXENV } from './fx.js';
 import { addDerbyPost } from './post.js';
@@ -30,6 +30,7 @@ import { rivalOfCup, rivalState, recordRival, portrait, cupPodium } from './riva
 import { CUPS } from './career.js';
 import { TouchControls, wantsTouch } from './touch.js';
 import { upgradeProps, overcastSky } from './assets.js';
+import { juiceDrive, juiceLand, juiceCrash, juiceWall, juiceSync, juiceReset } from './juice.js';
 
 let rapierReady = null;
 export function initPhysics() { return (rapierReady ||= RAPIER.init()); }
@@ -399,6 +400,7 @@ export class DerbyGame {
   requestRespawn(car, why = 'manual') { this.stat('respawn', car); this.simStats.respawnWhy[why] = (this.simStats.respawnWhy[why] || 0) + 1; this.respawn(car); }
 
   respawn(car) {
+    juiceReset(car);
     const tr = this.track, T = this.terrain;
     let x, z, yaw;
     if (tr.arena) { const a = Math.random() * 6.28, r = (tr.island ? 0.45 + Math.random() * 0.3 : Math.random() * 0.5) * tr.R; x = T.cx + Math.cos(a) * r; z = T.cz + Math.sin(a) * r; yaw = Math.random() * 6.28; }
@@ -760,6 +762,7 @@ export class DerbyGame {
     if (vel.y < -5) b.setLinvel({ x: vel.x, y: vel.y * (1 - L * 0.8), z: vel.z }, true);
     // a heavy landing on a damaged car hurts the suspension (and the chassis)
     if (vel.y < -11 && airT > 0.8) { const hit = Math.min(10, (-vel.y - 11) * 1.2) * (up && up.y < 0.8 ? 1.6 : 1); if (hit > 1) { car.hp = Math.max(car.hp > 0 ? 1 : 0, car.hp - hit * (car.isPlayer ? this.diff.dmgTaken : 1)); car.zoneDmg ||= { front: 0, rear: 0, left: 0, right: 0 }; car.zoneDmg.front += hit * 0.3; car.zoneDmg.rear += hit * 0.3; } }
+    juiceLand(this, car, vel, up);
     const p = b.translation();
     for (let k = 0; k < Math.min(26, airT * 18) * (this.low ? 0.6 : 1); k++) { const a = Math.random() * 6.28; this.dust.emit(p.x + Math.cos(a) * 1.5, p.y - 0.3, p.z + Math.sin(a) * 1.5, Math.cos(a) * 3, 0.8 + Math.random(), Math.sin(a) * 3, 1.6 + Math.random(), 1.4, ...(this.surface.dust || [0.5, 0.5, 0.5]), 0.35); }
     this.snd?.land(car, airT);
@@ -824,6 +827,7 @@ export class DerbyGame {
         const inward = new THREE.Vector3(-local.x, -local.y * 0.3, -local.z).normalize();
         car.lastImpactT = this.time; const ds = (this.simStats.dmgBy ||= {}); ds[other.kind] = Math.round((ds[other.kind] || 0) + dmg);
         this.applyDamage(car, dmg, local, inward, other.kind === 'car' ? other.car : null, wp);
+        if (other.kind === 'wall' || other.kind === 'prop') juiceWall(this, car, eff, wp);
         if (eff > 2400) for (let k = 0; k < Math.min(48, eff / 420) * (this.low ? 0.6 : 1); k++) { const sp = 6 + Math.min(10, eff / 2500); this.sparks.emit(wp.x, wp.y, wp.z, (Math.random() - 0.5) * sp, Math.random() * sp * 0.6, (Math.random() - 0.5) * sp, 0.25 + Math.random() * 0.45, 0.35, 1, 0.75 + Math.random() * 0.2, 0.35, 1); }
         if (eff > 9000 && other.kind === 'car') { this.crowdHype = Math.min(1, (this.crowdHype || 0) + eff / 40000); this.fire.emit(wp.x, wp.y, wp.z, 0, 0.5, 0, 0.12, 1.4, 1, 0.8, 0.5, 0.9); }
         if (car.isPlayer && dmg > 3) {
@@ -849,6 +853,7 @@ export class DerbyGame {
     let kind = 'sportellata';
     if (za === 'front' && zv === 'side') kind = 'tbone'; else if (za === 'front' && zv === 'front') kind = 'frontale'; else if (za === 'front' && zv === 'rear') kind = 'tampon'; else if (za === 'rear') kind = 'retro';
     const K = CRASH_KINDS[kind], sev = Math.min(2, closing / 14);
+    juiceCrash(this, a, b, closing, J, kind);
     if (att.isPlayer && vic === this.rival) this.rivalHits = (this.rivalHits || 0) + 1;
     const pts = att.isPlayer ? this.combo(Math.round(K.pts * sev)) : Math.round(K.pts * sev);
     this.simStats.crashes++;
@@ -1166,7 +1171,7 @@ export class DerbyGame {
     if (['race', 'elim', 'caccia'].includes(this.mode) && this.laps >= 4 && this.dopts.pit !== false && !this.track.arena && !this.track.stunt) this.buildPit();
     this.objectives = pickObjectives(this);
     if (this.mode === 'time') this.loadGhost();
-    if (this.mode === 'stunt') { this.targets = (this.o.targets || [60, 80, 95]).map((t) => Math.round(t * PACE.stunt)); this.stunt = { att: 1, max: 3, phase: 'hold', t: 0, best: 0, dists: [], hold: 1.6 }; }
+    if (this.mode === 'stunt') { this.targets = stuntTargets(this.o.targets, this.player.spec.id, this.player.spec.top, PACE.stunt); /* v7: scaled per car class and engine tune */ this.stunt = { att: 1, max: 3, phase: 'hold', t: 0, best: 0, dists: [], hold: 1.6 }; }
     if (this.mode === 'caccia') { this.huntDmg = 0; this.player.nitro = 100; this.laps = this.o.laps || Math.max(4, this.venue.laps); }
   }
   // ---- pit box (v5): a drive-through repair lane on the straightest stretch, for races of 4+ laps
@@ -1337,7 +1342,8 @@ export class DerbyGame {
     if (this.mode === 'parco') r.bonus = Math.min(1500, r.bonus);
     if (this.o.championship) r.bonus = Math.round(r.bonus / 2);
     let career = null;
-    if (ev) {
+    if (ev?.daily) { career = recordDaily(r.medal); r.prize += career.bonus; r.dailyBonus = career.bonus; }
+    else if (ev) {
       const prev = prog().career.res[ev.id]?.medal || 0;
       if (r.medal <= prev && prev > 0) r.prize = Math.round(r.prize * 0.5 / 50) * 50; // replays pay half unless you improve
       career = recordCareer(ev.id, r.medal);
@@ -1401,7 +1407,7 @@ export class DerbyGame {
       let inp = !racing || stuntHold ? { thr: (this.state === 'countdown' || stuntHold) && car.isPlayer ? pin.thr : Math.random() < 0.02 ? 1 : 0, brk: 0, st: 0, hb: 0, nitro: 0, hold: 1 } : car.isPlayer && !(this.state === 'finished') ? pin : this.aiInput(car, dt);
       if (car.stunT > 0) car.stunT -= dt;
       if (car.wreckT > 0) { car.wreckT -= dt; inp = { thr: 0, brk: 1, st: 0, hb: 0, nitro: 0 }; if (car.wreckT <= 0) { car.hp = 45; car.burnT = 0; car.zoneDmg = null; car.heat = 0; car.hotT = 0; car.fireT = 0; car.hotN = 0; for (const w of car.mesh.userData.wheels) { w.userData.bent = 0; w.userData.toe = 0; w.rotation.x = 0; } this.repairWheels(car); this.respawn(car); } }
-      car.dyn = this.drive(car, inp, dt);
+      car.dyn = this.drive(car, inp, dt); juiceDrive(this, car, inp, dt);
       if (car.ghostT > 0) {
         car.ghostT -= dt;
         if (car.ghostT <= 0) {
@@ -1464,6 +1470,7 @@ export class DerbyGame {
     for (let i = 0; i < 4; i++) { const w = ud.wheels[i], b = w.userData.bent; if (b) { w.rotation.x = b; w.rotation.y += w.userData.toe; } }
     if (dt) updateParts(car.mesh, dt, { speed: car.dyn?.speed || 0, accF: car.accF, accL: car.accL, t: this.time });
     ud.lights.tail.emissiveIntensity = car.brakeF > 0.1 ? 2.6 : car.gearLabel === 'R' ? 1.2 : this.night ? 0.9 : 0.45;
+    juiceSync(this, car, dt);
     if (car.ghostT > 0 && car.isPlayer) car.mesh.visible = Math.floor(this.time * 10) % 2 === 0; else car.mesh.visible = true;
     if (!dt) return;
     const lv = car.body.linvel(); const speed = Math.hypot(lv.x, lv.z);
