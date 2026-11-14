@@ -16,6 +16,8 @@ pebble_ground_01, brown_mud_rocks_01, dry_ground_rocks, asphalt_snow, snow_03, f
 Scontro Totale (derby/): Poly Haven (https://polyhaven.com) - CC0 1.0 Public Domain, re-compressed to webp.
 dirt (derby/dirt_diff.webp), muddy_tracks (derby/mud_diff.webp), models Barrel_01 (derby/barrel.*)
 and old_tyre (derby/tyre.*), HDRI overcast_soil_puresky (derby/overcast_soil_puresky_1k.hdr).
+v7 paddock models (512 px webp textures): covered_car (derby/wreck.*), propane_tank (derby/propane.*),
+metal_jerrycan_green (derby/jerrycan.*).
 
 Voragine facades (voragine/f_*.webp, 1k webp; *_e = night window emission, partly generated from the colour maps):
 ambientCG (https://ambientcg.com) - CC0 1.0 Public Domain: Facade001, Facade003, Facade006, Facade017, Facade018A.

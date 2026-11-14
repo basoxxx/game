@@ -30,6 +30,7 @@ import { rivalOfCup, rivalState, recordRival, portrait, cupPodium } from './riva
 import { CUPS } from './career.js';
 import { TouchControls, wantsTouch } from './touch.js';
 import { upgradeProps, overcastSky } from './assets.js';
+import { buildPaddock } from './paddock.js';
 import { juiceDrive, juiceLand, juiceCrash, juiceWall, juiceSync, juiceReset } from './juice.js';
 
 let rapierReady = null;
@@ -91,6 +92,7 @@ export class DerbyGame {
     try { buildExtras(this, this.standsInfo || []); } catch (e) { console.warn('extras', e); }
     this.buildProps();
     this.assetsP = upgradeProps(this).catch((e) => { console.warn('props', e); return false; });
+    this.paddockP = buildPaddock(this);
     buildTrees(this);
     this.buildCars();
     if (this.o.thumb) { await this.envReady; return; }
@@ -101,7 +103,7 @@ export class DerbyGame {
     this.bindInput();
     this.snd = new DerbySound(this);
     await this.envReady;
-    await Promise.race([this.assetsP, new Promise((r) => setTimeout(r, 3500))]);
+    await Promise.race([Promise.all([this.assetsP, this.paddockP]), new Promise((r) => setTimeout(r, 3500))]);
     // precompile every shader of the scene before the lights go out (no first-crash / first-fire hitch);
     // parallel compile where the driver supports it, never waiting more than 4 s
     try { this.updateCamera(0.016); const t0 = performance.now(); await Promise.race([this.renderer.compileAsync ? this.renderer.compileAsync(this.scene, this.camera) : Promise.resolve(this.renderer.compile(this.scene, this.camera)), new Promise((r) => setTimeout(r, 4000))]); this.compileMs = Math.round(performance.now() - t0); } catch (e) { console.warn('precompile', e); }

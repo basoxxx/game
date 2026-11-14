@@ -167,6 +167,16 @@ export function juiceSync(game, car, dt) {
     }
   }
   sh.position.y = ud.shellY0 + (car.sqY || 0);
-  if (car === game.player || car === game.cars?.[0]) updateEjected(game, dt);
+  if (car === game.player) {
+    updateEjected(game, dt);
+    // rain: drops crown on the ground and in the puddles around the camera
+    if (game.rain && game.wet > 0.3 && dt > 0 && game.splash) {
+      const c = game.camera.position, T = game.terrain, n = Math.round((game.low ? 3 : 9) * game.wet);
+      for (let k = 0; k < n; k++) {
+        const a = Math.random() * 6.28, r = 2 + Math.random() * 22, x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r, y = T.heightAt(x, z), pud = T.waterAt(x, z) > 0.2;
+        game.splash.emit(x, y + 0.04, z, (Math.random() - 0.5) * 0.6, pud ? 1.6 + Math.random() : 0.8 + Math.random() * 0.6, (Math.random() - 0.5) * 0.6, pud ? 0.32 : 0.2, pud ? 0.2 : 0.1, 0.78, 0.82, 0.88, pud ? 0.4 : 0.22);
+      }
+    }
+  }
 }
 export function juiceReset(car) { const ud = car.mesh.userData; car.ejected = false; if (ud.driver) ud.driver.visible = true; car.sqY = 0; car.sqV = 0; }
