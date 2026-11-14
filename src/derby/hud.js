@@ -3,7 +3,7 @@ import './derby.css';
 import './v5.css';
 import { CHAMPIONSHIP, champGet } from './champ.js';
 import { VENUES } from './tracks.js';
-import { MODES, MEDALS, MEDAL_COLORS, CUPS } from './career.js';
+import { MODES, MEDALS, MEDAL_COLORS, CUPS, careerGoals } from './career.js';
 import { panel as panel5, TEAM } from './modes.js';
 export const medalSVG = (m, size = 64) => `<svg viewBox="0 0 64 64" width="${size}" height="${size}" class="dzx-medal m${m}"><path d="M20 2h10l6 20h-10zM44 2H34l-6 20h10z" fill="${m ? '#c8102e' : '#444'}"/><circle cx="32" cy="40" r="20" fill="${MEDAL_COLORS[m]}" stroke="rgba(0,0,0,.35)" stroke-width="3"/><circle cx="32" cy="40" r="13" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2"/><text x="32" y="47" text-anchor="middle" font-size="20" font-weight="900" font-family="Exo 2, sans-serif" fill="rgba(0,0,0,.55)">${m ? '★' : '–'}</text></svg>`;
 
@@ -166,9 +166,15 @@ export function showResults(game, R = null) {
   const table = showTable ? `<table class="tbl"><thead><tr><th>Pos</th><th>Pilota</th><th>${arena ? 'Stato' : mode === 'elim' ? 'Esito' : 'Tempo'}</th>${arena || mode === 'elim' ? '' : '<th>Giro migliore</th>'}<th>Demolizioni</th><th>Punti scontro</th></tr></thead><tbody>${res.map((c, i) => `<tr class="${c.isPlayer ? 'me' : ''} ${c.lepre ? 'lepre' : ''}"><td>${i + 1}</td><td><i class="dzx-dot" style="background:${c.color}"></i>${esc(c.name)}</td><td>${arena ? (c.out ? 'Distrutto' : 'In piedi') : mode === 'elim' ? (c.out ? `Eliminato al giro ${c.elimLap || '?'}` : 'Sopravvissuto') : c.finished ? fmt(c.time) : 'In pista'}</td>${arena || mode === 'elim' ? '' : `<td>${c.bestLap ? fmt(c.bestLap) : '—'}</td>`}<td>${c.kills || 0}</td><td>${Math.round(c.score || 0)}</td></tr>`).join('')}</tbody></table>` : '';
   // career block: medal, unlocks
   const C = R.career;
-  const unlocks = C ? [...C.newCups.map((n) => `Nuova coppa sbloccata: <b>${esc(n)}</b>`), ...C.newVenues.map((v) => `Nuova arena per l’evento libero: <b>${esc(VENUES.find((x) => x.id === v)?.name || v)}</b>`), ...C.newCars.map((n) => `Ora puoi comprare: <b>${esc(n)}</b>`)] : [];
+  const unlocks = C ? [...C.newVenues.map((v) => `Nuova arena per l’evento libero: <b>${esc(VENUES.find((x) => x.id === v)?.name || v)}</b>`)] : [];
   const chHtml = (R.challenges || []).map((c) => `<div class="dzx-unlock ach">Sfida completata: <b>${esc(c.name)}</b> · +€ ${c.prize.toLocaleString('it-IT')}</div>`).join('');
-  const careerHtml = ev ? `<div class="dzx-career"><div class="dzx-sub">${esc(CUPS.find((c) => c.id === ev.cup)?.name || 'Carriera')} · ${esc(ev.name)}</div>${C?.improved ? `<div class="dzx-new">NUOVO RECORD · ${MEDALS[m].toUpperCase()}</div>` : ''}<div class="small">Stelle carriera: <b>${C?.stars ?? 0}</b></div>${unlocks.map((u) => `<div class="dzx-unlock">${u}</div>`).join('')}</div>` : '';
+  // v7: the big unlock moments get their own banner (new cup, a car you can now buy), then the next goals
+  const moments = C ? [...C.newCars.map((n) => ({ k: 'car', t: 'Nuova auto in vendita', n })), ...C.newCups.map((n) => ({ k: 'cup', t: 'Coppa sbloccata', n }))] : [];
+  const momentsHtml = moments.length ? `<div class="dzx-moments">${moments.map((x, i) => `<div class="dzx-moment ${x.k}" style="animation-delay:${0.5 + i * 0.35}s"><span class="dzx-moment-i">${x.k === 'car' ? '🚗' : '🏆'}</span><div><small>${esc(x.t)}</small><b>${esc(x.n)}</b></div></div>`).join('')}</div>` : '';
+  const goals = ev && !ev.daily ? careerGoals() : [];
+  const goalsHtml = goals.length ? `<div class="dzx-goals"><div class="dzx-sub">Prossimi obiettivi</div>${goals.map((g) => `<div class="dzx-goal"><span>${esc(g.text)}</span><i><b style="width:${Math.round(Math.min(1, g.have / g.need) * 100)}%"></b></i><em>${g.money ? `€ ${Math.max(0, g.need - g.have).toLocaleString('it-IT')}` : `${Math.max(0, g.need - g.have)} ★`}</em></div>`).join('')}</div>` : '';
+  const careerHtml = ev?.daily ? `<div class="dzx-career daily"><div class="dzx-sub">Evento del giorno · ${esc(ev.name)}</div>${C?.bonus ? `<div class="dzx-new">BONUS DEL GIORNO · +€ ${C.bonus.toLocaleString('it-IT')}</div>` : `<div class="small">${C?.medal ? 'Medaglia del giorno già incassata: migliorala per il resto del bonus.' : 'Serve almeno il bronzo per il bonus del giorno.'}</div>`}${C?.streak > 1 ? `<div class="small">Serie: <b>${C.streak} giorni</b> di fila a medaglia</div>` : ''}</div>`
+    : ev ? `<div class="dzx-career"><div class="dzx-sub">${esc(CUPS.find((c) => c.id === ev.cup)?.name || 'Carriera')} · ${esc(ev.name)}</div>${C?.improved ? `<div class="dzx-new">NUOVO RECORD · ${MEDALS[m].toUpperCase()}</div>` : ''}<div class="small">Stelle carriera: <b>${C?.stars ?? 0}</b>${C?.improved && m > (C.prev || 0) ? ` <span class="dzx-plus">+${m - (C.prev || 0)} ★</span>` : ''}</div>${unlocks.map((u) => `<div class="dzx-unlock">${u}</div>`).join('')}${goalsHtml}</div>` : '';
   // v6: a podium for the events with a field, and a strip of the run's numbers
   const podium = showTable && res.length >= 3 ? `<div class="dzx-respod">${[1, 0, 2].map((i) => { const c = res[i]; return `<div class="p${i + 1} ${c.isPlayer ? 'me' : ''}"><span class="nm"><i style="background:${c.color}"></i>${esc(c.isPlayer ? 'Tu' : c.name)}</span>${medalSVG(3 - i, 30)}<b>${i + 1}</b></div>`; }).join('')}</div>` : '';
   const facts = [[Math.round((game.topSpeed || 0) * 3.6), 'km/h max'], [Math.round(game.maxJump || 0), 'm di salto'], [P.kills || 0, 'demolizioni'], [game.maxCombo > 1 ? 'x' + game.maxCombo : '—', 'combo'], [(game.longDrift || 0) ? (game.longDrift).toFixed(1).replace('.', ',') + ' s' : '—', 'derapata'], [R.props || 0, 'oggetti']].filter(([v]) => v && v !== '—' && v !== 0);
@@ -176,12 +182,14 @@ export function showResults(game, R = null) {
   const el = game.hud.results;
   el.innerHTML = `<div class="dzx-card"><div class="dzx-head"><div>${(ev || ['stunt', 'time', 'caccia', 'squadre', 'ondate', 'distruzione'].includes(mode)) ? medalSVG(m, 74) : ''}</div><div><div class="dzx-sub">${esc(MODES[mode]?.name || 'Gara')} · ${esc(game.venue.name)}</div>
     <h2>${title}</h2>${(ev || ['stunt', 'time', 'caccia', 'squadre', 'ondate', 'distruzione'].includes(mode)) ? `<div class="dzx-medal-l m${m}">${m ? `Medaglia di ${MEDALS[m].toLowerCase()}` : 'Nessuna medaglia'}</div>` : ''}</div></div>
-    ${detail}${podium}${factsHtml}
+    ${momentsHtml}${detail}${podium}${factsHtml}
     ${R.objectives?.length ? `<div class="dzx-objres">${R.objectives.map((o) => `<span class="${o.done ? 'ok' : ''}"><i>${o.done ? '✓' : '✗'}</i>${esc(o.text)}<b>${o.done ? '+€ ' + o.prize.toLocaleString('it-IT') : ''}</b></span>`).join('')}</div>` : ''}${R.rivalHtml || ''}
     <div class="dzx-res-grid"><div>${table}</div>${champHtml}${careerHtml}${!ev && chHtml ? `<div class="dzx-career">${chHtml}</div>` : ''}</div>${ev && chHtml ? `<div class="dzx-career mt8">${chHtml}</div>` : ''}
-    <div class="dzx-foot"><span class="muted">Premio: <b>€ ${R.prize.toLocaleString('it-IT')}</b>${R.bonus ? ` + bonus spettacolo € ${R.bonus.toLocaleString('it-IT')}` : ''} · Crediti: <b>€ ${(R.money || 0).toLocaleString('it-IT')}</b>${P.bestCrash ? `<br>Momento migliore: ${esc(P.bestCrash)}` : ''}</span>
+    <div class="dzx-foot"><span class="muted">Premio: <b class="dzx-purse" data-v="${R.prize}">€ ${R.prize.toLocaleString('it-IT')}</b>${R.bonus ? ` + bonus spettacolo € ${R.bonus.toLocaleString('it-IT')}` : ''} · Crediti: <b>€ ${(R.money || 0).toLocaleString('it-IT')}</b>${P.bestCrash ? `<br>Momento migliore: ${esc(P.bestCrash)}` : ''}</span>
     <div class="dzx-btns">${game.replay?.frames?.length ? `<button class="btn lg" id="dzx-replay-btn">▶ ${game.highlights?.length > 1 ? `Highlights (${game.highlights.length})` : 'Rivedi il botto'}</button>` : ''}<button class="btn lg" data-a="dz-restart">Rigioca</button><button class="btn primary lg" data-a="dz-quit">Continua</button></div></div></div>`;
   el.classList.add('on');
+  // the purse counts up (a beat after the card lands)
+  for (const c of el.querySelectorAll(".dzx-purse")) { const v = +c.dataset.v || 0; if (v < 200) continue; const t0 = performance.now() + 450; const tick = () => { if (!c.isConnected) return; const k = Math.max(0, Math.min(1, (performance.now() - t0) / 900)), e = 1 - (1 - k) ** 3; c.textContent = '€ ' + Math.min(v, Math.round(v * e / 50) * 50).toLocaleString('it-IT'); if (k < 1) requestAnimationFrame(tick); }; requestAnimationFrame(tick); }
   el.querySelector('#dzx-replay-btn')?.addEventListener('click', () => game.startReplay());
   return { pos: myPos, medal: m, prize: R.prize + R.bonus, kills: P.kills || 0, venue: game.venue.id, score: Math.round(P.score || 0), bestLap: P.bestLap || null, time: R.time, championship: game.o.championship ? (game.champResult || null) : null, mode };
 }
