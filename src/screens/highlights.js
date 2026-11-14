@@ -77,7 +77,7 @@ export function clipStates(reel, clip, t, ctx) {
     if (car.gt) { st.label = ''; continue; }
     st.pos = rally ? undefined : pos.get(st.key);
     const show = car.me || st.key === ctx.focus || (st.pos && st.pos <= 3) || clip.keys?.includes(st.key);
-    st.label = rally ? (show ? short3(car.name) : '') : show ? `P${st.pos} ${short3(car.name)}` : `${st.pos || ''}`;
+    st.label = rally || !st.pos ? (show ? short3(car.name) : '') : show ? `P${st.pos} ${short3(car.name)}` : `${st.pos}`;
     // a close fight: let the renderer split the cars across the track
     st.close = false;
   }
@@ -91,7 +91,7 @@ export function planShots(clip, rally = false) {
   const S = [];
   const add = (a, b, cam, focus = k0, rate = 1, replay = false) => { a = Math.max(t0, a); b = Math.min(t1, b); if (b - a > 0.3) S.push({ a, b, cam, focus, rate, replay }); };
   const ty = clip.type;
-  if (ty === 'start') {
+  if (ty === 'start' || (ty === 'restart' && /fermo/.test(clip.title || ''))) {
     if (rally) { add(t0, tc + 3, 'tv'); add(tc + 3, t1, 'chase'); return S; }
     add(t0, t0 + 6.5, 'heli', k0); add(t0 + 6.5, t1 - 4, 'tv', k0); add(t1 - 4, t1, 'chase', clip.keys?.find((k, i) => i > 0) || k0);
     return S;

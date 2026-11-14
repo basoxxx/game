@@ -1640,7 +1640,7 @@ export class CircuitSim {
     }
     for (const [b, a, i] of gains) if (i <= 8 || a.isPlayer || b.isPlayer) { this.log(`⇄ ${start ? 'Partenza' : 'Ripartenza'}: ${this.driver(b).name} ${start ? 'scatta meglio di' : 'infila'} ${this.driver(a).name} per la P${i}!`, 'overtake', b.key, a.isPlayer || b.isPlayer); this.onOvertake?.(b, a); }
     if (start) this.firstLapChaos(order);
-    if (start) this.hlMark({ type: 'start', keys: [order[0]?.key, ...this.cars.filter((c) => c.isPlayer).map((c) => c.key)], title: 'Semafori spenti!', text: gains.length ? gains.length === 1 ? 'Una posizione cambiata al via' : `${gains.length} posizioni cambiate al via` : 'Partenza pulita', score: 7, pre: 3, post: 13 });
+    if (start) this.hlMark({ type: this.redDone ? 'restart' : 'start', keys: [order[0]?.key, ...this.cars.filter((c) => c.isPlayer).map((c) => c.key)], title: this.redDone ? 'Ripartenza da fermo' : 'Semafori spenti!', text: gains.length ? gains.length === 1 ? 'Una posizione cambiata al via' : `${gains.length} posizioni cambiate al via` : 'Partenza pulita', score: this.redDone ? 6 : 7, pre: 3, post: 13 });
     else if (gains.length) this.hlMark({ type: 'restart', keys: [gains[0][0].key], title: 'Ripartenza', text: `${gains.length} ${gains.length === 1 ? 'sorpasso' : 'sorpassi'} al via lanciato`, score: 3.5 + Math.min(2, gains.length * 0.5), pre: 3, post: 8 });
     if (gains.length) this.pushTV({ kind: 'restart', title: start ? 'Partenza' : 'Ripartenza', text: `${gains.length} ${gains.length === 1 ? 'posizione guadagnata' : 'posizioni guadagnate'} ${start ? 'allo spegnimento dei semafori' : 'al via lanciato'}` });
     for (const c of this.cars) { c.restart = null; c.lapTarget = this.computeLap(c); }
