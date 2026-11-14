@@ -6,7 +6,8 @@ import { esc, bar, fmtLong, fmtGap } from '../ui/dom.js';
 import { S, saveGame, getSettings } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
 import { playerTeam, applyRoundResults, teamDrivers, seatsPerTeam, aiFillSeats } from '../engine/season.js';
-import { RallyEvent, PACE_MODES, SECTOR_TYPES, tyreFit, repairMinutes, quickMinutes, SERVICE_TIME, SERVICE_BASE, SERVICE_SETUP, SERVICE_CHECK } from '../engine/rally.js';
+import { RallyEvent, PACE_MODES, SECTOR_TYPES, tyreFit, iceOf, repairMinutes, quickMinutes, SERVICE_TIME, SERVICE_BASE, SERVICE_SETUP, SERVICE_CHECK } from '../engine/rally.js';
+import { paceNotes, upcomingNotes } from '../ui/rallynotes.js';
 import '../styles/broadcast.css';
 import '../styles/rally.css';
 import { buildEntries, aiSetupQuality } from '../engine/race.js';
@@ -208,15 +209,35 @@ function overallTable(st, limit = 14, opts = {}) {
 function sectorStrip(stg, paces = null) {
   return `<div class="rx-sectors">${stg.sectors.map((s, i) => { const T = SECTOR_TYPES[s]; const risk = Math.round(T.risk * 2); return `<div class="rx-sec t-${s}"><div class="rx-sec-h"><span>S${i + 1}</span><b>${T.name}</b><i class="rx-risk" data-tip="Rischio della sezione">${'<em></em>'.repeat(clamp(risk, 1, 4))}</i></div><div class="rx-sec-n">${T.note}</div>${paces ? `<div class="rx-sec-p ${PACE_CLS[paces[i]]}">${PACE_MODES[paces[i]].name}</div>` : ''}</div>`; }).join('')}</div>`;
 }
+function iceChip(stg, current) {
+  if (stg.surface !== 'mixed') return '';
+  const v = iceOf(stg, current);
+  return `<span class="chip ${v > 0.5 ? 'info' : ''}" data-tip="${current ? 'Ghiaccio e neve rilevati dagli apripista' : 'Previsione: si conferma all’inizio del giro'}">❄ ${current ? '' : '~'}${Math.round(v * 100)}% ghiaccio</span>`;
+}
 function wxChip(stg, current) {
   if (stg.surface === 'snow') return `<span class="chip">${icon('cloud', 'ico', 'style="width:13px"')} Neve/Ghiaccio</span>`;
+  if (stg.surface === 'mixed') return iceChip(stg, current) + ' ' + wxChipRain(stg, current);
+  return wxChipRain(stg, current);
+}
+function wxChipRain(stg, current) {
   if (current) return `<span class="chip ${stg.wet ? 'info' : ''}">${icon(stg.wet ? 'rain' : 'sun', 'ico', 'style="width:13px"')} ${stg.wet ? 'Bagnato' : 'Asciutto'}</span>`;
   return `<span class="chip ${stg.rainP >= 50 ? 'info' : ''}">${icon(stg.rainP >= 50 ? 'rain' : stg.rainP >= 25 ? 'cloud' : 'sun', 'ico', 'style="width:13px"')} Pioggia ${stg.rainP}%</span>`;
 }
 function fitMark(t, s, cur) {
   const wet = cur ? s.wet : s.rainP >= 50;
-  const f = tyreFit(t, s, wet);
+  const f = tyreFit(t, s, wet, iceOf(s, cur));
   return f >= -0.004 ? '<b class="good">✓</b>' : f > -0.03 ? '<b class="warn">~</b>' : '<b class="bad">✕</b>';
+}
+
+function stageGeo(tr, stg) { return stageGeometry(tr.seed + stg.idx * 101, stg.km, STAGE_STYLE[tr.id]); }
+function notesFor(tr, stg, c) { return paceNotes(stageGeo(tr, stg), { recce: c?.recce ?? 0.7, surface: stg.surface, seed: tr.seed + stg.idx }); }
+const noteHTML = (n, cur) => `<span class="rx-note ${n.cls}${cur ? ' cur' : ''}${n.wrong ? ' wrong' : ''}">${n.link ? `<em>${n.link}</em>` : ''}<b>${esc(n.text)}</b>${n.warn ? `<i>${esc(n.warn)}</i>` : ''}</span>`;
+function notesPanel(tr, stg, c) {
+  const notes = notesFor(tr, stg, c);
+  const cnt = { slow: 0, mid: 0, fast: 0, jump: 0 }; for (const n of notes) if (cnt[n.cls] != null) cnt[n.cls]++;
+  const km = stg.km;
+  return `<div class="rx-notes-panel"><div class="row between wrap gap6 mb8"><span class="tiny upper muted">Note del copilota · ${notes.length} chiamate${c ? ` · ricognizione ${c.recce > 0.78 ? 'precisa' : c.recce > 0.58 ? 'buona' : 'approssimativa'}` : ''}</span><span class="rx-notes-sum"><i class="slow">${cnt.slow} lente</i><i class="mid">${cnt.mid} medie</i><i class="fast">${cnt.fast} veloci</i><i class="jump">${cnt.jump} salti</i></span></div>
+    <div class="rx-notes-scroll">${[0, 1, 2].map((s) => `<div class="rx-notes-sec"><span class="rx-notes-h">S${s + 1} · km ${(km * s / 3).toFixed(1)}</span>${notes.filter((n) => n.km >= km * s / 3 && n.km < km * (s + 1) / 3 + (s === 2 ? 1 : 0)).map((n) => noteHTML(n, false)).join('')}</div>`).join('')}</div></div>`;
 }
 
 function prep(st, tr) {
@@ -232,7 +253,9 @@ function prep(st, tr) {
         <div class="row wrap gap6"><span class="chip" style="border-color:${SURFACES[stg.surface].color}">${SURFACES[stg.surface].name}</span><span class="chip">${stg.km} km</span>${wxChip(stg, true)}${stg.night ? '<span class="chip warn">Notturna</span>' : ''}</div></div>
         <div class="rx-map">${trackSVG(path, { w: 640, h: 150, glow: SURFACES[stg.surface].color, color: '#e9edf3', width: 4 })}</div>
         <div class="tiny upper muted mb8">Note del copilota</div>${sectorStrip(stg)}
+        ${notesPanel(tr, stg, mine.find((c) => c.status !== 'out'))}
       </div>
+      ${wxNews(ev)}
       <div class="panel rx-loop"><div class="panel-head"><h3>Giro ${loopN} · ${loop.length} prove senza assistenza</h3><span class="small muted">${loopStart ? 'Scegli le gomme per tutto il giro' : 'Gomme montate in assistenza'}</span></div>
         <div class="rx-loopstages">${loop.map((s) => `<div class="rx-ls ${s.idx === stg.idx ? 'cur' : s.idx < stg.idx ? 'done' : ''}"><span class="rx-ls-n">PS${s.idx + 1}</span><b>${esc(s.name)}</b><span class="rx-surf" style="--sc:${SURFACES[s.surface].color}">${SURFACES[s.surface].name}</span><span class="small muted">${s.km} km</span>${wxChip(s, s.idx === stg.idx)}${s.night ? '<span class="chip warn tiny">Notte</span>' : ''}${s.power ? '<span class="chip warn tiny">Power</span>' : ''}</div>`).join('')}</div>
         <div class="small muted mt8">${icon('info', 'ico', 'style="width:13px;vertical-align:-2px"')} Consiglio del copilota per il giro: <b style="color:#fff">${RALLY_TYRES[advice].name}</b>${new Set(loop.map((s) => (s.surface === 'rough' ? 'gravel' : s.surface))).size > 1 ? ' · <span class="warn">superfici miste: valuta le scorte di un altro tipo</span>' : ''}</div>
@@ -242,6 +265,13 @@ function prep(st, tr) {
     </div>
     <div class="col gap16"><div class="panel"><div class="panel-head"><h3>Classifica assoluta</h3><span class="small muted">dopo ${stg.idx} ${stg.idx === 1 ? 'prova' : 'prove'}</span></div>${overallTable(st, 14, { int: true })}</div>${stg.idx >= 2 ? `<div class="panel"><div class="panel-head"><h3>Distacchi prova dopo prova</h3></div>${gapChartSVG(ev)}</div>` : ''}</div>
   </div>`;
+}
+
+// weather updates heard at the last service (forecast changes for the stages still to run)
+function wxNews(ev) {
+  const n = (ev.wxNews || []).filter((x) => x.stage === ev.stageIdx && x.idx >= ev.stageIdx);
+  if (!n.length) return '';
+  return `<div class="panel tight rx-wx">${n.map((x) => `<div class="row gap8">${icon(x.up ? 'rain' : 'sun', 'ico', 'style="width:16px"')}<span class="small ${x.up ? 'warn' : 'good'}">${esc(x.text)}</span></div>`).join('')}</div>`;
 }
 
 function crewPrep(st, c, loop, loopStart) {
@@ -267,8 +297,8 @@ function crewPrep(st, c, loop, loopStart) {
     <div class="rx-paces">${stg.sectors.map((s, i) => `<div><div class="tiny muted">S${i + 1} · ${SECTOR_TYPES[s].name}</div><div class="seg">${Object.entries(PACE_MODES).map(([k, p]) => `<div class="${ch.paces[i] === k ? 'on ' + PACE_CLS[k] : ''}" data-a="space" data-key="${c.key}" data-s="${i}" data-p="${k}">${p.name.slice(0, 4)}.</div>`).join('')}</div></div>`).join('')}</div>
     <div class="rx-est"><div><span>Tempo stimato</span><b class="${est.dt < -0.05 ? 'good' : est.dt > 0.05 ? 'warn' : ''}">${est.dt >= 0 ? '+' : '−'}${Math.abs(est.dt).toFixed(1)}s</b><small>vs equilibrato</small></div><div><span>Rischio di uscita</span><b class="${riskCls(est.risk)}">${(est.risk * 100).toFixed(0)}%</b><small>${bar(Math.min(100, est.risk * 500), est.risk > 0.12 ? 'red' : est.risk > 0.06 ? 'gold' : 'green')}</small></div><div><span>Setup</span><b>${Math.round(c.setupQ * 100)}%</b><small>fiducia assetto</small></div></div>
     ${(() => {
-      const ri = ev.roadInfo(c, stg); const loose = stg.surface !== 'tarmac';
-      const road = `<div class="rx-opt"><div><b>Ordine di partenza: ${ri.pos}° su ${ri.n}</b><div class="tiny muted">${loose ? (stg.wet && stg.surface !== 'snow' ? 'Fondo bagnato: chi parte dopo trova solchi e fango' : 'Chi apre la strada spazza la ghiaia (o la neve) smossa per gli altri') : 'Asfalto: i tagli portano terra in traiettoria a chi parte dopo'} · ${ev.stageIdx < 2 ? 'primo giro in ordine di campionato' : 'ordine inverso di classifica'}</div></div><span class="chip ${ri.secs > 1.5 ? 'bad' : ri.secs > 0.5 ? 'warn' : 'good'}">${ri.secs < 0.05 ? 'strada pulita' : `−${ri.secs.toFixed(1)}s`}</span></div>`;
+      const ri = ev.roadInfo(c, stg); const loose = stg.surface !== 'tarmac' && stg.surface !== 'mixed';
+      const road = `<div class="rx-opt"><div><b>Ordine di partenza: ${ri.pos}° su ${ri.n}</b><div class="tiny muted">${loose ? (stg.wet && stg.surface !== 'snow' ? 'Fondo bagnato: chi parte dopo trova solchi e fango' : 'Chi apre la strada spazza la ghiaia (o la neve) smossa per gli altri') : stg.surface === 'mixed' ? 'Ghiaccio: i primi a partire raschiano la neve dalla traiettoria, chi segue trova la linea più pulita ma più fango dai tagli' : 'Asfalto: i tagli portano terra in traiettoria a chi parte dopo'} · ${ev.stageIdx < 2 ? 'primo giro in ordine di campionato' : 'ordine inverso di classifica'}</div></div><span class="chip ${ri.secs > 1.5 ? 'bad' : ri.secs > 0.5 ? 'warn' : 'good'}">${ri.secs < 0.05 ? 'strada pulita' : `−${ri.secs.toFixed(1)}s`}</span></div>`;
       const notes = `<div class="rx-opt"><div><b>Note del copilota: ${c.recce > 0.78 ? 'precise' : c.recce > 0.58 ? 'buone' : 'approssimative'}</b><div class="tiny muted">Note imprecise = più rischio di uscita in ogni settore. ${ev.stageIdx === 0 ? 'Un passaggio di ricognizione in più le migliora, ma toglie tempo alla messa a punto (−5% assetto).' : 'La ricognizione si fa prima della prima prova.'}</div></div>${ev.stageIdx === 0 ? `<button class="btn sm ${c.recceDeep ? 'active' : ''}" data-a="recce" data-key="${c.key}" data-v="${c.recceDeep ? 0 : 1}">${c.recceDeep ? 'Ricognizione extra: SÌ' : 'Ricognizione extra: NO'}</button>` : `<span class="chip">${Math.round(c.recce * 100)}%</span>`}</div>`;
       const hasNight = ev.loopHasNight();
       const pod = loopStart ? `<div class="rx-opt"><div><b>Rampa fari supplementari</b><div class="tiny muted">${hasNight ? '<span class="warn">C’è una prova notturna in questo giro:</span> senza fari si perde ~3% e il rischio quasi raddoppia.' : 'Nessuna prova notturna nel giro: i fari sono solo peso e resistenza (−0,1%).'}</div></div><button class="btn sm ${ch.lightPod ? 'active' : ''}" data-a="lightpod" data-key="${c.key}">${ch.lightPod ? 'Fari montati' : 'Senza fari'}</button></div>` : (hasNight ? `<div class="rx-opt"><div><b>Rampa fari</b><div class="tiny muted">Scelta fatta in assistenza per tutto il giro.</div></div><span class="chip ${c.lightPod ? 'good' : 'bad'}">${c.lightPod ? 'Montata' : 'Non montata'}</span></div>` : '');
@@ -303,7 +333,7 @@ function gapChartSVG(ev) {
 
 function mountRun() {
   const st = S(); const tr = getTrack('rally', st.weekend.trackId); const stg = X.ev.stage;
-  X.view = new TrackView(document.getElementById('rally-cv'), genStage(tr.seed + stg.idx * 101, STAGE_STYLE[tr.id]), { pad: 50, rally: true, surface: stg.surface, glow: SURFACES[stg.surface].color + '55' });
+  X.view = new TrackView(document.getElementById('rally-cv'), genStage(tr.seed + stg.idx * 101, STAGE_STYLE[tr.id]), { pad: 50, rally: true, surface: stg.surface === 'mixed' ? 'tarmac' : stg.surface, glow: SURFACES[stg.surface].color + '55' });
   X.geo = stageGeometry(tr.seed + stg.idx * 101, stg.km, STAGE_STYLE[tr.id]);
   X.focus = X.ev.crews.find((c) => c.isPlayer && c.plan)?.key || X.ev.crews.find((c) => c.isPlayer)?.key;
   X.view3d = getSettings().view3d !== false && webglAvailable() ? (X.cam || 'chase') : null;
@@ -347,10 +377,13 @@ function rallyEnable3D(cam) {
   const st = S(); const stg = X.ev.stage; const rv = document.getElementById('race-view');
   if (!X.r3d) {
     const div = document.createElement('div'); div.className = 'r3d'; rv.prepend(div);
+    X.geo.rally = { id: st.weekend.trackId, ice: iceOf(stg), wet: !!stg.wet };
     try {
-      X.r3d = new Race3D(div, { geo: X.geo, category: 'rally', surface: stg.surface, wet: stg.wet, cars: X.ev.crews.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: X.ev.driver(c).helmet.c1, tyreColor: '#888', isPlayer: c.isPlayer, number: X.ev.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })) });
+      X.r3d = new Race3D(div, { geo: X.geo, category: 'rally', surface: stg.surface === 'mixed' ? 'tarmac' : stg.surface, ice: iceOf(stg), wet: stg.wet, cars: X.ev.crews.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: X.ev.driver(c).helmet.c1, tyreColor: '#888', isPlayer: c.isPlayer, number: X.ev.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })) });
     } catch (e) { console.warn(e); div.remove(); X.view3d = null; rallyViewBtns(); return; }
   }
+  // night stage: moonlight instead of the circuits' floodlights, headlights and light pods do the work
+  if (stg.night) { X.r3d.nightable = true; X.r3d.floodlit = false; }
   X.r3d.camMode = cam; X.r3d._cut = true; rv.classList.add('mode3d');
   document.getElementById('hud3d')?.classList.remove('hidden');
   X.view?.resize();
@@ -376,6 +409,8 @@ function rallyUpdate3D(dt) {
     const any = X.ev.crews.filter(onStage).sort((a, b) => (b.progress || 0) - (a.progress || 0))[0];
     if (mine || any) X.focus = (mine || any).key;
   }
+  // (re-applied once the sky HDRI has loaded, which resets the day sky)
+  if (X.ev.stage.night) r.setNight(r.hdr ? 1 : 0.98);
   r.focusKey = X.focus; r.setRain(X.ev.stage.wet ? 0.6 : 0); r.update(states, dt);
   const fc = X.ev.crews.find((c) => c.key === X.focus); const hud = document.getElementById('hud3d');
   if (hud && fc) { const stt = states.find((x) => x.key === fc.key); const kmh = Math.round((stt?.speed || 0) * 3.6); X.focusSpeed = kmh; hud.innerHTML = `<span class="tiny muted upper">${esc(X.ev.driver(fc).name)}</span><span class="spd">${kmh}</span><span class="tiny muted">km/h</span><span class="tiny muted">${((fc.progress || 0) * X.ev.stage.km).toFixed(1)} / ${X.ev.stage.km} km</span>`; }
@@ -408,7 +443,7 @@ function runScreen(st, tr) {
       <button class="btn sm" data-a="skip-stage">${icon('ff')} Fine prova</button>
     </div>
     <div class="race-board" id="board"></div>
-    <div class="race-view" id="race-view"><canvas id="rally-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="tvg-layer" id="tvg"></div><div class="rx-secbar" id="rx-secbar"></div><div class="dec-stack" id="dec-stack"></div><div id="decision"></div></div>
+    <div class="race-view" id="race-view"><canvas id="rally-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="tvg-layer" id="tvg"></div><div class="rx-secbar" id="rx-secbar"></div><div class="rx-ticker" id="rx-ticker"></div><div class="dec-stack" id="dec-stack"></div><div id="decision"></div></div>
     <div class="race-side" id="side"></div>
     <div class="race-feed" id="feed"></div>
   </div>`;
@@ -448,6 +483,7 @@ function renderUI(force) {
   const fc = mine.find((c) => c.plan && !c.done && !c.waiting) || mine.find((c) => c.key === X.focus) || mine[0];
   const dl = liveDelta(fc);
   const dEl = document.getElementById('rx-delta'); if (dEl) dEl.innerHTML = `<b class="${dl == null ? '' : dl <= 0 ? 'good' : dl < 3 ? 'warn' : 'bad'}">${dl == null ? '—' : (dl <= 0 ? '−' : '+') + Math.abs(dl).toFixed(1)}</b><span>Delta ${fc ? esc(shortName(ev.driver(fc).name)) : ''}</span>`;
+  noteTicker(fc);
   const sb = document.getElementById('rx-secbar');
   if (sb && fc?.plan) { const cur = ev.sectorAt(fc.progress || 0); sb.innerHTML = stg.sectors.map((s, i) => `<div class="${i < cur ? 'done' : i === cur && !fc.waiting ? 'cur' : ''} ${PACE_CLS[fc.plan.paces[i]]}"><span>S${i + 1} ${SECTOR_TYPES[s].name}</span><b>${PACE_MODES[fc.plan.paces[i]].name}</b></div>`).join(''); }
   try { rallyTV(); } catch (e) { console.warn(e); }
@@ -462,12 +498,39 @@ function renderUI(force) {
     return `<div class="ctrl-card" style="border-top-color:${c.team.car.livery.primary}"><div class="row">${helmetSVG(d.helmet, 34)}<div class="grow"><b>${esc(d.name)}</b><div class="tiny muted">${c.tyre ? RALLY_TYRES[c.tyre].name : ''} · usura ${Math.round(Math.min(1, c.tyreWear) * 100)}% · scorte ${c.spares}</div></div>${dd != null ? `<span class="rx-dd ${dd <= 0 ? 'good' : 'bad'}">${dd <= 0 ? '−' : '+'}${Math.abs(dd).toFixed(1)}</span>` : ''}</div>
       ${c.plan ? `<div class="rx-prog mt8"><i style="width:${(c.progress || 0) * 100}%"></i><em style="left:33.3%"></em><em style="left:66.6%"></em></div><div class="row between tiny mt8"><span>${c.waiting ? 'In attesa della partenza' : `${(stageKm() * (c.progress || 0)).toFixed(1)} / ${stageKm()} km · S${cur + 1} ${SECTOR_TYPES[stg.sectors[cur]].name}`}</span><span class="mono">${fmtLong(c.stageT)}</span></div>` : `<div class="small warn mt8">Non in prova</div>`}
       ${c.stageResult != null ? `<div class="chip good mt8">Arrivato: ${fmtLong(c.stageResult)}</div>` : ''}
+      ${splitsVsRivals(c)}
       ${live ? `<div class="tiny upper muted mt8 mb8">Ritmo da S${cur + 1} in poi</div><div class="seg">${Object.entries(PACE_MODES).map(([k, p]) => `<div class="${c.plan.paces[cur] === k ? 'on ' + PACE_CLS[k] : ''}" data-a="livepace" data-key="${c.key}" data-p="${k}" data-tip="${k === 'push' ? 'Più veloce nelle sezioni rimanenti, molto più rischio' : k === 'safe' ? 'Rallenta: meno rischi per il resto della prova' : 'Ritmo bilanciato'}">${p.name}</div>`).join('')}</div>` : ''}
       ${dmg.length ? `<div class="row wrap gap4 mt8">${dmg.map(([k, v]) => `<span class="chip bad tiny">${DMG[k]} ${Math.round(v * 100)}%</span>`).join('')}</div>` : ''}
     </div>`;
   }).join('') + `<div class="panel tight"><div class="tiny upper muted mb8">Assoluta (prima della prova)</div>${overallTable(st, 8)}</div>` + (X.finished ? `<button class="btn primary xl pulse" data-a="stage-done">${icon('chequered')} Tempi della prova</button>` : '');
 }
 function stageKm() { return X.ev.stage.km; }
+// live pace notes for the followed crew: the call being read and the next ones
+function noteTicker(pc) {
+  const el = document.getElementById('rx-ticker'); if (!el) return;
+  const c = X.ev.crews.find((x) => x.key === X.focus) || pc;
+  if (!c?.plan || c.done || c.waiting || !X.geo) { if (el.innerHTML) el.innerHTML = ''; return; }
+  const st = S(); const tr = getTrack('rally', st.weekend.trackId);
+  const notes = notesFor(tr, X.ev.stage, c);
+  const s = stageSampleAt(X.geo, c.progress || 0);
+  const up = upcomingNotes(notes, s, 3);
+  const html = `<span class="rx-tk-who">${esc(shortName(X.ev.driver(c).name))}</span>${up.map((n, k) => noteHTML(n, k === 0)).join('')}`;
+  if (el._h !== html) { el.innerHTML = html; el._h = html; }
+}
+// the player's splits against the stage best and the rivals around them in the overall standings
+function splitsVsRivals(c) {
+  const ev = X.ev; if (!c.plan || !c.splits?.length) return '';
+  const ov = ev.overall().filter((x) => x.status !== 'out' && x.plan);
+  const i = ov.indexOf(c);
+  const rivals = [ov[0] !== c ? ov[0] : null, ov[i - 1] !== ov[0] ? ov[i - 1] : null, ov[i + 1]].filter(Boolean);
+  const rows = [1 / 3, 2 / 3, 1].filter((sp) => c.splitTimes?.[sp] != null).map((sp) => {
+    const t = c.splitTimes[sp]; const all = ev.crews.map((x) => x.splitTimes?.[sp]).filter((v) => v != null).sort((a, b) => a - b);
+    const pos = all.indexOf(t) + 1;
+    const cells = rivals.map((r) => { const rt = r.splitTimes?.[sp]; if (rt == null) return '<td class="dim">—</td>'; const d = t - rt; return `<td class="${d <= 0 ? 'good' : 'bad'}">${d <= 0 ? '−' : '+'}${Math.abs(d).toFixed(1)}</td>`; }).join('');
+    return `<tr><td class="muted">${sp === 1 ? 'Arr.' : sp < 0.5 ? 'Int.1' : 'Int.2'}</td><td class="mono">P${pos}</td>${cells}</tr>`;
+  }).join('');
+  return `<table class="rx-svr tiny mt8"><thead><tr><th></th><th></th>${rivals.map((r) => `<th title="${esc(ev.driver(r).name)}">${esc(shortName(ev.driver(r).name))}${r === ov[0] ? ' ★' : ''}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+}
 
 // TV graphics for the rally: split times, stage wins, drama
 function rallyTV() {
@@ -604,7 +667,7 @@ function service(st) {
         <div class="opt ${o.check ? 'sel' : ''}" data-a="svcopt" data-key="${c.key}" data-o="check"><div class="row between"><b>Controllo preventivo</b><span class="chip tiny">+${SERVICE_CHECK} min</span></div><div class="small muted mt8">Dimezza il rischio di guasti meccanici nella prossima prova</div></div></div>
       <div class="row gap6 mt16"><button class="btn sm" data-a="repair-all" data-key="${c.key}">Ripara tutto</button><button class="btn sm ghost" data-a="repair-fit" data-key="${c.key}" data-tip="Scelta dell’ingegnere: il massimo restando nei ${SERVICE_TIME} minuti">${icon('wrench')} Ottimizza per il tempo</button></div></div>`;
   }).join('') || '<div class="panel">Nessun equipaggio in gara.</div>'}
-  <div class="panel rx-next"><div class="panel-head"><h3>Prossimo giro</h3></div>${next.map((s) => `<div class="rx-ls"><span class="rx-ls-n">PS${s.idx + 1}</span><b>${esc(s.name)}</b><span class="rx-surf" style="--sc:${SURFACES[s.surface].color}">${SURFACES[s.surface].name}</span><span class="small muted">${s.km} km</span>${wxChip(s, false)}</div>`).join('')}<div class="small muted mt8">Gomme nuove e due scorte a ogni assistenza: le sceglierai prima della prossima prova.</div></div></div>`;
+  <div class="panel rx-next"><div class="panel-head"><h3>Prossimo giro</h3></div>${wxNews(ev)}${next.map((s) => `<div class="rx-ls"><span class="rx-ls-n">PS${s.idx + 1}</span><b>${esc(s.name)}</b><span class="rx-surf" style="--sc:${SURFACES[s.surface].color}">${SURFACES[s.surface].name}</span><span class="small muted">${s.km} km</span>${wxChip(s, false)}</div>`).join('')}<div class="small muted mt8">Gomme nuove e due scorte a ogni assistenza: le sceglierai prima della prossima prova.</div></div></div>`;
 }
 
 function finalView(st) {
@@ -612,6 +675,7 @@ function finalView(st) {
   const crews = Object.fromEntries(ev.crews.map((c) => [c.key, c]));
   return `<div class="rx-final anim-in"><div class="panel"><div class="panel-head"><h3>Classifica finale</h3></div>${overallTable(st, 20, { int: true })}</div>
   <div class="col gap16"><div class="finish-card" style="padding:24px 34px 18px"><div class="tiny upper muted mt8">Arrivo</div><div class="fc-t">Rally concluso</div></div>
+    ${(() => { const ps = ev.crews.filter((c) => c.psPoints).sort((a, b) => b.psPoints - a.psPoints); return ps.length ? `<div class="panel"><div class="panel-head"><h3>Power Stage · punti bonus</h3></div><div class="rx-ps">${ps.map((c) => `<div class="${c.isPlayer ? 'me' : ''}"><b class="warn">+${c.psPoints}</b>${driverChip(st, ev.driver(c), { size: 20 })}</div>`).join('')}</div></div>` : ''; })()}
     <div class="panel"><div class="panel-head"><h3>Vincitori di prova</h3></div><div class="rx-sw">${ev.stages.map((s, i) => { const w = crews[s.winner]; return `<div class="${w?.isPlayer ? 'me' : ''}"><span>PS${i + 1}</span><i style="background:${SURFACES[s.surface].color}"></i><b>${w ? esc(shortName(ev.driver(w).name)) : '—'}</b><small>${s.best ? fmtLong(s.best) : ''}</small></div>`; }).join('')}</div></div>
     <div class="panel"><div class="panel-head"><h3>Distacchi prova dopo prova</h3></div>${gapChartSVG(ev)}</div>
     <button class="btn primary xl pulse" data-a="finish-rally">Podio e punti ${icon('right')}</button></div></div>`;
