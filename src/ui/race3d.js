@@ -293,14 +293,17 @@ export class Race3D {
     // when they are ready (the intro starts then too)
     this._ready = false;
     const ready = () => { if (this._ready) return; this._ready = true; if (this.introT > 0) this.introStart = performance.now(); };
-    try { if (this.renderer.compileAsync) this.renderer.compileAsync(this.scene, this.camera).then(ready, ready); else ready(); } catch { ready(); }
+    try { if (this.renderer.compileAsync) this._compileP = this.renderer.compileAsync(this.scene, this.camera).then(ready, ready); else ready(); } catch { ready(); }
     setTimeout(ready, 10000);
   }
 
   destroy() {
     this._ro?.disconnect();
     this._xfTex?.dispose();
-    releaseGL(this.renderer, this.composer);
+    // three polls the programs of an async compile: releasing the context under it throws ("isReady"),
+    // so a view closed while still compiling is released once the compile settles
+    const gl = () => releaseGL(this.renderer, this.composer);
+    if (this._compileP && !this._ready) this._compileP.finally(gl); else gl();
     this.scene.traverse((o) => { o.geometry?.dispose?.(); });
     if (typeof window !== 'undefined' && window.__r3d === this) window.__r3d = null;
     this.renderer.domElement.remove();
