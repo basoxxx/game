@@ -221,8 +221,12 @@ function paintConn() {
 function paintWait() {
   const el = document.getElementById('pw-wait'); if (!el) return;
   const st = V.status.state; const s = V.s;
-  let html = '';
-  if (st !== 'live') {
+  let html = '', soft = false;
+  if (st !== 'live' && V.s?.live && st !== 'error') {
+    // data already on screen: keep it, with a small notice while the link comes back
+    soft = true;
+    html = `<div class="pw-softw">${icon('radio', 'ico')}<span>${esc(V.status.error || 'Riconnessione al gioco…')}</span><button class="btn sm ghost" data-a="pw-retry">Riprova</button></div>`;
+  } else if (st !== 'live') {
     const err = V.status.error;
     html = `<div class="pw-wcard">${icon(st === 'error' ? 'alert' : 'radio')}<h2>${st === 'error' ? 'Collegamento non riuscito' : st === 'lost' ? 'Collegamento perso' : V.code ? 'Collegamento al gioco…' : 'In attesa del gioco'}</h2>
       <p class="muted">${esc(err || (V.code ? `Codice ${V.code}: il computer deve avere il pannello Muretto box aperto almeno una volta in questa sessione di gioco.` : 'Apri una sessione dal vivo nella finestra principale di Apex Dynasty: i dati arrivano da soli.'))}</p>
@@ -231,7 +235,7 @@ function paintWait() {
   } else if (!s?.live) {
     html = `<div class="pw-wcard">${icon('flag')}<h2>Nessuna sessione in pista</h2><p class="muted">Il gioco è collegato. Quando parte una sessione dal vivo (prove, qualifica, gara o prova speciale) il muretto box si accende.</p><div class="pw-spin"></div></div>`;
   }
-  el.classList.toggle('on', !!html);
+  el.classList.toggle('on', !!html); el.classList.toggle('soft', soft);
   if (el.dataset.sig !== html) { el.dataset.sig = html; el.innerHTML = html; }
 }
 function paintTop() {
@@ -641,6 +645,7 @@ function update3D(dt) {
 }
 function paintHud(states) {
   const el = document.getElementById('pw-hud'); const s = V.s; if (!el || !s?.live) return;
+  if (states) V._st = states; else states = V.r3d ? V._st : null;
   const k = V.r3d?.director && V.r3d?.dirFocus ? V.r3d.dirFocus : V.focus;
   const c = s.cars.find((x) => x.k === k); if (!c) { el.innerHTML = ''; return; }
   const st = states?.find((x) => x.key === k); const kmh = st ? Math.round((st.speed || 0) * 3.6) : null;

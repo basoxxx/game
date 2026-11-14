@@ -227,7 +227,7 @@ export function createViewer(code, opts = {}) {
   ping = setInterval(() => {
     if (closed) return;
     post({ t: 'hello', need: status.state !== 'live' ? 1 : 0 });
-    if (status.state === 'live' && Date.now() - lastMsg > 6000) setStatus({ state: code ? 'lost' : 'searching', error: code ? 'Nessun dato dal gioco: riconnessione…' : null });
+    if (status.state === 'live' && Date.now() - lastMsg > 10000) setStatus({ state: code ? 'lost' : 'searching', error: code ? 'Nessun dato dal gioco: riconnessione…' : null });
     if (!code && status.state !== 'live' && Date.now() - lastMsg > 6000) hostId = null;
   }, 2000);
 
