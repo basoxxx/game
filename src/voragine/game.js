@@ -2,6 +2,8 @@
 // swallow the smaller rival sinkholes. Three.js; the hole is cut out of the ground with the stencil
 // buffer so whatever falls in is really seen going down.
 import * as THREE from 'three';
+import { pixelRatio } from '../ui/quality.js';
+import { FrameGuard } from '../ui/perfguard.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -240,7 +242,14 @@ export class VoragineGame {
     this.$ = (id) => root.querySelector('#' + id);
     const tier = this.tier = o.tier;
     const r = this.renderer = new THREE.WebGLRenderer({ canvas: this.cv, antialias: tier !== 'low', stencil: true, powerPreference: 'high-performance' });
-    r.setPixelRatio(Math.min(devicePixelRatio || 1, tier === 'high' ? 2 : tier === 'low' ? 1 : 1.5));
+    r.setPixelRatio(pixelRatio(1.75));
+    // frame-time watchdog: resolution first, then bloom and shadows, then below 1x
+    const setPR = (pr) => { if (Math.abs(r.getPixelRatio() - pr) < 0.01) return false; r.setPixelRatio(pr); this.composer?.setPixelRatio?.(pr); this.resize(); };
+    this.guard = new FrameGuard([
+      { fps: 40, run: () => setPR(1) },
+      { fps: 34, run: () => { if (!this.composer && !r.shadowMap.enabled) return false; this.composer?.dispose?.(); this.composer = null; r.shadowMap.enabled = false; this.scene?.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); } },
+      { fps: 27, run: () => setPR(0.75) },
+    ]);
     r.outputColorSpace = THREE.SRGBColorSpace;
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
     r.shadowMap.enabled = tier !== 'low'; r.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -703,6 +712,7 @@ export class VoragineGame {
     this.animateRims(now / 1000);
     this.updateSnow(dt);
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.cam);
+    if (!this.paused) this.guard?.tick();
     this.updateLabels();
   }
   flush() { for (const M of Object.values(this.meshes)) if (M.dirty) { for (const e of M.list) e.m.instanceMatrix.needsUpdate = true; M.dirty = false; } }
