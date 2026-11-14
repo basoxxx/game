@@ -153,7 +153,9 @@
 .rp-prompt .rp-tag .ico { width: 18px; height: 18px; }
 .rp-prompt kbd { font: 800 12px var(--mono, monospace); padding: 2px 6px; background: rgba(255,255,255,.14); }
 .rp-prompt.out { opacity: 0; transition: opacity .4s; }
-.replay-badge { display: flex; align-items: center; }
+.race-view .replay-badge { display: flex; align-items: center; top: 62px; left: 14px; z-index: 7; }
+.race-view .replay-badge .tag { font-size: 14px; padding: 6px 10px; }
+.race-view.rp-on .tvg-layer, .race-view.rp-on .ivt-layer, .race-view.rp-on .battle, .race-view.rp-on .hud3d { visibility: hidden; }
 .replay-badge.slow .tag { animation: hlRec 1.2s infinite; }
 .race-view.rp-slow .r3d { filter: saturate(.8) contrast(1.06); }
 .race-view.rp-slow::before, .race-view.rp-slow::after { content: ''; position: absolute; left: 0; right: 0; height: 6%; background: #000; z-index: 4; pointer-events: none; }

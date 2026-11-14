@@ -19,7 +19,7 @@ import { celebrate } from './results.js';
 import { shortName } from './weekend.js';
 import { DecisionHub, hubLogHTML } from './decisions.js';
 import { Race3D, webglAvailable, stageGeometry, stageSampleAt } from '../ui/race3d.js';
-import { saveReel } from '../engine/highlights.js';
+import { saveReel, incidentPose, kfAt } from '../engine/highlights.js';
 import { openHighlights } from './highlights.js';
 
 const RP = [
@@ -365,11 +365,13 @@ function rallyUpdate3D(dt) {
   const r = X.r3d; if (!r) return; const geo = X.geo;
   const states = X.ev.crews.map((c) => {
     if (!c.plan && c.stageResult == null) return { key: c.key, hidden: true };
-    const i = stageSampleAt(geo, c.progress || 0);
+    // a crew that goes off the road leaves the line live too (slides into the ditch, rolls, rejoins)
+    const pose = rallyPose(c, (r.TW || 7) / 2);
+    const i = stageSampleAt(geo, pose ? pose.u : c.progress || 0);
     const pc = c.pieces?.[c.pieceIdx];
     const moving = !c.done && pc && pc.type === 'move';
     const speed = moving ? geo.profile.v[Math.floor(i)] * (geo.profile.lap / (c.plan?.base || geo.profile.lap)) : 0;
-    return { key: c.key, s: i, speed, label: c.isPlayer || c.key === X.focus ? shortName(X.ev.driver(c).name) : '' };
+    return { key: c.key, s: i, speed, label: c.isPlayer || c.key === X.focus ? shortName(X.ev.driver(c).name) : '', fx: pose ? { lat: pose.lat, yaw: pose.yaw, roll: pose.roll, lift: pose.lift } : null };
   });
   // follow a car that is actually on the stage: prefer the player's, else the closest running one
   const onStage = (c) => c.plan && !c.done && !c.waiting;
@@ -386,6 +388,21 @@ function rallyUpdate3D(dt) {
   if (hud && fc) { const stt = states.find((x) => x.key === fc.key); const kmh = Math.round((stt?.speed || 0) * 3.6); X.focusSpeed = kmh; hud.innerHTML = `<span class="tiny muted upper">${esc(X.ev.driver(fc).name)}</span><span class="spd">${kmh}</span><span class="tiny muted">km/h</span><span class="tiny muted">${((fc.progress || 0) * X.ev.stage.km).toFixed(1)} / ${X.ev.stage.km} km</span>`; }
 }
 
+function rallyPose(c, W) {
+  const ev = X.ev, now = ev.clock || 0, list = ev.incidents;
+  if (!list?.length || !c.kf) return null;
+  for (let k = list.length - 1; k >= 0; k--) {
+    const inc = list[k];
+    if (inc.stage !== ev.stageIdx || inc.key !== c.key) continue;
+    if (now - inc.t0 > 90) break;
+    const kf2 = [...c.kf, [now, c.progress || 0, 0]];
+    const pc = c.pieces?.[c.pieceIdx]; const v = !c.done && pc?.type === 'move' ? (pc.p1 - pc.p0) / (pc.dur || 1) : 0;
+    const uAt = (t) => (t <= now ? kfAt(kf2, t)?.p ?? null : t - now > 8 ? null : (c.progress || 0) + v * (t - now));
+    const p = incidentPose(inc, now, uAt, W);
+    if (p) return p;
+  }
+  return null;
+}
 function drawRally() {
   const v = X.view; if (!v) return;
   v.frame(() => {

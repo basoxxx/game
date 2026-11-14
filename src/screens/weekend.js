@@ -93,6 +93,7 @@ registerScreen({
   onKey(e) {
     if (sessionKey(e)) return;
     if (!R.sim) return;
+    if (R.replay && (e.code === 'Escape' || e.code === 'KeyR')) { e.preventDefault(); stopReplay(); return; }
     if (R.an) { if (e.key === 'Escape' || e.code === 'KeyA') { e.preventDefault(); closeAnalysis(); } return; }
     // space and the speed keys stay live while a decision card is open; 1-3 / Enter answer it
     if (e.code === 'Space') { e.preventDefault(); if (document.activeElement?.matches?.('button, [data-a]')) document.activeElement.blur(); R.paused = !R.paused; R.last = performance.now(); updateSpeedUI(); return; }
@@ -101,8 +102,7 @@ registerScreen({
     if (e.code === 'KeyA' && !R.hub?.open) { openAnalysis(); return; }
     const sp = { Digit1: 1, Digit2: 2, Digit3: 4, Digit4: 8, Digit5: 16, Digit6: 32, Digit0: 1 }[e.code];
     if (sp) { R.speed = sp; R.paused = false; updateSpeedUI(); }
-    if (e.code === 'KeyR') { if (R.replay) stopReplay(); else startReplay(); }
-    if (e.code === 'Escape' && R.replay) { e.preventDefault(); stopReplay(); }
+    if (e.code === 'KeyR') startReplay();
   },
   actions: {
     ...sessionActions,
@@ -832,7 +832,7 @@ function replayBadge(s, i) {
   b.classList.toggle('slow', s.rate < 0.9);
   const lab = document.getElementById('rp-lab'); if (lab) lab.textContent = `${s.label || 'Replay'}${s.rate < 0.9 ? ` ${Math.round(s.rate * 100)}%` : ''}`;
   const cam = document.getElementById('rp-cam'); if (cam) cam.textContent = CAM_NAME[s.cam] || s.cam;
-  document.getElementById('race-view')?.classList.toggle('rp-slow', s.rate < 0.9);
+  document.getElementById('race-view')?.classList.toggle('rp-slow', s.rate < 0.9); document.getElementById('race-view')?.classList.add('rp-on');
   void i;
 }
 function stopReplay() {
@@ -840,7 +840,7 @@ function stopReplay() {
   if (r) { r.resetMotion?.(); r.camMode = rp.prevCam || r.camMode; r.director = !!rp.prevDir; r._cut = true; r.focusKey = R.focus; }
   R.ifx?.clear();
   R.replay = null; document.getElementById('replay-badge')?.remove();
-  document.getElementById('race-view')?.classList.remove('rp-slow');
+  document.getElementById('race-view')?.classList.remove('rp-slow', 'rp-on');
   R.last = performance.now();
 }
 function playReplay(dt) {

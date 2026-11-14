@@ -166,7 +166,7 @@ export class CircuitRecorder {
     const lo = cl.frames[0]?.t ?? cl.t0, hi = cl.frames[cl.frames.length - 1]?.t ?? cl.t1;
     const inc = (sim.incidents || []).filter((i) => i.t0 <= hi + 0.5 && (i.t0 >= lo - 2 || ((i.kind === 'crash' || i.kind === 'park') && i.t0 >= lo - 90)));
     return {
-      id: cl.id, type: cl.type, title: cl.title, text: cl.text, score: +cl.score.toFixed(2), tc: cl.tc, t0: lo, t1: hi, lap: cl.lap, focus: cl.focus, keys: cl.keys.slice(),
+      id: cl.id, type: cl.type, title: cl.title, text: cl.text, score: +(cl.score || 0).toFixed(2), tc: cl.tc, t0: lo, t1: hi, lap: cl.lap, focus: cl.focus, keys: cl.keys.slice(),
       events: cl.events.map((e) => ({ type: e.type, t: e.t, keys: e.keys, title: e.title })),
       rain: cl.frames.reduce((a, x) => a + (x.rain || 0), 0) / Math.max(1, cl.frames.length),
       T, U: this.keys.map((_, i) => cl.frames.map((x) => x.u[i])), F: this.keys.map((_, i) => cl.frames.map((x) => x.f[i])),
