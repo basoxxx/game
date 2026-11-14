@@ -3497,7 +3497,8 @@ export class Race3D {
       const t = this._shT;
       if (simK > 12) {
         // fast-forward: steady high orbit locked on the car (no lag, never loses the pack)
-        const a = t * 0.05; pos = target.clone().add(new THREE.Vector3(Math.cos(a) * 95, 150, Math.sin(a) * 95));
+        // (rally stages: one car on an open road, so the orbit flies low enough to keep it readable)
+        const a = t * 0.05, R = this.open ? 30 : 95; pos = target.clone().add(new THREE.Vector3(Math.cos(a) * R, this.open ? 58 : 150, Math.sin(a) * R));
         this._heliPos = pos.clone(); look = target.clone(); fov = 38; this._snap = true;
       } else {
         // flight options: either side of the car, then higher, then overhead; the first one with a
@@ -3522,7 +3523,7 @@ export class Race3D {
       const rel = (c) => { let d = c.i - s; if (!this.open) { if (d < -N / 2) d += N; if (d > N / 2) d -= N; } return d; };
       const tgt1 = target.clone(); tgt1.y += 0.9;
       if (simK > 12 || !this.tvCams?.length) {
-        const a = this._shT * 0.04 + 1; pos = target.clone().add(new THREE.Vector3(Math.cos(a) * 120, 135, Math.sin(a) * 120));
+        const a = this._shT * 0.04 + 1, R = this.open ? 14 : 120; pos = target.clone().add(new THREE.Vector3(Math.cos(a) * R, this.open ? 36 : 135, Math.sin(a) * R));
         look = target.clone(); this._tv = null; this._snap = true; this._tvWide = true;
       } else {
         if (this._tvWide) { this._tvWide = false; this._cut = true; }

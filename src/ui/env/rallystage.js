@@ -26,7 +26,7 @@ export const RALLY_BIOME = {
   cro: { trees: [['broad', 0.6], ['conifer', 0.2], ['bush', 0.2]], dens: 0.9 },
   por: { trees: [['conifer', 0.5], ['broad', 0.5]], dens: 1.0, road: 0xc9a27e },
   ita: { trees: [['bush', 0.5], ['broad', 0.3], ['desert', 0.2]], dens: 0.45, ground: 0xc2b47e, tint: 0xc9a066, tintAmt: 0.55 },
-  gre: { trees: [['bush', 0.55], ['broad', 0.3], ['desert', 0.15]], dens: 0.35, ground: 0xc8b98a, tint: 0xd0a96a, tintAmt: 0.6, road: 0xe0cfb0 },
+  gre: { trees: [['bush', 0.55], ['broad', 0.3], ['desert', 0.15]], dens: 0.5, ground: 0xc8b98a, tint: 0xd0a96a, tintAmt: 0.6, road: 0xe0cfb0 },
   fin: { trees: [['conifer', 0.85], ['broad', 0.15]], dens: 1.55 },
   chi: { trees: [['conifer', 0.7], ['broad', 0.3]], dens: 1.1, road: 0xb08a68 },
   eur: { trees: [['broad', 0.45], ['conifer', 0.4], ['bush', 0.15]], dens: 0.8, huts: 1.4 },
