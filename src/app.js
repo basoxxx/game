@@ -220,7 +220,7 @@ export const App = {
     this.closeModal();
     document.querySelector('.coach')?.remove();
     setAudioScene(id);
-    const mood = { intro: 'menu', menu: 'menu', newgame: 'menu', howto: S() ? 'manage' : 'menu', settings: S() ? 'manage' : 'menu', weekend: null, rally: null, results: 'win', seasonend: 'win', quickrace: 'menu', challenges: 'menu', derby: 'derby', launcher: 'menu', voragine: 'derby' }[id];
+    const mood = { intro: 'menu', menu: 'menu', newgame: 'menu', howto: S() ? 'manage' : 'menu', settings: S() ? 'manage' : 'menu', weekend: null, rally: null, results: 'win', seasonend: 'win', quickrace: 'menu', challenges: 'menu', derby: 'derby', launcher: 'menu', voragine: 'voragine' }[id];
     if (mood !== null) music.setMood(mood || 'manage');
     else if (music.mood === 'menu' || music.mood === 'win') music.setMood('manage'); // paddock before the lights go out
     if (prev && prev.id !== id) this.wipe();
