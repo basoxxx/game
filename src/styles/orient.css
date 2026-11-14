@@ -140,7 +140,7 @@
 }
 
 /* ---------- optional rotate hint (live 3D race on a phone held upright): small, dismissible ---------- */
-.rot-hint { position: absolute; left: 50%; bottom: 10px; z-index: 12; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; max-width: calc(100% - 20px); padding: 6px 6px 6px 12px; background: rgba(8,9,11,.86); border: 1px solid var(--line2); color: var(--text2); font-size: 12.5px; line-height: 1.25; pointer-events: auto; animation: fade .3s ease both; }
+.rot-hint { position: absolute; left: 50%; bottom: 100px; z-index: 12; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; max-width: calc(100% - 20px); padding: 6px 6px 6px 12px; background: rgba(8,9,11,.86); border: 1px solid var(--line2); color: var(--text2); font-size: 12.5px; line-height: 1.25; pointer-events: auto; animation: fade .3s ease both; }
 .rot-hint svg { width: 18px; height: 18px; flex: none; color: var(--text); }
 .rot-hint button { flex: none; width: 32px; height: 32px; min-height: 32px; border: 0; background: transparent; color: var(--text2); font-size: 18px; cursor: pointer; }
 @media not all and (orientation: portrait) { .rot-hint { display: none; } }
@@ -148,4 +148,12 @@
 /* ---------- highlights viewer, phone sideways: the caption takes the left part only, the map gets the height ---------- */
 @media (orientation: landscape) and (max-height: 520px) and (min-width: 600px) {
   html .hl-lower { left: 10px; transform: none; width: min(46%, 420px); }
+}
+
+/* ---------- live race / stage end card on phones: above the side column, scrolls when taller than the screen ---------- */
+@media (max-width: 760px), (orientation: landscape) and (max-height: 500px) and (max-width: 1000px) {
+  .race-screen > .race-view, .rally-screen > .race-view { z-index: 20; }
+  html .race-view .ss-end { overflow-y: auto; overscroll-behavior: contain; align-items: flex-start; padding: 8px; }
+  html .race-view .ss-end > * { margin: auto; max-width: 100%; }
+  html .race-view .ss-end .finish-card { overflow: visible; }
 }
