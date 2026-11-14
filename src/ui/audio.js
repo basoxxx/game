@@ -337,6 +337,124 @@ function pluck(f, t, dur, peak, pan, dest, cut = 4500) {
 }
 
 // ---------------------------------------------------------------------------
+// VORAGINE sound kit (used by src/voragine/game.js through its Sfx class): shared
+// context and effects bus, so it follows the volume settings and the voice limits.
+// ---------------------------------------------------------------------------
+const VGROUP = { person: 'person', cone: 'prop', hydrant: 'metal', bin: 'metal', lamp: 'metal', bench: 'wood', bush: 'leaf', tree: 'tree', pine: 'tree', kiosk: 'build', fountain: 'water', car: 'car', taxi: 'car', van: 'car', bus: 'car', house: 'build', shop: 'build', apartment: 'build', office: 'tower', tower: 'tower' };
+const PENT = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
+const VS = { last: {}, combo: 0, comboT: -9 };
+const vfree = (key, ms) => { const n = performance.now(); if (n - (VS.last[key] || 0) < ms) return false; VS.last[key] = n; return true; };
+function debris(t, n, spread, lvl, lo = 1500, hi = 5000) {
+  for (let i = 0; i < n; i++) nz(rnd(0.01, 0.04), lvl * rnd(0.4, 1), { t: t + Math.random() * spread, f: rnd(lo, hi), q: rnd(2, 6), pan: rnd(-0.7, 0.7), voice: 'low' });
+}
+export const vsfx = {
+  // size 0..1, kind = KINDS id. Quick successive gulps climb a pentatonic scale (combo).
+  gulp(size = 0, kind = '') {
+    const t = ctx.currentTime, g = VGROUP[kind] || (size > 0.45 ? 'build' : 'prop');
+    if (t - VS.comboT < 0.7) VS.combo = Math.min(PENT.length - 1, VS.combo + 1); else VS.combo = 0;
+    VS.comboT = t;
+    const up = Math.pow(2, PENT[VS.combo] / 12);
+    if (vfree('gulp', 45)) { // the hole's own swallow: a round "gloop" that rises with the combo
+      const f = (430 - size * 300) * up;
+      osc('sine', f, t, 0.13 + size * 0.2, 0.09 + size * 0.06, { slide: 0.42, a: 0.004 });
+      osc('triangle', f * 2.01, t, 0.05, 0.018, { slide: 0.55 });
+    }
+    switch (g) {
+      case 'person': // cartoon squeak
+        if (!vfree('person', 70)) break;
+        osc('triangle', rnd(950, 1350) * Math.sqrt(up), t + 0.01, 0.13, 0.032, { slide: rnd(1.4, 1.8), slideT: 0.07, cut: 4500, pan: rnd(-0.4, 0.4) });
+        osc('sine', rnd(1900, 2400), t + 0.03, 0.07, 0.01, { slide: 0.7 });
+        break;
+      case 'prop': if (vfree('prop', 60)) { osc('square', rnd(500, 700), t, 0.05, 0.02, { cut: 1600, slide: 0.6 }); nz(0.03, 0.03, { t, f: 2400, q: 2 }); } break;
+      case 'metal': if (vfree('metal', 70)) { bell(rnd(650, 1300), t + 0.02, 0.45, 0.026, { ratio: 2.76, index: 2.2, pan: rnd(-0.5, 0.5) }); nz(0.08, 0.025, { t, f: 3500, q: 3 }); } break;
+      case 'wood': if (vfree('wood', 70)) { osc('triangle', rnd(180, 260), t, 0.09, 0.05, { slide: 0.7 }); nz(0.05, 0.04, { t, f: 900, q: 2 }); } break;
+      case 'leaf': if (vfree('leaf', 80)) nz(0.28, 0.035, { t, type: 'highpass', f: 2500, a: 0.03, pan: rnd(-0.5, 0.5) }); break;
+      case 'tree':
+        if (!vfree('tree', 90)) break;
+        nz(0.4, 0.045, { t, type: 'highpass', f: 2200, a: 0.03, pan: rnd(-0.5, 0.5) });
+        osc('sawtooth', rnd(110, 160), t + 0.05, 0.35, 0.02, { slide: 0.7, cut: 700 });   // trunk creak
+        osc('sine', 75, t + 0.12, 0.2, 0.06, { slide: 0.6 });
+        break;
+      case 'water': // fountain: splash and bubbles
+        if (!vfree('water', 150)) break;
+        nz(0.5, 0.07, { t, f: 700, q: 1, sweep: 3200, a: 0.01 });
+        for (let i = 0; i < 6; i++) osc('sine', rnd(500, 1100), t + 0.1 + i * rnd(0.04, 0.09), 0.06, 0.012, { slide: 1.8 });
+        break;
+      case 'car': { // metal crunch, a thud, and a horn falling away into the hole
+        if (!vfree('car', 110)) break;
+        nz(0.28, 0.08, { t, f: 1200, q: 1.4, sweep: 500, a: 0.002 });
+        osc('sine', 95, t, 0.25, 0.1, { slide: 0.5 });
+        debris(t + 0.02, 5, 0.25, 0.03, 2500, 6500);
+        if (Math.random() < 0.75) {
+          const f0 = kind === 'bus' ? 233 : kind === 'van' ? 311 : kind === 'taxi' ? 466 : 415, d = rnd(0.35, 0.6);
+          for (const k of [1, 1.26]) osc('square', f0 * k, t + 0.04, d, 0.012, { cut: 1900, slide: 0.82, slideT: d, a: 0.01, pan: rnd(-0.3, 0.3) });
+        }
+        break;
+      }
+      case 'build': case 'tower': { // rumble + debris (+ shattering glass on office blocks and towers)
+        if (!vfree('build', 160)) break;
+        const k = Math.max(0.4, size), big = g === 'tower';
+        nz(0.9 + k * 1.4, 0.14 * k, { t, type: 'lowpass', f: 240, q: 0.6, a: 0.04, buf: brownBuf, sweep: 90 });
+        osc('sine', 58, t, 0.6 + k * 0.6, 0.16 * k, { slide: 0.55 });
+        nz(0.5, 0.05 * k, { t: t + 0.05, f: 700, q: 0.8, sweep: 250 });
+        debris(t + 0.1, big ? 12 : 8, 0.9 + k, 0.03, 900, 4500);
+        if (big) for (let i = 0; i < 10; i++) bell(rnd(2800, 6500), t + 0.08 + Math.random() * 0.5, rnd(0.15, 0.4), 0.007, { ratio: rnd(1.4, 2.9), index: 1.5, pan: rnd(-0.8, 0.8) });
+        duck(0.25 * k, 0.6, ['music']);
+        break;
+      }
+    }
+  },
+  // level up: brass triad fanfare, cymbal, sparkle
+  level() {
+    const t = ctx.currentTime; duck(0.4, 1.1, ['music']);
+    [[60, 0], [64, 0.09], [67, 0.18], [72, 0.27]].forEach(([n, d], i) => brass(mtof(n + 12), t + d, i === 3 ? 0.9 : 0.16, 0.05, (i - 1.5) * 0.25));
+    brass(mtof(76), t + 0.27, 0.9, 0.035, 0.3);
+    drum('crash', t + 0.27, B.sfx, 0.5);
+    for (let i = 0; i < 6; i++) bell(mtof(84 + PENT[i]), t + 0.3 + i * 0.05, 0.6, 0.014, { ratio: 3.5, index: 1, rev: 0.4, pan: (i - 2.5) * 0.25 });
+  },
+  // the player swallowed a rival hole: a big chomp and a triumphant stab
+  rival() {
+    const t = ctx.currentTime; duck(0.5, 1.2, ['music']);
+    osc('sawtooth', 170, t, 0.3, 0.06, { slide: 0.3, cut: 1200 });
+    osc('sine', 70, t, 0.6, 0.2, { slide: 0.5 });
+    nz(0.5, 0.1, { t, type: 'lowpass', f: 1200, sweep: 150, a: 0.003 });
+    [[67, 0.18], [72, 0.18], [76, 0.18], [79, 0.3]].forEach(([n, d], i) => brass(mtof(n), t + d + i * 0.0, 0.8, 0.035, (i - 1.5) * 0.35));
+    drum('crash', t + 0.18, B.sfx, 0.4);
+  },
+  // a rival swallowed another rival somewhere in town: distant bloop
+  rivalGone() { const t = ctx.currentTime; osc('sine', 260, t, 0.35, 0.03, { slide: 0.35, rev: 0.4, pan: rnd(-0.7, 0.7) }); nz(0.4, 0.015, { t, type: 'lowpass', f: 500, rev: 0.4 }); },
+  // the player got swallowed: sad trombone
+  lost() {
+    const t = ctx.currentTime; duck(0.5, 1.8, ['music']);
+    [[233.1, 0, 0.28], [220, 0.32, 0.28], [207.7, 0.64, 0.28], [196, 0.96, 0.9]].forEach(([f, d, len], i) => {
+      osc('sawtooth', f, t + d, len, 0.03, { cut: 900, q: 3, a: 0.03, slide: i === 3 ? 0.94 : 0.99 });
+      osc('square', f / 2, t + d, len, 0.012, { cut: 600, a: 0.03 });
+    });
+  },
+  // countdown: 3-2-1 woodblock + tone, then "Via!" (go)
+  beep(go = false) {
+    const t = ctx.currentTime;
+    if (!go) { drum('rim', t, B.sfx, 0.5); bell(784, t, 0.35, 0.04, { ratio: 2, index: 0.6 }); osc('sine', 392, t, 0.18, 0.04); return; }
+    [60, 64, 67, 72].forEach((n, i) => brass(mtof(n + 12), t, 0.55, 0.035, (i - 1.5) * 0.3));
+    bell(mtof(96), t, 1, 0.02, { ratio: 3.5, rev: 0.4 });
+    nz(0.4, 0.04, { t, f: 400, q: 1.2, sweep: 4000, a: 0.08 });
+    drum('crash', t, B.sfx, 0.4);
+  },
+  // last seconds on the clock: ticks that climb
+  tick(sec = 5) { const t = ctx.currentTime, f = 1000 + (5 - sec) * 140; drum('rim', t, B.sfx, 0.45); osc('sine', f, t, 0.08, 0.035); },
+  // end of the match
+  end(win) {
+    if (!win) { vsfx.lost(); return; }
+    const t = ctx.currentTime; duck(0.5, 2.5, ['music']);
+    [[60, 0], [64, 0.12], [67, 0.24], [72, 0.36], [76, 0.48]].forEach(([n, d], i) => brass(mtof(n + 12), t + d, i === 4 ? 1.4 : 0.2, 0.045, (i - 2) * 0.25));
+    [60, 64, 67].forEach((n, i) => brass(mtof(n + 12), t + 0.6, 1.4, 0.035, (i - 1) * 0.4));
+    drum('crash', t + 0.6, B.sfx, 0.55);
+    for (let i = 0; i < 8; i++) bell(mtof(84 + PENT[i]), t + 0.6 + i * 0.06, 0.8, 0.012, { ratio: 3.5, rev: 0.5, pan: (i - 3.5) * 0.2 });
+  },
+};
+for (const k of Object.keys(vsfx)) { const f = vsfx[k]; vsfx[k] = (...a) => { if (!ac()) return; try { f(...a); } catch (e) { console.warn('vsfx', k, e); } }; }
+
+// ---------------------------------------------------------------------------
 // MUSIC — generative but composed: each theme has chords per bar, a section
 // arrangement (intro / verse / chorus / break) with instrument layers, drum
 // patterns, bass lines, arps and hand-written lead melodies. Switching mood
