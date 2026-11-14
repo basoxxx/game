@@ -206,18 +206,26 @@ export class LensFx {
   constructor(container) {
     const c = this.c = document.createElement('canvas'); c.width = 480; c.height = 270; c.className = 'dzx-lens';
     Object.assign(c.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', pointerEvents: 'none', opacity: '0.92' });
-    container.appendChild(c); this.g = c.getContext('2d'); this.list = []; this.dirty = false;
+    container.appendChild(c); this.g = c.getContext('2d'); this.list = []; this.dirty = false; this.w = 480; this.h = 270;
+  }
+  // keep the glass buffer at the screen's aspect (portrait phones, rotation): ~130k px, drops stay round
+  fit() {
+    const cw = this.c.clientWidth, ch = this.c.clientHeight; if (!cw || !ch) return;
+    const a = cw / ch; if (Math.abs(a - this.w / this.h) < 0.02) return;
+    const k = Math.sqrt(480 * 270 / a); const w = Math.round(k * a), h = Math.round(k);
+    for (const s of this.list) { s.x *= w / this.w; s.y *= h / this.h; }
+    this.c.width = this.w = w; this.c.height = this.h = h; this.dirty = false;
   }
   splat(kind = 'mud', n = 6, power = 1) {
     for (let i = 0; i < n && this.list.length < 70; i++) {
       const edge = Math.random() < 0.6; const x = edge ? (Math.random() < 0.5 ? Math.random() * 0.3 : 0.7 + Math.random() * 0.3) : Math.random(), y = Math.random() ** (kind === 'mud' ? 0.6 : 1);
       const life = kind === 'mud' ? 3.5 + Math.random() * 3 : 1.2 + Math.random() * 1.6;
-      this.list.push({ kind, x: x * 480, y: y * 270, r: (kind === 'mud' ? 4 + Math.random() * 11 : 3 + Math.random() * 8) * power, life, life0: life, vy: kind === 'mud' ? 2 + Math.random() * 5 : 10 + Math.random() * 40, seed: Math.random() * 100, blobs: Array.from({ length: kind === 'mud' ? 5 : 1 }, () => [(Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6, 0.35 + Math.random() * 0.6]) });
+      this.fit(); this.list.push({ kind, x: x * this.w, y: y * this.h, r: (kind === 'mud' ? 4 + Math.random() * 11 : 3 + Math.random() * 8) * power, life, life0: life, vy: kind === 'mud' ? 2 + Math.random() * 5 : 10 + Math.random() * 40, seed: Math.random() * 100, blobs: Array.from({ length: kind === 'mud' ? 5 : 1 }, () => [(Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6, 0.35 + Math.random() * 0.6]) });
     }
   }
   update(dt) {
-    const L = this.list, g = this.g; if (!L.length) { if (this.dirty) { g.clearRect(0, 0, 480, 270); this.dirty = false; } return; }
-    g.clearRect(0, 0, 480, 270); this.dirty = true;
+    const L = this.list, g = this.g; if ((this._ft = (this._ft || 0) + dt) > 0.5) { this._ft = 0; this.fit(); } if (!L.length) { if (this.dirty) { g.clearRect(0, 0, this.w, this.h); this.dirty = false; } return; }
+    g.clearRect(0, 0, this.w, this.h); this.dirty = true;
     for (let i = L.length - 1; i >= 0; i--) {
       const s = L[i]; s.life -= dt; if (s.life <= 0) { L.splice(i, 1); continue; }
       s.y += s.vy * dt; const a = Math.min(1, s.life / (s.life0 * 0.5));

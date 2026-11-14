@@ -2,8 +2,16 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
+  <!-- installable on the home screen (PWA); "orientation": "any": never locked, portrait and landscape both work -->
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <meta name="theme-color" content="#07090d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Baso Hub" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
   <title>Baso Hub — Apex Dynasty · Scontro Totale · Voragine</title>
   <meta name="description" content="Gestionale motorsport multi-categoria: Formula, Rally ed Endurance." />
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
