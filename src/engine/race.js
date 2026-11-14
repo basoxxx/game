@@ -1211,13 +1211,13 @@ export class CircuitSim {
       const c = this.cars.find((x) => x.key === key); if (!c || c.status !== 'running') continue;
       const d = this.driver(c);
       switch (opt.act) {
-        case 'pit': if (this.endurance) this.callPit(c, { ...this.endPitReq(c), compound: opt.compound || (COMPOUNDS[c.tyre].wet ? this.dryChoice(c, this.laps - c.dist) : c.wear > 0.4 ? this.dryChoice(c, this.laps - c.dist) : null) }); else this.callPit(c, { compound: opt.compound || c.plan?.[c.planIdx + 1]?.c || this.dryChoice(c, this.laps - c.dist), fuel: true, crew: c.crew, repair: c.repair !== false }); break;
+        case 'pit': if (this.endurance) this.callPit(c, { ...this.endPitReq(c), compound: opt.compound || this.redWet() || (COMPOUNDS[c.tyre].wet ? this.dryChoice(c, this.laps - c.dist) : c.wear > 0.4 ? this.dryChoice(c, this.laps - c.dist) : null) }); else this.callPit(c, { compound: opt.compound || this.redWet() || c.plan?.[c.planIdx + 1]?.c || this.dryChoice(c, this.laps - c.dist), fuel: true, crew: c.crew, repair: c.repair !== false }); break;
         case 'stay': c.pitReq = null; break;
         case 'attack': c.mode = 'push'; c.ersMode = c.ers > 15 ? 'deploy' : 'balanced'; c.attackUntil = this.time + c.lapTarget * 2; break;
         case 'hold': c.mode = 'save'; c.ersMode = 'harvest'; break;
         case 'defend': c.mode = 'push'; c.ersMode = c.ers > 15 ? 'deploy' : 'balanced'; c.defendUntil = this.time + c.lapTarget * 2; break;
         case 'yield': c.mode = 'save'; c.ersMode = 'harvest'; c.yieldUntil = this.time + c.lapTarget; break;
-        case 'cover': this.callPit(c, { compound: c.plan?.[c.planIdx + 1]?.c || this.dryChoice(c, this.laps - c.dist), fuel: true, crew: c.crew, repair: c.repair !== false }); break;
+        case 'cover': this.callPit(c, { compound: this.redWet() || c.plan?.[c.planIdx + 1]?.c || this.dryChoice(c, this.laps - c.dist), fuel: true, crew: c.crew, repair: c.repair !== false }); break;
         case 'redtyre': c.redTyre = opt.v; break;
         case 'garage': this.callPit(c, { ...this.endPitReq(c), extra: 70, repair: true, garage: true }); break;
         case 'swapnow': c.forceSwap = true; c.stayIn = false; this.callPit(c, this.endPitReq(c)); break;
@@ -1300,7 +1300,7 @@ export class CircuitSim {
     const r = { type: m.sub, mate: m.mate };
     const d = this.driver(c);
     const mood = (v) => { d.morale = clamp(d.morale + v, 10, 100); };
-    if (r.type === 'pit') { if (yes) { this.callPit(c, this.endurance ? this.endPitReq(c) : { compound: c.plan?.[c.planIdx + 1]?.c || this.dryChoice(c, this.laps - c.dist), fuel: true, crew: c.crew, repair: c.repair !== false }); mood(2); } else { mood(-2); this.log(`📻 Muretto: «Resta fuori, ${d.name.split(' ')[0]}, ancora qualche giro.»`, 'radio', c.key, true); } }
+    if (r.type === 'pit') { if (yes) { this.callPit(c, this.endurance ? this.endPitReq(c) : { compound: this.redWet() || c.plan?.[c.planIdx + 1]?.c || this.dryChoice(c, this.laps - c.dist), fuel: true, crew: c.crew, repair: c.repair !== false }); mood(2); } else { mood(-2); this.log(`📻 Muretto: «Resta fuori, ${d.name.split(' ')[0]}, ancora qualche giro.»`, 'radio', c.key, true); } }
     if (r.type === 'pass') { if (yes) { this.setOrders(c.teamId, 'swap'); mood(3); const m = this.cars.find((x) => x.key === r.mate); if (m) { const dm = this.driver(m); dm.morale = clamp(dm.morale - 4, 10, 100); } } else { mood(-4); this.log('📻 Muretto: «Negativo, mantenete le posizioni.»', 'radio', c.key, true); this.setOrders(c.teamId, 'hold'); } }
     if (r.type === 'push') { if (yes) { c.mode = 'push'; c.ersMode = 'deploy'; mood(2); } else mood(-1); }
     if (r.type === 'rain') { if (yes) { this.callPit(c, { compound: this.C.compounds.includes('inter') ? 'inter' : 'wet', fuel: true, crew: c.crew, repair: c.repair !== false }); } else this.log(`📻 Muretto: «Resta fuori, è solo una pioggerella.»`, 'radio', c.key, true); }

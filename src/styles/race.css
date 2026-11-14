@@ -258,6 +258,12 @@
   .view-btns .btn { flex: none; }
   #feed-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   #feed-tabs .tab { flex: none; white-space: nowrap; }
+  /* 3D in a ~400px view: smaller minimap and a compact speed HUD, so the two no longer overlap */
+  .race-view.mode3d #race-cv { width: 170px; height: 124px; }
+  .race-view.mode3d .hud3d { padding: 4px 10px; gap: 8px; }
+  .race-view.mode3d .hud3d > .tiny:first-child { display: none; }
+  .race-view.mode3d .hud3d .spd { font-size: 26px; min-width: 50px; }
+  .race-view.mode3d .hud3d .pos { font-size: 20px; }
 }
 
 /* ---- Timing tower: tyre + age, DRS, position change, team colour ---- */
