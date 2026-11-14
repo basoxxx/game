@@ -7,7 +7,7 @@ import { genStage, STAGE_STYLE } from './trackview.js';
 import { getSettings } from '../engine/state.js';
 import { passBy } from './audio.js';
 import { buildCar, setTyreColor, setCarLOD, MAT } from './cars3d.js';
-import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, updateSunFlare, updateGodRays, HeightFog, stabilizeShadow, triMat, loadTex } from './gfx.js';
+import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, RAIN, FXT, updateSunFlare, updateGodRays, HeightFog, stabilizeShadow, triMat, loadTex, addLensRain } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { biomeOf, RALLY_LOOK } from './env/biomes.js';
 import { buildCoast, buildMidTerrain, buildDecals, buildLife, buildRallyExtras, buildGridSlots } from './env/scenery.js';
@@ -232,7 +232,7 @@ export class Race3D {
     // first frame: adding / un-hiding a light later changes the light count of every lit
     // material and recompiles them all at once (a visible hitch at nightfall)
     if (!this.low && this.nightable) this.carSpots = [0, 1].map(() => { const s = new THREE.SpotLight(0xeef3ff, 0, 90, 0.42, 0.6, 1.7); this.scene.add(s); this.scene.add(s.target); return s; });
-    WET.value = 0;
+    WET.value = 0; RAIN.value = 0;
     // time of day: explicit opts.timeOfDay ('day' | 'afternoon' | 'dusk'), else endurance races at
     // the night circuits start in the evening light
     // the golden-hour look of some rounds is the race's: practice / qualifying (the session screen)
@@ -265,6 +265,7 @@ export class Race3D {
     this.renderer.toneMappingExposure *= this._expK;
     if (this.composer?.grade) { const gu = this.composer.grade.uniforms; gu.uCon.value = this._gCon; gu.uSat.value = (this.tod?.sat ?? 1.08) * this._gSat; if (this.tod) gu.uWarm.value = this.tod.warm; }
     if (this.composer?.rays && this.tod) this.composer.rays.uniforms.uTint.value.setHex(this.tod.disc);
+    if (this.composer && !this.open) addLensRain(this.composer);
     this.cars = new Map();
     for (const c of cars) this.addCar(c);
     this.camPos = new THREE.Vector3(0, 50, 0);
@@ -970,6 +971,7 @@ export class Race3D {
   }
 
   computeLine() {
+    if (!this.open) return this.computeRacingLine();
     const { N, k } = this.geo; const half = this.TW / 2 - 1.6;
     const inside = new Float64Array(N);
     for (let i = 0; i < N; i++) inside[i] = Math.max(-1, Math.min(1, k[i] * 160));
@@ -983,6 +985,91 @@ export class Race3D {
     const sm = new Float64Array(N);
     for (let i = 0; i < N; i++) { let a = 0, n = 0; for (let q = -8; q <= 8; q++) { const j = this.open ? Math.max(0, Math.min(N - 1, i + q)) : (i + q + N) % N; a += line[j]; n++; } sm[i] = a / n; }
     this.line = sm;
+  }
+
+  // Racing line of a closed circuit: minimum-curvature path inside the track edges (Gauss-Seidel
+  // on the bi-harmonic stencil, multi-scale so it converges in a few hundred sweeps), which gives
+  // the outside-inside-outside shape through every corner and straight lines through the quick
+  // chicanes. Slow corners after a straight get a later apex (the line is shifted along the track
+  // in proportion to how tight the corner is: brake in a straight line, turn in late, open the
+  // exit). Also stores the path curvature (steering / body roll) and the inside side per sample.
+  computeRacingLine() {
+    const { N, x, y, hdg, k } = this.geo;
+    const half = this.TW / 2 - 1.35;
+    const W = (i) => ((i % N) + N) % N;
+    const nx = new Float64Array(N), nz = new Float64Array(N);
+    for (let i = 0; i < N; i++) { nx[i] = -Math.sin(hdg[i]); nz[i] = Math.cos(hdg[i]); }
+    const o = new Float64Array(N);
+    const px = (j) => x[j] + nx[j] * o[j], pz = (j) => y[j] + nz[j] * o[j];
+    for (const [s, it] of [[16, 40], [8, 60], [4, 80], [2, 80], [1, 60]]) {
+      for (let r = 0; r < it; r++) for (let i = 0; i < N; i++) {
+        const a = W(i - s), b = W(i + s), a2 = W(i - 2 * s), b2 = W(i + 2 * s);
+        const tx = (4 * (px(a) + px(b)) - (px(a2) + px(b2))) / 6 - x[i], tz = (4 * (pz(a) + pz(b)) - (pz(a2) + pz(b2))) / 6 - y[i];
+        const v = tx * nx[i] + tz * nz[i];
+        o[i] = Math.max(-half, Math.min(half, o[i] + (v - o[i]) * 0.6));
+      }
+    }
+    // late apex: tightest radius within ±100 m decides the shift (0 .. 2.4 samples = 12 m)
+    const shift = new Float64Array(N);
+    for (let i = 0; i < N; i++) { let km = 0; for (let q = -20; q <= 20; q += 2) km = Math.max(km, Math.abs(k[W(i + q)])); const r = 1 / Math.max(1e-4, km); shift[i] = 2.4 * Math.max(0, Math.min(1, (150 - r) / 110)); }
+    const line = new Float64Array(N);
+    for (let i = 0; i < N; i++) { const t = i - shift[i], i0 = Math.floor(t), f = t - i0; line[i] = o[W(i0)] * (1 - f) + o[W(i0 + 1)] * f; }
+    for (let i = 0; i < N; i++) o[i] = line[i];
+    // path curvature of the line itself (heading change per metre), lightly smoothed
+    const pk = new Float64Array(N), sk = new Float64Array(N);
+    for (let i = 0; i < N; i++) {
+      const a = W(i - 1), b = W(i + 1);
+      const h0 = Math.atan2(pz(i) - pz(a), px(i) - px(a)), h1 = Math.atan2(pz(b) - pz(i), px(b) - px(i));
+      let d = h1 - h0; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+      pk[i] = d / Math.max(0.5, Math.hypot(px(b) - px(a), pz(b) - pz(a)) / 2);
+    }
+    for (let i = 0; i < N; i++) { let a = 0; for (let q = -2; q <= 2; q++) a += pk[W(i + q)]; sk[i] = a / 5; }
+    // the side of the next corner within ~250 m (+1 left / -1 right, 0 none) and how close it is:
+    // where an attacker dives and a defender covers
+    const nextSide = new Int8Array(N), nextDist = new Float32Array(N).fill(999);
+    const cs = (this.geo.corners || []).filter((c) => c.r < 260).map((c) => c.i).sort((a, b) => a - b);
+    if (cs.length) for (let i = 0; i < N; i++) {
+      let best = null, bd = 1e9; for (const ci of cs) { const d = W(ci - i); if (d < bd) { bd = d; best = ci; } }
+      if (bd <= 50) { nextSide[i] = Math.sign(k[best]) || 1; nextDist[i] = bd; }
+    }
+    this.line = line; this.lineK = sk; this.lineHalf = half; this.nextSide = nextSide; this.nextDist = nextDist;
+  }
+
+  // lateral target of one car: its own variation of the racing line, plus the race-craft offsets
+  // (slipstream, attacking up the inside, defending, the wet line). st.latOff / st.offset (m,
+  // + = left) from the caller are added on top.
+  laneFor(car, st, i0, ahead, behind, dt = 1 / 60) {
+    const N = this.geo.N, s = st.s || 0, half = this.lineHalf || this.TW / 2 - 1.35;
+    const base = this.line[i0];
+    // standing on the grid: staggered two by two, pole on the racing-line side
+    if ((st.speed || 0) < 3 && st.pos) { const gs = this._gridSide ??= Math.sign(this.line[0]) || 1; car._tac = 0; return (st.pos % 2 ? gs : -gs) * Math.min(2.6, half - 1); }
+    // each driver drives the line a little differently: tighter or wider and a slow wander that
+    // fades out at the apexes (where everybody clips the same kerb)
+    const ph = car.ph ??= (car.lane * 7.31 + 1.7) % 6.283;
+    const apex = Math.min(1, Math.abs(base) / half);
+    const wander = (Math.sin(s * 0.021 + ph) * 0.55 + Math.sin(s * 0.067 + ph * 2.3) * 0.3) * (1 - 0.75 * apex * apex);
+    let lane = base * (car.lineK ??= 0.9 + ((car.lane + 1.8) / 3.6) * 0.1) + wander;
+    // wet: off the rubbered (slippery) line on corner entry, a wider arc around the outside
+    const wet = this.wet || 0, side = this.nextSide?.[i0] || 0, nd = this.nextDist?.[i0] ?? 999;
+    if (wet > 0.35 && side) lane -= side * (wet - 0.35) * 2.2 * Math.max(0, 1 - Math.abs(nd - 18) / 18);
+    // race craft
+    let tac = 0;
+    if (ahead && st.close) {
+      const dLat = ahead._laneT ?? ahead.laneCur ?? base;
+      if (side && nd < 34) tac = side * (half - 0.4) - lane; // dive up the inside under braking
+      else {
+        // in the slipstream on the straight, pulling out to one side as the gap closes
+        const ps = (car._pullSide ||= (st.pos || 1) % 2 ? 1 : -1);
+        tac = (dLat - lane) * 0.8 + ps * 1.6 * Math.min(1, Math.max(0, 1.2 - (st.gap ?? 1)));
+      }
+    } else if (behind && behind.state?.close && side && nd < 40 && nd > 6) {
+      // defending: cover the inside before the braking zone (one move)
+      tac = (side * half * 0.55 - lane) * 0.85;
+    }
+    car._tac = (car._tac || 0) + (tac - (car._tac || 0)) * Math.min(1, dt * 2.2);
+    lane += car._tac + (Number.isFinite(st.latOff) ? st.latOff : Number.isFinite(st.offset) ? st.offset : 0);
+    car._laneT = lane;
+    return lane;
   }
 
   buildRubber(N, sm) {
@@ -2864,8 +2951,16 @@ export class Race3D {
       this.rain.geometry.setDrawRange(0, Math.round(this._rainN * Math.max(0.15, k)) * 2);
       this.rain.material.opacity = 0.16 + 0.24 * k;
     }
-    const wet = Math.min(1, level * 1.3);
-    this.wet = wet;
+    // water on the track lags the rain: it soaks in fast and dries slowly (eased in update()),
+    // so a shower that stops leaves a wet track with a dry line opening along the rubber
+    this._wetTgt = Math.min(1, level * 1.3);
+    if (this.wet == null || !this._wetInit) { this._wetInit = true; this.wet = this._wetTgt; }
+    RAIN.value = Math.min(1, level * 1.2);
+    this.applyWeather();
+  }
+
+  applyWeather() {
+    const level = this._rainLvl || 0, wet = this.wet || 0;
     const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
     const ovc = Math.max(this._ovcSet || 0, sm(0.02, 0.4, level));
     const storm = sm(0.55, 0.95, level);
@@ -2878,6 +2973,12 @@ export class Race3D {
       if (!this._lit && this.fogDay) this._lit = base;
       const nite = this.night ? 1 : (this._night || 0);
       if (ovc > 0.01 && !this.cloudDome) this.buildCloudDome();
+      // a real overcast sky (Poly Haven HDRI, loaded on demand) for the reflections and the
+      // soft, shadowless light of a rain race; the procedural deck stands in until it arrives
+      if (ovc > 0.3 && !this.low && !this._ovcHdr) {
+        this._ovcHdr = true; const h = {};
+        applyHDRI(this.renderer, h, 'overcast', { background: false, intensity: 1 }).then((ok) => { if (!ok) return; const was = this.scene.environment === this._ovcEnv; this._ovcEnv = h.environment; if (was) this.scene.environment = h.environment; this._wetApplied = -1; this.applyWeather(); });
+      }
       const hor = (this._wHor ||= new THREE.Color()), top = (this._wTop ||= new THREE.Color());
       // overcast greys -> slate storm deck; at night the deck is dark with a warm glow from the circuit lights
       hor.setRGB(0.6, 0.63, 0.68).lerp(this._c1 ||= new THREE.Color(0.2, 0.22, 0.25), storm);
@@ -2950,12 +3051,16 @@ export class Race3D {
     const maxLane = this.TW / 2 - 1.15;
     // pass 1: desired longitudinal position + lane for every car
     const items = [];
+    const byPos = new Map();
+    for (const st of states) if (!st.hidden && st.pos && !st.inPit) { const c = this.cars.get(st.key); if (c) byPos.set(st.pos, c); }
     for (const st of states) {
       const car = this.cars.get(st.key); if (!car) continue;
       if (st.hidden) { car.mesh.visible = false; car.label.style.display = 'none'; car.pc = null; continue; }
       let s = st.s, spd = st.speed || 0, lane, pit = false, yaw = 0;
       const i0 = open ? Math.min(N - 2, Math.max(0, Math.floor(s))) : Math.floor(s) % N;
-      const race = (this.line ? this.line[i0] * (st.close ? 0.45 : 1) : 0) + (st.close && st.pos ? (st.pos % 2 ? 2.6 : -2.6) : car.lane * 0.3);
+      const race = this.open || !this.lineK ? (this.line ? this.line[i0] * (st.close ? 0.45 : 1) : 0) + (st.close && st.pos ? (st.pos % 2 ? 2.6 : -2.6) : car.lane * 0.3)
+        : this.laneFor(car, st, i0, st.pos ? byPos.get(st.pos - 1) : null, st.pos ? byPos.get(st.pos + 1) : null, dt);
+      if (Number.isFinite(st.yaw)) yaw = st.yaw;
       if (this.pitOff && !open) { const r = this.pitStep(car, st, dt, race); if (r) { items.push({ st, car, ...r, s: wrap(r.s) }); continue; } }
       lane = Math.max(-maxLane, Math.min(maxLane, race));
       items.push({ st, car, s: wrap(s), spd, lane, pit, yaw });
@@ -2975,7 +3080,13 @@ export class Race3D {
       const car = it.car;
       car.latOff = (car.latOff || 0) * Math.max(0, 1 - dt * 0.7);
       const tgt = it.pit ? it.lane : Math.max(-maxLane, Math.min(maxLane, it.lane + car.latOff));
-      car.laneCur = car.laneCur == null || it.exact ? tgt : car.laneCur + (tgt - car.laneCur) * Math.min(1, dt * (it.pit ? 3 : 4));
+      // the racing line itself is followed exactly (no lag past the apex); only the car's
+      // deviation from it (race craft, avoiding, rejoining from the pits) is eased
+      const lnI = !it.pit && this.lineK && !open ? this.line[Math.floor(it.s) % N] : 0;
+      if (car.laneCur == null || it.exact || car._dev == null || car._pitPrev !== !!it.pit) car._dev = (car.laneCur ?? tgt) - lnI;
+      car._pitPrev = !!it.pit;
+      car._dev += (tgt - lnI - car._dev) * Math.min(1, dt * (it.pit ? 3 : 4));
+      car.laneCur = car.laneCur == null || it.exact ? tgt : lnI + car._dev;
       if (!it.pit) car.laneCur = Math.max(-maxLane, Math.min(maxLane, car.laneCur));
       // visual longitudinal back-off memory so a yielding car does not snap
       let s = wrap(it.s - (car.sBack || 0));
@@ -2996,6 +3107,7 @@ export class Race3D {
         }
         s = wrap(s - 0.3); back += 0.3;
       }
+      car._dev = car.laneCur - lnI;
       car.sBack = Math.max(0, (car.sBack || 0) + back) * Math.max(0, 1 - dt * 1.5);
       if (car.sBack < 0.01) car.sBack = 0;
       s = wrap(s);
@@ -3020,10 +3132,23 @@ export class Race3D {
     }
     if (this.rain && this.rain.visible) {
       const p = this.rain.geometry.attributes.position, a = p.array;
-      for (let i = 0; i < a.length; i += 6) { let y = a[i + 1] - dt * 38; if (y < 0) y += 60; a[i + 1] = y; a[i + 4] = y - 0.75; }
+      // streak = the drop's path during a ~20 ms exposure relative to the (moving) camera: on board
+      // at speed the rain flies at the lens almost horizontally
+      const cp = this.camera.position, lc = (this._rainCP ||= cp.clone());
+      const iv = dt > 0 ? Math.min(1, dt * 6) : 0, vx = dt > 0 ? (cp.x - lc.x) / dt : 0, vz = dt > 0 ? (cp.z - lc.z) / dt : 0; lc.copy(cp);
+      const cv = (this._rainCV ||= { x: 0, z: 0 }); if (Math.abs(vx) + Math.abs(vz) < 400) { cv.x += (vx - cv.x) * iv; cv.z += (vz - cv.z) * iv; }
+      const sx = 0.12 - cv.x * 0.02, sz = 0.05 - cv.z * 0.02, sy = -0.75 - Math.min(0.6, Math.hypot(cv.x, cv.z) * 0.004);
+      for (let i = 0; i < a.length; i += 6) { let y = a[i + 1] - dt * 38; if (y < 0) y += 60; a[i + 1] = y; a[i + 3] = a[i] + sx; a[i + 4] = y + sy; a[i + 5] = a[i + 2] + sz; }
       p.needsUpdate = true;
       this.rain.position.set(this.camera.position.x, 0, this.camera.position.z);
     }
+    // track wetness follows the rain in race time (fast-forward dries / soaks it faster)
+    if (this._wetTgt != null && dt > 0) {
+      const d = this._wetTgt - this.wet, rate = d > 0 ? 1 / 7 : 1 / 45;
+      const nw = Math.abs(d) < 0.002 ? this._wetTgt : this.wet + d * Math.min(1, dt * (this._simK || 1) * rate);
+      if (nw !== this.wet) { this.wet = nw; this.applyWeather(); }
+    }
+    FXT.value = TIME.value;
     this.updateWeather(dt);
     this.updateFx(dt);
     this.updateCarLights(dt);
@@ -3042,6 +3167,18 @@ export class Race3D {
     if (this.sunDisc) { this.sunDisc.position.copy(this.camera.position).addScaledVector(this._sunDiscDir, 4200); this.sunDisc.material.opacity = (1 - (this._night || 0)) * (1 - 0.95 * (this.wet || 0)); this.sunDisc.visible = this.sunDisc.material.opacity > 0.02; }
     if (this.composer?.rays) updateGodRays(this.composer, this.camera, this.hdr && hdriSun(this.skyKind), (this.tod?.rays ?? 0) * (1 - (this._night || 0)) * (1 - 0.9 * (this.wet || 0)));
     if (this.composer?.flare) updateSunFlare(this.composer, this.camera, this.hdr && hdriSun(this.skyKind), (1 - (this._night || 0)) * (1 - 0.9 * (this.wet || 0)) * (this.camMode === 'cockpit' ? 1.2 : 1));
+    // raindrops on the lens of the cameras on / behind the car
+    const lr = this.composer?.lensRain;
+    if (lr) {
+      const onCar = this.camMode === 'onboard' || this.camMode === 'cockpit' || this.camMode === 'chase';
+      const tgt = onCar && !this.introT && !this._fxOff ? Math.max(0, Math.min(1, ((this._rainLvl || 0) - 0.12) * 1.5)) * (this.camMode === 'chase' ? 0.45 : 1) : 0;
+      const u = lr.uniforms;
+      if (this._camDbg?.cut || tgt === 0) u.uSeed.value = (u.uSeed.value + 17.13) % 997; // a new lens after a cut
+      u.uAmt.value = tgt;
+      u.uTime.value = TIME.value; u.uAspect.value = this.camera.aspect;
+      u.uWind.value += (Math.min(1, (this._camCar?.state?.speed || 0) / 70) * (this.camMode === 'chase' ? 0.5 : 1) - u.uWind.value) * Math.min(1, dt * 2);
+      lr.enabled = tgt > 0.01;
+    }
     // per-frame draw statistics (renderer.info resets per pass inside the composer)
     const info = this.renderer.info; info.autoReset = false; info.reset();
     this.renderWetReflect();
@@ -3227,7 +3364,9 @@ export class Race3D {
       const moved = Math.hypot(m.position.x - px0, m.position.z - pz0);
       if (moved > 80) continue; // teleport (pit / replay jump)
       // one puff per ~0.7 m of track, scaled by how wet it is
-      car._sprAcc = (car._sprAcc || 0) + moved * 1.5 * this.wet * (this.low ? 0.35 : 1);
+      // denser and taller with speed: a crawling car barely lifts a mist, at 300 km/h it drags a wall
+      const spK = Math.min(1, sp / 80);
+      car._sprAcc = (car._sprAcc || 0) + moved * 1.5 * this.wet * (this.low ? 0.35 : 1) * (0.3 + 1.1 * spK);
       const n = Math.min(30, Math.floor(car._sprAcc)); car._sprAcc -= n;
       for (let q = 0; q < n; q++) {
         const k = this.sprayI = (this.sprayI + 1) % M; const r = Math.random(), t = Math.random();
@@ -3236,7 +3375,7 @@ export class Race3D {
         P[k * 3] = bx - fx * back + fz * lat; P[k * 3 + 1] = m.position.y + 0.3 + Math.random() * 0.25; P[k * 3 + 2] = bz - fz * back - fx * lat;
         const vf = sp * (0.45 + Math.random() * 0.3), vl = (Math.random() - 0.5) * 4 + Math.sign(lat) * 1.2;
         V[k * 3] = fx * vf + fz * vl; V[k * 3 + 1] = 1.2 + Math.random() * 2.6 + sp * 0.012; V[k * 3 + 2] = fz * vf - fx * vl;
-        L0[k] = 0.7 + Math.random() * 0.7; L[k] = L0[k] - (1 - t) * dts; A[k * 2 + 1] = Math.random();
+        L0[k] = (0.5 + Math.random() * 0.6) * (0.6 + 0.7 * spK); L[k] = L0[k] - (1 - t) * dts; A[k * 2 + 1] = Math.random() * (0.45 + 0.55 * spK);
       }
     }
     // the mist keeps part of the car's speed for a moment, then hangs and thins out
@@ -3575,7 +3714,8 @@ export class Race3D {
     car._yaw = (car._yaw || 0) + (Math.max(-0.35, Math.min(0.35, yawLat)) - (car._yaw || 0)) * Math.min(1, dt * 8);
     m.position.set(x, yy, z);
     m.rotation.y = -h - car._yaw + yawX;
-    const k = this.geo.k[i0];
+    // curvature of the path actually driven (the racing line), not of the centreline
+    const kL = this.lineK && !this.open ? this.lineK : this.geo.k, k = kL[i0];
     // body roll towards the outside of the corner, pitch from braking / acceleration
     const stiff = this.category === 'rally' ? 2.2 : this.category === 'endurance' ? 1.3 : 1;
     car._roll = (car._roll || 0) + (Math.max(-0.05, Math.min(0.05, -k * speed ** 2 * 0.0011 * stiff)) - (car._roll || 0)) * Math.min(1, dt * 6);
@@ -3583,7 +3723,7 @@ export class Race3D {
     if (dt > 0) { const acc = (speed - (car._v ?? speed)) / dt; car._v = speed; car._acc = (car._acc || 0) + (Math.max(-45, Math.min(15, acc)) - (car._acc || 0)) * Math.min(1, dt * 5); }
     m.rotation.z = (this.geo.h ? m.rotation.z : 0) + Math.max(-0.035, Math.min(0.02, (car._acc || 0) * 0.0009 * stiff));
     const spin = speed * dt / 0.34;
-    const steer = Math.max(-0.42, Math.min(0.42, Math.atan(3.5 * (this.geo.k[(i0 + 3) % N] || k)) * 1.4));
+    const steer = Math.max(-0.42, Math.min(0.42, Math.atan(3.5 * (kL[(i0 + 1) % N] || k)) * 1.4));
     m.userData.wheels.forEach((w, wi) => { for (const sp of w.userData.spin) sp.rotation.z -= spin; if (wi < 2) w.rotation.y = -steer; });
     // wheel motion blur: past ~65 km/h the spokes smear into a disc (hysteresis, no flicker)
     const blur = !this.low && (car._blur ? speed > 15 : speed > 18);
