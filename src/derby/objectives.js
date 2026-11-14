@@ -11,6 +11,8 @@ const O = {
   hp80: { text: 'Non scendere sotto l’80% di telaio', prize: 2000, ok: (g) => (g.player.minHp ?? 100) >= 80 },
   jump25: { text: 'Fai un salto di almeno 30 m', prize: 1500, ok: (g) => (g.maxJump || 0) >= 30 },
   jump40: { text: 'Fai un salto di almeno 50 m', prize: 2000, ok: (g) => (g.maxJump || 0) >= 50 },
+  // v7: the long jump's own (maxJump is not tracked on the ramp, and 50 m there is a given)
+  bronze2: { text: 'Due salti oltre il bronzo', prize: 2000, ok: (g) => (g.stunt?.dists || []).filter((d) => d >= (g.targets?.[0] || 1e9)).length >= 2 },
   rimonta: { text: 'Rimonta: guadagna 3 posizioni dal via', prize: 2000, ok: (g, r) => (g.startPos || 1) - r.pos >= 3 },
   podio: { text: 'Sali sul podio', prize: 1500, ok: (g, r) => r.pos <= 3 },
   pulito: { text: 'Nessun riposizionamento', prize: 1500, ok: (g) => !(g.simStats.perCar?.[g.player.name]?.respawn) },
@@ -36,7 +38,7 @@ const BY_MODE = {
   time: [['hp80', 'veloce', 'ghost'], ['pulito', 'derapata', 'jump25']],
   caccia: [['hunt8', 'combo2', 'hp50'], ['hunt8', 'pelo3', 'kill1']],
   derby: [['kill2', 'combo3', 'vivo'], ['kill1', 'hp50', 'combo2']],
-  stunt: [['flip', 'tre', 'jump40']],
+  stunt: [['flip', 'tre', 'bronze2']],
   squadre: [['kill2', 'vivo', 'combo2']],
   re: [['corona20', 'kill1', 'vivo']],
   ondate: [['onda3', 'kill3', 'combo3']],
