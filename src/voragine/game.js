@@ -226,7 +226,7 @@ export class VoragineGame {
     const o = this.o, root = this.root;
     root.innerHTML = `<canvas class="vg-cv"></canvas><div class="vg-hud">
       <div class="vg-slow" id="vg-slow"><b id="vg-slow-t"></b></div><div class="vg-flash" id="vg-flash"></div>
-      <div class="vg-top"><div class="vg-timer" id="vg-timer">2:00</div><div class="vg-mode">${o.daily ? 'Sfida del giorno · ' : ''}${this.mode.name} · ${CITIES[o.city]?.name || ''}</div><div class="vg-pw" id="vg-pw"></div></div>
+      <div class="vg-top" id="vg-topbox"><div class="vg-timer" id="vg-timer">2:00</div><div class="vg-mode">${o.daily ? 'Sfida del giorno · ' : ''}${this.mode.name} · ${CITIES[o.city]?.name || ''}</div><div class="vg-pw" id="vg-pw"></div></div>
       <div class="vg-left" id="vg-left"><ol class="vg-board" id="vg-board"></ol><ul class="vg-miss" id="vg-miss"></ul></div>
       <div class="vg-score" id="vg-sc"><div class="vg-score-k">Punti</div><div class="vg-score-v" id="vg-score">0</div><div class="vg-eat" id="vg-eat"></div></div>
       <div class="vg-level"><div class="vg-level-row"><span id="vg-lvl">Livello 1</span><span id="vg-next"></span></div><div class="vg-bar"><i id="vg-bar"></i></div></div>
@@ -1025,7 +1025,7 @@ export class VoragineGame {
   updateLabels() {
     const w = this.root.clientWidth, hgt = this.root.clientHeight, m = 34;
     const root = this.root.getBoundingClientRect();
-    if (!this._rects || (this._rectT = (this._rectT || 0) - 1) <= 0) { this._rectT = 30; this._rects = ['vg-mini', 'vg-left', 'vg-sc'].map((id) => this.$(id)?.getBoundingClientRect()).filter((r) => r && r.width).map((r) => ({ l: r.left - root.left - 50, r: r.right - root.left + 50, t: r.top - root.top - 14, b: r.bottom - root.top + 14 })); }
+    if (!this._rects || (this._rectT = (this._rectT || 0) - 1) <= 0) { this._rectT = 30; this._rects = ['vg-mini', 'vg-left', 'vg-sc', 'vg-topbox'].map((id) => this.$(id)?.getBoundingClientRect()).filter((r) => r && r.width).map((r) => ({ l: r.left - root.left - 50, r: r.right - root.left + 50, t: r.top - root.top - 14, b: r.bottom - root.top + 14 })); }
     for (const h of this.h) {
       if (!h.alive || h.out) { h.lab.style.opacity = 0; continue; }
       tmpV.set(h.x, 0, h.z + h.r * 1.05).project(this.cam);
