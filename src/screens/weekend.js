@@ -875,8 +875,8 @@ function watchIncidents() {
 }
 
 // ---------------- DECISIONS: race moments feed the shared decision hub ----------------
-const M_COL = { sc: 'var(--warn)', red: 'var(--bad)', rain: 'var(--info)', dry: 'var(--gold)', front: 'var(--info)', attack: 'var(--bad)', defend: 'var(--bad)', undercut: 'var(--warn)', issue: 'var(--warn)', restart: 'var(--good)', mates: 'var(--team)', night: '#7c8cff', fatigue: 'var(--warn)', drive: 'var(--warn)', garage: 'var(--bad)', radio: 'var(--warn)', nurse: 'var(--warn)' };
-const M_EYE = { sc: 'Safety car', red: 'Bandiera rossa', issue: 'Problema tecnico', restart: 'Ripartenza', front: 'Radar meteo', dry: 'Meteo', rain: 'Meteo', mates: 'Ordini di scuderia', night: 'Endurance · notte', fatigue: 'Endurance · cambio pilota', drive: 'Endurance · tempo di guida', garage: 'Endurance · danni', attack: 'Battaglia', defend: 'Battaglia', undercut: 'Strategia', radio: 'Radio dal pilota', nurse: 'Affidabilità' };
+const M_COL = { wing: 'var(--warn)', sc: 'var(--warn)', red: 'var(--bad)', rain: 'var(--info)', dry: 'var(--gold)', front: 'var(--info)', attack: 'var(--bad)', defend: 'var(--bad)', undercut: 'var(--warn)', issue: 'var(--warn)', restart: 'var(--good)', mates: 'var(--team)', night: '#7c8cff', fatigue: 'var(--warn)', drive: 'var(--warn)', garage: 'var(--bad)', radio: 'var(--warn)', nurse: 'var(--warn)' };
+const M_EYE = { wing: 'Danni · ala anteriore', sc: 'Safety car', red: 'Bandiera rossa', issue: 'Problema tecnico', restart: 'Ripartenza', front: 'Radar meteo', dry: 'Meteo', rain: 'Meteo', mates: 'Ordini di scuderia', night: 'Endurance · notte', fatigue: 'Endurance · cambio pilota', drive: 'Endurance · tempo di guida', garage: 'Endurance · danni', attack: 'Battaglia', defend: 'Battaglia', undercut: 'Strategia', radio: 'Radio dal pilota', nurse: 'Affidabilità' };
 function applyDecCfg() {
   const sim = R.sim; if (!sim) return;
   const cfg = decSettings();

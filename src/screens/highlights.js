@@ -249,7 +249,7 @@ class HighlightsViewer {
     try { engineStart(reel.cat === 'rally' ? 'rally' : reel.cat); } catch {}
     this.last = performance.now();
     this.loopFn = (t) => this.loop(t);
-    this.startClip(this.idx, true);
+    this.safeStart(this.idx, true);
     this.raf = requestAnimationFrame(this.loopFn);
   }
   frameHTML() {
@@ -316,13 +316,13 @@ class HighlightsViewer {
     if (i >= this.reel.clips.length) { this.showEnd(); return; }
     i = Math.max(0, i);
     this.ended = false; this.el.querySelector('#hl-end').classList.remove('on');
-    this.startClip(i);
+    this.safeStart(i);
   }
   switchView() {
     this.mode3d = !this.mode3d && canWebGL();
     try { setSettings({ hl3d: this.mode3d }); } catch {}
     this.el.querySelector('[data-hl="view"]').textContent = this.mode3d ? '2D' : '3D';
-    this.teardownView(); this.startClip(this.idx, true);
+    this.teardownView(); this.safeStart(this.idx, true);
   }
   teardownView() {
     this.fx?.destroy(); this.fx = null;
@@ -356,6 +356,7 @@ class HighlightsViewer {
     this.view = new TrackView(cv, path, rally ? { pad: 70, rally: true, surface: clip.stage.surface } : { pad: 60, padTop: 80, padBottom: 150, glow: 'rgba(255,255,255,0.12)' });
     if (!this.geo && rally) { const M = await load3D(); this.geo = M.stageGeometry(clip.stage.seed, clip.stage.km, STAGE_STYLE[clip.stage.trackId] || 'rough'); }
   }
+  safeStart(i, first) { this.startClip(i, first).catch((e) => { console.warn('highlights', e); if (this.mode3d) { this.mode3d = false; this.teardownView(); this.safeStart(i, true); } }); }
   async startClip(i, first = false) {
     const tok = this.tok = (this.tok || 0) + 1;
     this.idx = i; this.player = null;
@@ -426,6 +427,7 @@ class HighlightsViewer {
   }
   loop(t) {
     if (!this.el.isConnected) return;
+    try {
     const dt = Math.min(0.1, (t - this.last) / 1000); this.last = t;
     const p = this.player;
     if (p && !this.paused) {
@@ -444,6 +446,7 @@ class HighlightsViewer {
     else if (p && this.view) p.render(0);
     // the chapter bar fills with the playback position
     if (p) { const seg = this.el.querySelectorAll('.hl-seg')[this.idx]; const k = (p.t - p.clip.t0) / Math.max(0.1, p.clip.t1 - p.clip.t0); seg?.style.setProperty('--k', Math.max(0, Math.min(1, p.si >= 0 && p.shot?.replay ? 1 : k)).toFixed(3)); }
+    } catch (e) { console.warn("highlights", e); if (this.player) { this.player = null; this.go(this.idx + 1); } }
     this.raf = requestAnimationFrame(this.loopFn);
   }
   destroy(silent) {
