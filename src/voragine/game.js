@@ -2,6 +2,10 @@
 // swallow the smaller rival sinkholes. Three.js; the hole is cut out of the ground with the stencil
 // buffer so whatever falls in is really seen going down.
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { KINDS, MILESTONES, CITIES, layoutCity, HALF, ROAD, BLOCK, NB, roadC, rng } from './city.js';
 
 export const MODES = {
@@ -151,6 +155,7 @@ export class VoragineGame {
     const r = this.renderer = new THREE.WebGLRenderer({ canvas: this.cv, antialias: tier !== 'low', stencil: true, powerPreference: 'high-performance' });
     r.setPixelRatio(Math.min(devicePixelRatio || 1, tier === 'high' ? 2 : tier === 'low' ? 1 : 1.5));
     r.outputColorSpace = THREE.SRGBColorSpace;
+    r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
     r.shadowMap.enabled = tier !== 'low'; r.shadowMap.type = THREE.PCFSoftShadowMap;
     this.sfx = new Sfx(o.volume);
 
@@ -159,6 +164,15 @@ export class VoragineGame {
     const scene = this.scene = new THREE.Scene();
     scene.background = new THREE.Color(cfg.sky);
     scene.fog = new THREE.Fog(cfg.fog, 140, 520);
+    // gradient sky dome: deep zenith, glowing horizon (fog colour), so the horizon never looks flat
+    {
+      const zen = new THREE.Color(cfg.sky).multiplyScalar(cfg.night ? 0.55 : 0.82), hor = new THREE.Color(cfg.fog).lerp(new THREE.Color(cfg.sun), 0.25);
+      const g = new THREE.SphereGeometry(1300, 24, 16), col = [], pos = g.attributes.position;
+      for (let i = 0; i < pos.count; i++) { const t = Math.max(0, pos.getY(i) / 1300); const c = hor.clone().lerp(zen, Math.pow(t, 0.55)); col.push(c.r, c.g, c.b); }
+      g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      const sky = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
+      sky.renderOrder = -10; this.sky = sky; scene.add(sky);
+    }
     this.cam = new THREE.PerspectiveCamera(48, 1, 1, 1600);
     scene.add(new THREE.HemisphereLight(cfg.night ? '#6d7bd6' : '#dfeeff', cfg.night ? '#1a1c2a' : '#5a6b4a', cfg.amb));
     const sun = this.sun = new THREE.DirectionalLight(cfg.sun, cfg.night ? 0.55 : 1.9);
@@ -180,6 +194,14 @@ export class VoragineGame {
     for (let i = 0; i < 60; i++) { const a = (i / 60) * Math.PI * 2, d = 230 + hr() * 120, s = 30 + hr() * 50; tmpM.compose(tmpP.set(Math.cos(a) * d, s * 0.45, Math.sin(a) * d), tmpQ.identity(), tmpS.set(s, s * (0.6 + hr() * 0.8), s)); hills.setMatrixAt(i, tmpM); }
     scene.add(hills);
 
+    if (tier === 'high') {
+      const rt = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, stencilBuffer: true, depthBuffer: true, samples: 4 });
+      this.composer = new EffectComposer(r, rt);
+      this.composer.addPass(new RenderPass(scene, this.cam));
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), cfg.night ? 0.42 : 0.18, 0.35, cfg.night ? 0.9 : 0.97);
+      this.composer.addPass(this.bloom);
+      this.composer.addPass(new OutputPass());
+    }
     this.buildObjects();
     this.buildHoles();
     this.buildDust();
@@ -206,7 +228,7 @@ export class VoragineGame {
       const k = KINDS[id], parts = k.build();
       const list = parts.map((geom, pi) => {
         const glow = pi > 0 && k.glow;
-        const mat = glow && cfg.night ? new THREE.MeshBasicMaterial({ vertexColors: true, color: '#ffffff' }) : new THREE.MeshLambertMaterial({ vertexColors: true, ...(glow ? { color: cfg.night ? '#fff' : '#8fa3b8' } : {}) });
+        const mat = glow && cfg.night ? new THREE.MeshBasicMaterial({ vertexColors: true, color: '#c9c2b0' }) : new THREE.MeshLambertMaterial({ vertexColors: true, ...(glow ? { color: cfg.night ? '#fff' : '#8fa3b8' } : {}) });
         const m = new THREE.InstancedMesh(geom, mat, n);
         m.castShadow = big(k) && pi === 0 && this.renderer.shadowMap.enabled; m.receiveShadow = false;
         m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -320,11 +342,12 @@ export class VoragineGame {
     rim.position.y = 0.06;
     const glow = new THREE.Mesh(new THREE.RingGeometry(1.07, 1.35, 72).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.22, depthWrite: false }));
     glow.position.y = 0.05;
-    g.add(mask, well, bottom, rim, glow);
+    const band = new THREE.Mesh(new THREE.RingGeometry(1.0, 1.1, 64, 1, 0, Math.PI * 0.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).lerp(new THREE.Color('#ffffff'), 0.55), transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }));
+    g.add(mask, well, bottom, rim, glow, band);
     this.scene.add(g);
     const lab = document.createElement('div'); lab.className = 'vg-lab' + (player ? ' me' : ''); lab.style.setProperty('--c', color); lab.innerHTML = `<b>${name}</b>`;
     this.$('vg-labels').appendChild(lab);
-    const h = { name, color, rainbow, player: !!player, x, z, vx: 0, vz: 0, pts: 0, r: R0, alive: true, out: false, respawn: 0, g, well, bottom, rim, glow, lab, kills: 0, eaten: 0, ai: { t: 0, tx: x, tz: z, wob: Math.random() * 10 }, lvl: 0, depth: 0 };
+    const h = { name, color, rainbow, player: !!player, x, z, vx: 0, vz: 0, pts: 0, r: R0, alive: true, out: false, respawn: 0, g, well, bottom, rim, glow, band, lab, kills: 0, eaten: 0, ai: { t: 0, tx: x, tz: z, wob: Math.random() * 10 }, lvl: 0, depth: 0 };
     this.applyHoleSize(h);
     return h;
   }
@@ -408,8 +431,17 @@ export class VoragineGame {
     this.o.onPause?.(this.paused);
   }
 
+  // the rim breathes and a light band runs around it
+  animateRims(t) {
+    for (const h of this.h) {
+      if (!h.alive) continue;
+      h.glow.material.opacity = 0.18 + Math.sin(t * 3 + h.r) * 0.06 + (h.player ? 0.06 : 0);
+      if (h.band) { h.band.rotation.y = -t * 1.6; h.band.scale.setScalar(h.r); h.band.position.set(0, 0.07, 0); }
+    }
+  }
   resize() {
     const w = this.root.clientWidth || innerWidth, h = this.root.clientHeight || innerHeight;
+    this.composer?.setSize(w, h);
     this.renderer.setSize(w, h, false);
     this.cam.aspect = w / h; this.cam.updateProjectionMatrix();
   }
@@ -422,7 +454,9 @@ export class VoragineGame {
     else if (this.paused) { this.inputDir(); }
     this.updateCamera(dt);
     for (const M of Object.values(this.meshes)) if (M.dirty) { for (const m of M.list) m.instanceMatrix.needsUpdate = true; M.dirty = false; }
-    this.renderer.render(this.scene, this.cam);
+    if (this.sky) this.sky.position.copy(this.cam.position);
+    this.animateRims(now / 1000);
+    if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.cam);
     this.updateLabels();
   }
   step(dt) {
@@ -722,7 +756,7 @@ export class VoragineGame {
     this.ro?.disconnect();
     this.sfx?.close();
     this.scene?.traverse((o) => { o.geometry?.dispose?.(); const m = o.material; (Array.isArray(m) ? m : m ? [m] : []).forEach((x) => { x.map?.dispose?.(); x.dispose?.(); }); });
-    this.renderer?.dispose(); this.renderer?.forceContextLoss?.();
+    this.composer?.dispose?.(); this.renderer?.dispose(); this.renderer?.forceContextLoss?.();
     this.root.innerHTML = '';
   }
 }
