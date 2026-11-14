@@ -282,6 +282,13 @@ export class Race3D {
     this.resize();
     this._ro = new ResizeObserver(() => this.resize());
     this._ro.observe(container);
+    // compile every material in the background (KHR_parallel_shader_compile where the driver has
+    // it) instead of stalling the first frame on dozens of program links; the view starts drawing
+    // when they are ready (the intro starts then too)
+    this._ready = false;
+    const ready = () => { if (this._ready) return; this._ready = true; if (this.introT > 0) this.introStart = performance.now(); };
+    try { if (this.renderer.compileAsync) this.renderer.compileAsync(this.scene, this.camera).then(ready, ready); else ready(); } catch { ready(); }
+    setTimeout(ready, 10000);
   }
 
   destroy() {
@@ -2877,6 +2884,7 @@ export class Race3D {
   // states: [{key, s (0..N sample float), speed (m/s), inPit, tyreColor, label, show}]
   update(states, dt) {
     const N = this.geo.N;
+    if (this._ready === false && this.introT > 0) this.introStart = performance.now(); // the intro waits for the shaders
     TIME.value = (performance.now() / 1000) % 1000;
     // adaptive quality: drop resolution/shadows when the framerate is low
     this._fpsT = (this._fpsT || 0) + dt; this._fpsN = (this._fpsN || 0) + 1;
@@ -3043,6 +3051,7 @@ export class Race3D {
     }
     // per-frame draw statistics (renderer.info resets per pass inside the composer)
     const info = this.renderer.info; info.autoReset = false; info.reset();
+    if (this._ready === false) { this._stats = { calls: 0, tris: 0 }; info.autoReset = true; this.updateLabels(); return; }
     this.renderWetReflect();
     // soft dissolve when the shot type changes (director / replay), hard cuts within a type
     const xf = this.composer?.xfade;
@@ -3504,7 +3513,7 @@ export class Race3D {
     // instead of on the frame the headlights first switch on
     try {
       const hid = [this.carBeam, this.carCone, this.carGlow, this._pitNight?.spillMesh, this._lampRig?.beamMat, this.poolMat].filter((o) => o && !o.visible); hid.forEach((o) => { o.visible = true; });
-      this.renderer.compile(this.scene, this.camera);
+      if (this.renderer.compileAsync) this.renderer.compileAsync(this.scene, this.camera).catch(() => {}); else this.renderer.compile(this.scene, this.camera);
       hid.forEach((o) => { o.visible = false; });
     } catch {}
   }
