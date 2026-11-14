@@ -390,10 +390,10 @@ const GradeShader = {
 // and a specular glint. uWind (0..1, car speed) blows them across and stretches them into
 // streaks; uAmt = how much rain. A light veil softens the whole frame (wet glass).
 export const LensRainShader = {
-  uniforms: { tDiffuse: { value: null }, uAmt: { value: 0 }, uTime: { value: 0 }, uWind: { value: 0 }, uAspect: { value: 16 / 9 }, uSeed: { value: 0 }, uTexel: { value: new THREE.Vector2(1 / 1280, 1 / 720) } },
+  uniforms: { tDiffuse: { value: null }, uAmt: { value: 0 }, uBlur: { value: 0 }, uTime: { value: 0 }, uWind: { value: 0 }, uAspect: { value: 16 / 9 }, uSeed: { value: 0 }, uTexel: { value: new THREE.Vector2(1 / 1280, 1 / 720) } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: /* glsl */`
-    uniform sampler2D tDiffuse; uniform float uAmt, uTime, uWind, uAspect, uSeed; uniform vec2 uTexel; varying vec2 vUv;
+    uniform sampler2D tDiffuse; uniform float uAmt, uBlur, uTime, uWind, uAspect, uSeed; uniform vec2 uTexel; varying vec2 vUv;
     float h21(vec2 p) { p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }
     void layer(vec2 uv, float sc, float seed, float dens, inout vec2 off, inout float m, inout float rim, inout float spec) {
       vec2 p = vec2(uv.x * uAspect, uv.y) * sc;
@@ -421,10 +421,19 @@ export const LensRainShader = {
     }
     void main() {
       vec2 off = vec2(0.0); float m = 0.0, rim = 0.0, spec = 0.0;
+      if (uAmt > 0.001) {
       layer(vUv, 9.0, 1.3, 0.3, off, m, rim, spec);
       layer(vUv, 17.0, 7.9, 0.2, off, m, rim, spec);
       layer(vUv, 31.0, 4.2, 0.12, off, m, rim, spec);
+      }
       vec4 base = texture2D(tDiffuse, vUv);
+      // speed: radial blur towards the edges of the frame (the centre stays sharp)
+      if (uBlur > 0.001) {
+        vec2 dv = vUv - 0.5; float e = smoothstep(0.12, 0.7, length(dv * vec2(uAspect, 1.0)));
+        vec3 acc = base.rgb;
+        for (int i = 1; i < 7; i++) acc += texture2D(tDiffuse, vUv - dv * (float(i) * 0.012 * uBlur * e)).rgb;
+        base.rgb = acc / 7.0;
+      }
       // wet glass: a soft veil
       vec3 veil = (texture2D(tDiffuse, vUv + uTexel * vec2(2.0, 1.0)).rgb + texture2D(tDiffuse, vUv - uTexel * vec2(2.0, 1.0)).rgb + texture2D(tDiffuse, vUv + uTexel * vec2(-1.0, 2.0)).rgb + texture2D(tDiffuse, vUv - uTexel * vec2(-1.0, 2.0)).rgb) * 0.25;
       vec3 col = mix(base.rgb, veil, 0.3 * uAmt);

@@ -3260,6 +3260,7 @@ export class Race3D {
     this.updateWeather(dt);
     this.updateFx(dt);
     this.updateCarLights(dt);
+    if (!this.open && !this.low) this.updateSmoke(dt);
     if (this.wet > 0.3 && !this.open) this.updateSpray(dt);
     else if (this.spray) this.spray.visible = false;
     if (this.lampLights && this.nightLamps?.length) {
@@ -3285,7 +3286,11 @@ export class Race3D {
       u.uAmt.value = tgt;
       u.uTime.value = TIME.value; u.uAspect.value = this.camera.aspect;
       u.uWind.value += (Math.min(1, (this._camCar?.state?.speed || 0) / 70) * (this.camMode === 'chase' ? 0.5 : 1) - u.uWind.value) * Math.min(1, dt * 2);
-      lr.enabled = tgt > 0.01;
+      // sense of speed on the cameras riding with the car: edges smear radially past ~200 km/h
+      const v = this._camCar?.state?.speed || 0;
+      const bl = (this.camMode === 'onboard' || this.camMode === 'cockpit' || this.camMode === 'chase') && !this.introT && !this._fxOff ? Math.max(0, Math.min(1, (v - 50) / 35)) * (this.camMode === 'chase' ? 0.6 : 1) : 0;
+      u.uBlur.value += (bl - u.uBlur.value) * Math.min(1, dt * 3);
+      lr.enabled = tgt > 0.01 || u.uBlur.value > 0.02;
     }
     // per-frame draw statistics (renderer.info resets per pass inside the composer)
     const info = this.renderer.info; info.autoReset = false; info.reset();
@@ -3412,6 +3417,87 @@ export class Race3D {
     }
     this.sparks.visible = live > 0;
     this.sparks.geometry.attributes.position.needsUpdate = true; this.sparks.geometry.attributes.color.needsUpdate = true;
+  }
+
+  // tyre smoke: a locked front wheel under heavy braking (now and then, a few per lap across the
+  // field) leaves a short white puff trail; on a damp track it turns into a fine mist instead.
+  // Kerb strikes at speed kick up a little dust. One small point system.
+  updateSmoke(dt) {
+    if (!dt) return;
+    const M = 420;
+    if (!this.smoke) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(M * 3).fill(-9999), 3).setUsage(THREE.DynamicDrawUsage));
+      g.setAttribute('aAge', new THREE.BufferAttribute(new Float32Array(M * 2), 2).setUsage(THREE.DynamicDrawUsage));
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, fog: true,
+        uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uPx: { value: 600 }, uCol: { value: new THREE.Color(0.86, 0.86, 0.85) } }]),
+        vertexShader: `attribute vec2 aAge; uniform float uPx; varying float vA;
+          #include <common>
+          #include <fog_pars_vertex>
+          #include <logdepthbuf_pars_vertex>
+          void main() {
+            float age = aAge.x;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
+            float size = mix(0.35, 2.6 * aAge.y, sqrt(age));
+            gl_PointSize = age > 0.0 ? clamp(size * uPx / max(0.5, -mvPosition.z), 1.0, 300.0) : 0.0;
+            vA = pow(1.0 - age, 1.6) * smoothstep(0.0, 0.05, age) * smoothstep(2.0, 8.0, -mvPosition.z);
+            #include <logdepthbuf_vertex>
+            #include <fog_vertex>
+          }`,
+        fragmentShader: `uniform vec3 uCol; varying float vA;
+          #include <common>
+          #include <fog_pars_fragment>
+          #include <logdepthbuf_pars_fragment>
+          void main() {
+            #include <logdepthbuf_fragment>
+            vec2 p = gl_PointCoord - 0.5; float d2 = dot(p, p) * 4.0; if (d2 > 1.0) discard;
+            gl_FragColor = vec4(uCol, 0.5 * vA * exp(-d2 * 2.6) * (1.0 - d2));
+            #include <fog_fragment>
+          }`,
+      });
+      this.smoke = new THREE.Points(g, mat); this.smoke.frustumCulled = false; this.smoke.renderOrder = 5;
+      this.smokeV = new Float32Array(M * 3); this.smokeL = new Float32Array(M); this.smokeL0 = new Float32Array(M).fill(1); this.smokeI = 0; this.smokeLive = 0;
+      this.scene.add(this.smoke);
+    }
+    const P = this.smoke.geometry.attributes.position.array, A = this.smoke.geometry.attributes.aAge.array, V = this.smokeV, L = this.smokeL, L0 = this.smokeL0;
+    const u = this.smoke.material.uniforms, cam = this.camera.position, nt = this.night ? 1 : (this._night || 0);
+    u.uPx.value = (this.H || 720) / (2 * Math.tan(this.camera.fov * Math.PI / 360));
+    u.uCol.value.setRGB(0.86, 0.86, 0.85).multiplyScalar(1 - 0.75 * nt);
+    const simK = Math.max(1, Math.min(8, this._simK || 1));
+    let emitted = 0;
+    for (const car of this.cars.values()) {
+      const m = car.mesh, sp = car.state?.speed || 0, acc = car._acc || 0;
+      if (!m.visible || car.pc || sp < 12 || m.position.distanceToSquared(cam) > 200 * 200) { car._lock = 0; continue; }
+      // a lock-up starts on the stop pedal at speed; lasts a fraction of a second
+      if (acc < -26 && sp > 30 && !(car._lock > 0) && !car._lockedThisZone) { car._lockedThisZone = true; if (Math.random() < 0.12) { car._lock = 0.35 + Math.random() * 0.4; car._lockW = Math.random() < 0.5 ? 1 : -1; } }
+      if (acc > -8) car._lockedThisZone = false;
+      const dust = car._kerb && sp > 40 && (this.wet || 0) < 0.3 ? 1 : 0;
+      if (!(car._lock > 0) && !dust) continue;
+      car._lock = Math.max(0, (car._lock || 0) - dt * simK);
+      const fx = Math.cos(m.rotation.y), fz = -Math.sin(m.rotation.y);
+      const n = Math.min(6, Math.round((car._lock > 0 ? 70 : 18) * dt * (0.6 + Math.random())) + (Math.random() < 0.5 ? 1 : 0));
+      const wb = m.userData.wheels?.[0]?.position, lon = (wb ? wb.x : 1.7) * (m.scale.x || 1), lat0 = wb ? Math.abs(wb.z) : 0.8;
+      for (let q = 0; q < n; q++) {
+        const k = this.smokeI = (this.smokeI + 1) % M; emitted++;
+        const lat = car._lock > 0 ? car._lockW * lat0 : (Math.random() < 0.5 ? 1 : -1) * lat0, lo = car._lock > 0 ? lon : -lon;
+        P[k * 3] = m.position.x + fx * lo + fz * lat; P[k * 3 + 1] = m.position.y + 0.15; P[k * 3 + 2] = m.position.z + fz * lo - fx * lat;
+        const vf = sp * (0.25 + Math.random() * 0.2);
+        V[k * 3] = fx * vf + (Math.random() - 0.5) * 2; V[k * 3 + 1] = 0.4 + Math.random() * 1.2; V[k * 3 + 2] = fz * vf + (Math.random() - 0.5) * 2;
+        L0[k] = car._lock > 0 ? 0.9 + Math.random() * 0.8 : 0.5 + Math.random() * 0.4; L[k] = L0[k]; A[k * 2 + 1] = car._lock > 0 ? 0.8 + Math.random() * 0.6 : 0.5;
+      }
+    }
+    if (!emitted && !this.smokeLive) { this.smoke.visible = false; return; }
+    this.smoke.visible = true;
+    const dts = dt * simK, drag = Math.exp(-dts * 2.8); let live = 0;
+    for (let k = 0; k < M; k++) {
+      if (L[k] <= 0) { if (A[k * 2] !== 0) { A[k * 2] = 0; P[k * 3 + 1] = -9999; } continue; }
+      live++; L[k] -= dts; V[k * 3] *= drag; V[k * 3 + 2] *= drag; V[k * 3 + 1] *= drag;
+      P[k * 3] += V[k * 3] * dts; P[k * 3 + 1] += (V[k * 3 + 1] + 0.3) * dts; P[k * 3 + 2] += V[k * 3 + 2] * dts;
+      A[k * 2] = Math.min(1, Math.max(0.001, 1 - L[k] / L0[k]));
+    }
+    this.smokeLive = live;
+    this.smoke.geometry.attributes.position.needsUpdate = true; this.smoke.geometry.attributes.aAge.needsUpdate = true;
   }
 
   // rooster-tail spray behind cars on a wet track: one shared particle system. Each puff grows
