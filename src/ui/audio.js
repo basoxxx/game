@@ -87,7 +87,12 @@ function ac() {
       const conv = ctx.createConvolver(); conv.buffer = makeIR(ctx);
       const ret = ctx.createGain(); ret.gain.value = 0.85;
       B.rev.connect(conv); conv.connect(ret); ret.connect(B.master);
-      for (const k of ['music', 'sfx', 'eng', 'amb']) { B[k] = ctx.createGain(); B[k].gain.value = 0; B[k].connect(B.master); }
+      // bus → duck (sidechain-style ducking under important sounds) → master
+      for (const k of ['music', 'sfx', 'eng', 'amb']) {
+        B[k] = ctx.createGain(); B[k].gain.value = 0;
+        if (k === 'sfx') { B[k].connect(B.master); continue; }
+        B[k + 'Duck'] = ctx.createGain(); B[k].connect(B[k + 'Duck']); B[k + 'Duck'].connect(B.master);
+      }
       // post-fader reverb sends (their gain follows the bus volume)
       B.musicRev = ctx.createGain(); B.musicRev.connect(B.rev);
       B.sfxRev = ctx.createGain(); B.sfxRev.connect(B.rev);
@@ -241,14 +246,14 @@ export const sfx = {
   },
   bad: () => { const t = now(); osc('square', 233, t, 0.09, 0.04, { cut: 900 }); osc('square', 196, t + 0.11, 0.16, 0.045, { cut: 800 }); },
   notify: () => {
-    const t = now();
+    const t = now(); duck(0.25, 0.6);
     [880, 1108.7, 1318.5].forEach((f, i) => { bell(f, t + i * 0.07, 0.45, 0.04, { ratio: 4, index: 0.9, rev: 0.3, pan: (i - 1) * 0.3 }); osc('sine', f / 2, t + i * 0.07, 0.2, 0.015); });
   },
   // start lights: clean "dash" beeps
   beep: () => { const t = now(); osc('square', 880, t, 0.24, 0.035, { cut: 2600 }); osc('sine', 880, t, 0.28, 0.06); },
-  go: () => { const t = now(); osc('square', 1320, t, 0.5, 0.04, { cut: 3200 }); osc('sine', 1320, t, 0.6, 0.07); crowdCheer(0.8); },
+  go: () => { const t = now(); duck(0.35, 0.8); osc('square', 1320, t, 0.5, 0.04, { cut: 3200 }); osc('sine', 1320, t, 0.6, 0.07); crowdCheer(0.8); },
   win: () => {
-    const t = now();
+    const t = now(); duck(0.5, 2.2);
     const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
     notes.forEach((f, i) => { brass(f, t + i * 0.1, 0.5, 0.05, i * 0.1 - 0.2); bell(f * 2, t + i * 0.1, 0.8, 0.02, { ratio: 3.5, rev: 0.4 }); });
     brass(523.25, t + 0.55, 1.4, 0.05, -0.3); brass(659.25, t + 0.55, 1.4, 0.045, 0); brass(783.99, t + 0.55, 1.4, 0.045, 0.3);
@@ -259,14 +264,15 @@ export const sfx = {
   // team radio: squelch + mic click, band-limited like a real radio
   radio: () => {
     const t = now();
-    nz(0.07, 0.05, { f: 2300, q: 3.5 });
+    duck(0.45, 1.6, ['music', 'amb', 'eng']);
     osc('square', 1650, t + 0.015, 0.03, 0.014, { cut: 2600 });
-    nz(0.2, 0.012, { t: t + 0.05, f: 1800, q: 1.8 });
     osc('sine', 120, t, 0.03, 0.03);
+    radioChatter(t, 1.3, 0, B.sfx);
   },
   // pit stop: four wheel guns off, wheels swapped, guns on, jack drop
   pit: () => {
     const c = ac(); if (!c) return; const t = c.currentTime;
+    duck(0.3, 2, ['music']);
     const gun = (t0, p) => {
       const s = src(noiseBuf), f = c.createBiquadFilter(), g = c.createGain(), am = c.createOscillator(), amg = c.createGain();
       f.type = 'bandpass'; f.frequency.setValueAtTime(3200, t0); f.frequency.exponentialRampToValueAtTime(2400, t0 + 0.28); f.Q.value = 2.5;
@@ -281,6 +287,7 @@ export const sfx = {
   },
   crash: () => {
     const c = ac(); if (!c) return; const t = c.currentTime;
+    duck(0.45, 0.7, ['music', 'amb']);
     osc('sine', 95, t, 0.4, 0.22, { slide: 0.4 });
     nz(0.55, 0.22, { type: 'lowpass', f: 1800, q: 0.8, sweep: 250, a: 0.002 });
     nz(0.3, 0.12, { f: 900, q: 1.5, sweep: 400 });
@@ -290,15 +297,17 @@ export const sfx = {
   },
   coin: () => { const t = now(); bell(987.8, t, 0.25, 0.04, { ratio: 3, index: 1.5 }); bell(1318.5, t + 0.08, 0.6, 0.045, { ratio: 3, index: 1.5, rev: 0.3 }); nz(0.05, 0.02, { type: 'highpass', f: 7000 }); },
   levelup: () => {
-    const t = now();
+    const t = now(); duck(0.35, 1);
     [392, 523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => { pluck(f, t + i * 0.065, 0.4, 0.035, (i - 2.5) * 0.15, B.sfx); });
     bell(2093, t + 0.4, 1.2, 0.03, { ratio: 2, rev: 0.5 });
     nz(0.9, 0.018, { t: t + 0.35, type: 'highpass', f: 8000, a: 0.2, rev: 0.4 });
   },
   cheer: () => crowdCheer(1),
+  // stadium PA: chime + announcer-like voice (for race start / finish / safety car moments)
+  announce: () => { const t = now(); duck(0.3, 2.4, ['music']); paTones(t, 1.6); announcer(t + 0.85, rnd(1.6, 2.6), B.sfx, 0.02, true); },
   // title-screen hit: sub drop + crash + wide A-minor brass chord
   sting: () => {
-    const t = now();
+    const t = now(); duck(0.5, 1.4);
     osc('sine', 110, t, 1.2, 0.3, { slide: 0.32, slideT: 0.5 });
     nz(2.2, 0.06, { t, type: 'highpass', f: 3500, q: 0.4, a: 0.002, rev: 0.6 });
     nz(0.5, 0.08, { t, type: 'lowpass', f: 900, sweep: 120, a: 0.002 });
@@ -706,12 +715,46 @@ export const music = {
 // AMBIENCE — crowd, rain, wind, paddock / pit lane
 // ---------------------------------------------------------------------------
 const PADDOCK_SCENES = new Set(['weekend', 'rally']);
+// pre-rendered textures (built once): applause (many hand claps) and rain drops hitting bodywork
+function makeApplause(c, secs = 3) {
+  const len = Math.floor(c.sampleRate * secs), b = c.createBuffer(2, len, c.sampleRate), L = b.getChannelData(0), R = b.getChannelData(1);
+  const n = Math.floor(secs * 140), cl = Math.floor(c.sampleRate * 0.012);
+  for (let k = 0; k < n; k++) {
+    const at = Math.floor(Math.random() * (len - cl)), pan = Math.random(), amp = 0.25 + Math.random() * 0.75, lpK = 0.3 + Math.random() * 0.6;
+    let lp = 0;
+    for (let i = 0; i < cl; i++) { lp += ((Math.random() * 2 - 1) - lp) * lpK; const v = lp * amp * Math.exp(-i / (cl * 0.22)); L[at + i] += v * (1 - pan); R[at + i] += v * pan; }
+  }
+  return b;
+}
+function makeDrops(c, secs = 2) {
+  const len = Math.floor(c.sampleRate * secs), b = c.createBuffer(2, len, c.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = b.getChannelData(ch), n = Math.floor(secs * 90), dl = Math.floor(c.sampleRate * 0.02);
+    for (let k = 0; k < n; k++) {
+      const at = Math.floor(Math.random() * (len - dl)), f = 1400 + Math.random() * 4200, amp = 0.15 + Math.random() * 0.85, w = (2 * Math.PI * f) / c.sampleRate;
+      for (let i = 0; i < dl; i++) d[at + i] += Math.sin(w * i * (1 + i / dl * 0.4)) * amp * Math.exp(-i / (c.sampleRate * 0.0025)) + (i < 30 ? (Math.random() * 2 - 1) * amp * 0.5 : 0);
+    }
+  }
+  return b;
+}
+let applauseBuf = null, dropsBuf = null;
+// Ducking: important sounds push music / ambience / engines down for a moment
+export function duck(depth = 0.5, hold = 0.6, which = ['music', 'amb']) {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  for (const k of which) {
+    const g = B[k + 'Duck']?.gain; if (!g) continue;
+    const lvl = k === 'music' ? 1 - depth : 1 - depth * 0.6;
+    g.cancelScheduledValues(t); g.setTargetAtTime(Math.max(0.05, lvl), t, 0.03); g.setTargetAtTime(1, t + hold, 0.35);
+  }
+}
 const ambience = {
-  crowd: null, rain: null, paddock: null, crowdLvl: 0, rainLvl: 0, timer: null,
+  crowd: null, rain: null, paddock: null, crowdLvl: 0, rainLvl: 0, windLvl: 0, timer: null, lastThunder: 0,
   ensure() {
     if (this.crowd || !ac()) return;
     const c = ctx;
-    // crowd: two bands of pink noise with slow, independent swells (murmur)
+    applauseBuf = applauseBuf || makeApplause(c); dropsBuf = dropsBuf || makeDrops(c);
+    // crowd murmur: three bands of pink noise with slow, independent swells
     const mk = (f, q, base) => {
       const s = src(pinkBuf), fl = c.createBiquadFilter(), g = c.createGain(), lfo = c.createOscillator(), lg = c.createGain();
       fl.type = 'bandpass'; fl.frequency.value = f; fl.Q.value = q; g.gain.value = 0;
@@ -721,15 +764,40 @@ const ambience = {
       return { g, base };
     };
     this.crowd = [mk(700, 0.7, 1), mk(1900, 1.6, 0.6), mk(350, 0.8, 0.5)];
+    // cheer layers: a vowel-shaped roar ("ohhh → aaah") and applause, silent until a swell
+    const rs0 = src(pinkBuf), f1 = c.createBiquadFilter(), f2 = c.createBiquadFilter(), roar = c.createGain();
+    f1.type = 'bandpass'; f1.frequency.value = 500; f1.Q.value = 2.2; f2.type = 'bandpass'; f2.frequency.value = 1100; f2.Q.value = 3;
+    roar.gain.value = 0; rs0.connect(f1); rs0.connect(f2); f1.connect(roar); f2.connect(roar); roar.connect(B.amb); sendTo(roar, B.rev, 0.25); rs0.start(0, Math.random());
+    const ap = src(applauseBuf), apf = c.createBiquadFilter(), apg = c.createGain();
+    apf.type = 'highpass'; apf.frequency.value = 700; apg.gain.value = 0; ap.connect(apf); apf.connect(apg); apg.connect(B.amb); sendTo(apg, B.rev, 0.2); ap.start();
+    this.cheer = { f1, f2, roar, apg };
+    // rain: hiss on the ground, drops on the bodywork, a low wash for heavy rain
     const rs = src(noiseBuf), rf = c.createBiquadFilter(), rf2 = c.createBiquadFilter(), rg = c.createGain();
     rf.type = 'highpass'; rf.frequency.value = 1800; rf2.type = 'lowpass'; rf2.frequency.value = 9000; rg.gain.value = 0;
     rs.connect(rf); rf.connect(rf2); rf2.connect(rg); rg.connect(B.amb); rs.start();
-    this.rain = rg;
+    const dr = src(dropsBuf), drg = c.createGain(), drf = c.createBiquadFilter(); drf.type = 'highpass'; drf.frequency.value = 900; drg.gain.value = 0;
+    dr.playbackRate.value = 1.15; dr.connect(drf); drf.connect(drg); drg.connect(B.amb); dr.start();
+    const rw = src(brownBuf), rwf = c.createBiquadFilter(), rwg = c.createGain(); rwf.type = 'lowpass'; rwf.frequency.value = 380; rwg.gain.value = 0;
+    rw.connect(rwf); rwf.connect(rwg); rwg.connect(B.amb); rw.start(0, Math.random());
+    this.rain = { rg, drg, rwg };
+    // wind: pink noise with slow gusts (a moving band-pass and level)
+    const ws = src(pinkBuf), wf = c.createBiquadFilter(), wg = c.createGain(), gust = c.createOscillator(), gg = c.createGain(), gf = c.createGain(), wamp = c.createGain();
+    wf.type = 'bandpass'; wf.frequency.value = 420; wf.Q.value = 0.8; wg.gain.value = 0; wamp.gain.value = 0.7;
+    gust.frequency.value = 0.09; gg.gain.value = 0.3; gf.gain.value = 160; gust.connect(gg); gg.connect(wamp.gain); gust.connect(gf); gf.connect(wf.frequency);
+    ws.connect(wf); wf.connect(wamp); wamp.connect(wg); wg.connect(B.amb); ws.start(0, Math.random()); gust.start();
+    this.wind = wg;
   },
   setCrowd(v) { if (this.crowd && Math.abs(v - this.crowdLvl) < 0.01) return; this.ensure(); if (!this.crowd) return; this.crowdLvl = v; for (const L of this.crowd) L.g.gain.setTargetAtTime(v * 0.05 * L.base, ctx.currentTime, 0.8); },
-  setWind(v) { this.windLvl = v; },
-  setRain(v) { if (this.rain && Math.abs(v - this.rainLvl) < 0.01) return; this.ensure(); if (!this.rain) return; this.rainLvl = v; this.rain.gain.setTargetAtTime(v * 0.05, ctx.currentTime, 0.8); },
-  // paddock bed: distant generators + random pit-lane events (wheel guns, revs, PA, tools)
+  setWind(v) { if (this.wind && Math.abs(v - this.windLvl) < 0.02) return; this.ensure(); if (!this.wind) return; this.windLvl = v; this.wind.gain.setTargetAtTime(v * 0.014, ctx.currentTime, 1.2); },
+  setRain(v) {
+    if (this.rain && Math.abs(v - this.rainLvl) < 0.01) return; this.ensure(); if (!this.rain) return;
+    this.rainLvl = v; const t = ctx.currentTime, onCar = engine ? engine.V.rain : 0.3;
+    this.rain.rg.gain.setTargetAtTime(v * 0.05, t, 0.8);
+    this.rain.drg.gain.setTargetAtTime(v * 0.05 * onCar, t, 0.8);
+    this.rain.rwg.gain.setTargetAtTime(Math.max(0, v - 0.4) * 0.06, t, 1);
+    if (v > 0.75 && t - this.lastThunder > 40 && Math.random() < 0.5) { this.lastThunder = t; thunder(t + rnd(2, 8)); }
+  },
+  // paddock bed: distant generators + random pit-lane events (wheel guns, revs, PA, radio, tools)
   update() {
     if (!ctx || !unlocked) return;
     const want = PADDOCK_SCENES.has(scene) && !engine;
@@ -738,51 +806,102 @@ const ambience = {
       fl.type = 'lowpass'; fl.frequency.value = 220; g.gain.value = 0; g.gain.setTargetAtTime(0.06, c.currentTime, 1.5);
       s.connect(fl); fl.connect(g); g.connect(B.amb); s.start();
       const hum = c.createOscillator(), hg = c.createGain(); hum.frequency.value = 100; hg.gain.value = 0; hg.gain.setTargetAtTime(0.0035, c.currentTime, 1.5); hum.connect(hg); hg.connect(B.amb); hum.start();
-      this.paddock = { s, g, hum, hg };
-      const loop = () => { if (!this.paddock) return; this.paddockEvent(); this.timer = setTimeout(loop, rnd(2500, 7000)); };
-      this.timer = setTimeout(loop, 1500);
+      this.paddock = { s, g, hum, hg, fl };
+      this.setWind(0.25); this.setCrowd(0.12);
+      const loop = () => { if (!this.paddock) return; this.paddockEvent(); this.timer = setTimeout(loop, rnd(2000, 6000)); };
+      this.timer = setTimeout(loop, 1200);
     } else if (!want && this.paddock) {
       const p = this.paddock; this.paddock = null; clearTimeout(this.timer);
-      p.g.gain.setTargetAtTime(0, ctx.currentTime, 0.5); p.hg.gain.setTargetAtTime(0, ctx.currentTime, 0.5);
-      setTimeout(() => { try { p.s.stop(); p.hum.stop(); } catch {} }, 3000);
+      const t = ctx.currentTime;
+      p.g.gain.setTargetAtTime(0, t, 0.5); p.hg.gain.setTargetAtTime(0, t, 0.5);
+      p.s.stop(t + 3); p.hum.stop(t + 3); releaseOnEnd(p.s, [p.s, p.fl, p.g, p.hum, p.hg]);
+      if (!engine) { this.setWind(0); this.setCrowd(0); }
     }
   },
   paddockEvent() {
     if (!ctx || ctx.state !== 'running') return;
     const t = ctx.currentTime, r = Math.random(), far = { dest: B.amb };
-    if (r < 0.35) { // distant wheel gun rattle
-      const p = rnd(-0.8, 0.8), n = 1 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < n; i++) nz(rnd(0.12, 0.3), 0.012, { ...far, t: t + i * rnd(0.15, 0.4), f: rnd(2400, 3400), q: 3, pan: p });
-    } else if (r < 0.6) { // an engine blipping in a garage down the lane
+    if (r < 0.28) { // distant wheel gun rattle
+      const p = rnd(-0.8, 0.8), n = 1 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < n; i++) nz(rnd(0.12, 0.3), 0.012, { ...far, t: t + i * rnd(0.15, 0.4), f: rnd(2400, 3400), q: 3, pan: p, voice: 'amb' });
+    } else if (r < 0.48) { // an engine blipping in a garage down the lane
       const c = ctx, o = c.createOscillator(), fl = c.createBiquadFilter(), g = c.createGain(), pn = c.createStereoPanner();
       o.type = 'sawtooth'; const f0 = rnd(90, 140); o.frequency.setValueAtTime(f0, t);
       const blips = 1 + Math.floor(Math.random() * 3);
       for (let i = 0; i < blips; i++) { const tb = t + i * 0.55; o.frequency.setTargetAtTime(f0 * rnd(2.4, 3.6), tb, 0.06); o.frequency.setTargetAtTime(f0, tb + 0.22, 0.12); }
       fl.type = 'lowpass'; fl.frequency.value = 700; pn.pan.value = rnd(-0.9, 0.9);
       g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.012, t + 0.1); g.gain.setTargetAtTime(0.0001, t + blips * 0.55, 0.2);
-      o.connect(fl); fl.connect(g); g.connect(pn); pn.connect(B.amb); o.start(t); o.stop(t + blips * 0.55 + 1.2);
-    } else if (r < 0.8) { // PA announcer: formant-filtered noise with syllable rhythm
-      const c = ctx, s = src(pinkBuf), f1 = c.createBiquadFilter(), g = c.createGain();
-      f1.type = 'bandpass'; f1.Q.value = 4; const dur = rnd(1.4, 3);
-      g.gain.setValueAtTime(0, t);
-      for (let x = 0; x < dur; x += rnd(0.08, 0.18)) { f1.frequency.setValueAtTime(rnd(500, 1400), t + x); g.gain.setValueAtTime(rnd(0.004, 0.012), t + x); g.gain.setTargetAtTime(0.0005, t + x + 0.05, 0.03); }
-      g.gain.setValueAtTime(0, t + dur);
-      s.connect(f1); f1.connect(g); g.connect(panNode(rnd(-0.5, 0.5), B.amb)); sendTo(g, B.rev, 0.6); s.start(t, Math.random()); s.stop(t + dur + 0.1);
+      o.connect(fl); fl.connect(g); g.connect(pn); pn.connect(B.amb); o.start(t); o.stop(t + blips * 0.55 + 1.2); releaseOnEnd(o, [o, fl, g, pn]);
+    } else if (r < 0.66) { // PA announcer: chime, then formant "speech" with a big stadium echo
+      paTones(t, 0.8);
+      announcer(t + 0.9, rnd(1.4, 3), B.amb, 0.011, true);
+    } else if (r < 0.86) { // team radio chatter from a neighbouring garage
+      radioChatter(t, 0.5, rnd(-0.8, 0.8), B.amb);
     } else { // tools / spanner clink
       bell(rnd(2200, 3400), t, 0.25, 0.006, { ratio: 2.7, index: 1, dest: B.amb, pan: rnd(-0.7, 0.7) });
+      if (Math.random() < 0.5) bell(rnd(2200, 3400), t + rnd(0.15, 0.4), 0.2, 0.004, { ratio: 2.7, index: 1, dest: B.amb, pan: rnd(-0.7, 0.7) });
     }
   },
 };
+// formant-filtered noise with a syllable rhythm: reads as speech without words
+function announcer(t, dur, dest, lvl, big = false) {
+  const c = ctx, s = src(pinkBuf), f1 = c.createBiquadFilter(), f2 = c.createBiquadFilter(), g = c.createGain(), pn = c.createStereoPanner();
+  f1.type = 'bandpass'; f1.Q.value = 5; f2.type = 'bandpass'; f2.Q.value = 7; pn.pan.value = rnd(-0.4, 0.4);
+  g.gain.setValueAtTime(0, t);
+  for (let x = 0; x < dur; x += rnd(0.08, 0.2)) {
+    const v = Math.random(); // vowel: low/high formant pairs
+    f1.frequency.setValueAtTime(350 + v * 500, t + x); f2.frequency.setValueAtTime(900 + (1 - v) * 1400, t + x);
+    if (Math.random() < 0.12) { x += rnd(0.12, 0.3); continue; }   // word gaps
+    g.gain.setValueAtTime(lvl * rnd(0.4, 1), t + x); g.gain.setTargetAtTime(lvl * 0.04, t + x + 0.05, 0.03);
+  }
+  g.gain.setValueAtTime(0, t + dur);
+  s.connect(f1); s.connect(f2); f1.connect(g); f2.connect(g); g.connect(pn); pn.connect(dest);
+  if (big) sendTo(g, B.rev, 0.9);
+  s.start(t, Math.random()); s.stop(t + dur + 0.1); releaseOnEnd(s, [s, f1, f2, g, pn]);
+}
+// two-tone stadium chime that precedes an announcement
+function paTones(t, k = 1) {
+  [[659.25, 0], [523.25, 0.32]].forEach(([f, d]) => bell(f, t + d, 1.1, 0.012 * k, { ratio: 2, index: 0.6, dest: B.amb, rev: 0.6 }));
+}
+// band-limited radio: squelch, chatter, release click
+function radioChatter(t, k = 1, pan = 0, dest = B.sfx) {
+  nz(0.06, 0.04 * k, { t, f: 2300, q: 3.5, dest, pan, voice: 'amb' });
+  const c = ctx, s = src(noiseBuf), hp = c.createBiquadFilter(), lp = c.createBiquadFilter(), fm = c.createBiquadFilter(), g = c.createGain(), dist = c.createWaveShaper(), pn = c.createStereoPanner();
+  hp.type = 'highpass'; hp.frequency.value = 450; lp.type = 'lowpass'; lp.frequency.value = 2800; fm.type = 'bandpass'; fm.Q.value = 4;
+  dist.curve = distCurve || (distCurve = curve(6)); pn.pan.value = pan;
+  const dur = rnd(0.8, 1.8);
+  g.gain.setValueAtTime(0, t + 0.06);
+  for (let x = 0.06; x < dur; x += rnd(0.07, 0.16)) { fm.frequency.setValueAtTime(rnd(600, 1800), t + x); g.gain.setValueAtTime(0.02 * k * rnd(0.4, 1), t + x); g.gain.setTargetAtTime(0.002 * k, t + x + 0.04, 0.03); }
+  g.gain.setValueAtTime(0, t + dur);
+  s.connect(fm); fm.connect(dist); dist.connect(hp); hp.connect(lp); lp.connect(g); g.connect(pn); pn.connect(dest);
+  s.start(t, Math.random()); s.stop(t + dur + 0.05); releaseOnEnd(s, [s, fm, dist, hp, lp, g, pn]);
+  nz(0.05, 0.03 * k, { t: t + dur, f: 2600, q: 3, dest, pan, voice: 'amb' });
+}
+// distant thunder roll in heavy rain
+function thunder(t) {
+  nz(rnd(3, 5), 0.05, { t, type: 'lowpass', f: 260, q: 0.5, a: 0.6, buf: brownBuf, dest: B.amb, pan: rnd(-0.5, 0.5), voice: 'amb' });
+  nz(0.6, 0.02, { t: t + 0.2, type: 'lowpass', f: 900, sweep: 200, a: 0.05, dest: B.amb, voice: 'amb' });
+}
+// crowd swell: roar opens from "ohh" to "aah", applause, whistles, an air horn on big moments
 export function crowdCheer(amount = 1) {
   if (!ctx || !unlocked) return;
   ambience.ensure(); if (!ambience.crowd) return;
-  const t = ctx.currentTime, base = Math.max(ambience.crowdLvl, 0.15);
+  const t = ctx.currentTime, base = Math.max(ambience.crowdLvl, 0.15), hold = 0.9 + amount * 1.6;
   for (const L of ambience.crowd) {
-    const g = L.g.gain; g.cancelScheduledValues(t); g.setTargetAtTime(Math.min(1.5, base + amount) * 0.07 * L.base, t, 0.25); g.setTargetAtTime(ambience.crowdLvl * 0.05 * L.base, t + 0.9 + amount, 0.9);
+    const g = L.g.gain; g.cancelScheduledValues(t); g.setTargetAtTime(Math.min(1.5, base + amount) * 0.07 * L.base, t, 0.25); g.setTargetAtTime(ambience.crowdLvl * 0.05 * L.base, t + hold, 0.9);
   }
-  for (let i = 0; i < Math.round(3 * amount); i++) { // whistles in the stands
-    const tt = t + rnd(0.1, 1.2), f = rnd(1800, 2800);
-    osc('sine', f, tt, rnd(0.2, 0.45), 0.004 * amount, { slide: rnd(1.1, 1.4), dest: B.amb, pan: rnd(-0.8, 0.8) });
+  const C = ambience.cheer;
+  C.roar.gain.cancelScheduledValues(t); C.roar.gain.setTargetAtTime(0.05 * amount, t, 0.3); C.roar.gain.setTargetAtTime(0, t + hold * 0.8, 0.8);
+  C.f1.frequency.cancelScheduledValues(t); C.f1.frequency.setValueAtTime(420, t); C.f1.frequency.linearRampToValueAtTime(720, t + 0.8);
+  C.f2.frequency.cancelScheduledValues(t); C.f2.frequency.setValueAtTime(850, t); C.f2.frequency.linearRampToValueAtTime(1250, t + 0.8);
+  C.apg.gain.cancelScheduledValues(t); C.apg.gain.setTargetAtTime(0.09 * amount, t + 0.25, 0.4); C.apg.gain.setTargetAtTime(0, t + hold + 0.4, 1);
+  for (let i = 0; i < Math.round(4 * amount); i++) { // whistles in the stands
+    const tt = t + rnd(0.1, 1.5), f = rnd(1800, 2800);
+    osc('sine', f, tt, rnd(0.2, 0.45), 0.005 * amount, { slide: rnd(1.1, 1.4), dest: B.amb, pan: rnd(-0.8, 0.8), voice: 'amb' });
+  }
+  if (amount >= 0.8) { // air horn
+    const tt = t + rnd(0.3, 1), p = rnd(-0.7, 0.7);
+    for (const f of [415, 523]) osc('sawtooth', f * rnd(0.99, 1.01), tt, rnd(0.6, 1.1), 0.004, { cut: 1600, dest: B.amb, pan: p, a: 0.03, voice: 'amb' });
   }
 }
 
@@ -853,6 +972,7 @@ export function engineView(mode) {
   e.cam.frequency.setTargetAtTime(V.lp, t, 0.12);
   e.revG.gain.setTargetAtTime(V.rev, t, 0.12);
   e.viewG.gain.setTargetAtTime(V.gain, t, 0.12);
+  if (ambience.rain) { const v = ambience.rainLvl; ambience.rainLvl = -1; ambience.setRain(v); }   // drops on the car follow the camera
 }
 export function engineStart(cat = 'formula') {
   const st = getSettings();
