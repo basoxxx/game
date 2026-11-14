@@ -247,3 +247,24 @@ body:not(:has(.topbar)) .toasts { top: auto; bottom: 20px; }
 .chip.pulse { animation: pulseText 1.4s ease-in-out infinite; }
 .anim-in > * { animation: rise .45s var(--ease-out) both; }
 .anim-in > *:nth-child(2) { animation-delay: .04s; } .anim-in > *:nth-child(3) { animation-delay: .08s; } .anim-in > *:nth-child(4) { animation-delay: .12s; } .anim-in > *:nth-child(5) { animation-delay: .16s; } .anim-in > *:nth-child(6) { animation-delay: .2s; }
+
+/* ---- v6: signing moment (career-ui signFx) ---- */
+.sign-fx { position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center; pointer-events: none; background: radial-gradient(ellipse at center, rgba(0,0,0,.55), transparent 60%); animation: sfFade .25s ease-out both; }
+.sign-fx.out { animation: sfOut .45s ease-in both; }
+.sf-card { position: relative; min-width: min(380px, 86vw); max-width: 92vw; padding: 26px 34px 24px; text-align: center; background: linear-gradient(160deg, var(--s2), #0b0c0f); border: 1px solid var(--line2); border-top: 4px solid var(--team); box-shadow: 0 30px 80px rgba(0,0,0,.7); animation: sfCard .5s var(--ease-out) both; }
+.sf-art { display: flex; justify-content: center; margin-bottom: 6px; }
+.sf-stamp { display: inline-block; margin: 6px 0 10px; padding: 4px 18px; font-family: var(--display); font-weight: 900; font-style: italic; font-size: 34px; letter-spacing: .06em; text-transform: uppercase; color: var(--good); border: 4px solid var(--good); transform: rotate(-6deg); animation: sfStamp .45s cubic-bezier(.2,1.6,.4,1) .18s both; }
+.sf-t { font-family: var(--display); font-weight: 800; font-size: 26px; text-transform: uppercase; line-height: 1.05; }
+.sf-s { margin-top: 6px; font-size: 14px; color: var(--text2); }
+@keyframes sfFade { from { opacity: 0; } }
+@keyframes sfOut { to { opacity: 0; transform: translateY(-12px); } }
+@keyframes sfCard { from { opacity: 0; transform: translateY(24px) scale(.94); } }
+@keyframes sfStamp { from { opacity: 0; transform: rotate(-6deg) scale(2.4); } }
+html.reduce-motion .sign-fx, html.reduce-motion .sf-card, html.reduce-motion .sf-stamp { animation: none; }
+@media (prefers-reduced-motion: reduce) { .sign-fx, .sf-card, .sf-stamp { animation: none; } }
+.sign-fx.gold .sf-stamp { color: var(--gold); border-color: var(--gold); }
+.sign-fx.gold .sf-card { border-top-color: var(--gold); }
+.sp-slot { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 160px; padding: 16px; text-align: center; border: 2px dashed var(--line2); color: var(--muted); }
+.sp-slot .ico { width: 26px; height: 26px; color: var(--dim); }
+.sp-slot b { font-family: var(--display); font-size: 17px; text-transform: uppercase; letter-spacing: .04em; color: var(--text2); }
+.sp-slot span { font-size: 12.5px; line-height: 1.4; max-width: 220px; }

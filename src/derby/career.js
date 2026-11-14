@@ -130,7 +130,7 @@ export const CHALLENGES = [
   { id: 'primo', name: 'Prima vittoria', desc: 'Vinci un evento qualsiasi', prize: 2000, icon: 'trophy', check: (r) => r.pos === 1 && !['time', 'stunt'].includes(r.mode) },
   { id: 'tris', name: 'Tris di lamiere', desc: 'Demolisci 3 avversari nello stesso evento', prize: 5000, icon: 'burst', check: (r) => r.kills >= 3 },
   { id: 'macellaio', name: 'Il macellaio', desc: 'Demolisci 25 avversari in carriera', prize: 9000, icon: 'burst', check: (r, p) => (p.stats.wrecks || 0) >= 25 },
-  { id: 'cento', name: 'Oltre i cento', desc: 'Salta più di 100 metri dalla Rampa del Diavolo', prize: 6000, icon: 'speed', check: (r) => r.mode === 'stunt' && r.distance >= 100 },
+  { id: 'cento', name: 'Oltre i centocinquanta', desc: 'Salta più di 150 metri dalla Rampa del Diavolo', prize: 6000, icon: 'speed', check: (r) => r.mode === 'stunt' && r.distance >= 150 }, // v7: faster run-up again (v5: 100 m, v6: 130 m)
   { id: 'lepre', name: 'Lepre in salmì', desc: 'Demolisci la Lepre dorata', prize: 6000, icon: 'target', check: (r) => r.mode === 'caccia' && r.huntWreck },
   { id: 'ultimo', name: 'Ultimo uomo in piedi', desc: 'Vinci un’eliminazione', prize: 5000, icon: 'alert', check: (r) => r.mode === 'elim' && r.pos === 1 },
   { id: 'gladiatore', name: 'Gladiatore', desc: 'Vinci un demolition derby', prize: 5000, icon: 'shield', check: (r) => r.mode === 'derby' && r.pos === 1 },
@@ -163,3 +163,65 @@ export function lookOf(carId, p = prog()) {
   return { color: l.color || b.color, livery: l.livery || DEF_LIVERY[carId] || 'classica', num: l.num || 1, accent: l.accent || '#f2efe6', stickers: l.stickers !== false };
 }
 export { UPGRADES };
+
+// ---------------------------------------------------------------- v7: long-jump classes
+// Long-jump medal distances scale with what the car can do on the run-up: measured AI jumps on the
+// Rampa del Diavolo relative to the Torpedo 78 (a hot rod flies ~35% further than a saloon, a van
+// ~15% shorter). Engine upgrades (top speed) scale the distances too, so a tuned car earns its gold.
+export const JUMP_CLASS = { berlina: 1, utilitaria: 0.93, muscle: 1.22, pickup: 0.92, familiare: 0.94, furgone: 0.86, rally: 1.16, hotrod: 1.34 };
+export function jumpFactor(carId, tunedTop = null) {
+  const b = BANGERS.find((x) => x.id === carId); const k = JUMP_CLASS[carId] ?? 1;
+  return k * (b && tunedTop ? Math.min(1.25, (tunedTop / b.top) ** 2) : 1);
+}
+// the targets the game will actually use (base targets x the faster run-up x the car class), to the metre
+export function stuntTargets(base, carId, tunedTop = null, pace = 1) { return (base || [60, 80, 95]).map((t) => Math.round(t * pace * jumpFactor(carId, tunedTop))); }
+
+// ---------------------------------------------------------------- v7: the daily event
+// One event a day, the same for everybody on that date (seeded by the date): a venue, a mode, a
+// weather twist and a car from the yard (a loaner: you drive it even if you do not own it).
+// The first medal of the day pays a bonus (upgrading the medal pays the difference); a streak of
+// days with a medal is kept for the card.
+const DAILY_POOL = [
+  { mode: 'race', venue: 'cava', opponents: 7 }, { mode: 'race', venue: 'pineta', opponents: 7 }, { mode: 'race', venue: 'discarica', opponents: 7 },
+  { mode: 'elim', venue: 'otto', opponents: 6 }, { mode: 'derby', venue: 'arena', opponents: 7 }, { mode: 'derby', venue: 'fossa', opponents: 7 },
+  { mode: 'caccia', venue: 'fattoria', opponents: 4 }, { mode: 'stunt', venue: 'rampa', targets: [62, 80, 94] }, { mode: 're', venue: 'catino', opponents: 5 },
+  { mode: 'ondate', venue: 'arena' }, { mode: 'race', venue: 'porto', opponents: 7 }, { mode: 'race', venue: 'stadio', opponents: 7 }, { mode: 'distruzione', venue: 'cava', laps: 2 },
+];
+const DAILY_WX = [['auto', ''], ['pioggia', 'sotto la pioggia'], ['notte', 'di notte'], ['tramonto', 'al tramonto'], ['auto', '']];
+const DAILY_NAMES = ['Lunedì di lamiera', 'Martedì matto', 'Mercoledì di fuoco', 'Giovedì grasso', 'Venerdì nero', 'Sabato sfascio', 'Domenica bestiale'];
+const DAILY_PAY = [0, 2500, 4500, 7500];
+export function todayKey(d = new Date()) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+export function dailyEvent(d = new Date()) {
+  const key = todayKey(d); let h = 2166136261; for (const ch of key) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+  const R = () => { h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0; h = Math.imul(h ^ (h >>> 13), 3266489909) >>> 0; h = (h ^ (h >>> 16)) >>> 0; return h / 4294967296; };
+  const base = DAILY_POOL[Math.floor(R() * DAILY_POOL.length)];
+  const wx = base.mode === 'stunt' ? DAILY_WX[0] : DAILY_WX[Math.floor(R() * DAILY_WX.length)];
+  const car = BANGERS[Math.floor(R() * BANGERS.length)].id;
+  return { ...base, id: 'daily', daily: key, name: DAILY_NAMES[(d.getDay() + 6) % 7], weather: wx[0], wxName: wx[1], car, prize: 6000, pay: DAILY_PAY };
+}
+export function dailyState(p = prog()) { const ev = dailyEvent(); const st = p.daily?.key === ev.daily ? { ...p.daily } : { key: ev.daily, medal: 0, runs: 0, paid: 0 }; return { ev, st, streak: p.dailyStreak?.n || 0 }; }
+// record a run of today's event (the bonus is added to the prize by the caller); returns a career-like block for the results
+export function recordDaily(medal) {
+  const p = prog(); const { st } = dailyState(p); const prev = st.medal || 0;
+  const bonus = Math.max(0, DAILY_PAY[medal] - DAILY_PAY[st.paid || 0]); if (bonus) st.paid = medal; // paid by the caller with the prize
+  st.medal = Math.max(prev, medal); st.runs = (st.runs || 0) + 1; p.daily = st; p.dailyStreak ||= { last: '', n: 0 };
+  if (medal > 0 && p.dailyStreak.last !== st.key) { const y = new Date(); y.setDate(y.getDate() - 1); p.dailyStreak.n = p.dailyStreak.last === todayKey(y) ? p.dailyStreak.n + 1 : 1; p.dailyStreak.last = st.key; }
+  saveProg(p);
+  return { medal, prev, improved: medal > prev, bonus, streak: p.dailyStreak.n, newCups: [], newVenues: [], newCars: [], stars: starsOf(p), daily: true };
+}
+
+// ---------------------------------------------------------------- v7: what to aim for next
+// the next milestones of the career, nearest first: cups, arenas and cars that unlock with stars,
+// then the cheapest car you could buy. Each: { kind, text, have, need, icon }
+const VENUE_NAMES = { porto: 'Porto Vecchio', fossa: 'Fossa dei Leoni', discarica: 'Cimitero delle Gomme', catino: 'Catino d’Acciaio' };
+export function careerGoals(p = prog()) {
+  const s = starsOf(p), out = [];
+  const cup = CUPS.find((c) => c.stars > s); if (cup) out.push({ kind: 'cup', text: cup.name, have: s, need: cup.stars, icon: 'trophy' });
+  for (const [id, n] of Object.entries(CAR_STARS)) if (n > s && !p.owned.includes(id)) { const b = BANGERS.find((x) => x.id === id); out.push({ kind: 'car', text: `${b.name} in vendita`, have: s, need: n, icon: 'car' }); }
+  for (const [id, n] of Object.entries(VENUE_STARS)) if (n > s) out.push({ kind: 'venue', text: `${VENUE_NAMES[id] || id} libera`, have: s, need: n, icon: 'flag' });
+  out.sort((a, b) => a.need - b.need);
+  const buy = BANGERS.filter((b) => !p.owned.includes(b.id) && carBuyable(b.id, p)).sort((a, b) => PRICES[a.id] - PRICES[b.id])[0];
+  const res = out.slice(0, 2);
+  if (buy) res.push({ kind: 'money', text: `${buy.name} in garage`, have: Math.min(p.money, PRICES[buy.id]), need: PRICES[buy.id], icon: 'coin', money: true });
+  return res;
+}

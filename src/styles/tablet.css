@@ -1,0 +1,44 @@
+/* Tablet (761–1100px): the management sidebar becomes an icon rail so the pages get the width back.
+   Phones (≤760px) use the strip layout in v5.css / phone.css; desktops keep the full sidebar. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .shell { grid-template-columns: 68px 1fr; }
+  .sidebar { padding: 10px 0; }
+  .sidebar .nav-gh { display: none; }
+  .sidebar .nav { justify-content: center; padding: 0; height: 46px; gap: 0; }
+  .sidebar .nav > span:not(.badge) { display: none; }
+  .sidebar .nav .ico { width: 21px; height: 21px; }
+  .sidebar .nav .badge { position: absolute; top: 5px; right: 8px; margin: 0 !important; transform: scale(.85); }
+  .sidebar .nav-key { display: none; }
+  .sidebar .nav-sep { margin: 8px 12px; }
+  .sidebar .nav-event { margin: 10px 6px 0; padding: 8px 4px; text-align: center; }
+  .sidebar .nav-event .ne-k, .sidebar .nav-event .ne-meta, .sidebar .nav-event .ne-track, .sidebar .nav-event .ne-name span { display: none; }
+  .sidebar .nav-event .ne-name { justify-content: center; margin: 0; }
+  /* label on hover/focus so the rail stays readable */
+  .sidebar .nav:hover > span:first-of-type, .sidebar .nav:focus-visible > span:first-of-type { display: block; position: fixed; left: 72px; padding: 6px 10px; background: var(--s3); border: 1px solid var(--line2); color: #fff; z-index: 50; font-size: 14px; pointer-events: none; }
+  .main { min-width: 0; }
+  .page-head { flex-wrap: wrap; row-gap: 12px; }
+  .page-head h1 { font-size: clamp(30px, 4.6vw, 46px); }
+  .tabs { overflow-x: auto; scrollbar-width: none; }
+}
+/* tablet portrait: one column for the big two-column dashboards */
+@media (min-width: 761px) and (max-width: 900px) and (orientation: portrait) {
+  .grid2:not(.keep) { grid-template-columns: 1fr !important; }
+}
+/* coarse pointers (touch tablets and phones): bigger tap targets */
+@media (pointer: coarse) {
+  .btn { min-height: 40px; }
+  .btn.sm { min-height: 36px; }
+  .nav { min-height: 44px; }
+  .bh-mode, .bh-tab { min-height: 56px; }
+}
+/* tablet: keep the "Weekend di gara" button on screen — trim the top bar instead */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .topbar .tb-actions .btn:not(.tb-notes):not([data-to="settings"]) { display: none; }
+  .topbar .tb-team .tb-sub, .topbar .brand { display: none; }
+  .topbar .tb-stat .tb-meter { display: none; }
+  .topbar .continue-btn { flex: none; white-space: nowrap; }
+}
+@media (min-width: 761px) and (max-width: 900px) {
+  .topbar .tb-stat:nth-child(n+4) { display: none; }
+  .topbar .tb-team b { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+}

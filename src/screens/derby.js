@@ -7,13 +7,15 @@ import { sfx, music } from '../ui/audio.js';
 import { VENUES, buildTrack } from '../derby/tracks.js';
 import { BANGERS, LIVERIES, UPGRADES, tuneSpec } from '../derby/cars.js';
 import { CHAMPIONSHIP, champGet, champStart, champNext, champReset } from '../derby/champ.js';
-import { CHALLENGES, checkChallenges, prog, saveProg, PRICES, CAR_STARS, DIFFICULTY, MODES, MEDALS, MEDAL_COLORS, CUPS, eventById, starsOf, cupUnlocked, cupStars, venueUnlocked, VENUE_STARS, carBuyable, upgradePrice, tuneOf, lookOf } from '../derby/career.js';
+import { CHALLENGES, checkChallenges, prog, saveProg, PRICES, CAR_STARS, DIFFICULTY, MODES, MEDALS, MEDAL_COLORS, CUPS, eventById, starsOf, cupUnlocked, cupStars, venueUnlocked, VENUE_STARS, carBuyable, upgradePrice, tuneOf, lookOf, careerGoals, dailyState, stuntTargets } from '../derby/career.js';
 import { FILTER_PRESETS, applyFilterSettings } from '../ui/gfx.js';
 import { getSettings, setSettings } from '../engine/state.js';
+import { pixelRatio } from '../ui/quality.js';
 import { WEATHERS } from '../derby/atmos.js';
 import '../derby/menu.css';
 import '../derby/v5.css';
-import { PRESETS, driveOpts, setDriveOpts } from '../derby/handling.js';
+import '../derby/v7.css';
+import { PRESETS, driveOpts, setDriveOpts, PACE } from '../derby/handling.js';
 import { RIVALS, portrait, cupStory } from '../derby/rivals.js';
 
 const D = { tab: 'carriera', venue: 'cava', mode: 'race', car: 'berlina', opponents: 7, weather: 'auto', ev: null, playing: false, game: null };
@@ -59,7 +61,8 @@ const money = (n) => `€ ${Math.round(n).toLocaleString('it-IT')}`;
 const modesFor = (v) => (v.kind === 'derby' ? ['derby', 'squadre', 're', 'ondate'] : v.kind === 'stunt' ? ['stunt'] : v.kind === 'park' ? ['parco'] : ['race', 'elim', 'time', 'caccia', 'distruzione']);
 function carStats(spec, base = null) {
   const r = (k, n) => [spec[k] / n, base ? base[k] / n : null];
-  return `<div class="dz-stats"><span>Potenza</span>${bar(...r('power', 1.6))}<span>Velocità</span>${bar(...r('top', 1.3))}<span>Resistenza</span>${bar(...r('armor', 2.3))}<span>Tenuta</span>${bar(...r('grip', 1.4))}</div>`;
+  const vmax = Math.round(PACE.vmax * spec.top * 3.6), vN = Math.round(PACE.vmax * spec.top * PACE.nitroTop * 3.6);
+  return `<div class="dz-stats"><span>Potenza</span>${bar(...r('power', 1.6))}<span>Velocità</span>${bar(...r('top', 1.3))}<span>Resistenza</span>${bar(...r('armor', 2.3))}<span>Tenuta</span>${bar(...r('grip', 1.4))}</div><div class="dz-vmax">${vmax} km/h · ${vN} km/h col nitro</div>`;
 }
 
 // controller / keyboard navigation of the menu: the shared pad helper focuses elements and clicks
@@ -88,7 +91,7 @@ async function mountPreview(el, P) {
   if (!el.isConnected) return;
   if (!PV.r) {
     const r = PV.r = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05; r.outputColorSpace = THREE.SRGBColorSpace;
+    r.setPixelRatio(pixelRatio(2)); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05; r.outputColorSpace = THREE.SRGBColorSpace;
     const s = PV.scene = new THREE.Scene(); PV.cam = new THREE.PerspectiveCamera(30, 16 / 9, 0.1, 100);
     s.fog = new THREE.Fog(0x0b0807, 14, 30);
     s.add(new THREE.HemisphereLight(0xffeedd, 0x2a1a10, 0.35));
@@ -141,10 +144,21 @@ async function mountPreview(el, P) {
 }
 
 // ---------------------------------------------------------------- tabs
+// v7: today's event and the next milestones, above the cups
+function topCards(P) {
+  const { ev, st, streak } = dailyState(P), v = VENUES.find((x) => x.id === ev.venue), car = BANGERS.find((b) => b.id === ev.car);
+  const goals = careerGoals(P);
+  const daily = `<section class="dz-daily"><div><div class="dd-k">${icon('calendar')} Evento del giorno${streak > 1 ? ` · serie di ${streak}` : ''}</div><div class="dd-n">${esc(ev.name)}</div>
+    <div class="dd-s">${esc(MODES[ev.mode].name)} · ${esc(v?.name || ev.venue)}${ev.wxName ? ` · ${esc(ev.wxName)}` : ''} · con la <b>${esc(car?.name || '')}</b> del deposito</div>
+    <div class="dd-pay">${[1, 2, 3].map((k) => `<span class="${st.medal >= k ? 'got' : ''}">${MEDALS[k]} +${money(ev.pay[k])}</span>`).join('')}${st.runs ? `<span>${st.runs} tentativ${st.runs === 1 ? 'o' : 'i'} oggi</span>` : ''}</div></div>
+    <button class="btn primary lg" data-a="dz-daily">${icon('flag')} ${st.runs ? 'Riprova' : 'Gioca'}</button></section>`;
+  const gl = goals.length ? `<section class="dz-goals7"><div class="dg-h">Prossimi obiettivi</div>${goals.map((g) => `<div class="dg"><span>${icon(g.icon)} ${esc(g.text)}</span><i><b style="width:${Math.round(Math.min(1, g.have / g.need) * 100)}%"></b></i><em>${g.money ? money(g.need - g.have) : `${g.need - g.have} ★`}</em></div>`).join('')}</section>` : '';
+  return `<div class="dz-top7">${daily}${gl}</div>`;
+}
 function careerTab(P) {
   const stars = starsOf(P);
   const ev = D.ev && eventById(D.ev);
-  return `<div class="dz-cups">${CUPS.map((c) => {
+  return `${topCards(P)}<div class="dz-cups">${CUPS.map((c) => {
     const open = cupUnlocked(c, P), cs = cupStars(c, P);
     return `<section class="dz-cup ${open ? '' : 'locked'}" style="--cc:${c.color}">
       <div class="dz-cup-h"><div><div class="hh-eyebrow">${open ? `${cs}/${c.events.length * 3} stelle` : `${icon('lock')} Servono ${c.stars} stelle (ne hai ${stars})`}</div><div class="dz-cup-n">${esc(c.name)}</div><div class="small" style="color:var(--text2)">${esc(c.sub)}</div>${cupStory(c.id, P)}</div><div class="dz-cup-bar"><i style="width:${Math.round((cs / (c.events.length * 3)) * 100)}%"></i></div></div>
@@ -155,7 +169,7 @@ function careerTab(P) {
   }).join('')}</div>
   <div class="dz-section mt24">Sfide · ${Object.keys(P.ach || {}).length}/${CHALLENGES.length}</div>
   <div class="dz-achs">${CHALLENGES.map((c) => { const done = !!P.ach?.[c.id]; return `<div class="dz-ach ${done ? 'done' : ''}"><div class="dz-ach-i">${icon(done ? 'check' : c.icon)}</div><div><b>${esc(c.name)}</b><div class="tiny">${esc(c.desc)}</div></div><span class="dz-ach-p">${done ? 'Fatto' : money(c.prize)}</span></div>`; }).join('')}</div>
-  ${ev ? `<div class="qr-go mt24"><div class="qg-sum"><b>${esc(ev.name)}</b><span>${esc(MODES[ev.mode].name)} · ${esc(VENUES.find((x) => x.id === ev.venue)?.name || '')} · ${esc(BANGERS.find((b) => b.id === D.car)?.name || '')}${ev.targets ? ` · medaglie a ${ev.targets.join(' / ')} m` : ''}</span><span class="tiny" style="display:block;color:var(--muted)">${esc(MODES[ev.mode].desc)}</span></div><button class="btn primary xl" style="min-width:300px" data-a="dz-go-ev">${icon('flag')} Corri l’evento</button></div>` : `<div class="qr-go mt24"><div class="qg-sum"><b>Scegli un evento</b><span>Vinci medaglie per guadagnare stelle: le stelle sbloccano nuove coppe, arene e auto.</span></div><button class="btn primary xl" style="min-width:300px" data-a="dz-next-ev">${icon('play')} Prossimo evento</button></div>`}`;
+  ${ev ? `<div class="qr-go mt24"><div class="qg-sum"><b>${esc(ev.name)}</b><span>${esc(MODES[ev.mode].name)} · ${esc(VENUES.find((x) => x.id === ev.venue)?.name || '')} · ${esc(BANGERS.find((b) => b.id === D.car)?.name || '')}${ev.targets ? ` · medaglie a ${stuntTargets(ev.targets, D.car, tuneSpec(BANGERS.find((b) => b.id === D.car) || BANGERS[0], tuneOf(D.car, P)).top, PACE.stunt).join(' / ')} m con questa auto` : ''}</span><span class="tiny" style="display:block;color:var(--muted)">${esc(MODES[ev.mode].desc)}</span></div><button class="btn primary xl" style="min-width:300px" data-a="dz-go-ev">${icon('flag')} Corri l’evento</button></div>` : `<div class="qr-go mt24"><div class="qg-sum"><b>Scegli un evento</b><span>Vinci medaglie per guadagnare stelle: le stelle sbloccano nuove coppe, arene e auto.</span></div><button class="btn primary xl" style="min-width:300px" data-a="dz-next-ev">${icon('play')} Prossimo evento</button></div>`}`;
 }
 function freeTab(P) {
   const v = VENUES.find((x) => x.id === D.venue) || VENUES[0];
@@ -247,6 +261,8 @@ let backTo = 'menu';
 registerScreen({
   id: 'derby', full: true,
   render(params) {
+    // a deep link (Baso Hub mode tile) picks the first tab once: later refreshes keep the tab the player chose
+    if (params?.tab && !D.playing) { D.tab = params.tab; delete params.tab; }
     if (params?.from) backTo = params.from; else if (params?.to === 'derby') backTo = 'menu';
     if (D.playing) return `<div class="dz-root" id="dz-root"><div class="dz-loading">Carico il motore fisico…</div></div>`;
     const P = prog();
@@ -330,6 +346,7 @@ registerScreen({
     'dz-opp'(el) { D.opponents = +el.dataset.v; App.refresh(); },
     'dz-weather'(el) { D.weather = el.dataset.v; App.refresh(); },
     'dz-go'() { D.champ = false; D.run = { venue: D.venue, mode: D.mode, car: D.car, opponents: D.opponents, weather: D.weather }; D.playing = true; sfx.ok(); App.refresh(); },
+    'dz-daily'() { const { ev } = dailyState(prog()); D.champ = false; D.run = { event: ev, car: ev.car }; D.playing = true; sfx.ok(); App.refresh(); },
     'dz-go-ev'() { const ev = eventById(D.ev); if (!ev) return; const P = prog(); if (!P.owned.includes(D.car)) D.car = 'berlina'; D.champ = false; D.run = { event: ev, car: D.car }; D.playing = true; sfx.ok(); App.refresh(); },
     'dz-champ-new'() { const P = prog(); if (!P.owned.includes(D.car)) D.car = 'berlina'; champStart(D.car, null); App.refresh(); },
     'dz-champ-reset'() { App.confirm('Ricominciare il campionato?', 'I punti raccolti andranno persi.', () => { champReset(); App.refresh(); }); },

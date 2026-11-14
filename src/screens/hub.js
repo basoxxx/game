@@ -18,7 +18,8 @@ import { SURFACES } from '../data/categories.js';
 import { driverChip, ovr, ratingBox, moraleChip, teamStripe } from './common.js';
 import './paddock.js';
 import { ensureDynasty, statusInfo, maybeDynDecision, dynDecisionView, resolveDynDecision, STATUS, MANDATES, pressIssues, academyDrivers, academySlots } from '../engine/dynasty.js';
-import { pressArt, portraitSVG, statusEmblem, teamCol, boardTable } from './career-ui.js';
+import { pressArt, portraitSVG, statusEmblem, teamCol, boardTable, objectiveRow, ring } from './career-ui.js';
+import { seasonStats, xpForLevel } from '../engine/progress.js';
 import { celebrate } from './results.js';
 import { strategyBadge } from '../engine/career5.js';
 
@@ -33,10 +34,11 @@ function rivalPanel(st) {
   let list = [];
   try { list = rivalryList(st).filter((r) => r.heat >= 12).slice(0, 4); } catch { return ''; }
   if (!list.length) return '';
-  return `<div class="panel"><div class="panel-head"><h3>${icon('flame')} Tensione tra piloti</h3></div><div>${list.map((r) => { const a = st.drivers[r.a], b = st.drivers[r.b]; const c = heatColor(r.heat); return `<div class="rival-row ${r.mine ? 'mine' : ''}"><div class="row between"><b style="font-family:var(--display);font-size:18px;text-transform:uppercase">${esc(a.name.split(' ').slice(-1)[0])} <span class="dim">vs</span> ${esc(b.name.split(' ').slice(-1)[0])}</b><span style="font-family:var(--display);font-size:13px;letter-spacing:.1em;color:${c};font-weight:800">${heatLabel(r.heat).toUpperCase()}</span></div><div class="heat"><i style="width:${Math.round(r.heat)}%;background:${c}"></i></div><div class="small muted">${r.mates ? 'Compagni di squadra · ' : ''}${esc(r.why)}</div></div>`; }).join('')}</div></div>`;
+  return `<div class="panel"><div class="panel-head"><h3>${icon('flame')} Tensione tra piloti</h3></div><div>${list.map((r) => { const a = st.drivers[r.a], b = st.drivers[r.b]; const c = heatColor(r.heat); return `<div class="rival-row ${r.mine ? 'mine' : ''}"><div class="row between"><b style="font-family:var(--display);font-size:18px;text-transform:uppercase">${esc(a.name.split(' ').slice(-1)[0])} <span class="dim">vs</span> ${esc(b.name.split(' ').slice(-1)[0])}</b><span style="font-family:var(--display);font-size:13px;letter-spacing:.1em;color:${c};font-weight:800">${heatLabel(r.heat).toUpperCase()}</span></div><div class="heat"><i style="width:${Math.round(r.heat)}%;background:${c}"></i></div><div class="small muted">${r.mates && !/^compagni di squadra/i.test(r.why || '') ? 'Compagni di squadra · ' : ''}${esc(r.why)}</div></div>`; }).join('')}</div></div>`;
 }
 
 let hubStage = null;
+let hubSeenDone = null;
 // "Da fare": everything that needs the player's attention, most urgent first.
 // [level, text, 'screen' | 'screen:tab'] — also drives the sidebar badges.
 export function computeTodo(st) {
@@ -77,9 +79,43 @@ export function computeTodo(st) {
 App.todoProvider = computeTodo;
 const TODO_DEST = { hub: ['home', 'Decisione'], market: ['market', 'Mercato'], finance: ['money', 'Finanze'], car: ['car', 'Centro Tecnico'], career: ['star', 'Carriera'], inbox: ['mail', 'Posta'], standings: ['chart', 'Classifiche'], paddock: ['news', 'Paddock'], drivers: ['users', 'Piloti'] };
 const TODO_IC = { bad: 'alert', warn: 'bell', good: 'star', info: 'info' };
+// Season goals: the board target, the three season objectives and the manager level, always in view
+function seasonGoals(st, s, tpos) {
+  ensureProgress(st);
+  const t = playerTeam(st); const target = st.board.target; const n = st.calendar.length; const r = Math.min(st.round, n);
+  const myPts = s.teams.find((x) => x.id === t.id)?.pts || 0;
+  const onTrack = tpos <= target;
+  const gap = onTrack ? myPts - (s.teams[target]?.pts ?? 0) : (s.teams[target - 1]?.pts || 0) - myPts;
+  const boardLine = !st.round ? `Chiudi almeno <b>${target}°</b> tra i costruttori`
+    : onTrack ? `In linea con l’obiettivo${s.teams[target] ? ` · <b class="good">+${gap} pt</b> di margine` : ''}`
+    : `<b class="bad">${gap} pt</b> dal ${target}° posto`;
+  const col = !st.round ? 'var(--team)' : onTrack ? 'var(--good)' : tpos - target <= 2 ? 'var(--warn)' : 'var(--bad)';
+  const stats = seasonStats(st);
+  const objs = st.objectives || [];
+  const doneN = objs.filter((o) => o.done).length;
+  const c = st.career; const need = xpForLevel(c.level || 1); const xp = c.xp || 0;
+  const pips = st.calendar.map((ev, i) => {
+    if (i >= r) return `<i class="${i === r ? 'now' : ''}"></i>`;
+    const mine = ev.results?.classification.filter((x) => x.teamId === t.id) || [];
+    const best = Math.min(99, ...mine.map((x) => (x.status === 'dnf' ? 99 : x.pos)));
+    return `<i class="${best === 1 ? 'win' : best <= 3 ? 'pod' : mine.some((x) => x.pts > 0) ? 'pts' : 'done'}" title="R${i + 1}: ${best === 99 ? 'ritiro' : 'P' + best}"></i>`;
+  }).join('');
+  return `<section class="season-goals">
+    <div class="sg-board" data-a="nav" data-to="standings" role="button" aria-label="Classifica costruttori">
+      ${ring(st.round ? Math.max(0.06, 1 - (tpos - 1) / Math.max(1, s.teams.length - 1)) : 0, { size: 92, stroke: 8, color: col, label: st.round ? `${tpos}°` : '—', sub: `su ${s.teams.length}` })}
+      <div style="min-width:0"><div class="sg-k">Obiettivo del consiglio</div><div class="sg-v">${target}° posto</div><div class="sg-s">${boardLine}</div></div>
+    </div>
+    <div class="sg-objs"><div class="sg-k sg-head"><span>Obiettivi stagionali</span><span class="sg-count">${doneN}/${objs.length}</span></div>${objs.map((o) => objectiveRow(o, stats, { money: false })).join('')}</div>
+    <div class="sg-side">
+      <div class="sg-season"><div class="sg-head"><span class="sg-k">Stagione ${st.season}</span><span class="sg-big">${r}<small>/${n}</small></span></div><div class="sg-pips" aria-label="Eventi disputati: ${r} su ${n}">${pips}</div><div class="sg-s">${n - r === 0 ? 'Calendario concluso' : `${n - r} ${n - r === 1 ? 'evento' : 'eventi'} al termine`}</div></div>
+      <div class="sg-lvl" data-a="nav" data-to="career" role="button" aria-label="Carriera manager"><div class="sg-head"><span class="sg-k">Manager · Livello ${c.level || 1}</span><span class="tiny muted mono">${xp}/${need} XP</span></div>${bar((xp / need) * 100, 'gold')}${c.points ? `<div class="sg-pts">${icon('star')} ${c.points} ${c.points === 1 ? 'punto abilità' : 'punti abilità'} da spendere</div>` : ''}</div>
+    </div>
+  </section>`;
+}
+
 function todoPanel(todo) {
   const urgent = todo.filter((x) => x[0] === 'bad').length;
-  const head = `<div class="panel-head"><h3>${icon('check')} Da fare</h3>${todo.length ? `<span class="todo-count ${urgent ? 'urgent' : ''}">${urgent ? `${urgent} urgenti · ` : ''}${todo.length}</span>` : ''}</div>`;
+  const head = `<div class="panel-head"><h3>${icon('check')} Da fare</h3>${todo.length ? `<span class="todo-count ${urgent ? 'urgent' : ''}">${urgent ? `${urgent} ${urgent === 1 ? 'urgente' : 'urgenti'} · ` : ''}${todo.length}</span>` : ''}</div>`;
   if (!todo.length) return `<div class="panel todo-panel">${head}<div class="todo-empty">${icon('check')}<div><b>Tutto in ordine</b><span>Nessuna questione aperta: puoi andare al weekend di gara.</span></div></div></div>`;
   return `<div class="panel todo-panel">${head}<div class="todo-list">${todo.map(([cls, txt, to]) => { const [scr, tab] = to.split(':'); const d = TODO_DEST[scr] || ['right', '']; return `<div class="todo t-${cls}" data-a="nav" data-to="${scr}"${tab ? ` data-tab="${tab}"` : ''}><span class="todo-ic">${icon(TODO_IC[cls] || 'info')}</span><span class="grow">${txt}</span>${d[1] ? `<span class="todo-dest">${d[1]}</span>` : ''}${icon('right')}</div>`; }).join('')}</div></div>`;
 }
@@ -136,16 +172,18 @@ registerScreen({
     const myPts = s.teams.find((x) => x.id === t.id)?.pts || 0;
     const leaderPts = s.teams[0]?.pts || 0;
     const conf = st.board.confidence;
+    const ss = seasonStats(st);
 
     return `<div class="screen-title"><div><div class="sub">${esc(C.full)} · Stagione ${st.season}</div><h1>Panoramica</h1></div></div>
       <div class="col gap16 anim-in">
         ${hero}
         <div class="hub-kpis">
-          <div><b class="${tpos <= st.board.target ? '' : 'bad'}">${tpos}°<small>obiettivo ${st.board.target}°</small></b><span>Campionato costruttori</span></div>
+          <div><b>${ss.wins}<small>${ss.podiums} ${ss.podiums === 1 ? 'podio' : 'podi'}${ss.poles ? ` · ${ss.poles} pole` : ''}</small></b><span>Vittorie in stagione</span></div>
           <div><b>${myPts}${leaderPts > myPts ? `<small>−${leaderPts - myPts} dal leader</small>` : myPts ? '<small>in testa</small>' : ''}</b><span>Punti squadra</span></div>
           <div><b class="${t.money < 0 ? 'bad' : ''}">${fmtM(t.money)}</b><span>Budget disponibile</span></div>
           <div><b style="color:${conf < 30 ? 'var(--bad)' : conf > 65 ? 'var(--good)' : 'var(--warn)'}">${conf}%</b><span>Fiducia del consiglio</span>${bar(conf, conf < 30 ? 'red' : conf > 65 ? 'green' : 'gold')}</div>
         </div>
+        ${seasonGoals(st, s, tpos)}
         ${dynastyStrip(st)}
         <div class="hub-grid">
           <div class="col gap16">
@@ -162,7 +200,6 @@ registerScreen({
           <div class="col gap16">
             ${todoPanel(todo)}
             ${goalsPanel(st)}
-            ${st.objectives?.length ? `<div class="panel"><div class="panel-head"><h3>Obiettivi stagionali</h3><span class="small muted">Manager Lv ${st.career.level || 1}</span></div><div>${st.objectives.map((o) => `<div class="obj-row">${icon(o.done ? 'check' : 'target', 'ico', `style="width:18px;height:18px;flex:none;color:${o.done ? 'var(--good)' : 'var(--dim)'}"`)}<span class="grow ${o.done ? 'good' : ''}">${esc(o.text)}</span><span class="small muted mono">${o.xp} XP</span></div>`).join('')}</div></div>` : ''}
             <div class="panel"><div class="panel-head"><h3>Classifica piloti</h3><button class="btn sm ghost" data-a="nav" data-to="standings">Tutte ${icon('right')}</button></div>
               <table class="tbl"><tbody>${s.drivers.slice(0, 6).map((x, i) => { const d = st.drivers[x.id]; const tm = st.teams[d.teamId]; return `<tr class="${d.teamId === t.id ? 'me' : ''}"><td class="pos p${i + 1}">${i + 1}</td><td style="width:8px;padding-left:0;padding-right:0">${tm ? teamStripe(tm) : ''}</td><td>${driverChip(st, d, { helmet: false })}</td><td class="right mono"><b>${x.pts}</b></td></tr>`; }).join('')}</tbody></table>
             </div>
@@ -177,6 +214,10 @@ registerScreen({
   mount() {
     const st = S();
     countUp(document.querySelectorAll('.hub-kpis > div > b'), 'hub');
+    // a season objective completed since the last visit: its row flashes once
+    const done = (st.objectives || []).filter((o) => o.done).map((o) => o.id).join(',');
+    if (hubSeenDone != null && hubSeenDone !== done) document.querySelectorAll('.sg-objs .objp.done').forEach((el) => el.classList.add('flash'));
+    hubSeenDone = done;
     {
       const host = document.getElementById('hub-stage');
       if (host) { const t = playerTeam(st), d0 = teamDrivers(st, t)[0]; hubStage = mountStage(host, { id: 'hub', mode: 'hero', shift: host.clientWidth < 1150 ? 0.25 : 0.17, angle: 0.66, pitch: 0.05, dist: 8.4, fov: 22, target: [0.1, 0.72, 0], category: st.category, livery: t.car.livery, number: d0?.number, sponsor: t.sponsors[0]?.name || t.short, helmet: d0?.helmet.c1, team: { name: t.name, short: t.short }, series: cat(st).full, box: d0?.number || 1 }); }
@@ -251,9 +292,9 @@ function dynastyStrip(st) {
 function goalsPanel(st) {
   const D = st.dyn; const t = playerTeam(st);
   if (!D?.goals || st.round >= st.calendar.length) return '';
-  if (!t.sponsors.length) return `<div class="panel"><div class="panel-head"><h3>${icon('target')} Obiettivi sponsor del weekend</h3></div><div class="small muted">Nessuno sponsor firmato: ogni sponsor ti assegna un obiettivo diverso a ogni evento, con un premio extra.</div><button class="btn sm mt16" data-a="nav" data-to="finance">Firma uno sponsor ${icon('right')}</button></div>`;
+  if (!t.sponsors.length) return `<div class="panel sp-goals"><div class="panel-head"><h3>${icon('target')} Obiettivi sponsor del weekend</h3></div><div class="small muted">Nessuno sponsor firmato: ogni sponsor ti assegna un obiettivo diverso a ogni evento, con un premio extra.</div><button class="btn sm mt16" data-a="nav" data-to="finance">Firma uno sponsor ${icon('right')}</button></div>`;
   const tot = D.goals.list.reduce((a, g) => a + g.reward, 0);
-  return `<div class="panel"><div class="panel-head"><h3>${icon('target')} Obiettivi sponsor del weekend</h3><span class="chip good">Fino a +${fmtM(tot)}</span></div>
+  return `<div class="panel sp-goals"><div class="panel-head"><h3>${icon('target')} Obiettivi sponsor del weekend</h3><span class="chip good">Fino a +${fmtM(tot)}</span></div>
     ${D.goals.list.map((g) => { const sp = t.sponsors.find((x) => x.id === g.sp); const sat = sp?.sat ?? 60; return `<div class="goal-row"><div class="goal-tier t${g.tier}">${'★'.repeat(g.tier)}</div><div style="min-width:0"><div class="gt">${esc(g.text)}</div><div class="gs">${esc(g.name)} · soddisfazione ${sat}%</div><div class="sat-bar"><i style="width:${sat}%;background:${sat >= 65 ? 'var(--good)' : sat >= 35 ? 'var(--warn)' : 'var(--bad)'}"></i></div></div><div class="gr">+${fmtM(g.reward)}</div></div>`; }).join('')}
     <div class="tiny muted mt8">Sponsor soddisfatti rinnovano con un aumento; quelli scontenti possono andarsene.</div></div>`;
 }

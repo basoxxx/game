@@ -94,7 +94,8 @@ export function startTour(id, steps, opts = {}) {
   };
   const onResize = () => place();
   window.addEventListener('resize', onResize); document.addEventListener('keydown', onKey, true);
-  active = { id, mask, card, opts, onKey, onResize, watch: setInterval(() => { if (opts.screen && window.__apex?.App?.cur !== opts.screen) endTour(false); else place(); }, 400) };
+  // a passive tour (race) ends when a decision or dialog pops up, so it never covers it
+  active = { id, mask, card, opts, onKey, onResize, watch: setInterval(() => { if ((opts.screen && window.__apex?.App?.cur !== opts.screen) || (opts.passive && document.querySelector('#dec-modal, .modal-wrap'))) endTour(false); else place(); }, 400) };
   sfx.open();
   show();
 }
@@ -106,6 +107,7 @@ export const TOURS = {
   career: () => [
     { title: 'Benvenuto al muretto', icon: 'flag', text: `Sei il <b>Team Principal</b>. Ogni round del calendario è una settimana: prima <b>prepari la squadra</b> in fabbrica, poi vai al <b>weekend di gara</b>. Ti mostro dove si trova tutto in 30 secondi.` },
     { sel: '.topbar .tb-stats', icon: 'chart', title: 'I numeri che contano', text: 'Round, <b>budget</b>, <b>fiducia del consiglio</b> e il tuo <b>livello manager</b>. Se la fiducia scende troppo rischi il posto: rispetta l’obiettivo stagionale.' },
+    { sel: '.season-goals', icon: 'target', title: 'I tuoi obiettivi', text: 'Qui vedi a colpo d’occhio dove sei rispetto all’<b>obiettivo del consiglio</b>, i tre <b>obiettivi stagionali</b> (XP e premi in denaro) e quanto manca al prossimo <b>livello manager</b>.' },
     { sel: '.todo-panel', icon: 'check', title: 'Da fare', text: 'La lista delle cose che ti aspettano questa settimana, le più urgenti in alto. <b>Clicca una voce</b> per andare dritto alla schermata giusta: svuotala prima di partire per il weekend.' },
     { sel: '.sidebar', icon: 'home', title: 'Il menu della squadra', place: 'right', text: 'Le sezioni sono divise in <b>Sede</b>, <b>Squadra</b>, <b>Campionato</b> e <b>Carriera</b>. Il numerino colorato accanto a una voce segnala qualcosa da fare lì: <b>rosso</b> urgente, <b>giallo</b> da sistemare.' },
     { sel: '.sidebar .nav[data-to="car"]', icon: 'car', title: 'Centro Tecnico', text: 'Avvia i progetti di <b>R&amp;D</b> per migliorare la monoposto. Pensa ai prossimi circuiti: motore per le piste veloci, carico per quelle lente.' },

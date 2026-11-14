@@ -9,12 +9,17 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { getSettings } from '../engine/state.js';
+import { gfxTier } from './quality.js';
 
 const BASE = './assets/';
 const texLoader = new THREE.TextureLoader();
 const cache = new Map();
+// the light setting loads half-resolution copies of every PBR map (<name>_512.<ext>, next to the
+// 1k / 2k originals) and of the skies: a quarter of the download and of the GPU memory
+export const lowRes = (url) => (gfxTier() === 'low' ? url.replace(/_(1k|2k)\.(jpg|webp|hdr)$/, '_512.$2') : url);
 
 function load(url, srgb) {
+  url = lowRes(url);
   const key = url + (srgb ? ':s' : '');
   if (cache.has(key)) return cache.get(key);
   const t = texLoader.load(url);
@@ -27,9 +32,10 @@ function load(url, srgb) {
 export function loadTex(path, srgb = true) { return load(BASE + path, srgb); }
 
 // PBR material from a Poly Haven texture set. repeat = [u, v]
-export function pbr(id, { repeat = [1, 1], color = 0xffffff, normalScale = 1, roughness = 1, metalness = 0 } = {}) {
-  const map = load(`${BASE}tex/${id}_diff_1k.jpg`, true).clone();
-  const nor = load(`${BASE}tex/${id}_nor_gl_1k.jpg`).clone();
+// res: '1k' | '2k' (albedo + normal; roughness stays 1k)
+export function pbr(id, { repeat = [1, 1], color = 0xffffff, normalScale = 1, roughness = 1, metalness = 0, res = '1k' } = {}) {
+  const map = load(`${BASE}tex/${id}_diff_${res}.jpg`, true).clone();
+  const nor = load(`${BASE}tex/${id}_nor_gl_${res}.jpg`).clone();
   const rough = load(`${BASE}tex/${id}_rough_1k.jpg`).clone();
   // clones share the image source: the upload happens once the original finishes loading
   for (const t of [map, nor, rough]) t.repeat.set(repeat[0], repeat[1]);
@@ -81,9 +87,13 @@ export function triMat(id, { scale = 0.25, color = 0xffffff, roughness = 1, meta
 // colour variation and, for the racing surface, rain wetness with puddles (mirror-like
 // patches with flattened normals). WET is shared by every patched material.
 export const WET = { value: 0 };
+// RAIN = rain falling right now (0..1, drives the drop ripples and how fast the line dries),
+// FXT = shared animation clock (s)
+export const RAIN = { value: 0 };
+export const FXT = { value: 0 };
 const NOISE_GLSL = /* glsl */`
   varying vec3 vWPos;
-  uniform float uWet;
+  uniform float uWet, uRain, uFxT;
   float dh21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
   float dvn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     return mix(mix(dh21(i), dh21(i + vec2(1.0, 0.0)), f.x), mix(dh21(i + vec2(0.0, 1.0)), dh21(i + vec2(1.0, 1.0)), f.x), f.y); }
@@ -100,7 +110,7 @@ export function detailPatch(mat, { antiTile = true, macro = 0.18, macroScale = 0
   const tintV = new THREE.Color(tint ?? 0xffffff);
   mat.userData.wetPatch = wet;
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uWet = WET;
+    sh.uniforms.uWet = WET; sh.uniforms.uRain = RAIN; sh.uniforms.uFxT = FXT;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;' + (track ? '\nattribute vec3 aTrk; varying vec3 vTrk;' : ''))
       .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;' + (track ? '\nvTrk = aTrk;' : ''));
@@ -164,8 +174,13 @@ export function detailPatch(mat, { antiTile = true, macro = 0.18, macroScale = 0
         // crack sealing lines (thin dark meandering tar)
         float ck = abs(dvn(vec2(along * 0.09, lat * 0.35) + 40.0) - 0.5);
         diffuseColor.rgb *= 1.0 - 0.2 * (1.0 - smoothstep(0.003, 0.009, ck)) * step(0.72, dvn(vec2(along * 0.02, 3.0)));
-        // the racing line dries first
-        wetL = uWet * (1.0 - 0.5 * rub * smoothstep(0.9, 0.35, uWet));
+        // the racing line dries first: tyres clear the water off it, so once the rain eases a
+        // dark-grey dry line opens along the rubber while the rest of the track stays wet
+        float dryK = clamp(1.0 - uRain / max(uWet, 0.02), 0.0, 1.0);
+        float dl2 = 1.0 - smoothstep(1.0, 2.6 + 0.8 * streak, dl);
+        wetL = uWet * (1.0 - max(0.5 * rub * smoothstep(0.9, 0.35, uWet), dl2 * dryK * (0.97 - 0.2 * streak)));
+        // standing water collects in the low edges, spray-darkened stripes along the wheel tracks
+        wetL = min(1.0, wetL * (1.0 + 0.25 * smoothstep(${f(track.halfW - 2.0)}, ${f(track.halfW)}, abs(lat))));
       }
       #endif` : ''}
       ${mow ? `#ifdef USE_MAP
@@ -185,7 +200,27 @@ export function detailPatch(mat, { antiTile = true, macro = 0.18, macroScale = 0
     const rr = (rough ? `\nroughnessFactor = ${f(rough[0])} + ${f(rough[1] - rough[0])} * roughnessFactor;` : '') + (track && track.ruts ? `\nroughnessFactor *= 1.0 - ${track.snow ? '0.55' : '0.25'} * rub;` : '') + (wet ? '\nroughnessFactor *= 1.0 - 0.12 * rub; roughnessFactor = mix(roughnessFactor, 0.16, wetL * 0.75); roughnessFactor = mix(roughnessFactor, 0.03, pud);' : '');
     if (rr) fs = fs.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + rr);
     if (wet) {
-      fs = fs.replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(mix(normal, normalize(vNormal) * faceDirection, max(pud, wetL * 0.5)));');
+      fs = fs.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        normal = normalize(mix(normal, normalize(vNormal) * faceDirection, max(pud, wetL * 0.5)));
+        // raindrop ripples: expanding rings, one drop per 35 cm cell at a random time, on the
+        // water film and (stronger) in the puddles; fade out with distance (they would only alias)
+        if (uRain > 0.02) {
+          float rd = length(vWPos - cameraPosition);
+          float rk = uRain * max(pud, wetL * 0.45) * (1.0 - smoothstep(12.0, 45.0, rd));
+          if (rk > 0.002) {
+            vec2 rg = vec2(0.0);
+            for (int li = 0; li < 2; li++) {
+              vec2 cp = vWPos.xz * (li == 0 ? 2.9 : 2.1) + float(li) * 17.3;
+              vec2 ci = floor(cp), cf = fract(cp) - 0.5;
+              float h = dh21(ci), t = fract(uFxT * (0.9 + 0.5 * h) + h * 7.0);
+              vec2 dd = cf - (vec2(dh21(ci + 3.1), dh21(ci + 5.7)) - 0.5) * 0.5;
+              float r = length(dd), w = r - t * 0.45;
+              float ring = sin(w * 60.0) * exp(-w * w * 180.0) * (1.0 - t) * step(h, 0.35 + 0.6 * uRain);
+              rg += dd / max(r, 1e-3) * ring;
+            }
+            normal = normalize(normal + (viewMatrix * vec4(rg.x, 0.0, rg.y, 0.0)).xyz * rk * 0.35);
+          }
+        }`);
     }
     sh.fragmentShader = fs;
   };
@@ -240,7 +275,7 @@ export function stabilizeShadow(light, center, dir, half, dist = 400) {
   light.position.copy(light.target.position).addScaledVector(_sz, dist);
 }
 
-const HDRIS = { day: 'kloofendal_48d_partly_cloudy_puresky_1k.hdr', afternoon: 'qwantani_late_afternoon_puresky_1k.hdr', dusk: 'qwantani_dusk_2_puresky_1k.hdr', night: 'moonless_golf_1k.hdr' };
+const HDRIS = { day: 'kloofendal_48d_partly_cloudy_puresky_1k.hdr', afternoon: 'qwantani_late_afternoon_puresky_1k.hdr', dusk: 'qwantani_dusk_2_puresky_1k.hdr', night: 'moonless_golf_1k.hdr', overcast: 'kloofendal_overcast_puresky_1k.hdr' };
 const hdrCache = {};
 // direction of the brightest pixel (the sun) in three.js equirect convention
 function findSun(tex) {
@@ -273,7 +308,7 @@ export function applyHDRI(renderer, scene, kind = 'day', { background = true, in
       resolve(true);
     };
     if (hdrCache[kind]) return done(hdrCache[kind]);
-    new RGBELoader().setDataType(THREE.FloatType).load(BASE + 'hdri/' + HDRIS[kind], (t) => {
+    new RGBELoader().setDataType(THREE.FloatType).load(lowRes(BASE + 'hdri/' + HDRIS[kind]), (t) => {
       t.mapping = THREE.EquirectangularReflectionMapping;
       // some skies store a sun brighter than half-float range: the PMREM (half float) would turn
       // it into Inf/NaN and black out every reflection, so clamp the peak
@@ -353,6 +388,93 @@ const GradeShader = {
       gl_FragColor = vec4(clamp(c.rgb, 0.0, 1.0), c.a);
     }`,
 };
+
+// ---- raindrops on the lens (on-board / chase cameras in the rain) ---------------------------
+// Display space. Two layers of droplets on a jittered grid: each lives a few seconds (beads,
+// sits, runs off), refracts the image behind it upside-down like a tiny lens, with a dark rim
+// and a specular glint. uWind (0..1, car speed) blows them across and stretches them into
+// streaks; uAmt = how much rain. A light veil softens the whole frame (wet glass).
+export const LensRainShader = {
+  uniforms: { tDiffuse: { value: null }, uAmt: { value: 0 }, uBlur: { value: 0 }, uTime: { value: 0 }, uWind: { value: 0 }, uAspect: { value: 16 / 9 }, uSeed: { value: 0 }, uTexel: { value: new THREE.Vector2(1 / 1280, 1 / 720) } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: /* glsl */`
+    uniform sampler2D tDiffuse; uniform float uAmt, uBlur, uTime, uWind, uAspect, uSeed; uniform vec2 uTexel; varying vec2 vUv;
+    float h21(vec2 p) { p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }
+    void layer(vec2 uv, float sc, float seed, float dens, inout vec2 off, inout float m, inout float rim, inout float spec) {
+      vec2 p = vec2(uv.x * uAspect, uv.y) * sc;
+      // the airflow pushes the drops out towards the edges and up at speed; slow: they run down
+      vec2 flow = vec2((uv.x - 0.5) * 1.6, 0.6) * uWind - vec2(0.0, 0.08) * (1.0 - uWind);
+      vec2 ci = floor(p), cf = fract(p);
+      float h = h21(ci + seed + uSeed);
+      if (h > uAmt * dens) return;
+      float h2 = h21(ci + seed + uSeed + 3.7), h3 = h21(ci + seed + uSeed + 9.1);
+      float life = fract(uTime * (0.1 + 0.18 * h2 + 0.5 * uWind) + h3);
+      float a = smoothstep(0.0, 0.06, life) * (1.0 - smoothstep(0.55 - 0.3 * uWind, 1.0, life));
+      vec2 c = vec2(0.25 + 0.5 * h2, 0.25 + 0.5 * h3) + flow * life * 0.9;
+      vec2 d = cf - c;
+      vec2 dir = normalize(flow + vec2(1e-4));
+      float along = dot(d, dir), across = dot(d, vec2(-dir.y, dir.x));
+      float st = 1.0 + 2.5 * uWind * smoothstep(0.1, 0.5, life);
+      float r = 0.1 + 0.16 * h;
+      float dist = length(vec2(along / st, across));
+      float inD = (1.0 - smoothstep(r * 0.8, r, dist)) * a;
+      if (inD <= 0.001) return;
+      off += -d / r * (r / sc) * vec2(1.0 / uAspect, 1.0) * 1.6 * inD;
+      m = max(m, inD);
+      rim = max(rim, smoothstep(0.55, 0.95, dist / r) * inD);
+      spec = max(spec, smoothstep(0.35, 0.0, length(d / r - vec2(-0.3, 0.35))) * inD);
+    }
+    void main() {
+      vec2 off = vec2(0.0); float m = 0.0, rim = 0.0, spec = 0.0;
+      if (uAmt > 0.001) {
+      layer(vUv, 9.0, 1.3, 0.3, off, m, rim, spec);
+      layer(vUv, 17.0, 7.9, 0.2, off, m, rim, spec);
+      layer(vUv, 31.0, 4.2, 0.12, off, m, rim, spec);
+      }
+      vec4 base = texture2D(tDiffuse, vUv);
+      // speed: radial blur towards the edges of the frame (the centre stays sharp)
+      if (uBlur > 0.001) {
+        vec2 dv = vUv - 0.5; float e = smoothstep(0.12, 0.7, length(dv * vec2(uAspect, 1.0)));
+        vec3 acc = base.rgb;
+        for (int i = 1; i < 7; i++) acc += texture2D(tDiffuse, vUv - dv * (float(i) * 0.012 * uBlur * e)).rgb;
+        base.rgb = acc / 7.0;
+      }
+      // wet glass: a soft veil
+      vec3 veil = (texture2D(tDiffuse, vUv + uTexel * vec2(2.0, 1.0)).rgb + texture2D(tDiffuse, vUv - uTexel * vec2(2.0, 1.0)).rgb + texture2D(tDiffuse, vUv + uTexel * vec2(-1.0, 2.0)).rgb + texture2D(tDiffuse, vUv - uTexel * vec2(-1.0, 2.0)).rgb) * 0.25;
+      vec3 col = mix(base.rgb, veil, 0.3 * uAmt);
+      if (m > 0.0) {
+        vec3 rc = texture2D(tDiffuse, clamp(vUv + off, 0.001, 0.999)).rgb * 1.08 + 0.02;
+        col = mix(col, rc, m);
+        col *= 1.0 - 0.35 * rim;
+        col += spec * 0.18;
+      }
+      gl_FragColor = vec4(col, base.a);
+    }`,
+};
+
+export function addLensRain(comp) {
+  if (!comp || comp.lensRain) return comp?.lensRain || null;
+  const p = new ShaderPass(LensRainShader); p.enabled = false;
+  p.setSize = (w, h) => p.uniforms.uTexel.value.set(1 / Math.max(1, w), 1 / Math.max(1, h));
+  const i = comp.grade ? comp.passes.indexOf(comp.grade) + 1 : comp.passes.length;
+  comp.insertPass(p, i); comp.lensRain = p;
+  return p;
+}
+
+// ---- cross-dissolve between camera shots ---------------------------------------------------
+// The previous frame is kept in a texture (copied from the canvas after each frame while no
+// dissolve runs); on a change of shot type the new image fades in over it. Last pass.
+const XFadeShader = {
+  uniforms: { tDiffuse: { value: null }, tPrev: { value: null }, uMix: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform sampler2D tDiffuse, tPrev; uniform float uMix; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); vec3 p = texture2D(tPrev, vUv).rgb; gl_FragColor = vec4(mix(c.rgb, p, uMix), c.a); }',
+};
+export function addXFade(comp) {
+  if (!comp || comp.xfade) return comp?.xfade || null;
+  const p = new ShaderPass(XFadeShader); p.enabled = false;
+  comp.addPass(p); comp.xfade = p;
+  return p;
+}
 
 // ---- visual filters (player-selectable colour grading) -------------------------------
 // Final pass after anti-aliasing, in display space: preset grade (vibrance, clarity,
@@ -616,6 +738,13 @@ export function updateSunFlare(composer, camera, sunDir, amount = 1) {
   const amt = amount * THREE.MathUtils.smoothstep(facing, 0.2, 0.75);
   f.enabled = amt > 0.01 && _sv.z < 1 && u > -0.5 && u < 1.5 && v > -0.5 && v < 1.5;
   f.uniforms.uSun.value.set(u, v); f.uniforms.uAmt.value = amt; f.uniforms.uAspect.value = camera.aspect;
+}
+
+// Frees a view's GPU side on screen exit: composer targets and passes, renderer caches, and the
+// WebGL context itself (browsers cap live contexts at ~16 and keep a dropped one until GC)
+export function releaseGL(renderer, composer) {
+  try { for (const p of composer?.passes || []) p.dispose?.(); composer?.dispose?.(); } catch {}
+  try { renderer?.dispose(); renderer?.forceContextLoss(); } catch {}
 }
 
 export function makeComposer(renderer, scene, camera, { bloom = 0.22, low = false, ao = false, grade = true, filter = true, flare = false, rays = false, dof = false } = {}) {

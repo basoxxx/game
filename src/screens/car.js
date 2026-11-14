@@ -37,10 +37,10 @@ registerScreen({
     const tabs = [['plan', 'Sala strategica'], ['dev', 'Sviluppo'], ['regs', 'Regole & PU'], ['design', 'Progetto'], ['compare', 'Confronto']];
     const rank = overallCarRanking(st).indexOf(t.id) + 1;
     return `<div class="screen-title"><div><div class="sub">${esc(t.name)} · Vettura ${st.season}</div><h1>Centro Tecnico</h1></div><div class="tabs">${tabs.map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="tab" data-t="${k}">${n}</div>`).join('')}</div></div>
-    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px" class="anim-in">
+    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px" class="anim-in car-top">
       <div class="car-stage ${show3d && stageEnabled() ? 'live' : ''}" style="min-height:300px"><div class="grid-floor"></div>
         <div class="cs-score" style="position:absolute;left:20px;top:16px;z-index:3"><div class="tiny upper muted">Valore complessivo</div><div style="font-family:var(--display);font-weight:900;font-style:italic;font-size:46px;line-height:1">${avgPart(t).toFixed(1)}</div><div class="small ${rank <= 3 ? 'good' : rank > 6 ? 'bad' : 'warn'}">${rank}ª vettura del gruppo</div></div>
-        <div style="position:absolute;right:20px;top:16px;z-index:3" class="chip">Concetto: <b>${C.concepts.find((c) => c.id === t.car.concept)?.name}</b></div>
+        <div style="position:absolute;right:20px;top:16px;z-index:3" class="chip cs-concept">Concetto: <b>${C.concepts.find((c) => c.id === t.car.concept)?.name}</b></div>
         <div style="position:absolute;right:20px;bottom:14px;z-index:3" class="row gap4"><button class="btn sm ${show3d ? 'active' : ''}" data-a="v3d">3D</button><button class="btn sm ${show3d ? '' : 'active'}" data-a="v2d">2D</button></div>
         <div id="garage3d" style="position:absolute;inset:0;z-index:1"></div>
         ${show3d && stageEnabled() ? '<div class="tiny muted cs-hint" style="position:absolute;left:20px;bottom:14px;z-index:3">Trascina per ruotare · rotella per lo zoom · passa sui componenti per evidenziarli</div>' : carSVG(st.category, t.car.livery, { number: ds[0]?.number, sponsor: t.sponsors[0]?.name || t.short, helmet: ds[0]?.helmet.c1 })}

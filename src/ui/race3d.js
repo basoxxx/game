@@ -5,12 +5,15 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { trackGeometry, speedProfile, sampleAtTimeFrac } from '../engine/trackphys.js';
 import { genStage, STAGE_STYLE } from './trackview.js';
 import { getSettings } from '../engine/state.js';
+import { gfxTier, pixelRatio } from './quality.js';
 import { passBy } from './audio.js';
 import { buildCar, setTyreColor, setCarLOD, MAT } from './cars3d.js';
-import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, updateSunFlare, updateGodRays, HeightFog, stabilizeShadow, triMat, loadTex } from './gfx.js';
+import { FrameGuard } from './perfguard.js';
+import { pbr, applyHDRI, makeComposer, releaseGL, detailPatch, hdriSun, hdriHorizon, WET, RAIN, FXT, updateSunFlare, updateGodRays, HeightFog, stabilizeShadow, triMat, loadTex, addLensRain, addXFade } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { biomeOf, RALLY_LOOK } from './env/biomes.js';
-import { buildCoast, buildMidTerrain, buildDecals, buildLife, buildRallyExtras, buildGridSlots } from './env/scenery.js';
+import { biomeOf } from './env/biomes.js';
+import { buildCoast, buildMidTerrain, buildDecals, buildLife, buildGridSlots } from './env/scenery.js';
+import { buildRallyStage } from './env/rallystage.js';
 
 // Tree geometry (origin at the base, height 1) with vertex colours: trunk + layered foliage
 function colorize(g, hex) { const c = new THREE.Color(hex); const n = g.attributes.position.count; const a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const k = 0.85 + Math.random() * 0.3; a[i * 3] = c.r * k; a[i * 3 + 1] = c.g * k; a[i * 3 + 2] = c.b * k; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; }
@@ -32,7 +35,7 @@ function bushGeo() {
   return _bushGeo;
 }
 
-function canvasTex(w, h, draw, repeat) {
+export function canvasTex(w, h, draw, repeat) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   draw(c.getContext('2d'), w, h);
   const t = new THREE.CanvasTexture(c);
@@ -42,7 +45,7 @@ function canvasTex(w, h, draw, repeat) {
   t.anisotropy = 4;
   return t;
 }
-function noise(ctx, w, h, base, amp, n = 6000, size = 2) {
+export function noise(ctx, w, h, base, amp, n = 6000, size = 2) {
   ctx.fillStyle = base; ctx.fillRect(0, 0, w, h);
   for (let i = 0; i < n; i++) { const v = Math.random() * amp; ctx.fillStyle = `rgba(${v > amp / 2 ? 255 : 0},${v > amp / 2 ? 255 : 0},${v > amp / 2 ? 255 : 0},${Math.random() * 0.08})`; ctx.fillRect(Math.random() * w, Math.random() * h, size, size); }
 }
@@ -83,7 +86,7 @@ function crowdPatch(mat) {
 //   'staff' : engineer in team shirt, dark trousers, headset
 //   'sit'   : seated engineer (pit-wall stand)
 const _people = {};
-function personGeo(kind = 'staff') {
+export function personGeo(kind = 'staff') {
   if (_people[kind]) return _people[kind];
   if (kind === 'spect') {
     // low-poly fan (~120 triangles): jeans, jacket (instance colour), head with a beanie
@@ -174,8 +177,11 @@ function personGeo(kind = 'staff') {
   return g;
 }
 
+let _webgl = null;
 export function webglAvailable() {
-  try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; }
+  // probed once: every probe is a WebGL context of its own (released straight away)
+  if (_webgl == null) { try { const c = document.createElement('canvas'); const gl = c.getContext('webgl2') || c.getContext('webgl'); _webgl = !!gl; gl?.getExtension('WEBGL_lose_context')?.loseContext(); } catch { _webgl = false; } }
+  return _webgl;
 }
 
 export class Race3D {
@@ -202,7 +208,7 @@ export class Race3D {
     this.focusKey = null;
     this.low = getSettings().gfx === 'low';
     this.renderer = new THREE.WebGLRenderer({ antialias: !this.low, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
-    this.renderer.setPixelRatio(this.low ? 1 : Math.min(1.5, window.devicePixelRatio || 1));
+    this.renderer.setPixelRatio(this.low ? 1 : pixelRatio(1.5));
     this.renderer.shadowMap.enabled = !this.low;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.AgXToneMapping;
@@ -211,7 +217,7 @@ export class Race3D {
     container.appendChild(this.renderer.domElement);
     Object.assign(this.renderer.domElement.style, { position: 'absolute', inset: '0', width: '100%', height: '100%' });
     this.scene = new THREE.Scene();
-    try { const pm = new THREE.PMREMGenerator(this.renderer); this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; this.scene.environmentIntensity = 0.45; } catch {}
+    try { const pm = new THREE.PMREMGenerator(this.renderer); this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; this.scene.environmentIntensity = 0.45; pm.dispose(); } catch {}
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.3, 6000);
     // teams in entry order (first = nearest the pit exit): garages, stands and boxes
     this.teamList = []; this._boxes = new Map();
@@ -232,7 +238,7 @@ export class Race3D {
     // first frame: adding / un-hiding a light later changes the light count of every lit
     // material and recompiles them all at once (a visible hitch at nightfall)
     if (!this.low && this.nightable) this.carSpots = [0, 1].map(() => { const s = new THREE.SpotLight(0xeef3ff, 0, 90, 0.42, 0.6, 1.7); this.scene.add(s); this.scene.add(s.target); return s; });
-    WET.value = 0;
+    WET.value = 0; RAIN.value = 0;
     // time of day: explicit opts.timeOfDay ('day' | 'afternoon' | 'dusk'), else endurance races at
     // the night circuits start in the evening light
     // the golden-hour look of some rounds is the race's: practice / qualifying (the session screen)
@@ -254,6 +260,8 @@ export class Race3D {
       if (ok && this.tod) { this.scene.backgroundIntensity = this.tod.bg; if (this._lit) this._lit.bg = this.tod.bg; }
       if (sd) { const el = Math.min(0.95, Math.max(this.tod?.el ?? 0.45, Math.asin(sd.y))); const az = Math.atan2(sd.z, sd.x); this.sunDir.set(Math.cos(az) * Math.cos(el), Math.sin(el), Math.sin(az) * Math.cos(el)); }
       if (sd) this.buildSunDisc(sd);
+      // nightfall already applied before the sky finished loading: apply it again on top of it
+      if ((this._night || 0) > 0.01) { const n = this._night; this._night = -1; this._nightSkyOn = false; this._daySky = null; this._skyNight = false; this.setNight(n); }
     });
     this.composer = makeComposer(this.renderer, this.scene, this.camera, { bloom: night ? 0.45 : 0.18, low: this.low, ao: true, flare: !night, rays: !night, dof: true });
     // AgX tone mapping (soft highlight roll-off, no hue skews on the liveries) with a broadcast
@@ -265,6 +273,10 @@ export class Race3D {
     this.renderer.toneMappingExposure *= this._expK;
     if (this.composer?.grade) { const gu = this.composer.grade.uniforms; gu.uCon.value = this._gCon; gu.uSat.value = (this.tod?.sat ?? 1.08) * this._gSat; if (this.tod) gu.uWarm.value = this.tod.warm; }
     if (this.composer?.rays && this.tod) this.composer.rays.uniforms.uTint.value.setHex(this.tod.disc);
+    if (this.composer && !this.open) { addLensRain(this.composer); addXFade(this.composer); }
+    // shader-placed instances (grass grid) would be drawn untransformed by the AO normal pass
+    const ao = this.composer?.ao;
+    if (ao?.overrideVisibility) { const ov = ao.overrideVisibility.bind(ao); ao.overrideVisibility = () => { ov(); if (this.grass?.mesh) this.grass.mesh.visible = false; if (this.forest) this.forest.visible = false; }; }
     this.cars = new Map();
     for (const c of cars) this.addCar(c);
     this.camPos = new THREE.Vector3(0, 50, 0);
@@ -276,17 +288,30 @@ export class Race3D {
     this.resize();
     this._ro = new ResizeObserver(() => this.resize());
     this._ro.observe(container);
+    // compile every material in the background (KHR_parallel_shader_compile where the driver has
+    // it) instead of stalling the first frame on dozens of program links; the view starts drawing
+    // when they are ready (the intro starts then too)
+    this._ready = false;
+    const ready = () => { if (this._ready) return; this._ready = true; if (this.introT > 0) this.introStart = performance.now(); };
+    try { if (this.renderer.compileAsync) this.renderer.compileAsync(this.scene, this.camera).then(ready, ready); else ready(); } catch { ready(); }
+    setTimeout(ready, 10000);
   }
 
   destroy() {
     this._ro?.disconnect();
-    this.renderer.dispose();
+    this._xfTex?.dispose();
+    releaseGL(this.renderer, this.composer);
+    this.scene.traverse((o) => { o.geometry?.dispose?.(); });
+    if (typeof window !== 'undefined' && window.__r3d === this) window.__r3d = null;
     this.renderer.domElement.remove();
     this.labels.remove();
-    this.scene.traverse((o) => { o.geometry?.dispose?.(); });
     MAT.light('#ff2020', 3).emissiveIntensity = 3;
     // livery materials are shared with the garage / menus: wash the race dirt off
     for (const c of this.cars.values()) if (c.dirtMat) c.dirtMat.userData.dirtU.value = 0;
+  }
+
+  setPixelRatio(pr) {
+    this.renderer.setPixelRatio(pr); this.composer?.setPixelRatio(pr); this.resize();
   }
 
   resize() {
@@ -333,6 +358,93 @@ export class Race3D {
     this.clouds = new THREE.Group();
     for (let i = 0; i < 26; i++) { const sp = new THREE.Sprite(cloudMat); const a = Math.random() * Math.PI * 2, d = 900 + Math.random() * 1800; sp.position.set(Math.cos(a) * d, 260 + Math.random() * 260, Math.sin(a) * d); const sc = 500 + Math.random() * 700; sp.scale.set(sc, sc / 2, 1); this.clouds.add(sp); }
     this.scene.add(this.clouds);
+  }
+
+  // 3D grass on the verges near the camera: a fixed grid of clumps (crossed alpha-tested blade
+  // cards) re-centred on the camera every frame in the vertex shader, so only the ~80 m around
+  // the lens carry grass, at a constant cost (one draw). Where it may grow comes from a top-down
+  // mask of the circuit (verges between the track shoulder and the barriers, minus gravel traps,
+  // painted run-off, pit lane and the other parts of the track); clumps shrink to nothing at the
+  // edge of the grid and of the mask. Sways in the wind, shades darker at the root.
+  buildGrass(W, runoff) {
+    const { N, x, y, hdg, bbox } = this.geo;
+    const pad = 80, x0 = bbox[0] - pad, z0 = bbox[1] - pad, span = Math.max(bbox[2] - bbox[0], bbox[3] - bbox[1]) + 2 * pad;
+    const R = 2048, sc = R / span;
+    const cv = document.createElement('canvas'); cv.width = cv.height = R; const g = cv.getContext('2d');
+    g.fillStyle = '#000'; g.fillRect(0, 0, R, R);
+    const P = (i, off) => { i = ((i % N) + N) % N; return [(x[i] - Math.sin(hdg[i]) * off - x0) * sc, (y[i] + Math.cos(hdg[i]) * off - z0) * sc]; };
+    const band = (i0, i1, a, b, col) => { g.fillStyle = col; for (let i = i0; i < i1; i++) { const p = [P(i, a), P(i + 1, a), P(i + 1, b), P(i, b)]; g.beginPath(); g.moveTo(...p[0]); for (let q = 1; q < 4; q++) g.lineTo(...p[q]); g.closePath(); g.fill(); } };
+    for (const sd of [1, -1]) {
+      for (let i = 0; i < N; i++) {
+        const out = Math.min(W / 2 + runoff + 5, this.wallOff ? this.wallOff(i, sd) - 0.9 : W / 2 + runoff);
+        if (out < W / 2 + 3.2 || (sd > 0 && this.inPitZone(i, 14)) || (this.geo.h && this.geo.h[i] > 0.3)) continue;
+        band(i, i + 1, sd * (W / 2 + 2.9), sd * out, '#fff');
+        // the strip next to the track is mown short; it grows longer towards the barriers
+        band(i, i + 1, sd * (W / 2 + 2.9), sd * Math.min(out, W / 2 + 9), '#909090');
+      }
+    }
+    // no grass in the gravel traps / painted run-off outside the corners, nor on any track part
+    for (const cn of this.geo.corners) {
+      if (cn.r > 260) continue;
+      const side = -cn.dir, span2 = Math.min(40, Math.max(14, Math.round(cn.r / 6)));
+      band(cn.i - Math.round(span2 * 0.75), cn.i + span2 + 1, side * (W / 2), side * (W / 2 + runoff), '#000');
+    }
+    band(0, N, -(W / 2 + 2.6), W / 2 + 2.6, '#000');
+    const blur = document.createElement('canvas'); blur.width = blur.height = R; const bg = blur.getContext('2d'); bg.filter = 'blur(2px)'; bg.drawImage(cv, 0, 0);
+    const mask = new THREE.CanvasTexture(blur); mask.flipY = false; mask.generateMipmaps = false; mask.minFilter = mask.magFilter = THREE.LinearFilter;
+    // blade card texture
+    const tex = canvasTex(256, 128, (c, w, h) => {
+      c.clearRect(0, 0, w, h);
+      for (let k = 0; k < 70; k++) {
+        const bx = 6 + Math.random() * (w - 12), hh = h * (0.45 + Math.random() * 0.55), lean = (Math.random() - 0.5) * 34, bw = 2.2 + Math.random() * 2.6;
+        const v = 150 + Math.random() * 105; c.fillStyle = `rgb(${v},${v},${v})`;
+        c.beginPath(); c.moveTo(bx - bw, h); c.quadraticCurveTo(bx + lean * 0.3, h - hh * 0.6, bx + lean, h - hh); c.quadraticCurveTo(bx + lean * 0.3 + bw * 0.4, h - hh * 0.6, bx + bw, h); c.closePath(); c.fill();
+      }
+    });
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping; tex.colorSpace = THREE.SRGBColorSpace;
+    const parts = [];
+    for (let k = 0; k < 3; k++) parts.push(new THREE.PlaneGeometry(0.75, 0.3, 1, 2).translate(0, 0.15, 0).rotateY(k * Math.PI / 3));
+    const base = mergeGeometries(parts);
+    const G = 84, CS = 0.85, n = G * G;
+    const geo = new THREE.InstancedBufferGeometry(); geo.index = base.index;
+    for (const k of ['position', 'normal', 'uv']) geo.setAttribute(k, base.attributes[k]);
+    const cell = new Float32Array(n * 2); for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) cell.set([i - G / 2, j - G / 2], (i * G + j) * 2);
+    geo.setAttribute('aCell', new THREE.InstancedBufferAttribute(cell, 2)); geo.instanceCount = n;
+    const col = new THREE.Color(this.biome.grass).lerp(new THREE.Color(0x9ab86a), 0.25).multiplyScalar(0.92);
+    const mat = new THREE.MeshStandardMaterial({ color: col, map: tex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.85 });
+    const U = { uMask: { value: mask }, uMT: { value: new THREE.Vector3(x0, z0, sc / R) }, uCamG: { value: new THREE.Vector3() }, uTime: TIME };
+    mat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, U); sh.uniforms.uWet = WET;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>
+        attribute vec2 aCell; uniform sampler2D uMask; uniform vec3 uMT, uCamG; uniform float uTime; varying float vRoot; varying vec3 vTint;
+        float gh(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }`)
+        .replace('#include <beginnormal_vertex>', 'vec3 objectNormal = vec3(0.0, 1.0, 0.0);')
+        .replace('#include <begin_vertex>', `
+          vec2 cel = floor(uCamG.xz / ${CS.toFixed(2)}) + aCell;
+          float h = gh(cel), h2 = gh(cel + 3.7), h3 = gh(cel + 9.1);
+          vec2 wp = (cel + vec2(h2, h3)) * ${CS.toFixed(2)};
+          float m = texture2D(uMask, (wp - uMT.xy) * uMT.z).r;
+          float dd = length(wp - uCamG.xz);
+          float sc = smoothstep(0.25, 0.45, m) * (1.0 - smoothstep(${(CS * G * 0.32).toFixed(1)}, ${(CS * G * 0.48).toFixed(1)}, dd)) * (0.6 + 0.8 * h)
+            * smoothstep(0.8, 3.5, length(wp - cameraPosition.xz));
+          float tall = mix(0.4, 1.0, smoothstep(0.6, 0.95, m));
+          vTint = vec3(0.85 + 0.3 * h2, 0.88 + 0.24 * h2, 0.8 + 0.2 * h3) * mix(vec3(1.0), vec3(1.12, 1.04, 0.72), step(0.86, h3) * 0.7);
+          float a = h * 6.2831;
+          vec3 p = position * vec3(1.0, (0.6 + 0.7 * h2) * tall, 1.0) * sc;
+          p.xz = mat2(cos(a), -sin(a), sin(a), cos(a)) * p.xz;
+          // wind: the blade tips sway, gusts roll across the field
+          float gust = sin(uTime * 1.3 + wp.x * 0.11 + wp.y * 0.07) * 0.5 + 0.5;
+          p.xz += vec2(0.7, 0.4) * (sin(uTime * 2.4 + h * 20.0) * 0.03 + gust * 0.05) * position.y / 0.3 * sc;
+          vRoot = position.y / 0.3;
+          vec3 transformed = vec3(wp.x, uCamG.y, wp.y) + p;`);
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vRoot; varying vec3 vTint; uniform float uWet;')
+        .replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb *= vTint * (0.72 + 0.45 * vRoot) * (1.0 - 0.3 * uWet);');
+    };
+    mat.customProgramCacheKey = () => 'grass3d';
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.frustumCulled = false; mesh.receiveShadow = true; mesh.renderOrder = 1; mesh.userData.noAO = true;
+    this.scene.add(mesh);
+    this.grass = { mesh, U };
   }
 
   // ribbon along the centerline from offset a to b (meters, + = left)
@@ -439,7 +551,7 @@ export class Race3D {
     const D = (m, o) => (this.low ? m : detailPatch(m, o));
     this.desert = ['bhr', 'qat', 'abu', 'ksa'].includes(this.geo.cid);
     this.computeLine();
-    this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x3b3e44, roughness: 0.85 }) : D(pbr('asphalt_02', { color: 0x75757a, roughness: 1, normalScale: 0.8 }), { macro: 0.1, macroScale: 0.06, wet: true, rough: [0.62, 1.0], key: 'asph', track: { halfW: W / 2, uScale: 6 } });
+    this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x3b3e44, roughness: 0.85 }) : D(pbr('asphalt_track', { color: new THREE.Color().setRGB(1.1, 1.38, 1.52, THREE.LinearSRGBColorSpace), roughness: 1, normalScale: 0.9, repeat: [1.5, 1.5], res: gfxTier() === 'high' ? '2k' : '1k' }), { macro: 0.1, macroScale: 0.06, wet: true, rough: [0.62, 1.0], key: 'asph', track: { halfW: W / 2, uScale: 6 } });
     const runoffMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x777b82, roughness: 0.9 }) : D(pbr('concrete_floor_worn_001', { color: street > 0.7 ? 0x8a8a8a : 0xb8b8b8 }), { macro: 0.12, macroScale: 0.05, wet: true });
     const grassCol = this.biome.grass;
     const groundMat = this.low ? new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x84817b : 0x3f7a34, roughness: 1 }) : D(pbr(street > 0.7 ? 'concrete_floor_worn_001' : 'aerial_grass_rock', { repeat: [1400, 1400], color: street > 0.7 ? 0xb9b4aa : grassCol }), { macro: street > 0.7 ? 0.34 : 0.22, macroScale: street > 0.7 ? 0.03 : 0.012, tint: street > 0.7 ? 0x9a8f80 : this.biome.dry, tintAmt: street > 0.7 ? 0.5 : this.biome.dryAmt });
@@ -569,6 +681,7 @@ export class Race3D {
       this.scene.add(road);
     }
     this.buildKerbs(W, street);
+    if (!this.low && street <= 0.7) try { this.buildGrass(W, runoff); } catch (e) { console.warn('grass off', e); }
     const { N } = this.geo;
     // barriers
     const wallTex = canvasTex(256, 32, (c, w, h) => { const cols = street > 0.7 ? ['#e8e8e8', '#c81e1e'] : ['#d32f2f', '#f2f2f2']; for (let i = 0; i < 8; i++) { c.fillStyle = cols[i % 2]; c.fillRect(i * w / 8, 0, w / 8, h); } c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(0, h - 4, w, 4); });
@@ -703,265 +816,8 @@ export class Race3D {
     const sm = new THREE.Mesh(sg, new THREE.MeshStandardMaterial({ map: sTex, roughness: 0.5 })); sm.castShadow = true; sm.receiveShadow = true; this.scene.add(sm);
   }
 
-  buildStage() {
-    const surf = this.surface || 'gravel';
-    const W = surf === 'tarmac' ? 7 : 6;
-    this.TW = W;
-    const cols = { gravel: ['#8b6a43', '#6d5232'], rough: ['#7a5534', '#5a3d22'], tarmac: ['#3d4046', '#2e3035'], snow: ['#e9f2f8', '#c7d7e3'] }[surf];
-    const road = canvasTex(256, 256, (c, w, h) => { noise(c, w, h, cols[0], 255, 14000, 3); c.fillStyle = 'rgba(0,0,0,0.12)'; c.fillRect(w * 0.25, 0, w * 0.12, h); c.fillRect(w * 0.63, 0, w * 0.12, h); if (surf === 'tarmac') { c.fillStyle = '#e8e8e8'; for (let y = 0; y < h; y += 64) c.fillRect(w / 2 - 2, y, 4, 32); } });
-    const roadId = { tarmac: 'asphalt_02', gravel: 'gravel_floor', rough: 'rocky_trail', snow: 'snow_02' }[surf];
-    this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ map: road, roughness: surf === 'snow' ? 0.5 : 0.95 }) : detailPatch(pbr(roadId, { color: surf === 'tarmac' ? 0x8a8a8a : surf === 'gravel' ? 0xbcab92 : surf === 'rough' ? 0xd6cbb8 : 0xffffff, roughness: surf === 'snow' ? 0.6 : 1 }), { macro: 0.16, macroScale: 0.05, wet: surf !== 'snow', key: 'stage-road', track: { halfW: W / 2, uScale: surf === 'tarmac' ? 5 : 2.5, ruts: surf !== 'tarmac', snow: surf === 'snow' } });
-    const vergeMat = this.low ? new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (c, w, h) => noise(c, w, h, cols[1], 255, 5000, 3)), roughness: 1 }) : pbr(surf === 'snow' ? 'snow_02' : 'rocky_trail', { color: surf === 'snow' ? 0xffffff : 0xa89a80 });
-    const groundCol = surf === 'snow' ? '#dfe9f1' : surf === 'tarmac' ? '#4f6b3a' : '#5d6b38';
-    const N = this.geo.N, gx = this.geo.x, gz = this.geo.y, gh = this.geo.h || new Float64Array(N);
-    let hAvg = 0, hMin = Infinity; for (let i = 0; i < N; i++) { hAvg += gh[i]; hMin = Math.min(hMin, gh[i]); } hAvg /= N;
-    // terrain heightfield that hugs the road (road height near it, rolling ground further away)
-    const C = 40, cells = new Map();
-    for (let i = 0; i < N; i++) { const k = Math.floor(gx[i] / C) + ',' + Math.floor(gz[i] / C); if (!cells.has(k)) cells.set(k, []); cells.get(k).push(i); }
-    const near = (x, z) => {
-      const cx = Math.floor(x / C), cz = Math.floor(z / C); let bd = Infinity, bi = -1;
-      for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) { const l = cells.get((cx + a) + ',' + (cz + b)); if (l) for (const i of l) { const d = (gx[i] - x) ** 2 + (gz[i] - z) ** 2; if (d < bd) { bd = d; bi = i; } } }
-      return [bd, bi];
-    };
-    const ph = [0, 1, 2, 3, 4, 5].map(() => Math.random() * 6.283), RL = RALLY_LOOK[surf] || RALLY_LOOK.gravel;
-    const [bx0, bz0, bx1, bz1] = this.geo.bbox; const M = 320;
-    const X0 = bx0 - M, Z0 = bz0 - M, X1 = bx1 + M, Z1 = bz1 + M;
-    const G = this.low ? 110 : 220; const cellW = Math.max((X1 - X0) / G, (Z1 - Z0) / Math.max(20, Math.round(G * (Z1 - Z0) / (X1 - X0))));
-    const sm = (a, b, t) => { const u = Math.max(0, Math.min(1, (t - a) / (b - a))); return u * u * (3 - 2 * u); };
-    const terrH = (x, z, hi = -1, hd = 0) => {
-      const edge = Math.max(sm(X0 + M * 0.8, X0, x), sm(X1 - M * 0.8, X1, x), sm(Z0 + M * 0.8, Z0, z), sm(Z1 - M * 0.8, Z1, z));
-      let T = hAvg + 7 * Math.sin(x * 0.004 + ph[0]) * Math.cos(z * 0.0035 + ph[1]) + 3 * Math.sin(x * 0.011 + z * 0.009 + ph[2]);
-      T = T + (hMin - 2.5 - T) * edge;
-      let [d2, i] = near(x, z); let d = Math.sqrt(d2);
-      if (i < 0) { if (hi < 0) { i = nearFar(x, z); if (i < 0) return T; d = Math.hypot(gx[i] - x, gz[i] - z); } else { i = hi; d = hd; } }
-      // the land follows the road's own height nearby and eases to the rolling ground far away;
-      // beyond the verges it rises into ridges and drops into hollows (valley roads, hillsides)
-      const w = sm(W / 2 + 2.5, 60, d), wf = sm(120, 520, d);
-      const ridge = Math.sin(x * 0.0085 + ph[4]) * Math.cos(z * 0.0075 + ph[5]) + 0.45 * Math.sin((x - z) * 0.019 + ph[2]);
-      const rel = RL.relief * sm(30, 220, d) * (0.25 + Math.max(-0.45, ridge)) * (1 - edge);
-      const base = gh[i] - 0.3;
-      return base + (rel + 2.5 * sm(10, 40, d)) * w + (T - base) * wf;
-    };
-    // coarse lookup for points far from the road (props on the hills, cameras)
-    const nearFar = (x, z) => { let b = Infinity, bi = -1; for (let i = 0; i < N; i += 6) { const d = (gx[i] - x) ** 2 + (gz[i] - z) ** 2; if (d < b) { b = d; bi = i; } } return b < 1.2e6 ? bi : -1; };
-    this.terrH = terrH;
-    {
-      // terrain corridor: cross-sections along the road (fine by the verges, coarse further out),
-      // every vertex on the same height function, so the land hugs the road on stages of any
-      // length (a uniform grid over a 20 km stage is far too coarse to follow it)
-      const offs = [3.4, 6, 10, 17, 28, 45, 70, 105, 150, 210, 290, 420, 900], st = this.low ? 2 : 1;
-      const lat = [...offs.slice().reverse().map((o) => -o), ...offs], P = lat.length, rows = Math.floor((N - 1) / st) + 1;
-      const pos = new Float32Array(rows * P * 3), uv = new Float32Array(rows * P * 2), idx = [];
-      // free lateral room on each side of every row: half the distance to the next stretch of road
-      // across (hairpin legs, parallel switchbacks) and, on the inside of a bend, the bend radius,
-      // so cross-sections never fold through each other or poke up through the road
-      const room = [new Float32Array(rows).fill(1e9), new Float32Array(rows).fill(1e9)];
-      {
-        const HC = 220, hc = new Map();
-        for (let j = 0; j < N; j += 2) { const k = Math.floor(gx[j] / HC) + ',' + Math.floor(gz[j] / HC); if (!hc.has(k)) hc.set(k, []); hc.get(k).push(j); }
-        const hd = this.geo.hdg, ds = this.geo.ds;
-        for (let r = 0; r < rows; r++) {
-          const i = Math.min(N - 1, r * st), c = Math.cos(hd[i]), sn = Math.sin(hd[i]);
-          const cx = Math.floor(gx[i] / HC), cz = Math.floor(gz[i] / HC);
-          for (let a = -4; a <= 4; a++) for (let b = -4; b <= 4; b++) { const l = hc.get((cx + a) + ',' + (cz + b)); if (l) for (const j of l) {
-            const vx = gx[j] - gx[i], vz = gz[j] - gz[i], lon = vx * c + vz * sn, la = -vx * sn + vz * c;
-            if (Math.abs(lon) > Math.abs(la) * 0.7 || Math.abs(la) < 1) continue;
-            const sd = la > 0 ? 0 : 1, h = Math.abs(la) / 2; if (h < room[sd][r]) room[sd][r] = h;
-          } }
-          const i0 = Math.max(0, i - 2), i1 = Math.min(N - 1, i + 2);
-          let dh = hd[i1] - hd[i0]; while (dh > Math.PI) dh -= 2 * Math.PI; while (dh < -Math.PI) dh += 2 * Math.PI;
-          const kk = dh / Math.max(1e-6, (i1 - i0) * ds);
-          if (Math.abs(kk) > 1 / 900) { const sd = kk > 0 ? 0 : 1; room[sd][r] = Math.min(room[sd][r], 0.92 / Math.abs(kk)); }
-        }
-        // smooth the limits along the road so neighbouring rows stay close (no jagged edges)
-        for (const R of room) { const t = Float32Array.from(R); for (let r = 0; r < rows; r++) { let m = 1e9; for (let q = -3; q <= 3; q++) m = Math.min(m, t[Math.min(rows - 1, Math.max(0, r + q))]); R[r] = Math.max(W / 2 + 2.6, m); } }
-      }
-      for (let r = 0; r < rows; r++) {
-        const i = Math.min(N - 1, r * st), nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
-        lat.forEach((o0, q) => {
-          const lim = room[o0 > 0 ? 0 : 1][r], o = Math.sign(o0) * Math.min(Math.abs(o0), lim);
-          const x = gx[i] + nx * o, z = gz[i] + nz * o, k = r * P + q;
-          pos[k * 3] = x; pos[k * 3 + 1] = Math.abs(o) > 500 ? hMin - 3.2 : terrH(x, z, i, Math.abs(o)); pos[k * 3 + 2] = z; uv[k * 2] = x / 21; uv[k * 2 + 1] = z / 21;
-          if (r < rows - 1 && q < P - 1 && !(o0 < 0 && lat[q + 1] > 0)) idx.push(k, k + 1, k + P, k + 1, k + P + 1, k + P);
-        });
-      }
-      // under the road: one quad per row between the two inner edges, just below the verge
-      for (let r = 0; r < rows - 1; r++) { const k = r * P + offs.length - 1; idx.push(k, k + 1, k + P, k + 1, k + P + 1, k + P); }
-      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
-      const tm = this.low ? new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (c, w, h) => noise(c, w, h, groundCol, 255, 12000, 3), [1, 1]), roughness: 1 })
-        : detailPatch(pbr(surf === 'snow' ? 'snow_02' : 'aerial_grass_rock', { color: RL.ground }), { macro: 0.32, macroScale: 0.018, tint: RL.tint, tintAmt: RL.tintAmt, key: 'stage' });
-      const terr = new THREE.Mesh(g, tm); terr.receiveShadow = true; this.scene.add(terr);
-      this.groundH = (x, z) => terrH(x, z);
-    }
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(30000, 30000), this.low ? new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (c, w, h) => noise(c, w, h, groundCol, 255, 12000, 3), [600, 600]), roughness: 1 }) : detailPatch(pbr(surf === 'snow' ? 'snow_02' : 'aerial_grass_rock', { repeat: [3000, 3000], color: RL.ground }), { macro: 0.2, macroScale: 0.01 }));
-    ground.rotation.x = -Math.PI / 2; ground.position.set((bx0 + bx1) / 2, hMin - 3, (bz0 + bz1) / 2); ground.receiveShadow = true;
-    this.scene.add(ground);
-    // verges fray into the terrain
-    this.edgeDissolve(vergeMat, { lat: 1.4, lon: 1e-3, scale: 0.9 });
-    this.scene.add(this.ribbonEdge(this.ribbon(W / 2, W / 2 + 2.5, 0.01, vergeMat, 1 / 2, 1, 1.25), false, 2.5));
-    this.scene.add(this.ribbonEdge(this.ribbon(-W / 2 - 2.5, -W / 2, 0.01, vergeMat, 1 / 2, 1, 1.25), true, 2.5));
-    {
-      // the road carries track-space data (lateral offset, driving line, cornerness) for ruts / rubber
-      this.computeLine();
-      const road = this.ribbon(-W / 2, W / 2, 0.03, this.asphaltMat, surf === 'tarmac' ? 1 / 5 : 1 / 2.5, 1, surf === 'tarmac' ? W / 5 : W / 2.5);
-      const cnt = road.geometry.attributes.position.count / 2, a = new Float32Array(cnt * 6);
-      for (let n = 0; n < cnt; n++) { const i = Math.min(N - 1, n); const kk = Math.min(1, Math.abs(this.geo.k[i]) * 60); a.set([-W / 2, this.line[i], kk, W / 2, this.line[i], kk], n * 6); }
-      road.geometry.setAttribute('aTrk', new THREE.BufferAttribute(a, 3));
-      this.scene.add(road);
-    }
-    if (surf === 'snow') {
-      const bankMat = new THREE.MeshStandardMaterial({ color: 0xf4f8fb, roughness: 0.6 });
-      for (const side of [1, -1]) { const m = this.ribbon(side * (W / 2 + 2.4), side * (W / 2 + 3.4), 0.5, bankMat, 0.05, 2); this.scene.add(m); }
-    }
-    // dense forest along the road (photoreal impostors standing on the terrain)
-    const kinds = surf === 'rough' ? [['bush', 0.4], ['broad', 0.35], ['desert', 0.25]] : surf === 'snow' ? [['conifer', 1]] : [['conifer', 0.7], ['broad', 0.3]];
-    const pool = vegOfKind(kinds.map((k) => k[0]));
-    const pick = () => { let r = Math.random(); for (const [k, w] of kinds) { if ((r -= w) <= 0) return k; } return kinds[0][0]; };
-    const items = []; const target = Math.round(Math.min(9000, N * 7) * (this.low ? 0.35 : 1));
-    this.tvCams = this.makeTvCams();
-    const sight = this.tvCams.flatMap((c) => [0, -12, -24].map((dd) => { const j = Math.max(0, Math.min(N - 1, c.i + dd)); return [c.pos.x, c.pos.z, gx[j], gz[j]]; }));
-    const blocks = (px, pz) => sight.some(([x0, z0, x1, z1]) => { const dx = x1 - x0, dz = z1 - z0, L2 = dx * dx + dz * dz || 1; const t = Math.max(0, Math.min(1, ((px - x0) * dx + (pz - z0) * dz) / L2)); return (px - x0 - dx * t) ** 2 + (pz - z0 - dz * t) ** 2 < 49; });
-    for (let k = 0; k < target * 3 && items.length < target; k++) {
-      const i = Math.floor(Math.random() * N); const side = Math.random() < 0.5 ? 1 : -1;
-      // two thirds form a wall of trees close to the road, the rest the forest behind
-      const off = side * (W / 2 + 7 + (Math.random() < 0.66 ? Math.random() * 30 : Math.random() ** 1.5 * 140));
-      const nx = -Math.sin(this.geo.hdg[i]), nz = Math.cos(this.geo.hdg[i]);
-      const cx = gx[i] + nx * off, cz = gz[i] + nz * off;
-      const kind = pick(); const opts = pool.filter((m) => m.kind === kind); if (!opts.length) continue;
-      for (let q = 0; q < 3 && items.length < target; q++) {
-        const px = cx + (Math.random() - 0.5) * 16, pz = cz + (Math.random() - 0.5) * 16;
-        const [d2] = near(px, pz); if (d2 < (W / 2 + 5.5) ** 2 || blocks(px, pz)) continue;
-        const meta = opts[Math.floor(Math.random() * opts.length)];
-        const h = { conifer: 11 + Math.random() * 10, broad: 6 + Math.random() * 6, bush: 1.8 + Math.random() * 2, desert: 4 + Math.random() * 3 }[meta.kind];
-        const v = (0.82 + Math.random() * 0.26) * (meta.kind === 'bush' ? 1.25 : 1);
-        items.push({ x: px, y: this.groundH(px, pz) - 0.2, z: pz, h, meta, rot: Math.random() * 6.283, tint: surf === 'snow' ? [v * 0.9, v * 0.95, v] : [v * (0.95 + Math.random() * 0.1), v, v * 0.9] });
-      }
-    }
-    if (items.length) { this.scene.add(makeTreeShadows(items)); this.forest = makeForest(items); this.forest.material.uniforms.sunDir.value = this.sunDir; this.scene.add(this.forest); }
-    this.buildRallyDressing(near, this.groundH, surf);
-    buildRallyExtras(this, near, surf, RL);
-    // start & finish arches
-    for (const [i, col] of [[2, 0x22d37a], [N - 3, 0xffffff]]) {
-      const g = new THREE.Group(); const m = new THREE.MeshStandardMaterial({ color: col, roughness: 0.5 });
-      for (const zz of [W / 2 + 1, -W / 2 - 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.4, 5, 0.4), m); p.position.set(0, 2.5, zz); g.add(p); }
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, W + 2.8), m); beam.position.y = 5; g.add(beam);
-      this.placeAt(g, i, 0, this.geo.h ? this.geo.h[i] : 0); this.scene.add(g);
-    }
-    if (this.scene.fog) { this.scene.fog = new HeightFog(this.scene.fog.color, 0.0007); this.fogDensity = this.scene.fog.density; }
-  }
-
-  // rally stage dressing: spectator groups behind red/white tape on the outside of corners and
-  // on crests, sponsor banners and flags, start / finish arches with sponsor boards
-  buildRallyDressing(near, terrH, surf) {
-    const N = this.geo.N, W = this.TW, g = this.geo;
-    const spots = [];
-    const minGap = Math.round(260 / g.ds);
-    let last = -minGap;
-    // candidates: tight corners (outside, where the action is) and crests, plus the start
-    const cand = [];
-    for (let i = 20; i < N - 20; i += 3) { const k = Math.abs(g.k[i]); if (k > 1 / 70) cand.push({ i, side: g.k[i] > 0 ? -1 : 1, w: k * 60 }); }
-    for (const c of g.crests || []) cand.push({ i: c + 4, side: Math.random() < 0.5 ? 1 : -1, w: 2 });
-    cand.sort((a, b) => b.w - a.w);
-    for (const c of cand) { if (spots.some((s) => Math.abs(s.i - c.i) < minGap)) continue; spots.push(c); if (spots.length > (this.low ? 10 : 22)) break; }
-    spots.push({ i: 12, side: 1, w: 1, start: true }, { i: 12, side: -1, w: 1, start: true });
-    this.rallySpots = spots;
-    void last;
-    const people = [], tapes = [], posts = [], banners = [];
-    const d = new THREE.Object3D(); const col = new THREE.Color();
-    const jackets = ['#d8141b', '#1e41ff', '#f5c400', '#111418', '#2d6a3e', '#e8e8e8', '#ff7a00', '#5a2d82', '#0b7a8a', '#7a1f1f', '#3a4250'];
-    for (const sp of spots) {
-      const span = sp.start ? 10 : 9 + Math.floor(Math.random() * 8);
-      const off0 = W / 2 + (sp.start ? 5 : 6.5 + Math.random() * 3);
-      // tape line on posts, following the road at a fixed offset
-      const tp = [];
-      for (let q = -span; q <= span; q++) {
-        const i = Math.max(0, Math.min(N - 1, sp.i + q));
-        const nx = -Math.sin(g.hdg[i]), nz = Math.cos(g.hdg[i]);
-        const px = g.x[i] + nx * sp.side * off0, pz = g.y[i] + nz * sp.side * off0, py = terrH(px, pz);
-        tp.push([px, py, pz]);
-        if (q % 2 === 0) { d.position.set(px, py, pz); d.rotation.set(0, 0, 0); d.scale.set(1, 1, 1); d.updateMatrix(); posts.push(d.matrix.clone()); }
-      }
-      tapes.push(tp);
-      // spectators: a loose crowd behind the tape, some on higher ground further back
-      const n = sp.start ? 26 : 14 + Math.floor(Math.random() * 26);
-      for (let k = 0; k < n; k++) {
-        const q = (Math.random() * 2 - 1) * span * 0.9;
-        const i = Math.max(0, Math.min(N - 1, Math.round(sp.i + q)));
-        const nx = -Math.sin(g.hdg[i]), nz = Math.cos(g.hdg[i]);
-        const o = off0 + 1.2 + Math.random() ** 1.6 * 9;
-        const px = g.x[i] + nx * sp.side * o + (Math.random() - 0.5) * 1.5, pz = g.y[i] + nz * sp.side * o + (Math.random() - 0.5) * 1.5;
-        const [d2] = near(px, pz); if (d2 < (off0 + 0.8) ** 2) continue;
-        d.position.set(px, terrH(px, pz) - 0.05, pz);
-        d.rotation.set(0, Math.atan2(g.x[i] - px, g.y[i] - pz) + (Math.random() - 0.5) * 0.8, 0);
-        const s = 0.92 + Math.random() * 0.16; d.scale.set(s, s, s); d.updateMatrix();
-        people.push([d.matrix.clone(), jackets[Math.floor(Math.random() * jackets.length)]]);
-      }
-      // sponsor banner on two poles behind the crowd, flags waved by fans
-      if (Math.random() < 0.8 || sp.start) {
-        const i = Math.max(0, Math.min(N - 1, sp.i + Math.round((Math.random() - 0.5) * span)));
-        const nx = -Math.sin(g.hdg[i]), nz = Math.cos(g.hdg[i]);
-        const o = off0 + 11 + Math.random() * 3;
-        const px = g.x[i] + nx * sp.side * o, pz = g.y[i] + nz * sp.side * o;
-        d.position.set(px, terrH(px, pz), pz); d.rotation.set(0, -g.hdg[i] + (sp.side > 0 ? Math.PI : 0), 0); d.scale.set(1, 1, 1); d.updateMatrix();
-        banners.push(d.matrix.clone());
-      }
-    }
-    // people (simple low-poly spectators)
-    if (people.length) {
-      const pm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
-      pm.onBeforeCompile = (sh) => { sh.vertexShader = sh.vertexShader.replace('#include <color_vertex>', `vColor = vec3(1.0);
-        #ifdef USE_COLOR
-          vColor = color.rgb;
-        #endif
-        #ifdef USE_INSTANCING_COLOR
-          if (color.r > 0.99 && color.g > 0.99 && color.b > 0.99) vColor = instanceColor.rgb;
-        #endif`); };
-      pm.customProgramCacheKey = () => 'spect';
-      const im = new THREE.InstancedMesh(personGeo('spect'), pm, people.length);
-      people.forEach(([m, c], k) => { im.setMatrixAt(k, m); im.setColorAt(k, col.set(c)); });
-      im.castShadow = true; im.receiveShadow = true; im.computeBoundingSphere(); this.scene.add(im);
-    }
-    // tape posts + tape ribbons (two bands)
-    if (posts.length) {
-      const im = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.025, 0.025, 1.1, 5).translate(0, 0.55, 0), new THREE.MeshStandardMaterial({ color: 0xd9dde2, roughness: 0.6 }), posts.length);
-      posts.forEach((m, k) => im.setMatrixAt(k, m)); im.computeBoundingSphere(); this.scene.add(im);
-      const tex = canvasTex(64, 8, (c, w, h) => { for (let k = 0; k < 8; k++) { c.fillStyle = k % 2 ? '#f4f4f4' : '#d8141b'; c.beginPath(); c.moveTo(k * 8, 0); c.lineTo(k * 8 + 8, 0); c.lineTo(k * 8 + 4, h); c.lineTo(k * 8 - 4, h); c.fill(); } });
-      const pos = [], uv = [], idx = [];
-      for (const tp of tapes) for (const yb of [0.95, 0.55]) {
-        let v = 0; const b0 = pos.length / 3;
-        tp.forEach(([x, y, z], k) => {
-          if (k) v += Math.hypot(x - tp[k - 1][0], z - tp[k - 1][2]) / 0.8;
-          const sag = 0.05 * Math.abs(Math.sin(k * Math.PI / 2));
-          pos.push(x, y + yb - sag, z, x, y + yb - sag + 0.07, z); uv.push(v, 0, v, 1);
-          if (k < tp.length - 1) { const a = b0 + k * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
-        });
-      }
-      const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); tg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); tg.setIndex(idx); tg.computeVertexNormals();
-      const tm = new THREE.Mesh(tg, new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.5 })); this.scene.add(tm);
-    }
-    // banners: 4 m sponsor cloth between two poles
-    if (banners.length) {
-      const M = this.standMats(new THREE.MeshStandardMaterial());
-      const pole = new THREE.CylinderGeometry(0.05, 0.05, 3.2, 6).translate(0, 1.6, 0);
-      const pg = mergeGeometries([pole.clone().translate(-2.1, 0, 0), pole.clone().translate(2.1, 0, 0)].map((x) => (x.index ? x.toNonIndexed() : x)));
-      const pi = new THREE.InstancedMesh(pg, M.steel, banners.length); banners.forEach((m, k) => pi.setMatrixAt(k, m)); pi.computeBoundingSphere(); this.scene.add(pi);
-      // each banner shows one brand of the stand atlas (u range picked per instance by matrix hash in a tiny shader)
-      const bg = new THREE.PlaneGeometry(4.1, 1.1).translate(0, 2.55, 0);
-      const bm = M.ad.clone(); bm.side = THREE.DoubleSide;
-      bm.onBeforeCompile = (sh) => { sh.vertexShader = sh.vertexShader.replace('#include <uv_vertex>', `#include <uv_vertex>
-        #ifdef USE_INSTANCING
-          float bi = floor(fract(sin(instanceMatrix[3].x * 12.9898 + instanceMatrix[3].z * 78.233) * 43758.5453) * ${M.nBrands}.0);
-          vMapUv = vec2((bi + uv.x) / ${M.nBrands}.0, uv.y);
-          #ifdef USE_EMISSIVEMAP
-            vEmissiveMapUv = vMapUv;
-          #endif
-        #endif`); };
-      bm.customProgramCacheKey = () => 'banner';
-      const bi = new THREE.InstancedMesh(bg, bm, banners.length); banners.forEach((m, k) => bi.setMatrixAt(k, m)); bi.castShadow = true; bi.computeBoundingSphere(); this.scene.add(bi);
-    }
-    // obstacles for the camera / tree placement
-    this.obstacles ||= [];
-  }
+  // rally stages (open road): terrain, forest, spectators and props live in env/rallystage.js
+  buildStage() { buildRallyStage(this); }
 
   buildRacingLine() {
     if (!this.line) this.computeLine();
@@ -970,6 +826,7 @@ export class Race3D {
   }
 
   computeLine() {
+    if (!this.open) return this.computeRacingLine();
     const { N, k } = this.geo; const half = this.TW / 2 - 1.6;
     const inside = new Float64Array(N);
     for (let i = 0; i < N; i++) inside[i] = Math.max(-1, Math.min(1, k[i] * 160));
@@ -983,6 +840,91 @@ export class Race3D {
     const sm = new Float64Array(N);
     for (let i = 0; i < N; i++) { let a = 0, n = 0; for (let q = -8; q <= 8; q++) { const j = this.open ? Math.max(0, Math.min(N - 1, i + q)) : (i + q + N) % N; a += line[j]; n++; } sm[i] = a / n; }
     this.line = sm;
+  }
+
+  // Racing line of a closed circuit: minimum-curvature path inside the track edges (Gauss-Seidel
+  // on the bi-harmonic stencil, multi-scale so it converges in a few hundred sweeps), which gives
+  // the outside-inside-outside shape through every corner and straight lines through the quick
+  // chicanes. Slow corners after a straight get a later apex (the line is shifted along the track
+  // in proportion to how tight the corner is: brake in a straight line, turn in late, open the
+  // exit). Also stores the path curvature (steering / body roll) and the inside side per sample.
+  computeRacingLine() {
+    const { N, x, y, hdg, k } = this.geo;
+    const half = this.TW / 2 - 1.35;
+    const W = (i) => ((i % N) + N) % N;
+    const nx = new Float64Array(N), nz = new Float64Array(N);
+    for (let i = 0; i < N; i++) { nx[i] = -Math.sin(hdg[i]); nz[i] = Math.cos(hdg[i]); }
+    const o = new Float64Array(N);
+    const px = (j) => x[j] + nx[j] * o[j], pz = (j) => y[j] + nz[j] * o[j];
+    for (const [s, it] of [[16, 40], [8, 60], [4, 80], [2, 80], [1, 60]]) {
+      for (let r = 0; r < it; r++) for (let i = 0; i < N; i++) {
+        const a = W(i - s), b = W(i + s), a2 = W(i - 2 * s), b2 = W(i + 2 * s);
+        const tx = (4 * (px(a) + px(b)) - (px(a2) + px(b2))) / 6 - x[i], tz = (4 * (pz(a) + pz(b)) - (pz(a2) + pz(b2))) / 6 - y[i];
+        const v = tx * nx[i] + tz * nz[i];
+        o[i] = Math.max(-half, Math.min(half, o[i] + (v - o[i]) * 0.6));
+      }
+    }
+    // late apex: tightest radius within ±100 m decides the shift (0 .. 2.4 samples = 12 m)
+    const shift = new Float64Array(N);
+    for (let i = 0; i < N; i++) { let km = 0; for (let q = -20; q <= 20; q += 2) km = Math.max(km, Math.abs(k[W(i + q)])); const r = 1 / Math.max(1e-4, km); shift[i] = 2.4 * Math.max(0, Math.min(1, (150 - r) / 110)); }
+    const line = new Float64Array(N);
+    for (let i = 0; i < N; i++) { const t = i - shift[i], i0 = Math.floor(t), f = t - i0; line[i] = o[W(i0)] * (1 - f) + o[W(i0 + 1)] * f; }
+    for (let i = 0; i < N; i++) o[i] = line[i];
+    // path curvature of the line itself (heading change per metre), lightly smoothed
+    const pk = new Float64Array(N), sk = new Float64Array(N);
+    for (let i = 0; i < N; i++) {
+      const a = W(i - 1), b = W(i + 1);
+      const h0 = Math.atan2(pz(i) - pz(a), px(i) - px(a)), h1 = Math.atan2(pz(b) - pz(i), px(b) - px(i));
+      let d = h1 - h0; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+      pk[i] = d / Math.max(0.5, Math.hypot(px(b) - px(a), pz(b) - pz(a)) / 2);
+    }
+    for (let i = 0; i < N; i++) { let a = 0; for (let q = -2; q <= 2; q++) a += pk[W(i + q)]; sk[i] = a / 5; }
+    // the side of the next corner within ~250 m (+1 left / -1 right, 0 none) and how close it is:
+    // where an attacker dives and a defender covers
+    const nextSide = new Int8Array(N), nextDist = new Float32Array(N).fill(999);
+    const cs = (this.geo.corners || []).filter((c) => c.r < 260).map((c) => c.i).sort((a, b) => a - b);
+    if (cs.length) for (let i = 0; i < N; i++) {
+      let best = null, bd = 1e9; for (const ci of cs) { const d = W(ci - i); if (d < bd) { bd = d; best = ci; } }
+      if (bd <= 50) { nextSide[i] = Math.sign(k[best]) || 1; nextDist[i] = bd; }
+    }
+    this.line = line; this.lineK = sk; this.lineHalf = half; this.nextSide = nextSide; this.nextDist = nextDist;
+  }
+
+  // lateral target of one car: its own variation of the racing line, plus the race-craft offsets
+  // (slipstream, attacking up the inside, defending, the wet line). st.latOff / st.offset (m,
+  // + = left) from the caller are added on top.
+  laneFor(car, st, i0, ahead, behind, dt = 1 / 60) {
+    const N = this.geo.N, s = st.s || 0, half = this.lineHalf || this.TW / 2 - 1.35;
+    const base = this.line[i0];
+    // standing on the grid: staggered two by two, pole on the racing-line side
+    if ((st.speed || 0) < 3 && st.pos) { const gs = this._gridSide ??= Math.sign(this.line[0]) || 1; car._tac = 0; return (st.pos % 2 ? gs : -gs) * Math.min(2.6, half - 1); }
+    // each driver drives the line a little differently: tighter or wider and a slow wander that
+    // fades out at the apexes (where everybody clips the same kerb)
+    const ph = car.ph ??= (car.lane * 7.31 + 1.7) % 6.283;
+    const apex = Math.min(1, Math.abs(base) / half);
+    const wander = (Math.sin(s * 0.021 + ph) * 0.55 + Math.sin(s * 0.067 + ph * 2.3) * 0.3) * (1 - 0.75 * apex * apex);
+    let lane = base * (car.lineK ??= 0.9 + ((car.lane + 1.8) / 3.6) * 0.1) + wander;
+    // wet: off the rubbered (slippery) line on corner entry, a wider arc around the outside
+    const wet = this.wet || 0, side = this.nextSide?.[i0] || 0, nd = this.nextDist?.[i0] ?? 999;
+    if (wet > 0.35 && side) lane -= side * (wet - 0.35) * 2.2 * Math.max(0, 1 - Math.abs(nd - 18) / 18);
+    // race craft
+    let tac = 0;
+    if (ahead && st.close) {
+      const dLat = ahead._laneT ?? ahead.laneCur ?? base;
+      if (side && nd < 34) tac = side * (half - 0.4) - lane; // dive up the inside under braking
+      else {
+        // in the slipstream on the straight, pulling out to one side as the gap closes
+        const ps = (car._pullSide ||= (st.pos || 1) % 2 ? 1 : -1);
+        tac = (dLat - lane) * 0.8 + ps * 1.6 * Math.min(1, Math.max(0, 1.2 - (st.gap ?? 1)));
+      }
+    } else if (behind && behind.state?.close && side && nd < 40 && nd > 6) {
+      // defending: cover the inside before the braking zone (one move)
+      tac = (side * half * 0.55 - lane) * 0.85;
+    }
+    car._tac = (car._tac || 0) + (tac - (car._tac || 0)) * Math.min(1, dt * 2.2);
+    lane += car._tac + (Number.isFinite(st.latOff) ? st.latOff : Number.isFinite(st.offset) ? st.offset : 0);
+    car._laneT = lane;
+    return lane;
   }
 
   buildRubber(N, sm) {
@@ -1399,7 +1341,7 @@ export class Race3D {
     }
     if (!items.length) return;
     this.scene.add(makeTreeShadows(items.filter((it) => !it.far)));
-    this.forest = makeForest(items); this.forest.material.uniforms.sunDir.value = this.sunDir;
+    this.forest = makeForest(items, { canopy: !this.low }); this.forest.material.uniforms.sunDir.value = this.sunDir;
     if (this.night) this.forest.material.uniforms.light.value = 0.42;
     this.scene.add(this.forest);
   }
@@ -2711,8 +2653,16 @@ export class Race3D {
       this._blobMat ||= new THREE.MeshBasicMaterial({ map: canvasTex(128, 64, (c, w, h) => { c.clearRect(0, 0, w, h); c.filter = 'blur(9px)'; c.fillStyle = 'rgba(0,0,0,0.85)'; c.beginPath(); c.roundRect ? c.roundRect(18, 14, w - 36, h - 28, 12) : c.rect(18, 14, w - 36, h - 28); c.fill(); }), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, toneMapped: false });
       this._blobGeo ||= new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
       const blob = new THREE.Mesh(this._blobGeo, this._blobMat);
-      blob.scale.set(sz.x * 1.25 / m.scale.x, 1, sz.z * 1.3 / m.scale.z); blob.position.set(ctr.x / m.scale.x, 0.03, 0); blob.renderOrder = 2;
+      blob.scale.set(sz.x * 1.25 / m.scale.x, 1, sz.z * 1.3 / m.scale.z); blob.position.set(ctr.x / m.scale.x, 0.03, 0); blob.renderOrder = 2; blob.userData.blob = true;
       m.add(blob);
+    }
+    // circuit cars: the sprung body goes into its own group so roll / pitch / heave move it on
+    // its suspension while the wheels (and the contact shadow) stay on the road
+    if (this.category !== 'rally' && !this.open) {
+      const body = new THREE.Group(); body.name = 'body';
+      const keep = new Set([...(m.userData.wheels || [])]);
+      for (const c of [...m.children]) if (!keep.has(c) && !c.userData.blob) body.add(c);
+      m.add(body); m.userData.body = body;
     }
     this.scene.add(m);
     const label = document.createElement('div');
@@ -2729,7 +2679,7 @@ export class Race3D {
     if (bay) bay.used = true;
     const dirtMat = m.userData.dirtMat || null;
     if (dirtMat) { dirtMat.userData.dirtCol.value.setRGB(...this._dirtCfg.col); dirtMat.userData.dirtU.value = this._dirtCfg.base; }
-    this.cars.set(c.key, { box: tIdx, bay, teamColor: c.livery?.primary, mesh: m, label, lane: ((c.key.charCodeAt(0) + c.key.length * 7) % 5 - 2) * 0.9, lastS: 0, tyre: c.tyreColor, isPlayer: c.isPlayer, dirtMat });
+    this.cars.set(c.key, { cls: c.category === 'rally' && this.category !== 'rally' ? 'gt' : undefined, box: tIdx, bay, teamColor: c.livery?.primary, mesh: m, label, lane: ((c.key.charCodeAt(0) + c.key.length * 7) % 5 - 2) * 0.9, lastS: 0, tyre: c.tyreColor, isPlayer: c.isPlayer, dirtMat });
   }
 
   setNight(n) {
@@ -2864,8 +2814,16 @@ export class Race3D {
       this.rain.geometry.setDrawRange(0, Math.round(this._rainN * Math.max(0.15, k)) * 2);
       this.rain.material.opacity = 0.16 + 0.24 * k;
     }
-    const wet = Math.min(1, level * 1.3);
-    this.wet = wet;
+    // water on the track lags the rain: it soaks in fast and dries slowly (eased in update()),
+    // so a shower that stops leaves a wet track with a dry line opening along the rubber
+    this._wetTgt = Math.min(1, level * 1.3);
+    if (this.wet == null || !this._wetInit) { this._wetInit = true; this.wet = this._wetTgt; }
+    RAIN.value = Math.min(1, level * 1.2);
+    this.applyWeather();
+  }
+
+  applyWeather() {
+    const level = this._rainLvl || 0, wet = this.wet || 0;
     const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
     const ovc = Math.max(this._ovcSet || 0, sm(0.02, 0.4, level));
     const storm = sm(0.55, 0.95, level);
@@ -2878,6 +2836,12 @@ export class Race3D {
       if (!this._lit && this.fogDay) this._lit = base;
       const nite = this.night ? 1 : (this._night || 0);
       if (ovc > 0.01 && !this.cloudDome) this.buildCloudDome();
+      // a real overcast sky (Poly Haven HDRI, loaded on demand) for the reflections and the
+      // soft, shadowless light of a rain race; the procedural deck stands in until it arrives
+      if (ovc > 0.3 && !this.low && !this._ovcHdr) {
+        this._ovcHdr = true; const h = {};
+        applyHDRI(this.renderer, h, 'overcast', { background: false, intensity: 1 }).then((ok) => { if (!ok) return; const was = this.scene.environment === this._ovcEnv; this._ovcEnv = h.environment; if (was) this.scene.environment = h.environment; this._wetApplied = -1; this.applyWeather(); });
+      }
       const hor = (this._wHor ||= new THREE.Color()), top = (this._wTop ||= new THREE.Color());
       // overcast greys -> slate storm deck; at night the deck is dark with a warm glow from the circuit lights
       hor.setRGB(0.6, 0.63, 0.68).lerp(this._c1 ||= new THREE.Color(0.2, 0.22, 0.25), storm);
@@ -2932,17 +2896,23 @@ export class Race3D {
   // states: [{key, s (0..N sample float), speed (m/s), inPit, tyreColor, label, show}]
   update(states, dt) {
     const N = this.geo.N;
+    if (this._ready === false && this.introT > 0) this.introStart = performance.now(); // the intro waits for the shaders
     TIME.value = (performance.now() / 1000) % 1000;
-    // adaptive quality: drop resolution/shadows when the framerate is low
-    this._fpsT = (this._fpsT || 0) + dt; this._fpsN = (this._fpsN || 0) + 1;
-    if (this._fpsT > 4) {
-      const fps = this._fpsN / this._fpsT; this._fpsT = 0; this._fpsN = 0;
-      if (fps < 26 && !this._degraded) {
-        this._degraded = true; this._fxOff = true; this.renderer.setPixelRatio(1); this.renderer.shadowMap.enabled = false; if (this.composer?.ao) this.composer.ao.enabled = false;
+    // adaptive quality: below ~40 fps for a few seconds the resolution drops to 1x, then the
+    // ambient occlusion goes; below ~27 (a 30 Hz cap is left alone) the shadows and the camera effects go, then the resolution
+    // drops under 1x (scaled up by the browser)
+    this._guard ||= new FrameGuard([
+      { fps: 40, run: () => { if (this.renderer.getPixelRatio() <= 1) return false; this.setPixelRatio(1); } },
+      { fps: 40, run: () => { if (!this.composer?.ao?.enabled) return false; this.composer.ao.enabled = false; } },
+      { fps: 27, run: () => {
+        if (this._degraded) return false;
+        this._degraded = true; this._fxOff = true; this.renderer.shadowMap.enabled = false; if (this.composer?.ao) this.composer.ao.enabled = false;
         this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
         this.resize();
-      }
-    }
+      } },
+      { fps: 27, run: () => this.setPixelRatio(Math.min(this.renderer.getPixelRatio(), 0.8)) },
+    ]);
+    if (this._ready !== false) this._guard.tick();
     let focus = null;
     const ds = this.geo.ds, open = this.open;
     const dS = (a, b) => { let d = a - b; if (!open) { if (d > N / 2) d -= N; if (d < -N / 2) d += N; } return d; };
@@ -2950,12 +2920,18 @@ export class Race3D {
     const maxLane = this.TW / 2 - 1.15;
     // pass 1: desired longitudinal position + lane for every car
     const items = [];
+    const byPos = new Map();
+    for (const st of states) if (!st.hidden && st.pos && !st.inPit) { const c = this.cars.get(st.key); if (c) byPos.set(st.pos, c); }
     for (const st of states) {
       const car = this.cars.get(st.key); if (!car) continue;
       if (st.hidden) { car.mesh.visible = false; car.label.style.display = 'none'; car.pc = null; continue; }
       let s = st.s, spd = st.speed || 0, lane, pit = false, yaw = 0;
       const i0 = open ? Math.min(N - 2, Math.max(0, Math.floor(s))) : Math.floor(s) % N;
-      const race = (this.line ? this.line[i0] * (st.close ? 0.45 : 1) : 0) + (st.close && st.pos ? (st.pos % 2 ? 2.6 : -2.6) : car.lane * 0.3);
+      const race = this.open || !this.lineK ? (this.line ? this.line[i0] * (st.close ? 0.45 : 1) : 0) + (st.close && st.pos ? (st.pos % 2 ? 2.6 : -2.6) : car.lane * 0.3)
+        : this.laneFor(car, st, i0, st.pos ? byPos.get(st.pos - 1) : null, st.pos ? byPos.get(st.pos + 1) : null, dt);
+      // [highlights] incident pose from the replay views: explicit lateral offset / yaw, off the racing line
+      if (st.fx) { car.pc = null; items.push({ st, car, s: wrap(s), spd, lane: st.fx.lat || 0, pit: false, yaw: st.fx.yaw || 0, fx: st.fx }); continue; }
+      if (Number.isFinite(st.yaw)) yaw = st.yaw;
       if (this.pitOff && !open) { const r = this.pitStep(car, st, dt, race); if (r) { items.push({ st, car, ...r, s: wrap(r.s) }); continue; } }
       lane = Math.max(-maxLane, Math.min(maxLane, race));
       items.push({ st, car, s: wrap(s), spd, lane, pit, yaw });
@@ -2974,14 +2950,22 @@ export class Race3D {
     for (const it of items) {
       const car = it.car;
       car.latOff = (car.latOff || 0) * Math.max(0, 1 - dt * 0.7);
-      const tgt = it.pit ? it.lane : Math.max(-maxLane, Math.min(maxLane, it.lane + car.latOff));
-      car.laneCur = car.laneCur == null || it.exact ? tgt : car.laneCur + (tgt - car.laneCur) * Math.min(1, dt * (it.pit ? 3 : 4));
-      if (!it.pit) car.laneCur = Math.max(-maxLane, Math.min(maxLane, car.laneCur));
+      const tgt = it.pit || it.fx ? it.lane : Math.max(-maxLane, Math.min(maxLane, it.lane + car.latOff));
+      // the racing line itself is followed exactly (no lag past the apex); only the car's
+      // deviation from it (race craft, avoiding, rejoining from the pits) is eased. An incident
+      // pose (it.fx) is placed exactly, no easing.
+      const lnI = !it.pit && !it.fx && this.lineK && !open ? this.line[Math.floor(it.s) % N] : 0;
+      const lm = it.pit ? 'p' : it.fx ? 'f' : 'r';
+      if (car.laneCur == null || it.exact || it.fx || car._dev == null || car._laneMode !== lm) car._dev = (it.fx ? tgt : car.laneCur ?? tgt) - lnI;
+      car._laneMode = lm;
+      car._dev += (tgt - lnI - car._dev) * Math.min(1, dt * (it.pit ? 3 : 4));
+      car.laneCur = car.laneCur == null || it.exact || it.fx ? tgt : lnI + car._dev;
+      if (!it.pit && !it.fx) car.laneCur = Math.max(-maxLane, Math.min(maxLane, car.laneCur));
       // visual longitudinal back-off memory so a yielding car does not snap
       let s = wrap(it.s - (car.sBack || 0));
       let back = 0;
       const hitAt = (ss, lane) => { const q = this.pose(ss, lane); for (const o of placed) { const dx = o.x - q.x, dz = o.z - q.z; if (dx * dx + dz * dz > 64 || Math.abs((o.y || 0) - (q.y || 0)) > 2) continue; const c = Math.cos(q.h), sn = Math.sin(q.h); const lon = dx * c + dz * sn, lat = -dx * sn + dz * c; if (Math.abs(lon) < 5.5 && Math.abs(lat) < 2.25) return o; } return null; };
-      for (let iter = 0; iter < 24; iter++) {
+      for (let iter = 0; iter < 24 && !it.fx; iter++) {
         const hit = hitAt(s, car.laneCur);
         if (!hit) break;
         if (!it.pit && !hit.pit && iter < 3) {
@@ -2996,37 +2980,61 @@ export class Race3D {
         }
         s = wrap(s - 0.3); back += 0.3;
       }
+      car._dev = car.laneCur - lnI;
       car.sBack = Math.max(0, (car.sBack || 0) + back) * Math.max(0, 1 - dt * 1.5);
       if (car.sBack < 0.01) car.sBack = 0;
       s = wrap(s);
       placed.push({ ...this.pose(s, car.laneCur), s, lane: car.laneCur, pit: it.pit });
       this.placeCar(car, it.st, s, car.laneCur, it.spd, dt, it.yaw || 0);
+      if (it.fx) this.applyFxPose(car, it.fx); else if (car.mesh.rotation.order !== 'XYZ') car.mesh.rotation.order = 'XYZ';
       if (it.st.key === this.focusKey) focus = car;
     }
     if (!focus) focus = [...this.cars.values()].find((c) => c.mesh.visible);
     this._envTick?.(dt);
     if (!this._slots && !this.open) { this._slots = true; if (this.introT > 0) buildGridSlots(this); }
     this.updateCamera(focus, dt);
+    if (this.grass) {
+      // only the low shots see the blades (chase, on-board, tracking, low cameras)
+      const cp = this.camera.position, gy = this.groundH ? this.groundH(cp.x, cp.z) : 0;
+      this.grass.mesh.visible = !this._fxOff && cp.y - (Number.isFinite(gy) ? Math.max(0, gy) : 0) < 5.5;
+      // grid centred a little ahead of the lens
+      const d = this.camera.getWorldDirection(this._gD ||= new THREE.Vector3());
+      this.grass.U.uCamG.value.set(cp.x + d.x * 22, 0.0, cp.z + d.z * 22);
+    }
     this.updatePitCrew();
     // pass-by sounds for cars close to a fixed (TV) camera
     if (this.camMode === 'tv' && !this.introT) {
       for (const car of this.cars.values()) {
         if (!car.mesh.visible) continue;
         const d = car.mesh.position.distanceTo(this.camera.position);
-        if (car._d != null && car._d < 45 && d > car._d && !car._passed) { car._passed = true; passBy(Math.max(0.3, 1 - car._d / 45), this.category === 'rally' ? 'rally' : this.category); }
+        if (car._d != null && car._d < 45 && d > car._d && !car._passed) { car._passed = true; passBy(Math.max(0.3, 1 - car._d / 45), this.category === 'rally' ? 'rally' : this.category, { speed: (car.state?.speed || 0) * 3.6, dist: car._d, cls: car.cls === 'gt' ? 'gt' : undefined }); }
         if (d > 70) car._passed = false;
         car._d = d;
       }
     }
     if (this.rain && this.rain.visible) {
       const p = this.rain.geometry.attributes.position, a = p.array;
-      for (let i = 0; i < a.length; i += 6) { let y = a[i + 1] - dt * 38; if (y < 0) y += 60; a[i + 1] = y; a[i + 4] = y - 0.75; }
+      // streak = the drop's path during a ~20 ms exposure relative to the (moving) camera: on board
+      // at speed the rain flies at the lens almost horizontally
+      const cp = this.camera.position, lc = (this._rainCP ||= cp.clone());
+      const iv = dt > 0 ? Math.min(1, dt * 6) : 0, vx = dt > 0 ? (cp.x - lc.x) / dt : 0, vz = dt > 0 ? (cp.z - lc.z) / dt : 0; lc.copy(cp);
+      const cv = (this._rainCV ||= { x: 0, z: 0 }); if (Math.abs(vx) + Math.abs(vz) < 400) { cv.x += (vx - cv.x) * iv; cv.z += (vz - cv.z) * iv; }
+      const sx = 0.12 - cv.x * 0.02, sz = 0.05 - cv.z * 0.02, sy = -0.75 - Math.min(0.6, Math.hypot(cv.x, cv.z) * 0.004);
+      for (let i = 0; i < a.length; i += 6) { let y = a[i + 1] - dt * 38; if (y < 0) y += 60; a[i + 1] = y; a[i + 3] = a[i] + sx; a[i + 4] = y + sy; a[i + 5] = a[i + 2] + sz; }
       p.needsUpdate = true;
       this.rain.position.set(this.camera.position.x, 0, this.camera.position.z);
     }
+    // track wetness follows the rain in race time (fast-forward dries / soaks it faster)
+    if (this._wetTgt != null && dt > 0) {
+      const d = this._wetTgt - this.wet, rate = d > 0 ? 1 / 7 : 1 / 45;
+      const nw = Math.abs(d) < 0.002 ? this._wetTgt : this.wet + d * Math.min(1, dt * (this._simK || 1) * rate);
+      if (nw !== this.wet) { this.wet = nw; this.applyWeather(); }
+    }
+    FXT.value = TIME.value;
     this.updateWeather(dt);
     this.updateFx(dt);
     this.updateCarLights(dt);
+    if (!this.open && !this.low) this.updateSmoke(dt);
     if (this.wet > 0.3 && !this.open) this.updateSpray(dt);
     else if (this.spray) this.spray.visible = false;
     if (this.lampLights && this.nightLamps?.length) {
@@ -3042,10 +3050,44 @@ export class Race3D {
     if (this.sunDisc) { this.sunDisc.position.copy(this.camera.position).addScaledVector(this._sunDiscDir, 4200); this.sunDisc.material.opacity = (1 - (this._night || 0)) * (1 - 0.95 * (this.wet || 0)); this.sunDisc.visible = this.sunDisc.material.opacity > 0.02; }
     if (this.composer?.rays) updateGodRays(this.composer, this.camera, this.hdr && hdriSun(this.skyKind), (this.tod?.rays ?? 0) * (1 - (this._night || 0)) * (1 - 0.9 * (this.wet || 0)));
     if (this.composer?.flare) updateSunFlare(this.composer, this.camera, this.hdr && hdriSun(this.skyKind), (1 - (this._night || 0)) * (1 - 0.9 * (this.wet || 0)) * (this.camMode === 'cockpit' ? 1.2 : 1));
+    // raindrops on the lens of the cameras on / behind the car
+    const lr = this.composer?.lensRain;
+    if (lr) {
+      const onCar = this.camMode === 'onboard' || this.camMode === 'cockpit' || this.camMode === 'chase';
+      const tgt = onCar && !this.introT && !this._fxOff ? Math.max(0, Math.min(1, ((this._rainLvl || 0) - 0.12) * 1.5)) * (this.camMode === 'chase' ? 0.45 : 1) : 0;
+      const u = lr.uniforms;
+      if (this._camDbg?.cut || tgt === 0) u.uSeed.value = (u.uSeed.value + 17.13) % 997; // a new lens after a cut
+      u.uAmt.value = tgt;
+      u.uTime.value = TIME.value; u.uAspect.value = this.camera.aspect;
+      u.uWind.value += (Math.min(1, (this._camCar?.state?.speed || 0) / 70) * (this.camMode === 'chase' ? 0.5 : 1) - u.uWind.value) * Math.min(1, dt * 2);
+      // sense of speed on the cameras riding with the car: edges smear radially past ~200 km/h
+      const v = this._camCar?.state?.speed || 0;
+      const bl = (this.camMode === 'onboard' || this.camMode === 'cockpit' || this.camMode === 'chase') && !this.introT && !this._fxOff ? Math.max(0, Math.min(1, (v - 50) / 35)) * (this.camMode === 'chase' ? 0.6 : 1) : 0;
+      u.uBlur.value += (bl - u.uBlur.value) * Math.min(1, dt * 3);
+      lr.enabled = tgt > 0.01 || u.uBlur.value > 0.02;
+    }
     // per-frame draw statistics (renderer.info resets per pass inside the composer)
     const info = this.renderer.info; info.autoReset = false; info.reset();
+    if (this._ready === false) { this._stats = { calls: 0, tris: 0 }; info.autoReset = true; this.updateLabels(); return; }
     this.renderWetReflect();
+    // soft dissolve when the shot type changes (director / replay), hard cuts within a type
+    const xf = this.composer?.xfade;
+    if (xf) {
+      const md = this._camDbg?.mode, rp = !!this.replay;
+      if (this._xfMode && md && (md !== this._xfMode || rp !== this._xfRp) && !this.introT && this._xfTex && !this._fxOff) this._xfT = 0.45;
+      this._xfMode = md; this._xfRp = rp;
+      xf.enabled = (this._xfT || 0) > 0;
+      if (xf.enabled) { const k = this._xfT / 0.45; xf.uniforms.uMix.value = k * k * (3 - 2 * k); xf.uniforms.tPrev.value = this._xfTex; }
+    }
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
+    if (xf) {
+      if (this._xfT > 0) this._xfT -= Math.min(0.1, dt || 0.016);
+      else if (!this._fxOff) {
+        const sz = this.renderer.getDrawingBufferSize(this._xfSz ||= new THREE.Vector2());
+        if (!this._xfTex || this._xfTex.image.width !== sz.x || this._xfTex.image.height !== sz.y) { this._xfTex?.dispose(); this._xfTex = new THREE.FramebufferTexture(sz.x, sz.y); }
+        this.renderer.copyFramebufferToTexture(this._xfTex);
+      }
+    }
     this._stats = { calls: info.render.calls, tris: info.render.triangles }; info.autoReset = true;
     this.updateLabels();
   }
@@ -3119,7 +3161,7 @@ export class Race3D {
     for (const car of cars) {
       const m = car.mesh, sp = car.state?.speed || 0, acc = car._acc || 0;
       if (!m.visible || sp < 45 || car.pc || m.position.distanceToSquared(cam) > 180 * 180) continue;
-      const rate = (acc < -18 ? 40 : 0) + (sp > 75 ? 6 : 0) + (car._bump || 0);
+      const rate = (acc < -18 ? 40 : 0) + (sp > 75 ? 6 : 0) + (car._bump || 0) + (car._kerb && sp > 50 ? 30 : 0);
       car._spk = (car._spk || 0) + rate * dt * (0.3 + Math.random());
       const fx = Math.cos(m.rotation.y), fz = -Math.sin(m.rotation.y);
       let n = Math.min(14, Math.floor(car._spk)); car._spk -= n;
@@ -3150,6 +3192,87 @@ export class Race3D {
     }
     this.sparks.visible = live > 0;
     this.sparks.geometry.attributes.position.needsUpdate = true; this.sparks.geometry.attributes.color.needsUpdate = true;
+  }
+
+  // tyre smoke: a locked front wheel under heavy braking (now and then, a few per lap across the
+  // field) leaves a short white puff trail; on a damp track it turns into a fine mist instead.
+  // Kerb strikes at speed kick up a little dust. One small point system.
+  updateSmoke(dt) {
+    if (!dt) return;
+    const M = 420;
+    if (!this.smoke) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(M * 3).fill(-9999), 3).setUsage(THREE.DynamicDrawUsage));
+      g.setAttribute('aAge', new THREE.BufferAttribute(new Float32Array(M * 2), 2).setUsage(THREE.DynamicDrawUsage));
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, fog: true,
+        uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uPx: { value: 600 }, uCol: { value: new THREE.Color(0.86, 0.86, 0.85) } }]),
+        vertexShader: `attribute vec2 aAge; uniform float uPx; varying float vA;
+          #include <common>
+          #include <fog_pars_vertex>
+          #include <logdepthbuf_pars_vertex>
+          void main() {
+            float age = aAge.x;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
+            float size = mix(0.35, 2.6 * aAge.y, sqrt(age));
+            gl_PointSize = age > 0.0 ? clamp(size * uPx / max(0.5, -mvPosition.z), 1.0, 300.0) : 0.0;
+            vA = pow(1.0 - age, 1.6) * smoothstep(0.0, 0.05, age) * smoothstep(2.0, 8.0, -mvPosition.z);
+            #include <logdepthbuf_vertex>
+            #include <fog_vertex>
+          }`,
+        fragmentShader: `uniform vec3 uCol; varying float vA;
+          #include <common>
+          #include <fog_pars_fragment>
+          #include <logdepthbuf_pars_fragment>
+          void main() {
+            #include <logdepthbuf_fragment>
+            vec2 p = gl_PointCoord - 0.5; float d2 = dot(p, p) * 4.0; if (d2 > 1.0) discard;
+            gl_FragColor = vec4(uCol, 0.5 * vA * exp(-d2 * 2.6) * (1.0 - d2));
+            #include <fog_fragment>
+          }`,
+      });
+      this.smoke = new THREE.Points(g, mat); this.smoke.frustumCulled = false; this.smoke.renderOrder = 5;
+      this.smokeV = new Float32Array(M * 3); this.smokeL = new Float32Array(M); this.smokeL0 = new Float32Array(M).fill(1); this.smokeI = 0; this.smokeLive = 0;
+      this.scene.add(this.smoke);
+    }
+    const P = this.smoke.geometry.attributes.position.array, A = this.smoke.geometry.attributes.aAge.array, V = this.smokeV, L = this.smokeL, L0 = this.smokeL0;
+    const u = this.smoke.material.uniforms, cam = this.camera.position, nt = this.night ? 1 : (this._night || 0);
+    u.uPx.value = (this.H || 720) / (2 * Math.tan(this.camera.fov * Math.PI / 360));
+    u.uCol.value.setRGB(0.86, 0.86, 0.85).multiplyScalar(1 - 0.75 * nt);
+    const simK = Math.max(1, Math.min(8, this._simK || 1));
+    let emitted = 0;
+    for (const car of this.cars.values()) {
+      const m = car.mesh, sp = car.state?.speed || 0, acc = car._acc || 0;
+      if (!m.visible || car.pc || sp < 12 || m.position.distanceToSquared(cam) > 200 * 200) { car._lock = 0; continue; }
+      // a lock-up starts on the stop pedal at speed; lasts a fraction of a second
+      if (acc < -26 && sp > 30 && !(car._lock > 0) && !car._lockedThisZone) { car._lockedThisZone = true; if (Math.random() < 0.12) { car._lock = 0.35 + Math.random() * 0.4; car._lockW = Math.random() < 0.5 ? 1 : -1; } }
+      if (acc > -8) car._lockedThisZone = false;
+      const dust = car._kerb && sp > 40 && (this.wet || 0) < 0.3 ? 1 : 0;
+      if (!(car._lock > 0) && !dust) continue;
+      car._lock = Math.max(0, (car._lock || 0) - dt * simK);
+      const fx = Math.cos(m.rotation.y), fz = -Math.sin(m.rotation.y);
+      const n = Math.min(6, Math.round((car._lock > 0 ? 70 : 18) * dt * (0.6 + Math.random())) + (Math.random() < 0.5 ? 1 : 0));
+      const wb = m.userData.wheels?.[0]?.position, lon = (wb ? wb.x : 1.7) * (m.scale.x || 1), lat0 = wb ? Math.abs(wb.z) : 0.8;
+      for (let q = 0; q < n; q++) {
+        const k = this.smokeI = (this.smokeI + 1) % M; emitted++;
+        const lat = car._lock > 0 ? car._lockW * lat0 : (Math.random() < 0.5 ? 1 : -1) * lat0, lo = car._lock > 0 ? lon : -lon;
+        P[k * 3] = m.position.x + fx * lo + fz * lat; P[k * 3 + 1] = m.position.y + 0.15; P[k * 3 + 2] = m.position.z + fz * lo - fx * lat;
+        const vf = sp * (0.25 + Math.random() * 0.2);
+        V[k * 3] = fx * vf + (Math.random() - 0.5) * 2; V[k * 3 + 1] = 0.4 + Math.random() * 1.2; V[k * 3 + 2] = fz * vf + (Math.random() - 0.5) * 2;
+        L0[k] = car._lock > 0 ? 0.9 + Math.random() * 0.8 : 0.5 + Math.random() * 0.4; L[k] = L0[k]; A[k * 2 + 1] = car._lock > 0 ? 0.8 + Math.random() * 0.6 : 0.5;
+      }
+    }
+    if (!emitted && !this.smokeLive) { this.smoke.visible = false; return; }
+    this.smoke.visible = true;
+    const dts = dt * simK, drag = Math.exp(-dts * 2.8); let live = 0;
+    for (let k = 0; k < M; k++) {
+      if (L[k] <= 0) { if (A[k * 2] !== 0) { A[k * 2] = 0; P[k * 3 + 1] = -9999; } continue; }
+      live++; L[k] -= dts; V[k * 3] *= drag; V[k * 3 + 2] *= drag; V[k * 3 + 1] *= drag;
+      P[k * 3] += V[k * 3] * dts; P[k * 3 + 1] += (V[k * 3 + 1] + 0.3) * dts; P[k * 3 + 2] += V[k * 3 + 2] * dts;
+      A[k * 2] = Math.min(1, Math.max(0.001, 1 - L[k] / L0[k]));
+    }
+    this.smokeLive = live;
+    this.smoke.geometry.attributes.position.needsUpdate = true; this.smoke.geometry.attributes.aAge.needsUpdate = true;
   }
 
   // rooster-tail spray behind cars on a wet track: one shared particle system. Each puff grows
@@ -3227,7 +3350,9 @@ export class Race3D {
       const moved = Math.hypot(m.position.x - px0, m.position.z - pz0);
       if (moved > 80) continue; // teleport (pit / replay jump)
       // one puff per ~0.7 m of track, scaled by how wet it is
-      car._sprAcc = (car._sprAcc || 0) + moved * 1.5 * this.wet * (this.low ? 0.35 : 1);
+      // denser and taller with speed: a crawling car barely lifts a mist, at 300 km/h it drags a wall
+      const spK = Math.min(1, sp / 80);
+      car._sprAcc = (car._sprAcc || 0) + moved * 1.5 * this.wet * (this.low ? 0.35 : 1) * (0.3 + 1.1 * spK);
       const n = Math.min(30, Math.floor(car._sprAcc)); car._sprAcc -= n;
       for (let q = 0; q < n; q++) {
         const k = this.sprayI = (this.sprayI + 1) % M; const r = Math.random(), t = Math.random();
@@ -3236,7 +3361,7 @@ export class Race3D {
         P[k * 3] = bx - fx * back + fz * lat; P[k * 3 + 1] = m.position.y + 0.3 + Math.random() * 0.25; P[k * 3 + 2] = bz - fz * back - fx * lat;
         const vf = sp * (0.45 + Math.random() * 0.3), vl = (Math.random() - 0.5) * 4 + Math.sign(lat) * 1.2;
         V[k * 3] = fx * vf + fz * vl; V[k * 3 + 1] = 1.2 + Math.random() * 2.6 + sp * 0.012; V[k * 3 + 2] = fz * vf - fx * vl;
-        L0[k] = 0.7 + Math.random() * 0.7; L[k] = L0[k] - (1 - t) * dts; A[k * 2 + 1] = Math.random();
+        L0[k] = (0.5 + Math.random() * 0.6) * (0.6 + 0.7 * spK); L[k] = L0[k] - (1 - t) * dts; A[k * 2 + 1] = Math.random() * (0.45 + 0.55 * spK);
       }
     }
     // the mist keeps part of the car's speed for a moment, then hangs and thins out
@@ -3405,7 +3530,7 @@ export class Race3D {
     // instead of on the frame the headlights first switch on
     try {
       const hid = [this.carBeam, this.carCone, this.carGlow, this._pitNight?.spillMesh, this._lampRig?.beamMat, this.poolMat].filter((o) => o && !o.visible); hid.forEach((o) => { o.visible = true; });
-      this.renderer.compile(this.scene, this.camera);
+      if (this.renderer.compileAsync) this.renderer.compileAsync(this.scene, this.camera).catch(() => {}); else this.renderer.compile(this.scene, this.camera);
       hid.forEach((o) => { o.visible = false; });
     } catch {}
   }
@@ -3575,15 +3700,37 @@ export class Race3D {
     car._yaw = (car._yaw || 0) + (Math.max(-0.35, Math.min(0.35, yawLat)) - (car._yaw || 0)) * Math.min(1, dt * 8);
     m.position.set(x, yy, z);
     m.rotation.y = -h - car._yaw + yawX;
-    const k = this.geo.k[i0];
+    // curvature of the path actually driven (the racing line), not of the centreline
+    const kL = this.lineK && !this.open ? this.lineK : this.geo.k, k = kL[i0];
     // body roll towards the outside of the corner, pitch from braking / acceleration
     const stiff = this.category === 'rally' ? 2.2 : this.category === 'endurance' ? 1.3 : 1;
     car._roll = (car._roll || 0) + (Math.max(-0.05, Math.min(0.05, -k * speed ** 2 * 0.0011 * stiff)) - (car._roll || 0)) * Math.min(1, dt * 6);
-    m.rotation.x = car._roll;
     if (dt > 0) { const acc = (speed - (car._v ?? speed)) / dt; car._v = speed; car._acc = (car._acc || 0) + (Math.max(-45, Math.min(15, acc)) - (car._acc || 0)) * Math.min(1, dt * 5); }
-    m.rotation.z = (this.geo.h ? m.rotation.z : 0) + Math.max(-0.035, Math.min(0.02, (car._acc || 0) * 0.0009 * stiff));
+    const pitch = Math.max(-0.035, Math.min(0.02, (car._acc || 0) * 0.0009 * stiff));
+    const body = m.userData.body;
+    if (body) {
+      // sprung body on its suspension: roll and pitch about the roll centre near the ground,
+      // the wheels stay planted. Aero load squats the car at speed, kerbs and bumps shake it.
+      const half = this.TW / 2, onKerb = !car.pc && !st.fx && Math.abs(laneCur) > half - 1.25 && Math.abs(laneCur) < half + 1.5 && speed > 20;
+      const fm = this.category === 'formula' || this.category === 'junior';
+      const squat = -(fm ? 0.022 : 0.014) * Math.min(1, (speed / 85) ** 2);
+      car._kerbT = (car._kerbT || 0) + dt * speed;
+      const buzz = onKerb ? Math.sin(car._kerbT * 2.6) * 0.012 + Math.sin(car._kerbT * 6.1) * 0.006 : Math.sin(car._kerbT * 0.9 + car.lane) * 0.0016 * Math.min(1, speed / 60);
+      body.position.y = squat + buzz;
+      body.rotation.x = car._roll + (onKerb ? Math.sin(car._kerbT * 3.7) * 0.008 * Math.sign(laneCur) : 0);
+      body.rotation.z = pitch;
+      car._kerb = onKerb;
+      m.rotation.x = 0; m.rotation.z = this.geo.h ? m.rotation.z : 0;
+      // a hint of slip angle: the tail steps out a little through fast corners, more on exit
+      const slip = Math.max(-0.035, Math.min(0.035, k * speed * speed * 0.00018 * (1 + Math.max(0, car._acc || 0) * 0.06)));
+      car._slip = st.fx ? 0 : (car._slip || 0) + (slip - (car._slip || 0)) * Math.min(1, dt * 4);
+      m.rotation.y -= car._slip;
+    } else {
+      m.rotation.x = car._roll;
+      m.rotation.z = (this.geo.h ? m.rotation.z : 0) + pitch;
+    }
     const spin = speed * dt / 0.34;
-    const steer = Math.max(-0.42, Math.min(0.42, Math.atan(3.5 * (this.geo.k[(i0 + 3) % N] || k)) * 1.4));
+    const steer = Math.max(-0.42, Math.min(0.42, Math.atan(3.5 * (kL[(i0 + 1) % N] || k)) * 1.4));
     m.userData.wheels.forEach((w, wi) => { for (const sp of w.userData.spin) sp.rotation.z -= spin; if (wi < 2) w.rotation.y = -steer; });
     // wheel motion blur: past ~65 km/h the spokes smear into a disc (hysteresis, no flicker)
     const blur = !this.low && (car._blur ? speed > 15 : speed > 18);
@@ -3599,6 +3746,21 @@ export class Race3D {
   }
 
   startIntro(sec = 5) { this.introT = sec; this.introDur = sec; this.introStart = performance.now(); }
+
+  // ---- [highlights] public hooks used by the replay / highlights views (src/screens/highlights.js) ----
+  // rollover / lift on top of the pose placeCar computed (roll about the car's own long axis)
+  applyFxPose(car, fx) {
+    const m = car.mesh;
+    if (fx.roll) { m.rotation.order = 'YXZ'; m.rotation.x += fx.roll; } else if (m.rotation.order !== 'XYZ') m.rotation.order = 'XYZ';
+    if (fx.lift) m.position.y += fx.lift;
+  }
+  // forget per-car motion memory (pit-lane state, lane smoothing): call after a time jump in a replay
+  resetMotion() {
+    for (const c of this.cars.values()) { c.pc = null; c.sBack = 0; c.laneCur = null; c.latOff = 0; c._pl = null; c._v = null; c._acc = 0; c._yaw = 0; c._dev = null; c._tac = 0; c._slip = 0; c._lock = 0; c._roll = 0; }
+    this._cut = true; this._mvPrev = 0; this._simK = 1;
+  }
+  // world position of a car (null when hidden)
+  carWorld(key) { const c = this.cars.get(key); return c && c.mesh.visible ? c.mesh.position : null; }
 
   pickBattle() {
     // auto director: find the closest fight among running cars, prefer player cars
@@ -3658,12 +3820,12 @@ export class Race3D {
         this.dirFocus = b || this.focusKey;
         const df = this.cars.get(this.dirFocus);
         const fast = (this._simK || 1) > 12; // fast-forward: only the steady wide shots are readable
-        const pool = fast ? ['tv', 'heli'] : df?.pc ? ['garage', 'garage', 'tv'] : ['tv', 'tv', 'chase', 'heli', 'tv', 'onboard'];
+        const pool = fast ? ['tv', 'heli'] : df?.pc ? ['garage', 'garage', 'tv'] : ['tv', 'tv', 'chase', 'heli', 'tv', 'onboard', 'rail', 'low'];
         // never cut to the same shot type twice in a row unless nothing else fits
         const opts = pool.filter((m2) => m2 !== this.camMode);
         const mode = (opts.length ? opts : pool)[Math.floor(Math.random() * (opts.length || pool.length))];
         this.camMode = mode;
-        this.dirT = mode === 'tv' ? 8 + Math.random() * 6 : mode === 'heli' ? 6 + Math.random() * 4 : mode === 'garage' ? 7 + Math.random() * 5 : 5 + Math.random() * 4;
+        this.dirT = mode === 'tv' ? 8 + Math.random() * 6 : mode === 'heli' ? 6 + Math.random() * 4 : mode === 'garage' ? 7 + Math.random() * 5 : mode === 'rail' || mode === 'low' ? 4 + Math.random() * 3 : 5 + Math.random() * 4;
         this._cut = true;
       }
       const df = this.cars.get(this.dirFocus);
@@ -3733,7 +3895,8 @@ export class Race3D {
       m.updateMatrixWorld();
       const formula = this.category === 'formula' || this.category === 'junior';
       // driver's eye point from the car model when it provides one (local coords, +x forward)
-      const eye = m.userData?.eye;
+      // (the models store it as [x, y, z]; a Vector3-like object works too)
+      const e0 = m.userData?.eye, eye = Array.isArray(e0) ? { x: e0[0], y: e0[1], z: e0[2] } : e0;
       const ex = eye ? eye.x : formula ? -0.36 : 0.05, ey = eye ? eye.y : formula ? 0.9 : 1.05, ez = eye ? eye.z : formula ? 0 : 0.35;
       pos = m.localToWorld(new THREE.Vector3(ex, ey, ez));
       look = m.localToWorld(new THREE.Vector3(30, ey - (formula ? 1.5 : 0.25), ez));
@@ -3753,7 +3916,8 @@ export class Race3D {
       const t = this._shT;
       if (simK > 12) {
         // fast-forward: steady high orbit locked on the car (no lag, never loses the pack)
-        const a = t * 0.05; pos = target.clone().add(new THREE.Vector3(Math.cos(a) * 95, 150, Math.sin(a) * 95));
+        // (rally stages: one car on an open road, so the orbit flies low enough to keep it readable)
+        const a = t * 0.05, R = this.open ? 30 : 95; pos = target.clone().add(new THREE.Vector3(Math.cos(a) * R, this.open ? 58 : 150, Math.sin(a) * R));
         this._heliPos = pos.clone(); look = target.clone(); fov = 38; this._snap = true;
       } else {
         // flight options: either side of the car, then higher, then overhead; the first one with a
@@ -3770,6 +3934,51 @@ export class Race3D {
         look = target.clone().addScaledVector(fwd, Math.min(14, spd * 0.25));
         fov = k === 3 ? 30 : k === 2 ? 26 : 34;
       }
+    } else if (this.camMode === 'rail') {
+      // tracking shot: a camera on a dolly beside the track running at the car's pace (follows
+      // the track distance, so it glides without any lag), slightly ahead, long lens
+      const s = focus.state?.s || 0, N = this.geo.N;
+      if (!this._rail || this._cut) {
+        const i = ((Math.floor(s) % N) + N) % N;
+        // the outside of the coming bend, so the car is seen turning towards the lens
+        let ks = 0; for (let q = 0; q < 30; q++) ks += this.geo.k[(i + q) % N];
+        this._rail = { side: ks > 0 ? -1 : 1, ph: Math.random() * 6 };
+      }
+      const sd = this._rail.side, q = (s + 0.5 + N) % N, iq = Math.floor(q) % N;
+      let off = this.TW / 2 + 9;
+      if (this.wallOff) off = Math.max(this.TW / 2 + 1, Math.min(off, this.wallOff(iq, sd) - 0.8));
+      const p0 = this.pose(q, sd * off);
+      pos = new THREE.Vector3(p0.x, (p0.y || 0) + 1.25 + 0.08 * Math.sin(this._shT * 0.7 + this._rail.ph), p0.z);
+      look = target.clone().add(new THREE.Vector3(0, 0.55, 0)).addScaledVector(fwd, 1.2);
+      fov = Math.max(18, Math.min(50, 2 * Math.atan(5.5 / Math.max(1, pos.distanceTo(target))) * 180 / Math.PI));
+    } else if (this.camMode === 'low') {
+      // low trackside camera at the inside of the next corner: the car comes at the lens and
+      // sweeps past the apex, shallow depth of field
+      const s = focus.state?.s || 0, N = this.geo.N;
+      const rel = (i) => { let d = i - s; if (d < -N / 2) d += N; if (d > N / 2) d -= N; return d; };
+      if (!this._low || this._cut || rel(this._low.i) < -9) {
+        // the next corner 40-200 m ahead, the camera at its inside kerb (else the outside) where
+        // it sees the run-up to the apex; no such spot: a plain spot 80 m up the road
+        const tp = (this._lowT ||= new THREE.Vector3()), seesRun = (p, ci) => [0, -6, -12].every((d) => { const j = (ci + d + N) % N; const q = this.pose(j, this.line ? this.line[j] : 0); tp.set(q.x, (q.y || 0) + 0.8, q.z); return this.losClear(p, tp); });
+        let pick = null;
+        const cand = (this.geo.corners || []).map((c) => [((c.i - s) % N + N) % N, c]).filter(([d, c]) => d > 8 && d < 40 && c.r < 300).sort((a, b) => a[0] - b[0]);
+        for (const [, c] of cand) {
+          const side = Math.sign(this.geo.k[c.i]) || 1;
+          for (const [sd, off] of [[side, this.TW / 2 + 2.4], [-side, this.TW / 2 + 5]]) {
+            const o2 = this.wallOff ? Math.max(this.TW / 2 + 1, Math.min(off, this.wallOff(c.i, sd) - 0.8)) : off;
+            const p0 = this.pose(c.i, sd * o2), p = new THREE.Vector3(p0.x, (p0.y || 0) + 0.7, p0.z);
+            if (seesRun(p, c.i)) { pick = { i: c.i, pos: p }; break; }
+          }
+          if (pick) break;
+        }
+        if (!pick) { const ci = Math.round(s + 16) % N, p0 = this.pose(ci, (this.TW / 2 + 3) * (this.geo.k[ci] >= 0 ? 1 : -1)); pick = { i: ci, pos: new THREE.Vector3(p0.x, (p0.y || 0) + 0.6, p0.z) }; }
+        this._low = pick;
+        if (!this._cut) this._cut = true;
+      }
+      pos = this._low.pos.clone();
+      look = target.clone().add(new THREE.Vector3(0, 0.45, 0)).addScaledVector(fwd, Math.min(3, spd * 0.03));
+      const dl = pos.distanceTo(target);
+      fov = Math.max(9, Math.min(55, 2 * Math.atan(7 / Math.max(1, dl)) * 180 / Math.PI));
     } else {
       // TV: nearest camera ahead of the car that actually sees it. A shot is held for a minimum
       // time and until the car has gone by; at high sim speed cameras further ahead are picked
@@ -3778,7 +3987,7 @@ export class Race3D {
       const rel = (c) => { let d = c.i - s; if (!this.open) { if (d < -N / 2) d += N; if (d > N / 2) d -= N; } return d; };
       const tgt1 = target.clone(); tgt1.y += 0.9;
       if (simK > 12 || !this.tvCams?.length) {
-        const a = this._shT * 0.04 + 1; pos = target.clone().add(new THREE.Vector3(Math.cos(a) * 120, 135, Math.sin(a) * 120));
+        const a = this._shT * 0.04 + 1, R = this.open ? 14 : 120; pos = target.clone().add(new THREE.Vector3(Math.cos(a) * R, this.open ? 36 : 135, Math.sin(a) * R));
         look = target.clone(); this._tv = null; this._snap = true; this._tvWide = true;
       } else {
         if (this._tvWide) { this._tvWide = false; this._cut = true; }
@@ -3822,7 +4031,8 @@ export class Race3D {
     }
     if (this.camMode !== 'onboard' && this.camMode !== 'cockpit') {
       const gy = this.groundH ? this.groundH(pos.x, pos.z) : Math.max(this.envH ? this.envH(pos.x, pos.z) : -1e9, this.hillH ? this.hillH(pos.x, pos.z) : -1e9);
-      if (Number.isFinite(gy) && pos.y < gy + 1.4) pos.y = gy + 1.4;
+      const minH = this.camMode === 'low' ? 0.35 : this.camMode === 'rail' ? 0.9 : 1.4;
+      if (Number.isFinite(gy) && pos.y < gy + minH) pos.y = gy + minH;
     }
     // validity: a broken position / target falls back to a plain shot of the car
     {
@@ -3847,7 +4057,7 @@ export class Race3D {
     if (this.camera.near !== (ck ? 0.05 : 0.3)) { this.camera.near = ck ? 0.05 : 0.3; }
     const cutNow = this._cut || wasCut || this._snap; this._snap = false;
     if (cutNow || this.camMode === 'onboard' || ck || !Number.isFinite(this.camLook.x + this.camLook.y + this.camLook.z)) { this.camPos.copy(pos); this.camLook.copy(look); this._cut = false; }
-    else { this.camPos.lerp(pos, k); this.camLook.lerp(look, this.camMode === 'chase' ? 1 : this.camMode === 'heli' ? ease(3) : ease(7)); }
+    else { this.camPos.lerp(pos, k); this.camLook.lerp(look, this.camMode === 'chase' || this.camMode === 'rail' ? 1 : this.camMode === 'heli' ? ease(3) : this.camMode === 'low' ? ease(14) : ease(7)); }
     this.camera.position.copy(this.camPos);
     // a cut lands on its framing at once; within a shot the zoom eases
     if (cutNow || !Number.isFinite(this.camera.fov)) this.camera.fov = fov; else this.camera.fov += (fov - this.camera.fov) * ease(4);
@@ -3868,7 +4078,7 @@ export class Race3D {
     const half = mode === 'heli' ? 70 : mode === 'tv' ? 60 : mode === 'chase' || mode === 'garage' ? 40 : 46;
     if (this.sun.shadow.camera.right !== half) this.sun.shadow.normalBias = 0.02 * Math.max(0.5, half / 70);
     const fc = (this._shC ||= new THREE.Vector3());
-    if (mode === 'tv' || mode === 'heli') fc.copy(target); else fc.copy(this.camera.position).lerp(target, 0.5).addScaledVector(fwd, half * 0.45);
+    if (mode === 'tv' || mode === 'heli' || mode === 'low' || mode === 'rail') fc.copy(target); else fc.copy(this.camera.position).lerp(target, 0.5).addScaledVector(fwd, half * 0.45);
     stabilizeShadow(this.sun, fc, this.sunDir, half);
     this.skyDome.position.copy(this.camera.position);
     if (this.clouds) this.clouds.position.set(this.camera.position.x, 0, this.camera.position.z);
@@ -3876,11 +4086,15 @@ export class Race3D {
     const dof = this.composer?.dof;
     if (dof) {
       const fd = this.camera.position.distanceTo(this.camLook), px = (this.H || 720) / 720;
-      const on = !this._fxOff && (mode === 'garage' || (mode === 'tv' && this.camera.fov < 16));
+      // replays get the cinematic treatment: every outside shot focuses on the car
+      const rp = !!this.replay && mode !== 'onboard' && mode !== 'cockpit';
+      const on = !this._fxOff && (mode === 'garage' || mode === 'low' || rp || (mode === 'tv' && this.camera.fov < 16));
       dof.enabled = on;
       if (on) {
-        const u = dof.uniforms;
+        const u = dof.uniforms, fc2 = this.camera.position.distanceTo(target);
         if (mode === 'garage') { u.uFocus.value = fd; u.uRange.value = Math.max(2, fd * 0.35); u.uMax.value = 7 * px; u.uNear.value = 0.5; }
+        else if (mode === 'low') { u.uFocus.value = fc2; u.uRange.value = Math.max(1.5, fc2 * 0.14); u.uMax.value = 8 * px; u.uNear.value = 0.6; }
+        else if (rp) { u.uFocus.value = fc2; u.uRange.value = Math.max(3, fc2 * (mode === 'heli' ? 0.5 : 0.3)); u.uMax.value = (mode === 'heli' ? 3.5 : 5) * px; u.uNear.value = 0.4; }
         else { u.uFocus.value = fd; u.uRange.value = fd * 0.25; u.uMax.value = 3.2 * px; u.uNear.value = 0.25; }
       }
     }

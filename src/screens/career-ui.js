@@ -7,7 +7,7 @@ import { esc } from '../ui/dom.js';
 import { getTrack } from '../engine/world.js';
 import { genStage, circuitPath, STAGE_STYLE } from '../ui/trackview.js';
 import { STATUS, TP_PERSONAS, statusInfo, relLabel, relColor, statusIdx } from '../engine/dynasty.js';
-import { playerTeam, standings } from '../engine/season.js';
+import { playerTeam, standings, fmtM } from '../engine/season.js';
 
 const h32 = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; return h; };
 const vis = (c) => (/^#f[0-9a-f]{5}$/i.test(c) || /^#e[0-9a-f]{5}$/i.test(c) ? null : c);
@@ -141,4 +141,44 @@ export function boardTable(st) {
     ['Area sportiva', 'squalo', c + (started ? (st.board.target - pos) * 7 : 0)],
   ];
   return `<div class="board-table">${seats.map(([n, per, m], i) => { const mood = m >= 70 ? ['Entusiasta', 'happy'] : m >= 45 ? ['Fiducioso', ''] : m >= 25 ? ['Perplesso', 'meh'] : ['Furioso', 'angry']; return `<div class="board-seat ${mood[1]}">${portraitSVG({ name: `${n}${pt.id}${i}`, persona: per }, { id: pt.id, colors: ['#2a2f37', pt.colors[1] || '#fff', '#111'] }, 52)}<b>${n}</b><span class="mood">${mood[0]}</span></div>`; }).join('')}</div>`;
+}
+
+// ---------- season objectives: progress towards each target (mirrors the checks in engine/progress.js) ----------
+const OBJ_GOAL = { win: ['wins', 1], podiums3: ['podiums', 3], podium: ['podiums', 1], points10: ['pointsRaces', 10], points5: ['pointsRaces', 5], pole: ['poles', 1], double: ['doublePoints', 1], nodnf5: ['bestNoDnfStreak', 5], onetwo: ['oneTwos', 1] };
+export function objectiveProgress(o, stats) {
+  const g = OBJ_GOAL[o.id]; if (!g) return { v: o.done ? 1 : 0, n: 1, pct: o.done ? 100 : 0 };
+  const n = g[1]; const v = o.done ? n : Math.min(n, stats?.[g[0]] || 0);
+  return { v, n, pct: Math.round((v / n) * 100) };
+}
+// one objective with its progress bar: hub, career screen, season review
+export function objectiveRow(o, stats, { money = true } = {}) {
+  const p = objectiveProgress(o, stats);
+  return `<div class="objp ${o.done ? 'done' : ''}"><span class="objp-ic">${icon(o.done ? 'check' : 'target')}</span><div class="objp-b"><div class="objp-t"><b>${esc(o.text)}</b><span class="objp-n mono">${o.done ? 'Fatto' : `${p.v}/${p.n}`}</span></div><div class="objp-bar"><i style="width:${p.pct}%"></i></div></div><span class="objp-r">+${o.xp} XP${money && o.money ? `<small>+${fmtM(o.money)}</small>` : ''}</span></div>`;
+}
+// circular progress ring (SVG): v in 0..1 with a big centred label
+export function ring(v, { size = 76, stroke = 7, color = 'var(--team)', label = '', sub = '' } = {}) {
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r, f = Math.max(0, Math.min(1, v)), m = size / 2;
+  return `<div class="ring" style="width:${size}px;height:${size}px"><svg viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle cx="${m}" cy="${m}" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="${stroke}"/><circle class="ring-v" cx="${m}" cy="${m}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="butt" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - f)).toFixed(1)}" style="--c:${c.toFixed(1)}" transform="rotate(-90 ${m} ${m})"/></svg><div class="ring-l"><b>${label}</b>${sub ? `<span>${sub}</span>` : ''}</div></div>`;
+}
+
+// ---------- signing moment: a short "stamp" over the screen (contracts, sponsors, academy) ----------
+// Non-blocking (pointer-events: none), removes itself; respects reduced motion via CSS.
+export function signFx(stamp, title, sub = '', art = '', tone = '') {
+  document.querySelector('.sign-fx')?.remove();
+  const el = document.createElement('div');
+  el.className = `sign-fx ${tone}`; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+  el.innerHTML = `<div class="sf-card">${art ? `<div class="sf-art">${art}</div>` : ''}<div class="sf-stamp">${esc(stamp)}</div><div class="sf-t">${esc(title)}</div>${sub ? `<div class="sf-s">${esc(sub)}</div>` : ''}</div>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.classList.add('out'), 1900);
+  setTimeout(() => el.remove(), 2400);
+}
+
+// ---------- trophy art (season end, empty trophy cabinet) ----------
+let cupN = 0;
+export function trophySVG(col = 'var(--gold)', size = 150) {
+  const gid = `cupg${++cupN}`;
+  return `<svg class="se-cup" width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" stop-color="#fff6c8"/><stop offset=".45" stop-color="${col}"/><stop offset="1" stop-color="#8a6400"/></linearGradient></defs>
+    <path d="M34 14h52v18c0 22-11 38-26 40C45 70 34 54 34 32z" fill="url(#${gid})"/><path d="M34 22H18c0 16 8 26 20 28M86 22h16c0 16-8 26-20 28" fill="none" stroke="${col}" stroke-width="6"/>
+    <rect x="54" y="70" width="12" height="16" fill="url(#${gid})"/><path d="M38 86h44l6 16H32z" fill="url(#${gid})"/><rect x="28" y="102" width="64" height="8" fill="#3a2a00"/>
+    <path d="M60 26l4 8.5 9.3 1-7 6.3 2 9.2L60 46.3 51.7 51l2-9.2-7-6.3 9.3-1z" fill="rgba(0,0,0,.25)"/><rect class="se-shine" x="20" y="-20" width="14" height="160" fill="rgba(255,255,255,.45)" transform="rotate(25 60 60)"/></svg>`;
 }

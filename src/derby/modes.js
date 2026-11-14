@@ -39,7 +39,8 @@ export function setup(game) {
 function bench(game, c) { c.out = true; c.removed = true; c.benched = true; c.mesh.visible = false; c.body.setEnabled?.(false); }
 function unbench(game, c, wave) {
   const T = game.terrain, tr = game.track, a = Math.random() * Math.PI * 2, r = tr.R * 0.82;
-  c.benched = false; c.removed = false; c.out = false; c.hp = Math.min(100, 40 + wave * 10); // early waves are already battered: they fall quickly, later ones are fresh c.zoneDmg = null; c.heat = 0; c.hotT = 0; c.fireT = 0; c.burnT = 0; c.outT = 0;
+  c.benched = false; c.removed = false; c.out = false; c.hp = Math.min(100, 40 + wave * 10); // early waves are already battered: they fall quickly, later ones are fresh
+  c.zoneDmg = null; c.heat = 0; c.hotT = 0; c.fireT = 0; c.burnT = 0; c.outT = 0;
   for (const w of c.mesh.userData.wheels) { w.userData.bent = 0; w.userData.toe = 0; w.rotation.x = 0; }
   game.repairWheels(c); c.body.setEnabled?.(true); c.mesh.visible = true;
   c.body.setTranslation({ x: T.cx + Math.cos(a) * r, y: T.heightAt(T.cx + Math.cos(a) * r, T.cz + Math.sin(a) * r) + 0.8, z: T.cz + Math.sin(a) * r }, true);
@@ -72,7 +73,7 @@ export function tick(game, dt) {
   }
   if (m === 'ondate') {
     const W = game.wave, foes = game.cars.filter((c) => !c.isPlayer && !c.benched);
-    if (game.player.out) { if (!W.over) { W.over = true; game.message(`Resistito a ${W.cleared} ondat${W.cleared === 1 ? 'a' : 'e'}`, 'wreck'); setTimeout(() => { if (game.state === 'race') { game.finishOrder = game.standings(); game.finish(); } }, 2200); } return true; }
+    if (game.player.out) { if (!W.over) { W.over = true; W.overT = game.time + 2.2; game.message(`Resistito a ${W.cleared} ondat${W.cleared === 1 ? 'a' : 'e'}`, 'wreck'); } else if (game.time >= W.overT) { game.finishOrder = game.standings(); game.finish(); } return true; } // game time, not a wall-clock timer: pausing no longer ends the run
     if (W.n > 0 && W.next == null && foes.every((c) => c.out)) {
       W.cleared = W.n; game.player.hp = Math.min(100, game.player.hp + 25); game.player.nitro = Math.min(100, game.player.nitro + 40); game.player.score += 400 * W.n;
       if (W.n >= WAVES) { game.message('TUTTE LE ONDATE RESPINTE!', 'big'); game.callout('IMBATTIBILE!', 'gold'); game.finishOrder = game.standings(); game.finish(); return true; }

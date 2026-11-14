@@ -15,7 +15,7 @@ import { COMPOUNDS } from '../data/categories.js';
 import { circuitPath, arcFrac, speedAtTimeFrac, TrackView } from '../ui/trackview.js';
 import { mulberry32, clamp, chance, rand } from '../engine/rng.js';
 import { tyreBadge, teamStripe, driverChip } from './common.js';
-import { sfx, engineStart, engineSet, engineStop, music } from '../ui/audio.js';
+import { sfx, engineStart, engineSet, engineStop, music, crowdCheer } from '../ui/audio.js';
 import { celebrate } from './results.js';
 import { hasPerk } from '../engine/progress.js';
 import { Race3D, webglAvailable } from '../ui/race3d.js';
@@ -25,7 +25,11 @@ import { SETUP_PARAMS, idealFor, setupQuality } from './setup.js';
 import { isLiveSession, sessionRender, sessionMount, sessionStop, sessionActions, sessionKey, simulateQualifying, sessionHub } from './sessions.js';
 import { plannerPanel, plannerActions, raceStrategyHTML, adviceHTML, ensurePlan, isDryPlan, racePlan } from './planner.js';
 import { optimise, normalizePlan } from '../engine/strategy.js';
+import { load3D } from './loader3d.js';
 import { tvUpdate, trackerUpdate, stintChartSVG, liveStandingsHTML, analysisHTML, defaultSel } from './broadcast.js';
+import { IncidentFx } from '../ui/race3d-incidents.js';
+import { saveReel, HL_TYPES } from '../engine/highlights.js';
+import { ClipPlayer, openHighlights, highlightsOpen } from './highlights.js';
 
 function shortName(n) { const p = n.split(' '); return (p[p.length - 1] || n).replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase(); }
 export { shortName };
@@ -90,6 +94,7 @@ registerScreen({
   onKey(e) {
     if (sessionKey(e)) return;
     if (!R.sim) return;
+    if (R.replay && (e.code === 'Escape' || e.code === 'KeyR')) { e.preventDefault(); stopReplay(); return; }
     if (R.an) { if (e.key === 'Escape' || e.code === 'KeyA') { e.preventDefault(); closeAnalysis(); } return; }
     // space and the speed keys stay live while a decision card is open; 1-3 / Enter answer it
     if (e.code === 'Space') { e.preventDefault(); if (document.activeElement?.matches?.('button, [data-a]')) document.activeElement.blur(); R.paused = !R.paused; R.last = performance.now(); updateSpeedUI(); return; }
@@ -98,7 +103,7 @@ registerScreen({
     if (e.code === 'KeyA' && !R.hub?.open) { openAnalysis(); return; }
     const sp = { Digit1: 1, Digit2: 2, Digit3: 4, Digit4: 8, Digit5: 16, Digit6: 32, Digit0: 1 }[e.code];
     if (sp) { R.speed = sp; R.paused = false; updateSpeedUI(); }
-    if (e.code === 'KeyR' && R.r3d) { if (R.replay) stopReplay(); else startReplay(R.lastHighlight && R.sim.time - R.lastHighlight.t < 12 ? R.lastHighlight.key : R.focus); }
+    if (e.code === 'KeyR') startReplay();
   },
   actions: {
     ...sessionActions,
@@ -128,7 +133,9 @@ registerScreen({
     lessons() { openLessons(); },
     cam(el) { R.view3d = el.dataset.c; R.cam = R.view3d; enable3D(R.view3d); renderViewBtns(); },
     view2d() { disable3D(); renderViewBtns(); },
-    replay() { if (R.replay) stopReplay(); else { if (!R.r3d) { R.view3d = 'chase'; enable3D('chase'); renderViewBtns(); } startReplay(R.lastHighlight && R.sim.time - R.lastHighlight.t < 12 ? R.lastHighlight.key : R.focus); } },
+    replay() { if (R.replay) stopReplay(); else startReplay(); },
+    'rp-inc'() { document.getElementById('rp-prompt')?.remove(); if (!R.replay) startReplay({ inc: R.rpInc }); },
+    'race-hl'() { const reel = raceReel(); if (reel) openHighlights(reel); },
     focus(el) { R.focus = el.dataset.key; updateBoard(); },
     gapmode() { R.gapMode = R.gapMode === 'int' ? 'lead' : 'int'; updateBoard(); },
     'tele-tab'(el) { R.tab = el.dataset.t; updateFeed(true); },
@@ -162,7 +169,7 @@ registerScreen({
     auto(el) { const c = R.sim.cars.find((x) => x.key === el.dataset.key); c.auto = !c.auto; updateControls(true); },
     speed(el) { R.speed = +el.dataset.v; R.paused = false; R.last = performance.now(); updateSpeedUI(); },
     pause() { R.paused = !R.paused; R.last = performance.now(); updateSpeedUI(); },
-    'sim-end'() { App.confirm('Simulare fino alla fine?', 'La strategia dei tuoi piloti passerà all’ingegnere.', () => { R.sim.cars.forEach((c) => { if (c.isPlayer) c.auto = true; }); R.sim.momentsOn = false; R.sim.moments = []; R.hub?.reset(); R.sim.runToEnd(); }); },
+    'sim-end'() { if (!R.sim || R.sim.finished) return; App.confirm('Simulare fino alla fine?', 'La strategia dei tuoi piloti passerà all’ingegnere.', () => { R.sim.cars.forEach((c) => { if (c.isPlayer) c.auto = true; }); R.sim.momentsOn = false; R.sim.moments = []; R.hub?.reset(); R.sim.runToEnd(); }); },
     'finish-race'() { finishRace(); },
     'an-open'() { openAnalysis(); },
     'an-close'() { closeAnalysis(); },
@@ -214,14 +221,14 @@ function raceScreen(st) {
       <div id="flagstatus"></div>
       <div class="grow"></div>
       <div class="speed-btns" id="speedbtns">${[1, 2, 4, 8, 16, 32].map((v, i) => `<button class="btn sm" data-a="speed" data-v="${v}" data-tip="${v === 1 ? 'Tempo reale' : `Velocità ${v}x`} · tasto ${i + 1}">${v === 1 ? '1x LIVE' : v + 'x'}</button>`).join('')}</div>
-      <button class="btn sm dec-open" data-a="dec-cfg" data-tip="Decisioni a gioco accelerato: pausa automatica, rallenta a 1x o decide l’ingegnere">${icon('settings')} Decisioni</button>
-      <button class="btn sm an-open" data-a="an-open" data-tip="Lap chart, distacchi, strategie, bilancio dei tempi e registro decisioni (A)">${icon('chart')} Analisi</button>
-      <button class="btn sm" data-a="sim-end" data-tip="Simula il resto della gara: le decisioni passano all’ingegnere">${icon('ff')} Fine gara</button>
+      <button class="btn sm dec-open" data-a="dec-cfg" data-tip="Decisioni a gioco accelerato: pausa automatica, rallenta a 1x o decide l’ingegnere">${icon('settings')}<span class="bl">Decisioni</span></button>
+      <button class="btn sm an-open" data-a="an-open" data-tip="Lap chart, distacchi, strategie, bilancio dei tempi e registro decisioni (A)">${icon('chart')}<span class="bl">Analisi</span></button>
+      <button class="btn sm" data-a="sim-end" data-tip="Simula il resto della gara: le decisioni passano all’ingegnere">${icon('ff')}<span class="bl">Fine gara</span></button>
       <span class="kbd-help" data-a="shortcuts" data-tip="Scorciatoie: Spazio pausa · 1-6 velocità (+/−) · R replay · A analisi · decisioni: 1-3 e Invio, card rapide Z/X/C">?</span>
       <div class="race-prog"><i id="race-prog"></i></div>
     </div>
     <div class="race-board" id="board"></div>
-    <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="race-sub" id="race-sub"></div><div class="battle" id="battle"></div><div class="tvg-layer" id="tvg"></div><div class="ivt-layer" id="tvtrack"></div><div class="dec-stack" id="dec-stack"></div><div id="finish-overlay"></div></div>
+    <div class="race-view" id="race-view"><canvas id="race-cv"></canvas><div class="view-btns" id="view-btns"></div><div class="hud3d hidden" id="hud3d"></div><div class="race-sub" id="race-sub"></div><div class="battle" id="battle"></div><div class="tvb-layer" id="tvboard"></div><div class="tvg-layer" id="tvg"></div><div class="ivt-layer" id="tvtrack"></div><div class="dec-stack" id="dec-stack"></div><div id="finish-overlay"></div></div>
     <div class="race-side" id="side"></div>
     <div class="race-feed"><div class="row gap4 mb8" id="feed-tabs"></div><div id="feed" style="height:calc(100% - 46px);overflow-y:auto"></div></div>
   </div>`;
@@ -265,6 +272,7 @@ function mountRace() {
     extraCfg: 'Gli ordini permanenti di ogni pilota (battaglie, safety car, guasti, radio, ritmo automatico) sono nella scheda «Ordini» del suo pannello.',
   });
   applyDecCfg();
+  R.flag = null; R.finalShown = false; R.lbPos = {}; R.lbChg = {}; R.uiMs = null; R.uiMax = 0;
   R.ctab = {}; R.tvN = 0; R.tvQ = []; R.tvCur = null; R.ivh = {}; R.an = null; R.moment = null;
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {}; R.gh = {};
   R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { ...viewPads(false, circuitPath(tr.cid).aspect), glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' || st.category === 'junior' ? drsZones('formula', tr) : [] });
@@ -276,9 +284,12 @@ function mountRace() {
   updateAll(true);
   // start lights
   music.setMood('race');
-  startLights(() => { R.paused = false; R.last = performance.now(); updateSpeedUI(); engineStart(st.category); });
+  // the lights wait for the 3D view: nobody starts a race behind a loading screen
+  const go = () => startLights(() => { R.paused = false; R.last = performance.now(); updateSpeedUI(); engineStart(st.category); });
+  if (R.load && !R.load.done) R.afterLoad = go; else go();
   const loop = (t) => {
     const dt = Math.min(0.1, (t - R.last) / 1000); R.last = t;
+    if (highlightsOpen()) { R.raf = requestAnimationFrame(loop); return; } // the reel owns the GPU while it plays
     if (!R.paused && !R.sim.finished && !R.replay) {
       R.sim.uiSpeed = R.speed;
       let rem = dt * R.speed; const id0 = R.sim.radioId;
@@ -286,18 +297,19 @@ function mountRace() {
       while (rem > 0 && !R.sim.finished) { const d = Math.min(0.5, rem); R.sim.step(d); rem -= d; if (R.sim.radioId !== id0 && R.sim.moments.some((m) => !m.seen && m.prio >= 2)) break; }
     }
     if (R.hub) { syncMoments(); R.hub.tick(); }
+    if (!R.replay) watchIncidents();
     if (R.replay) playReplay(dt); else if (R.r3d) update3D(dt); else draw();
-    if (R.r3d) draw();
+    if (R.r3d && !R.replay) draw();
     R.uiT += dt;
-    if (R.uiT > 0.25) { R.uiT = 0; updateAll(); }
-    if (R.sim.finished && !R.done) { R.done = true; updateAll(true); onRaceFinished(); }
-    engineSet(R.paused || R.sim.finished ? 0 : R.r3d && R.focusSpeed != null ? R.focusSpeed / 345 : 0.55 + Math.sin(t / 900) * 0.35, { rain: R.sim.rain, crowd: 0.5 });
+    if (R.uiT > 0.25) { R.uiT = 0; const t0 = performance.now(); updateAll(); const ms = performance.now() - t0; R.uiMs = R.uiMs == null ? ms : R.uiMs * 0.9 + ms * 0.1; R.uiMax = Math.max(R.uiMax || 0, ms); } // cost of a UI refresh (devtools: __race.uiMs)
+    if (R.sim.finished && !R.done) { R.done = true; updateAll(true); onRaceFinished(); document.querySelectorAll('[data-a="sim-end"]').forEach((b) => { b.disabled = true; }); }
+    engineSet(R.paused || R.sim.finished ? 0 : R.r3d && R.focusSpeed != null ? R.focusSpeed / 345 : 0.55 + Math.sin(t / 900) * 0.35, { rain: R.sim.rain, crowd: 0.5, view: audioView(R.r3d?.camMode) });
     R.raf = requestAnimationFrame(loop);
   };
   R.raf = requestAnimationFrame(loop);
   updateSpeedUI();
 }
-function stopRace() { closeAnalysis(true); R.moment = null; R.hub = null; R.replay = null; R.rbuf = []; cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = null; R.r3d?.destroy(); R.r3d = null; engineStop(); }
+function stopRace() { R.afterLoad = null; R.load?.cancel(); R.load = null; closeAnalysis(true); R.moment = null; R.hub = null; R.replay = null; R.rpInc = null; R.reel = null; R.hlMeta = null; cancelAnimationFrame(R.raf); R.view?.destroy(); R.view = null; R.ifx?.destroy(); R.ifx = null; R.r3d?.destroy(); R.r3d = null; engineStop(); }
 
 // 2D map: keep a top band (camera buttons, TV graphics, interval tracker) and a subtitle line free;
 // as a 3D minimap the map fills its little box
@@ -306,25 +318,42 @@ function applyViewPads() { if (!R.view) return; Object.assign(R.view.opts, viewP
 function renderViewBtns() {
   const el = document.getElementById('view-btns'); if (!el) return;
   const can3d = webglAvailable();
-  el.innerHTML = (can3d ? `<button class="btn sm" data-a="replay" title="Rivedi gli ultimi 10 secondi">${icon('replay')} Replay</button>` : '') + [['2d', 'Mappa 2D'], ['auto', 'Regia'], ['tv', 'TV 3D'], ['chase', 'Camera car'], ['onboard', 'Onboard'], ...(['formula', 'junior'].includes(S().category) ? [['cockpit', 'Pilota']] : []), ['heli', 'Elicottero']].map(([k, n]) => `<button class="btn sm ${((R.view3d || '2d') === k) ? 'active' : ''}" data-a="${k === '2d' ? 'view2d' : 'cam'}" data-c="${k}" ${k !== '2d' && !can3d ? 'disabled' : ''}>${n}</button>`).join('');
+  el.innerHTML = `<button class="btn sm" data-a="replay" title="Rivedi l’ultimo incidente o gli ultimi 10 secondi (R)">${icon('replay')} Replay</button>` + [['2d', 'Mappa 2D'], ['auto', 'Regia'], ['tv', 'TV 3D'], ['chase', 'Camera car'], ['onboard', 'Onboard'], ...(['formula', 'junior'].includes(S().category) ? [['cockpit', 'Pilota']] : []), ['heli', 'Elicottero']].map(([k, n]) => `<button class="btn sm ${((R.view3d || '2d') === k) ? 'active' : ''}" data-a="${k === '2d' ? 'view2d' : 'cam'}" data-c="${k}" ${k !== '2d' && !can3d ? 'disabled' : ''}>${n}</button>`).join('');
 }
 function enable3D(cam) {
   const st = S(); const sim = R.sim;
-  const rv = document.getElementById('race-view');
+  const rv = document.getElementById('race-view'); if (!rv) return;
+  R.view3d = cam;
   if (!R.r3d) {
-    const div = document.createElement('div'); div.className = 'r3d'; rv.prepend(div);
-    try {
-      R.r3d = new Race3D(div, { cid: sim.track.cid, street: sim.track.street || 0, night: !!sim.track.night && !sim.endurance, category: st.category,
-        cars: [...sim.cars.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: sim.driver(c).helmet.c1, tyreColor: COMPOUNDS[c.tyre].color, isPlayer: c.isPlayer, number: sim.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })), ...(sim.traffic || []).map((g) => ({ key: g.key, livery: { primary: g.colors[0], secondary: g.colors[1], accent: '#111111' }, tyreColor: '#ffd400', number: g.num, sponsor: 'LMGT3', category: 'rally' }))] });
-      if (sim.time < 1) R.r3d.startIntro(4.5);
-    } catch (e) { console.warn('3D non disponibile', e); div.remove(); R.view3d = null; renderViewBtns(); return; }
+    if (R.load && !R.load.done) return; // being built: the latest camera is applied when it is ready
+    R.load = load3D(rv, () => {
+      if (!R.view3d || R.sim !== sim || !rv.isConnected) return null;
+      const div = document.createElement('div'); div.className = 'r3d'; rv.prepend(div);
+      try {
+        R.r3d = new Race3D(div, { cid: sim.track.cid, street: sim.track.street || 0, night: !!sim.track.night && !sim.endurance, category: st.category,
+          cars: [...sim.cars.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: sim.driver(c).helmet.c1, tyreColor: COMPOUNDS[c.tyre].color, isPlayer: c.isPlayer, number: sim.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })), ...(sim.traffic || []).map((g) => ({ key: g.key, livery: { primary: g.colors[0], secondary: g.colors[1], accent: '#111111' }, tyreColor: '#ffd400', number: g.num, sponsor: 'LMGT3', category: 'rally' }))] });
+        if (sim.time < 1) R.r3d.startIntro(4.5);
+        try { R.ifx = new IncidentFx(R.r3d); } catch (e) { console.warn(e); R.ifx = null; }
+      } catch (e) { console.warn('3D non disponibile', e); div.remove(); R.r3d = null; R.view3d = null; renderViewBtns(); return null; }
+      setCam3D(R.view3d || cam);
+      return R.r3d;
+    }, { title: sim.track.name, sub: `${sim.isSprint ? 'Sprint' : 'Gara'} · ${sim.laps} giri · ${sim.track.circuit || ''}`, svg: trackSVG(circuitPath(sim.track.cid), { w: 260, h: 150, glow: null, color: '#fff', width: 3, start: false }), skip: 'view2d', alive: () => R.sim === sim && rv.isConnected,
+      onReady: () => { const f = R.afterLoad; R.afterLoad = null; f?.(); } });
+    return;
   }
-  R.r3d.director = cam === 'auto'; R.r3d.camMode = cam === 'auto' ? 'tv' : cam; R.r3d.dirT = 0; R.r3d.focusKey = R.focus; R.r3d._cut = true;
-  rv.classList.add('mode3d');
+  setCam3D(cam);
+}
+function setCam3D(cam) {
+  const r = R.r3d; if (!r) return;
+  r.director = cam === 'auto'; r.camMode = cam === 'auto' ? 'tv' : cam; r.dirT = 0; r.focusKey = R.focus; r._cut = true;
+  document.getElementById('race-view')?.classList.add('mode3d');
   document.getElementById('hud3d')?.classList.remove('hidden');
   applyViewPads();
 }
 function disable3D() {
+  R.load?.cancel(); R.load = null;
+  if (R.replay) stopReplay();
+  R.ifx?.destroy(); R.ifx = null;
   R.r3d?.destroy(); R.r3d = null; R.view3d = null;
   const rv = document.getElementById('race-view'); rv?.classList.remove('mode3d'); rv?.querySelector('.r3d')?.remove();
   document.getElementById('hud3d')?.classList.add('hidden');
@@ -333,26 +362,25 @@ function disable3D() {
 function update3D(dt) {
   const sim = R.sim, r = R.r3d; if (!r) return;
   const g = trackGeometry(sim.track.cid);
-  const states = sim.cars.map((c) => {
-    if (c.status === 'dnf') return { key: c.key, hidden: true };
-    const d = c.status === 'finished' ? c.finishLap + (sim.time - c.finishTime) / sim.track.lap * 0.3 : c.dist;
+  const W = (r.TW || 12) / 2;
+  const states = sim.cars.map((c, ci) => {
+    // incidents are visible live: the car spins / slides off line, a crashed car stays parked by the barrier
+    const pose = sim.hl?.livePose(ci, W);
+    if (c.status === 'dnf' && !pose) return { key: c.key, hidden: true };
+    let d = c.status === 'finished' ? sim.hl?.carU(c) ?? c.finishLap : c.dist;
+    if (pose) d = pose.u;
     const frac = arcFrac(sim.cat, sim.track.cid, d, sim.track.lap);
-    const speed = c.inPit > 0 ? 0 : speedAtTimeFrac(sim.cat, sim.track.cid, d, c.lapTarget, sim.track.lap) / 3.6;
+    let speed = c.inPit > 0 ? 0 : speedAtTimeFrac(sim.cat, sim.track.cid, d, c.lapTarget, sim.track.lap) / 3.6;
+    if (pose) speed = c.status === 'dnf' ? 0 : Math.abs(pose.lat) > W ? speed * 0.25 : speed;
     const show = c.isPlayer || c.key === R.focus || c.pos <= 3;
-    return { key: c.key, pos: c.pos, gap: c.status === 'running' && c.inPit <= 0 ? c.gapAhead : null, s: frac * g.N, speed, inPit: c.inPit > 0, pitting: !!c.pitReq, close: c.gapAhead < 1, tyreColor: COMPOUNDS[c.tyre].color, label: show ? `P${c.pos} ${shortName(sim.driver(c).name)}` : `${c.pos}` };
+    return { key: c.key, pos: c.pos, gap: c.status === 'running' && c.inPit <= 0 ? c.gapAhead : null, s: frac * g.N, speed, inPit: c.inPit > 0 && !pose, pitting: !!c.pitReq && !pose, close: c.gapAhead < 1, tyreColor: COMPOUNDS[c.tyre].color, label: c.status === 'dnf' ? '' : show ? `P${c.pos} ${shortName(sim.driver(c).name)}` : `${c.pos}`, fx: pose ? { lat: pose.lat, yaw: pose.yaw, roll: pose.roll, lift: pose.lift } : null };
   });
   for (const g of sim.traffic || []) states.push({ key: g.key, s: arcFrac(sim.cat, sim.track.cid, g.dist, sim.track.lap) * g2N(sim), speed: speedAtTimeFrac(sim.cat, sim.track.cid, g.dist, g.lt, sim.track.lap) / 3.6, label: '' });
   r.focusKey = R.focus;
   r.setRain(sim.rain);
   if (sim.endurance && sim.track.night) { R.nightLvl = (R.nightLvl ?? 0) + ((sim.night ? 1 : 0) - (R.nightLvl ?? 0)) * Math.min(1, dt * 0.3); r.setNight(Math.round(R.nightLvl * 20) / 20); }
-  // replay buffer (last ~14s of race time)
-  if (!R.replay) {
-    R.rbuf = R.rbuf || [];
-    const last = R.rbuf[R.rbuf.length - 1];
-    if (!last || sim.time - last.t > 0.05 || R.rbuf.length < 3) R.rbuf.push({ t: sim.time, st: states.map((x) => ({ ...x })) });
-    while (R.rbuf.length && sim.time - R.rbuf[0].t > 14) R.rbuf.shift();
-  }
   r.update(states, dt);
+  R.ifx?.update(dt * Math.min(4, R.speed || 1));
   const fc = sim.cars.find((c) => c.key === (r.director && r.dirFocus ? r.dirFocus : R.focus));
   const hud = document.getElementById('hud3d');
   if (hud && fc) {
@@ -385,13 +413,53 @@ function defaultPitTyre(c) {
 }
 
 function startLights(done) {
-  const ov = document.getElementById('finish-overlay');
+  const ov = document.getElementById('finish-overlay'); if (!ov) { done(); return; }
   let n = 0;
-  ov.innerHTML = `<div class="start-lights" id="lights">${[0, 1, 2, 3, 4].map((i) => `<div id="l${i}"></div>`).join('')}</div>`;
+  document.getElementById('lights')?.remove();
+  ov.insertAdjacentHTML('beforeend', `<div class="start-lights" id="lights"><div class="sl-gantry">${[0, 1, 2, 3, 4].map((i) => `<div class="sl-pod" id="l${i}"><i></i><i></i></div>`).join('')}</div><div class="sl-go">Via!</div></div>`);
   const iv = setInterval(() => {
-    if (n < 5) { const l = document.getElementById(`l${n}`); if (l) { l.style.background = '#ff1a1a'; l.style.boxShadow = '0 0 20px #f00'; } sfx.beep(); n++; R.r3d?.setStartLights(n, false); }
-    else { clearInterval(iv); setTimeout(() => { document.querySelectorAll('#lights > div').forEach((l) => { l.style.background = '#1b1d21'; l.style.boxShadow = 'inset 0 0 8px #000'; }); sfx.go(); R.r3d?.setStartLights(0, true); setTimeout(() => { const L = document.getElementById('lights'); if (L) L.remove(); }, 600); done(); }, 300 + Math.random() * 900); }
+    if (!document.getElementById('lights')) { clearInterval(iv); done(); return; }
+    if (n < 5) { document.getElementById(`l${n}`)?.classList.add('on'); sfx.beep(); n++; R.r3d?.setStartLights(n, false); }
+    else {
+      clearInterval(iv);
+      setTimeout(() => {
+        const L = document.getElementById('lights');
+        L?.classList.add('out'); sfx.go(); sfx.announce?.(); R.r3d?.setStartLights(0, true);
+        setTimeout(() => document.getElementById('lights')?.remove(), 1100);
+        done();
+      }, 300 + Math.random() * 900);
+    }
   }, 520);
+}
+
+// TV boards: safety car / VSC / red flag / green flag / last lap, one big board on each change
+const TVB = {
+  sc: ['Neutralizzazione', 'Safety car', 'Gruppo compattato, sorpassi vietati: la sosta costa la metà'],
+  vsc: ['Neutralizzazione', 'Virtual safety car', 'Delta di tempo da rispettare, sorpassi vietati'],
+  fcy: ['Neutralizzazione', 'Full course yellow', 'Velocità limitata su tutto il circuito'],
+  red: ['Direzione gara', 'Bandiera rossa', 'Gara sospesa: tutti in pit lane'],
+  green: ['Direzione gara', 'Bandiera verde', 'Si torna a correre!'],
+  final: ['', 'Ultimo giro', ''],
+};
+function tvBoard(kind, sub) {
+  const el = document.getElementById('tvboard'); if (!el) return;
+  const [k, t, d] = TVB[kind];
+  el.innerHTML = `<div class="tvb tvb-${kind}"><div class="tvb-in">${k ? `<span class="tvb-k">${k}</span>` : ''}<b>${t}</b>${sub || d ? `<small>${esc(sub || d)}</small>` : ''}</div></div>`;
+  const b = el.firstElementChild;
+  clearTimeout(R._tvbT); R._tvbT = setTimeout(() => { b.classList.add('out'); setTimeout(() => b.remove(), 450); }, kind === 'green' || kind === 'final' ? 2600 : 3600);
+}
+function tvBoards(sim) {
+  if (!sim) return;
+  const fl = sim.sc?.red ? 'red' : sim.sc ? 'sc' : sim.vsc ? (sim.endurance ? 'fcy' : 'vsc') : 'green';
+  const rv = document.getElementById('race-view');
+  if (R.flag !== fl) {
+    const prev = R.flag; R.flag = fl;
+    if (rv) { rv.classList.toggle('fl-sc', fl === 'sc' || fl === 'vsc' || fl === 'fcy'); rv.classList.toggle('fl-red', fl === 'red'); }
+    if (prev && !sim.finished && !(fl === 'green' && !prev)) tvBoard(fl);
+  }
+  const leader = sim.classification()[0];
+  const lastLap = sim.laps > 1 && !sim.finished && leader && leader.status === 'running' && Math.floor(leader.dist) + 1 >= sim.laps;
+  if (lastLap && !R.finalShown) { R.finalShown = true; if (fl === 'green') tvBoard('final', `${esc(sim.driver(leader).name)} in testa`); }
 }
 
 function draw() {
@@ -401,19 +469,21 @@ function draw() {
   v.frame((c) => {
     let pitIdx = 0;
     for (const g of sim.traffic || []) { const q = v.pointAt(arcFrac(sim.cat, sim.track.cid, g.dist, sim.track.lap)); v.drawCar(q.x, q.y, q.ang, g.colors[0], g.colors[1], { style, len: 9 }); }
-    const cars = sim.cars.filter((x) => x.status !== 'dnf').sort((a, b) => (a.isPlayer ? 1 : 0) - (b.isPlayer ? 1 : 0));
+    const cars = sim.cars.filter((x) => x.status !== 'dnf' || (!R.r3d && sim.hl?.livePose(sim.cars.indexOf(x)))).sort((a, b) => (a.isPlayer ? 1 : 0) - (b.isPlayer ? 1 : 0));
     for (const car of cars) {
       const L = car.team.car.livery;
       let q;
-      if (car.inPit > 0 && v.pitPos) q = v.pitPos(pitIdx++);
-      else q = v.pointAt(arcFrac(sim.cat, sim.track.cid, car.status === 'finished' ? car.finishLap : car.dist, sim.track.lap));
+      const pose = !R.r3d && sim.hl?.livePose(sim.cars.indexOf(car));
+      if (car.inPit > 0 && v.pitPos && !pose) q = v.pitPos(pitIdx++);
+      else q = v.pointAt(arcFrac(sim.cat, sim.track.cid, pose ? pose.u : car.status === 'finished' ? car.finishLap : car.dist, sim.track.lap));
+      if (pose) { const off = pose.lat * 1.1; q = { x: q.x - Math.sin(q.ang) * off, y: q.y + Math.cos(q.ang) * off, ang: q.ang - pose.yaw }; }
       const d = sim.driver(car);
       v.drawCar(q.x, q.y, q.ang, L.primary, L.secondary, { style, glow: car.isPlayer ? L.primary : null, outline: car.isPlayer, label: car.isPlayer || car.pos <= 3 ? `${car.pos} ${shortName(d.name)}` : null, num: R.r3d ? null : car.pos, dot: !(car.isPlayer || car.pos <= 3), labelBg: car.isPlayer ? L.primary : 'rgba(0,0,0,0.75)' });
     }
   }, { rain: sim.rain, night: sim.night });
 }
 
-function updateAll(force) { updateBoard(); updateTop(); updateControls(force); updateFeed(); updateSub(); try { tvUpdate(R.sim, R); trackerUpdate(R.sim, R); } catch (e) { console.warn(e); } }
+function updateAll(force) { updateBoard(); updateTop(); updateControls(force); updateFeed(); updateSub(); try { tvBoards(R.sim); } catch (e) { console.warn(e); } try { tvUpdate(R.sim, R); trackerUpdate(R.sim, R); } catch (e) { console.warn(e); } }
 
 // TV-style subtitles: latest commentary line and driver radio outbursts
 function updateSub() {
@@ -437,7 +507,7 @@ function updateTop() {
   const sim = R.sim;
   const leader = sim.classification()[0];
   const lap = Math.min(sim.laps, Math.max(1, Math.floor(leader.status === 'finished' ? sim.laps : leader.dist) + 1));
-  const el = document.getElementById('lapcount'); if (el) el.textContent = `${lap}/${sim.laps}`;
+  const el = document.getElementById('lapcount'); if (el) { el.textContent = `${lap}/${sim.laps}`; const fin = lap >= sim.laps && !sim.finished && sim.laps > 1; const p = el.parentElement; if (p && p.classList.contains('final') !== fin) { p.classList.toggle('final', fin); const lb = p.querySelector('span'); if (lb) lb.textContent = fin ? 'Ultimo giro' : 'Giro'; } }
   const pg = document.getElementById('race-prog'); if (pg) pg.style.width = `${Math.min(100, (leader.status === 'finished' ? 1 : leader.dist / sim.laps) * 100).toFixed(2)}%`;
   const tt = document.getElementById('racetime'); if (tt) { const s = Math.floor(sim.time); tt.textContent = `${Math.floor(s / 3600) ? Math.floor(s / 3600) + ':' : ''}${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
   const wx = document.getElementById('wx'); const r = sim.rain;
@@ -460,6 +530,7 @@ function towerIcons(sim, c) {
   if (c.penalty > 0) ic.push(`<i class="tw-ic pen" data-tip="Penalità di ${c.penalty}s">+${c.penalty}</i>`);
   if (c.issue) ic.push(`<i class="tw-ic iss" data-tip="${esc(c.issue.name)}">!</i>`);
   else if (c.damage + (c.dmgFloor || 0) > 0.2) ic.push(`<i class="tw-ic dmg" data-tip="Danni: +${(c.damage + (c.dmgFloor || 0)).toFixed(1)}s/giro">D</i>`);
+  if (c.drs && c.status === 'running') ic.push('<i class="tw-ic drs" data-tip="Ala mobile aperta: entro 1s da chi precede">DRS</i>');
   if (c.eng === 'high' && c.isPlayer) ic.push('<i class="tw-ic eng" data-tip="Mappa motore Spinta">M+</i>');
   return ic.slice(0, 3).join('');
 }
@@ -468,7 +539,11 @@ function updateBoard() {
   const cls = sim.classification(); const leader = cls[0];
   const interval = R.gapMode === 'int';
   let prevGap = 0;
+  const now = performance.now(); R.lbPos ||= {}; R.lbChg ||= {};
   const html = cls.map((c, i) => {
+    const was = R.lbPos[c.key]; R.lbPos[c.key] = i;
+    if (was != null && was !== i && c.status !== 'dnf') R.lbChg[c.key] = { up: i < was, until: now + 2200 };
+    const chg = R.lbChg[c.key] && R.lbChg[c.key].until > now ? (R.lbChg[c.key].up ? ' gain' : ' lost') : '';
     const d = sim.driver(c);
     const gl = i ? sim.gapToLeader(c, leader) : 0;
     let gap, gcls = '';
@@ -482,16 +557,16 @@ function updateBoard() {
     if (c.status !== 'dnf') prevGap = gl;
     const posDelta = c.grid - (i + 1);
     const fl = sim.fastest.key === c.key;
-    return `<div class="lb-row ${c.isPlayer ? 'me' : ''} ${c.status === 'dnf' ? 'dnf' : ''} ${c.inPit > 0 ? 'pit' : ''} ${c.key === R.focus ? 'focus' : ''}" data-a="focus" data-key="${c.key}">
+    return `<div class="lb-row ${c.isPlayer ? 'me' : ''} ${c.status === 'dnf' ? 'dnf' : ''} ${c.inPit > 0 ? 'pit' : ''} ${c.key === R.focus ? 'focus' : ''}${chg}" data-a="focus" data-key="${c.key}" style="--tc:${c.team.car.livery.primary}">
       <span class="pos p${i + 1}">${i + 1}</span>${teamStripe(c.team)}
       <span class="nm">${towerName(d.name)}${fl ? '<i class="fl" data-tip="Giro più veloce"></i>' : ''}${towerIcons(sim, c)} ${posDelta > 0 ? `<span class="good tiny">▲${posDelta}</span>` : posDelta < 0 ? `<span class="bad tiny">▼${-posDelta}</span>` : ''}</span>
-      <span>${c.status === 'dnf' ? '' : tyreBadge(c.tyre)}</span>
+      <span class="tw-tyre">${c.status === 'dnf' ? '' : `${tyreBadge(c.tyre)}<small data-tip="Giri su questo treno">${c.stintLap ?? 0}</small>`}</span>
       <div>${c.status === 'dnf' ? `<span class="tiny bad">${esc(c.reason || '')}</span>` : c.inPit > 0 ? '<span class="chip warn tiny">BOX</span>' : `<div class="wear" data-tip="Gomme ${COMPOUNDS[c.tyre]?.name || ''}: ${Math.max(0, Math.round((1 - c.wear) * 100))}% · ${c.stintLap ?? 0} giri"><i style="width:${Math.max(0, 1 - c.wear) * 100}%;background:${c.wear > 0.8 ? 'var(--bad)' : c.wear > 0.55 ? 'var(--warn)' : 'var(--good)'}"></i></div>`}</div>
       <span class="gap ${gcls}">${gap}</span></div>`;
   }).join('');
   const b = document.getElementById('board');
   const fk = sim.fastest.key && sim.cars.find((c) => c.key === sim.fastest.key);
-  if (b) b.innerHTML = `<div class="lb-row lb-head"><span>Pos</span><span></span><span>Pilota</span><span>Gom</span><span>Usura</span><span class="gapmode" data-a="gapmode" data-tip="Clicca per alternare distacco dal leader / intervallo con chi precede">${interval ? 'Interv.' : 'Gap'}</span></div>${html}<div class="lb-foot muted"><i class="fl" style="display:inline-block;width:9px;height:9px;background:var(--purple)"></i>Giro veloce: ${fk ? `<b style="color:#fff">${esc(sim.driver(fk).name)}</b> <span class="lap-t">${fmtTime(sim.fastest.time)}</span>` : '—'}</div>`;
+  if (b && !(R.holding && b.matches(":hover"))) b.innerHTML = `<div class="lb-row lb-head"><span>Pos</span><span></span><span>Pilota</span><span>Gomme</span><span>Usura</span><span class="gapmode" data-a="gapmode" data-tip="Clicca per alternare distacco dal leader / intervallo con chi precede">${interval ? 'Interv.' : 'Gap'}</span></div>${html}<div class="lb-foot muted"><i class="fl" style="display:inline-block;width:9px;height:9px;background:var(--purple)"></i>Giro veloce: ${fk ? `<b style="color:#fff">${esc(sim.driver(fk).name)}</b> <span class="lap-t">${fmtTime(sim.fastest.time)}</span>` : '—'}</div>`;
 }
 
 // Gap to the car ahead, sampled once per lap, for the sparkline in the control card
@@ -573,7 +648,7 @@ function updateControls(force) {
   }).join('');
   const plan = R.sim.weather.plan;
   const curLap = Math.floor(R.sim.progress * R.sim.laps);
-  const wxHtml = `<div class="panel tight"><div class="row between tiny upper muted mb8"><span>Radar meteo</span><span>${R.sim.weather.isRain ? 'Pioggia prevista' : 'Asciutto'}</span></div><div class="weather-strip">${plan.slice(0, R.sim.laps).map((r, i) => `<i style="height:${Math.max(2, r * 20)}px;opacity:${i < curLap ? 0.25 : r > 0.05 ? 0.95 : 0.15};${i === curLap ? 'background:#fff' : ''}"></i>`).join('')}</div></div>`;
+  const wxHtml = radarHTML(R.sim, plan, curLap);
   const radio = (sim.radioQ || []).map((r) => { const c = sim.cars.find((x) => x.key === r.key); return `<div class="ctrl-card radio-card"><div class="rc-h">${icon('radio')} Radio · ${esc(sim.driver(c).name)}</div><div class="mt8" style="font-weight:600;font-size:15px">${esc(r.text.replace(/^[^:]+: /, ''))}</div><div class="row gap6 mt8"><button class="btn sm good grow" data-a="radio" data-id="${r.id}" data-y="1">${{ pit: 'Box, box!', pass: 'Ok, scambio', push: 'Vai, attacca!', rain: 'Box per intermedie', ers: 'Sì, ricarica' }[r.type]}</button><button class="btn sm grow" data-a="radio" data-id="${r.id}" data-y="0">${{ pit: 'Resta fuori', pass: 'Negativo', push: 'Gestisci', rain: 'Resta fuori', ers: 'No' }[r.type]}</button></div><div class="wear mt8" style="height:3px"><i style="width:${Math.max(0, (r.until - sim.time) / 40) * 100}%;background:var(--warn)"></i></div></div>`; }).join('');
   const myTeam = mine[0]?.teamId;
   const orders = mine.length > 1 && mine.every((c) => c.status === 'running') ? `<div class="panel tight"><div class="tiny upper muted mb8">Ordini di scuderia</div><div class="seg">${[['free', 'Libera lotta'], ['hold', 'Mantenere'], ['swap', 'Scambio']].map(([k, n]) => `<div class="${(sim.teamOrders[myTeam] || 'free') === k ? 'on' : ''}" data-a="orders" data-o="${k}">${n}</div>`).join('')}</div></div>` : '';
@@ -587,6 +662,15 @@ function updateControls(force) {
   }
 }
 
+// weather radar: rain per lap coloured by intensity, "now" marker, a one-line forecast
+const wxCol = (r) => (r < 0.05 ? 'rgba(255,255,255,.14)' : r < 0.3 ? '#5ec8ff' : r < 0.6 ? '#2f7bff' : '#8a4dff');
+function radarHTML(sim, plan, curLap) {
+  const L = sim.laps; const now = sim.rain;
+  const nextRain = plan.findIndex((r, i) => i > curLap && i < L && r > 0.25);
+  const dryAt = now > 0.25 ? plan.findIndex((r, i) => i > curLap && i < L && r < 0.1) : -1;
+  const head = now > 0.25 ? (dryAt > 0 ? `Pioggia ora · asciuga dal giro ${dryAt + 1}` : 'Pioggia fino alla fine') : nextRain > 0 ? `<b class="info">Pioggia tra ${nextRain - curLap} ${nextRain - curLap === 1 ? 'giro' : 'giri'}</b>` : now > 0.05 ? 'Pioviggine' : 'Asciutto fino alla bandiera';
+  return `<div class="panel tight wx-radar"><div class="row between tiny upper muted mb8"><span>${icon('rain', 'ico', 'style="width:13px;vertical-align:-2px"')} Radar meteo</span><span class="wx-head">${head}</span></div><div class="weather-strip">${plan.slice(0, L).map((r, i) => `<i style="height:${Math.max(2, r * 22)}px;background:${wxCol(r)};opacity:${i < curLap ? 0.3 : 1}"${i === curLap ? ' class="now"' : ''}></i>`).join('')}</div><div class="row between tiny muted wx-ax"><span>Giro 1</span><span>Ora · G${Math.min(L, curLap + 1)}</span><span>G${L}</span></div></div>`;
+}
 const lastN = (n) => { const p = String(n).split(' '); return p.slice(1).join(' ') || n; };
 // pit call: this lap / next lap, with the pit-entry check and the predicted rejoin
 function pitButtons(sim, c, advice) {
@@ -669,13 +753,14 @@ function updateFeed(force) {
     else if (e.type === 'pit' && e.important) sfx.pit();
     else if (e.type === 'sc') sfx.notify();
     else if (e.type === 'overtake' && e.important) sfx.overtake();
-    if ((e.type === 'overtake' || e.type === 'crash') && e.key) R.lastHighlight = { key: e.key, t: e.t };
-    else if (e.type === 'radio') sfx.radio?.();
+    else if (e.type === 'overtake') crowdCheer(0.4);
+    if (e.type === 'radio') sfx.radio?.();
     if (e.type === 'sc' && !R.lessonSC) { R.lessonSC = true; App.toast('Lezione: safety car', 'Ai box si perde circa metà del tempo: spesso conviene fermarsi ora.', ''); }
   }
   const tab = R.tab || 'feed';
   const head = document.getElementById('feed-tabs');
-  if (head) head.innerHTML = [['feed', 'Cronaca'], ['tele', 'Telemetria'], ['lap', 'Analisi giro'], ['strat', 'Strategie'], ...(S().quick ? [] : [['champ', 'Mondiale live']])].map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="tele-tab" data-t="${k}">${n}</div>`).join('') + `<div class="grow"></div><button class="btn sm ghost" data-a="lessons" style="padding:3px 10px">${icon('info')} Lezioni</button>`;
+  const headH = [['feed', 'Cronaca'], ['tele', 'Telemetria'], ['lap', 'Analisi giro'], ['strat', 'Strategie'], ...(S().quick ? [] : [['champ', 'Mondiale live']])].map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="tele-tab" data-t="${k}">${n}</div>`).join('') + `<div class="grow"></div><button class="btn sm ghost" data-a="lessons" style="padding:3px 10px">${icon('info')} Lezioni</button>`;
+  if (head && head._h !== headH) { head._h = headH; head.innerHTML = headH; } // 4 times a second: only when it changes
   const f = document.getElementById('feed');
   if (!f) return;
   if (tab === 'feed') {
@@ -710,15 +795,54 @@ function updateSpeedUI() {
   const p = document.getElementById('btn-pause'); if (p) p.innerHTML = icon(R.paused ? 'play' : 'pause');
 }
 
+// engine sound filter per camera: the on-car cameras hear the car, everything else is a TV mic
+function audioView(m) { return m === 'onboard' || m === 'cockpit' ? 'onboard' : m === 'chase' ? 'chase' : 'tv'; }
 function onRaceFinished() {
   engineStop();
+  sfx.announce?.();
   const st = S();
   const res = R.sim.results();
   const mine = res.classification.filter((r) => r.teamId === st.playerTeam);
   const best = Math.min(...mine.map((r) => (r.status === 'dnf' ? 99 : r.pos)));
   if (best <= 3) { sfx.win(); celebrate(best === 1 ? 260 : 120); music.setMood('win'); }
+  if (R.replay) stopReplay();
+  document.getElementById('rp-prompt')?.remove();
+  const reel = raceReel();
   const ov = document.getElementById('finish-overlay');
-  if (ov) ov.innerHTML = `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:3"><div class="finish-card"><div class="tiny upper muted mt8">Bandiera a scacchi</div><div class="fc-t">${R.sim.isSprint ? 'Sprint finita' : 'Gara finita'}</div><div class="mt16" style="color:var(--text2);font-size:16px"><b style="color:#fff">${esc(st.drivers[res.classification[0].driverIds[0]].name)}</b> vince · il tuo miglior risultato: <b style="color:#fff">${best === 99 ? 'Ritiro' : 'P' + best}</b></div><div class="row mt24" style="justify-content:center;gap:10px"><button class="btn lg" data-a="an-open">${icon('chart')} Analisi gara</button><button class="btn primary xl" data-a="finish-race">Vai ai risultati ${icon('right')}</button></div></div></div>`;
+  if (ov) ov.innerHTML = finishHTML(st, res, best, reel);
+}
+// the finish sequence: chequered flag across the screen, then the podium with team colours
+function finishHTML(st, res, best, reel) {
+  const sim = R.sim; const cls = res.classification;
+  const tr = getTrack(st.category, st.weekend?.trackId);
+  const car = (r) => sim.cars.find((c) => c.key === r.key);
+  const step = (r, h) => {
+    if (!r) return '<div class="fin-step empty"></div>';
+    const c = car(r); const d = (c && sim.driver(c)) || st.drivers[r.driverIds[0]]; const tm = st.teams[r.teamId];
+    const gap = r.pos === 1 ? (sim.isSprint ? 'Sprint' : 'Vincitore') : r.status === 'dnf' ? 'Ritirato' : typeof r.gap === 'number' ? `+${r.gap.toFixed(3)}s` : esc(fmtGap(r.gap));
+    return `<div class="fin-step p${r.pos}${tm?.isPlayer ? ' me' : ''}" style="--tc:${c?.team.car.livery.primary || 'var(--team)'};--h:${h}px">
+      <div class="fin-who">${helmetSVG(d.helmet, r.pos === 1 ? 50 : 38)}<b>${esc(d.name)}</b><small>${esc(tm?.short || tm?.name || '')}</small><span class="fin-gap">${gap}</span></div>
+      <div class="fin-block"><span>${r.pos}</span></div></div>`;
+  };
+  const mine = cls.filter((r) => r.teamId === st.playerTeam).map((r) => {
+    const c = car(r); const d = (c && sim.driver(c)) || st.drivers[r.driverIds[0]]; const delta = r.status === 'dnf' ? 0 : (r.grid || r.pos) - r.pos;
+    return `<span class="fin-me">${esc(d.name.split(' ').pop())} <b>${r.status === 'dnf' ? 'RIT' : 'P' + r.pos}</b>${delta ? ` <i class="${delta > 0 ? 'good' : 'bad'}">${delta > 0 ? '▲' : '▼'}${Math.abs(delta)}</i>` : ''}${r.pts ? ` <em>+${r.pts} pt</em>` : ''}</span>`;
+  }).join('');
+  const fk = res.fastest?.key && sim.cars.find((c) => c.key === res.fastest.key);
+  return `<div class="fin-wrap${best <= 3 ? ' podium' : ''}"><div class="fin-flag" aria-hidden="true"></div>
+    <div class="finish-card fin-card"><div class="fin-eyebrow">Bandiera a scacchi · ${esc(tr?.name || '')}</div><div class="fc-t">${sim.isSprint ? 'Sprint finita' : 'Gara finita'}</div>
+      <div class="fin-podium">${step(cls[1], 52)}${step(cls[0], 74)}${step(cls[2], 36)}</div>
+      <div class="fin-mine"><span class="fin-lbl">I tuoi piloti</span>${mine || '—'}</div>
+      ${fk ? `<div class="fin-fl"><i></i>Giro più veloce: <b>${esc(sim.driver(fk).name)}</b> <span class="lap-t">${fmtTime(res.fastest.time)}</span></div>` : ''}
+      <div class="row mt16 wrap fin-btns">${reel?.clips?.length ? `<button class="btn lg" data-a="race-hl">${icon('replay')} Highlights</button>` : ''}<button class="btn lg" data-a="an-open">${icon('chart')} Analisi gara</button><button class="btn primary xl" data-a="finish-race">Vai ai risultati ${icon('right')}</button></div></div></div>`;
+}
+// the race's highlights reel (built once, at the flag)
+function raceReel() {
+  const sim = R.sim; if (!sim?.hl) return null;
+  if (R.reel && R.reelSim === sim) return R.reel;
+  const st = S(); const tr = getTrack(st.category, st.weekend?.trackId);
+  try { R.reel = sim.hl.finalize({ title: `${tr?.name || ''}${sim.isSprint ? ' · Sprint' : ''}`, sub: `Round ${st.round + 1} · ${sim.C.name || ''} · ${st.season}` }); R.reelSim = sim; } catch (e) { console.warn('highlights', e); R.reel = null; }
+  return R.reel;
 }
 
 function finishRace() {
@@ -745,6 +869,7 @@ function finishRace() {
   res.track = st.weekend.trackId;
   res.wet = sim.weather.isRain;
   const evIdx = st.round;
+  try { const reel = raceReel(); if (reel) saveReel(st, reel, evIdx); } catch (e) { console.warn('highlights', e); }
   stopRace();
   R.sim = null;
   applyRoundResults(st, res);
@@ -771,40 +896,90 @@ function forecast(st, w) {
 
 function g2N(sim) { return trackGeometry(sim.track.cid).N; }
 
-// ---------------- REPLAY ----------------
-function startReplay(focusKey) {
-  const r = R.r3d; if (!r || !R.rbuf || R.rbuf.length < 3) { App.toast('Replay non disponibile', 'Attiva la vista 3D e lascia scorrere la gara qualche secondo.', ''); return; }
-  const t1 = R.rbuf[R.rbuf.length - 1].t, t0 = Math.max(R.rbuf[0].t, t1 - 10);
-  R.replay = { t0, t1, t: t0, focus: focusKey || R.focus, prevCam: r.camMode, prevDir: r.director, wasPaused: R.paused };
-  r.director = false; r.camMode = 'chase'; r._cut = true; r.focusKey = R.replay.focus;
-  const ov = document.getElementById('finish-overlay');
-  if (ov) ov.insertAdjacentHTML('beforeend', `<div id="replay-badge" class="replay-badge"><span class="tag red">${icon('replay')} Replay · <span id="rp-cam">camera car</span></span></div>`);
+// ---------------- REPLAY (live TV replay from the race engine's position history) ----------------
+// opts.inc: an incident to replay (live + slow motion); else the last 10 seconds around the followed car.
+// Works on the 3D view and on the 2D map; the race is frozen while it plays.
+const CAM_NAME = { chase: 'camera car', tv: 'TV', heli: 'elicottero', onboard: 'onboard', garage: 'box' };
+function startReplay(opts = {}) {
+  const sim = R.sim; if (!sim?.hl || R.replay) return;
+  if (!opts.inc && R.rpInc && sim.time - R.rpInc.t0 < 25) opts = { inc: R.rpInc };
+  const clip = sim.hl.recent(25);
+  if (!clip || clip.t1 - clip.t0 < 3) { App.toast('Replay non disponibile', 'Lascia scorrere la gara qualche secondo.', ''); return; }
+  R.hlMeta ||= sim.hl.meta();
+  const inc = opts.inc;
+  const T0 = clip.t0, T1 = clip.t1;
+  const cl = (a, b, cam, focus, rate, label) => ({ a: Math.max(T0, a), b: Math.min(T1, b), cam, focus, rate, replay: true, label });
+  let shots;
+  if (inc) {
+    const other = inc.others?.[0];
+    const t = inc.t0;
+    shots = [cl(t - 4.5, t + 3.2, 'tv', inc.key, 1, 'Replay'), cl(t - 2.2, t + 2.6, other ? 'onboard' : 'chase', other || inc.key, 0.35, 'Rallentatore')];
+    if (inc.kind === 'crash' || inc.kind === 'spin') shots.push(cl(t - 1.2, t + 2.8, 'heli', inc.key, 0.5, 'Rallentatore'));
+    clip.inc = clip.inc || []; clip.focus = inc.key; clip.keys = [inc.key, ...(inc.others || [])];
+  } else {
+    const f = R.focus;
+    shots = [cl(T1 - 10, T1 - 5, 'chase', f, 1, 'Replay'), cl(T1 - 5, T1, 'tv', f, 1, 'Replay')];
+  }
+  shots = shots.filter((s) => s.b - s.a > 0.4);
+  if (!shots.length) return;
+  const r = R.r3d;
+  if (r) r.replay = true; // cinematic depth of field / dissolves in the 3D view
+  R.replay = { prevCam: r?.camMode, prevDir: r?.director, inc, n: shots.length };
+  R.replay.p = new ClipPlayer({ reel: R.hlMeta, clip, r3d: r || null, view: r ? null : R.view, fx: R.ifx, shots, onShot: (s, i) => replayBadge(s, i) });
+  document.getElementById('rp-prompt')?.remove();
+  sfx.whoosh?.();
+}
+function replayBadge(s, i) {
+  const ov = document.getElementById('finish-overlay'); if (!ov) return;
+  let b = document.getElementById('replay-badge');
+  if (!b) { ov.insertAdjacentHTML('beforeend', `<div id="replay-badge" class="replay-badge"><span class="tag red">${icon('replay')} <span id="rp-lab"></span> · <span id="rp-cam"></span></span><button class="btn sm" data-a="replay" style="margin-left:8px">Live ${icon('right')}</button></div>`); b = document.getElementById('replay-badge'); }
+  b.classList.toggle('slow', s.rate < 0.9);
+  const lab = document.getElementById('rp-lab'); if (lab) lab.textContent = `${s.label || 'Replay'}${s.rate < 0.9 ? ` ${Math.round(s.rate * 100)}%` : ''}`;
+  const cam = document.getElementById('rp-cam'); if (cam) cam.textContent = CAM_NAME[s.cam] || s.cam;
+  document.getElementById('race-view')?.classList.toggle('rp-slow', s.rate < 0.9); document.getElementById('race-view')?.classList.add('rp-on');
+  void i;
 }
 function stopReplay() {
   const r = R.r3d, rp = R.replay; if (!rp) return;
-  if (r) { r.camMode = rp.prevCam; r.director = rp.prevDir; r._cut = true; r.focusKey = R.focus; }
+  if (r) { r.resetMotion?.(); r.camMode = rp.prevCam || r.camMode; r.director = !!rp.prevDir; r._cut = true; r.focusKey = R.focus; r.replay = false; }
+  R.ifx?.clear();
   R.replay = null; document.getElementById('replay-badge')?.remove();
+  document.getElementById('race-view')?.classList.remove('rp-slow', 'rp-on');
   R.last = performance.now();
 }
 function playReplay(dt) {
-  const rp = R.replay, r = R.r3d; if (!r) { R.replay = null; return; }
-  rp.t += dt * 1.0; // real-time playback of race time
-  const k = (rp.t - rp.t0) / (rp.t1 - rp.t0);
-  const cams = ['chase', 'tv', 'heli', 'onboard'];
-  const ci = Math.min(cams.length - 1, Math.floor(k * cams.length));
-  if (r.camMode !== cams[ci]) { r.camMode = cams[ci]; r._cut = true; const lab = document.getElementById('rp-cam'); if (lab) lab.textContent = { chase: 'camera car', tv: 'TV', heli: 'elicottero', onboard: 'onboard' }[cams[ci]]; }
-  if (rp.t >= rp.t1) { stopReplay(); return; }
-  const buf = R.rbuf; let i = 1; while (i < buf.length - 1 && buf[i].t < rp.t) i++;
-  const a = buf[i - 1], b = buf[i]; const f = Math.max(0, Math.min(1, (rp.t - a.t) / ((b.t - a.t) || 1)));
-  const N = trackGeometry(R.sim.track.cid).N;
-  const states = a.st.map((sa) => { const sb = b.st.find((x) => x.key === sa.key) || sa; if (sa.hidden) return sa; let ds = sb.s - sa.s; if (ds < -N / 2) ds += N; if (ds > N / 2) ds -= N; return { ...sa, s: (sa.s + ds * f + N) % N, speed: sa.speed + (sb.speed - sa.speed) * f }; });
-  r.focusKey = rp.focus;
-  r.update(states, dt);
+  const rp = R.replay;
+  if (!rp.p || (rp.p.r3d && rp.p.r3d !== R.r3d)) { stopReplay(); return; }
+  if (!rp.p.tick(dt)) stopReplay();
+}
+// a crash worth seeing again: a replay prompt, or the automatic TV replay at moderate speed in 3D
+function watchIncidents() {
+  const sim = R.sim; if (!sim?.incidents?.length) return;
+  const inc = sim.lastIncident;
+  if (inc && inc !== R.rpSeen && ['crash', 'spin', 'contact'].includes(inc.kind)) {
+    const c = sim.cars.find((x) => x.key === inc.key);
+    const mine = c?.isPlayer || inc.others?.some((k) => sim.cars.find((x) => x.key === k)?.isPlayer);
+    const big = inc.kind === 'crash' || (inc.kind === 'spin' && (inc.pos <= 12 || mine)) || (inc.kind === 'contact' && (mine || inc.pos <= 6));
+    R.rpSeen = inc;
+    if (big && (inc.pos <= 14 || mine || inc.kind === 'crash')) R.rpPend = { inc, at: inc.t0 + 4.5 };
+  }
+  const p = R.rpPend;
+  if (p && sim.time >= p.at) {
+    R.rpPend = null; R.rpInc = p.inc;
+    if (sim.finished || R.done) return;
+    const auto = getSettings().autoReplay !== false && R.r3d && !R.paused && R.speed <= 8 && !R.hub?.open && !R.an && !document.querySelector('.modal-wrap');
+    if (auto) { startReplay({ inc: p.inc }); return; }
+    const ov = document.getElementById('finish-overlay'); if (!ov) return;
+    document.getElementById('rp-prompt')?.remove();
+    const c = sim.cars.find((x) => x.key === p.inc.key); const T = HL_TYPES[p.inc.kind] || HL_TYPES.crash;
+    ov.insertAdjacentHTML('beforeend', `<button id="rp-prompt" class="rp-prompt" data-a="rp-inc" style="--gc:${T.col}"><span class="rp-tag">${icon('replay')} Replay</span><span><b>${esc(T.tag)}</b> · ${esc(c ? sim.driver(c).name : '')}</span><kbd>R</kbd></button>`);
+    const el = document.getElementById('rp-prompt'); setTimeout(() => { if (el?.isConnected) { el.classList.add('out'); setTimeout(() => el.remove(), 400); } }, 9000);
+  }
 }
 
 // ---------------- DECISIONS: race moments feed the shared decision hub ----------------
-const M_COL = { sc: 'var(--warn)', red: 'var(--bad)', rain: 'var(--info)', dry: 'var(--gold)', front: 'var(--info)', attack: 'var(--bad)', defend: 'var(--bad)', undercut: 'var(--warn)', issue: 'var(--warn)', restart: 'var(--good)', mates: 'var(--team)', night: '#7c8cff', fatigue: 'var(--warn)', drive: 'var(--warn)', garage: 'var(--bad)', radio: 'var(--warn)', nurse: 'var(--warn)' };
-const M_EYE = { sc: 'Safety car', red: 'Bandiera rossa', issue: 'Problema tecnico', restart: 'Ripartenza', front: 'Radar meteo', dry: 'Meteo', rain: 'Meteo', mates: 'Ordini di scuderia', night: 'Endurance · notte', fatigue: 'Endurance · cambio pilota', drive: 'Endurance · tempo di guida', garage: 'Endurance · danni', attack: 'Battaglia', defend: 'Battaglia', undercut: 'Strategia', radio: 'Radio dal pilota', nurse: 'Affidabilità' };
+const M_COL = { wing: 'var(--warn)', sc: 'var(--warn)', red: 'var(--bad)', rain: 'var(--info)', dry: 'var(--gold)', front: 'var(--info)', attack: 'var(--bad)', defend: 'var(--bad)', undercut: 'var(--warn)', issue: 'var(--warn)', restart: 'var(--good)', mates: 'var(--team)', night: '#7c8cff', fatigue: 'var(--warn)', drive: 'var(--warn)', garage: 'var(--bad)', radio: 'var(--warn)', nurse: 'var(--warn)' };
+const M_EYE = { wing: 'Danni · ala anteriore', sc: 'Safety car', red: 'Bandiera rossa', issue: 'Problema tecnico', restart: 'Ripartenza', front: 'Radar meteo', dry: 'Meteo', rain: 'Meteo', mates: 'Ordini di scuderia', night: 'Endurance · notte', fatigue: 'Endurance · cambio pilota', drive: 'Endurance · tempo di guida', garage: 'Endurance · danni', attack: 'Battaglia', defend: 'Battaglia', undercut: 'Strategia', radio: 'Radio dal pilota', nurse: 'Affidabilità' };
 function applyDecCfg() {
   const sim = R.sim; if (!sim) return;
   const cfg = decSettings();

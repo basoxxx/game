@@ -2,7 +2,8 @@
 // timing tower with sectors, garage panel to send each car out with its own programme.
 import { App, coach } from '../app.js';
 import { icon } from '../ui/icons.js';
-import { helmetSVG, flagSVG } from '../ui/art.js';
+import { helmetSVG, flagSVG, trackSVG } from '../ui/art.js';
+import { load3D } from './loader3d.js';
 import { esc, bar, fmtTime } from '../ui/dom.js';
 import { S, saveGame, getSettings } from '../engine/state.js';
 import { getTrack } from '../engine/world.js';
@@ -154,9 +155,9 @@ export function sessionRender(st) {
       <div class="tb-stat ss-hide-sm" id="ss-wx"><b>—</b><span>Meteo</span></div>
       <div class="grow"></div>
       <div class="speed-btns" id="ss-speeds">${speeds.map((v, i) => `<button class="btn sm" data-a="ss-speed" data-v="${v}" data-tip="${v === 1 ? 'Tempo reale' : `Velocità ${v}x`}${i < 7 ? ' · tasto ' + (i + 1) : ''}">${v === 1 ? '1x' : v + 'x'}</button>`).join('')}</div>
-      <button class="btn sm dec-open" data-a="dec-cfg" data-tip="Decisioni a gioco accelerato: pausa automatica, rallenta a 1x o decide l’ingegnere">${icon('settings')} Decisioni</button>
-      <button class="btn sm" data-a="ss-simulate" data-tip="Simula il resto della sessione: l’ingegnere gestisce i tuoi piloti">${icon('ff')} ${w.phase === 'practice' ? 'Simula il resto' : 'Simula sessione'}</button>
-      ${w.phase !== 'practice' && fmt.length > 1 ? `<button class="btn sm" data-a="ss-simq" data-tip="Simula tutte le fasi rimaste della qualifica e vai alla griglia">${icon('ff')} Simula qualifica</button>` : ''}
+      <button class="btn sm dec-open" data-a="dec-cfg" data-tip="Decisioni a gioco accelerato: pausa automatica, rallenta a 1x o decide l’ingegnere">${icon('settings')}<span class="bl">Decisioni</span></button>
+      <button class="btn sm" data-a="ss-simulate" data-tip="Simula il resto della sessione: l’ingegnere gestisce i tuoi piloti">${icon('ff')}<span class="bl">${w.phase === 'practice' ? 'Simula il resto' : 'Simula sessione'}</span></button>
+      ${w.phase !== 'practice' && fmt.length > 1 ? `<button class="btn sm" data-a="ss-simq" data-tip="Simula tutte le fasi rimaste della qualifica e vai alla griglia">${icon('ff')}<span class="bl">Simula qualifica</span></button>` : ''}
       <div class="race-prog"><i id="ss-progbar"></i></div>
     </div>
     <div class="race-board" id="ss-board"></div>
@@ -192,7 +193,7 @@ export function sessionMount() {
   if (P.hubLog?.id === P.id) P.hub.log = P.hubLog.log; else P.hubLog = { id: P.id, log: P.hub.log };
   const loop = (t) => {
     const dt = Math.min(0.1, (t - P.last) / 1000); P.last = t;
-    if (!P.paused && !sim.finished) {
+    if (!P.paused && !sim.finished && !loading3D()) {
       let rem = dt * P.speed;
       while (rem > 0 && !sim.finished) { const d = Math.min(0.5, rem); sim.step(d); rem -= d; if (sessionDecisions(st, sim)) break; }
     }
@@ -203,7 +204,7 @@ export function sessionMount() {
     if (P.uiT > 0.25) { P.uiT = 0; updateUI(); }
     if (sim.finished && !P.done) { P.done = true; updateUI(true); onSessionEnd(st, sim); }
     const fc = sim.car(P.focus);
-    engineSet(P.paused || sim.finished || !fc || fc.state !== 'run' ? 0.05 : (P.focusSpeed != null ? P.focusSpeed / 345 : 0.6), { rain: sim.rain, crowd: 0.25 });
+    engineSet(P.paused || sim.finished || !fc || fc.state !== 'run' ? 0.05 : (P.focusSpeed != null ? P.focusSpeed / 345 : 0.6), { rain: sim.rain, crowd: 0.25, view: ['onboard', 'cockpit'].includes(P.r3d?.camMode) ? 'onboard' : P.r3d?.camMode === 'chase' ? 'chase' : 'tv' });
     P.raf = requestAnimationFrame(loop);
   };
   P.raf = requestAnimationFrame(loop);
@@ -282,6 +283,7 @@ function sessionDecisions(st, sim) {
 
 export function sessionStop() {
   P.hub = null;
+  P.load?.cancel(); P.load = null;
   cancelAnimationFrame(P.raf); P.raf = 0;
   P.view?.destroy(); P.view = null;
   P.r3d?.destroy(); P.r3d = null;
@@ -298,21 +300,37 @@ function renderViewBtns() {
 function enable3D(cam) {
   const st = S(); const sim = P.sim;
   const rv = document.getElementById('race-view'); if (!rv) return;
+  P.view3d = cam;
   if (!P.r3d) {
-    const div = document.createElement('div'); div.className = 'r3d'; rv.prepend(div);
-    try {
-      P.r3d = new Race3D(div, { cid: sim.track.cid, street: sim.track.street || 0, night: !!sim.track.night && sim.cat !== 'endurance', category: st.category,
-        cars: sim.cars.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: sim.driver(c).helmet.c1, tyreColor: COMPOUNDS[c.tyre || 'medium'].color, isPlayer: c.isPlayer, number: sim.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })) });
-      P.r3d.setRain?.(sim.rain);
-    } catch (e) { console.warn('3D non disponibile', e); div.remove(); P.r3d = null; P.view3d = null; renderViewBtns(); return; }
+    if (P.load && !P.load.done) return; // the build is on its way: the camera is applied when it is ready
+    const id = P.id;
+    P.load = load3D(rv, () => {
+      if (!P.view3d || P.id !== id || !rv.isConnected) return null;
+      const div = document.createElement('div'); div.className = 'r3d'; rv.prepend(div);
+      try {
+        P.r3d = new Race3D(div, { cid: sim.track.cid, street: sim.track.street || 0, night: !!sim.track.night && sim.cat !== 'endurance', category: st.category,
+          cars: sim.cars.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: sim.driver(c).helmet.c1, tyreColor: COMPOUNDS[c.tyre || 'medium'].color, isPlayer: c.isPlayer, number: sim.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })) });
+        P.r3d.setRain?.(sim.rain);
+      } catch (e) { console.warn('3D non disponibile', e); div.remove(); P.r3d = null; P.view3d = null; renderViewBtns(); return null; }
+      setCam3D(P.view3d || cam);
+      return P.r3d;
+    }, { title: sim.track.name, sub: `${sim.name} · ${sim.track.circuit || ''}`, svg: trackSVG(circuitPath(sim.track.cid), { w: 260, h: 150, glow: null, color: '#fff', width: 3, start: false }), skip: 'ss-view2d', alive: () => P.id === id && rv.isConnected });
+    return;
   }
-  const r = P.r3d;
+  setCam3D(cam);
+}
+function setCam3D(cam) {
+  const r = P.r3d; if (!r) return;
+  const rv = document.getElementById('race-view');
   r.director = cam === 'auto'; r.camMode = cam === 'auto' ? 'tv' : cam; r.dirT = 0; r.focusKey = P.focus; r._cut = true;
-  rv.classList.add('mode3d');
+  rv?.classList.add('mode3d');
   document.getElementById('hud3d')?.classList.remove('hidden');
   P.view?.resize();
 }
+// true while the 3D view is still being built / compiled: the session clock waits for it
+const loading3D = () => !!(P.load && !P.load.done);
 function disable3D() {
+  P.load?.cancel(); P.load = null;
   P.r3d?.destroy(); P.r3d = null; P.view3d = null;
   const rv = document.getElementById('race-view'); rv?.classList.remove('mode3d'); rv?.querySelector('.r3d')?.remove();
   document.getElementById('hud3d')?.classList.add('hidden');

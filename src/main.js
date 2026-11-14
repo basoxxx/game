@@ -1,6 +1,6 @@
 import './styles/main.css';
 import { App, lazyScreens, preloadScreens } from './app.js';
-// first paint needs only the shell + the Sala Giochi launcher; the Apex menu, the title screen and the
+// first paint needs only the shell + the Baso Hub launcher; the Apex menu, the title screen and the
 // game engine are code-split (the menu chunk is warmed first, on idle)
 import { launchTarget } from './screens/launcher.js';
 import * as Audio from './ui/audio.js';
@@ -31,18 +31,22 @@ lazyScreens({
 });
 
 App.init();
-// the Sala Giochi comes first; ?game=… opens a game directly, ?intro forces the Apex title screen
+// the Baso Hub comes first; ?game=… opens a game directly, ?intro forces the Apex title screen
 App.go(launchTarget() || (new URLSearchParams(location.search).has('intro') ? 'intro' : 'launcher'));
 window.addEventListener('beforeunload', () => { if (S()) saveGame(); });
 window.__apex = { App, S, audio: audioDebug, sound: Audio, perf: { boot: performance.now() } };
 
 // Idle warm-up: quality probe (first run only), then the screen chunks in the order a player meets them
 const idle = (fn, t = 1200) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: t }) : setTimeout(fn, 200));
+// On a metered / slow connection (Save-Data, 2G-3G) only the light screens are warmed: the race
+// screens pull in three.js and the 3D views (~800 kB), which then load when a race is opened.
+const conn = navigator.connection || {};
+const lean = !!conn.saveData || /(^|-)(2g|3g)$/.test(conn.effectiveType || '');
 idle(() => {
   preloadScreens(['menu']).catch((e) => console.warn('preload', e)).then(() => ensureQuality()).then(() => {
     window.__apex.perf.quality = performance.now();
-    preloadScreens(['intro', 'newgame', 'hub', 'settings', 'howto', 'quickrace', 'challenges', 'weekend', 'rally'])
-      .then(() => { window.__apex.perf.preloaded = performance.now(); if (gfxTier() !== 'low') loadStage().catch(() => {}); })
+    preloadScreens(lean ? ['newgame', 'hub', 'settings'] : ['intro', 'newgame', 'hub', 'settings', 'howto', 'quickrace', 'challenges', 'weekend', 'rally'])
+      .then(() => { window.__apex.perf.preloaded = performance.now(); if (gfxTier() !== 'low' && !lean) loadStage().catch(() => {}); })
       .then(() => import('./devtools.js')).then((m) => m.install(window.__apex)).catch((e) => console.warn('preload', e));
   });
 });

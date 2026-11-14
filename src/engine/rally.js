@@ -4,6 +4,7 @@ import { CATEGORIES, RALLY_TYRES, SURFACES, POINTS_STD } from '../data/categorie
 import { buildEntries, aiSetupQuality } from './race.js';
 import { carPerf, standings } from './season.js';
 import { rand, randInt, chance, clamp, gauss, pick, mulberry32 } from './rng.js';
+import { RallyRecorder } from './highlights.js';
 
 export const PACE_MODES = {
   safe: { name: 'Prudente', speed: -0.013, risk: 0.45 },
@@ -26,20 +27,34 @@ const SECTOR_POOL = {
   rough: ['rough', 'rough', 'jumps', 'twisty', 'narrow'],
   tarmac: ['fast', 'twisty', 'twisty', 'narrow', 'narrow', 'slippery'],
   snow: ['fast', 'slippery', 'slippery', 'narrow', 'twisty'],
+  mixed: ['fast', 'twisty', 'slippery', 'slippery', 'narrow', 'twisty'],
 };
+// loose surfaces count as gravel for tyres; icy tarmac keeps its own rules (ice share per stage)
+const SURF_FAM = { rough: 'gravel', gravel: 'gravel', tarmac: 'tarmac', snow: 'snow', mixed: 'mixed' };
 
 export function bestTyreFor(stage, wet) {
   if (stage.surface === 'snow') return 'snow';
+  if (stage.surface === 'mixed') { let b = 'snow', bv = -1; for (const t of Object.keys(RALLY_TYRES)) { const v = tyreFit(t, stage, wet); if (v > bv) { bv = v; b = t; } } return b; }
   if (stage.surface === 'tarmac') return wet ? 'wet' : stage.km > 18 ? 'tarmac_hard' : 'tarmac_soft';
   return stage.km > 18 || stage.surface === 'rough' ? 'gravel_hard' : 'gravel_soft';
 }
 
-export function tyreFit(tyreId, stage, wet) {
+// share of the stage under snow / ice (mixed stages): the actual value once the loop is under way, else the forecast
+export const iceOf = (stage, actual = true) => (stage.surface === 'mixed' ? (actual ? stage.ice : stage.iceF ?? stage.ice) ?? 0.4 : stage.surface === 'snow' ? 1 : 0);
+
+export function tyreFit(tyreId, stage, wet, ice = iceOf(stage)) {
   const t = RALLY_TYRES[tyreId];
-  const surf = stage.surface === 'rough' ? 'gravel' : stage.surface;
+  const surf = SURF_FAM[stage.surface] || 'gravel';
   let f = 0;
   if (surf === 'snow') f = t.surf === 'snow' ? 0 : -0.07;
-  else if (surf === 'tarmac') {
+  else if (surf === 'mixed') {
+    // studs bite on the ice but skate on clean tarmac; slicks fly on the dry bits and are lost on the ice;
+    // the winter (wet) tyre is the compromise for the in-between days
+    if (t.surf === 'snow') f = -0.045 * (1 - ice);
+    else if (t.surf === 'tarmac') f = -0.085 * ice - (wet ? 0.025 : 0);
+    else if (t.surf === 'wet') f = -0.01 - 0.05 * ice + (wet ? 0.008 : 0);
+    else f = -0.06;
+  } else if (surf === 'tarmac') {
     if (t.surf === 'tarmac') f = wet ? -0.025 : 0; else if (t.surf === 'wet') f = wet ? 0.005 : -0.02; else if (t.surf === 'snow') f = -0.05; else f = -0.06;
   } else {
     if (t.surf === 'gravel') f = 0; else if (t.surf === 'snow') f = -0.03; else f = -0.07;
@@ -50,10 +65,14 @@ export function tyreFit(tyreId, stage, wet) {
 }
 // pace lost to a worn set (wear 0..1+)
 export const wearPenalty = (w) => 0.028 * Math.pow(Math.max(0, w - 0.25), 1.6) / 0.6;
-// tyre wear produced by one stage
+// tyre wear produced by one stage (studs grind away fast on bare tarmac, gravel tyres tear on asphalt)
 export function stageWear(tyreId, stage) {
-  const sf = { rough: 1.5, gravel: 1.1, tarmac: 1, snow: 0.7 }[stage.surface] || 1;
-  return (stage.km / 34) * (RALLY_TYRES[tyreId]?.wear || 1) * sf;
+  const sf = { rough: 1.5, gravel: 1.1, tarmac: 1, snow: 0.7, mixed: 0.9 }[stage.surface] || 1;
+  const t = RALLY_TYRES[tyreId];
+  let k = 1;
+  if (t?.surf === 'snow' && (stage.surface === 'tarmac' || stage.surface === 'mixed')) k = 1 + 1.6 * (1 - iceOf(stage));
+  if (t?.surf === 'gravel' && stage.surface === 'tarmac') k = 1.35;
+  return (stage.km / 34) * (t?.wear || 1) * sf * k;
 }
 
 export const DECISIONS = [
@@ -68,7 +87,8 @@ export const DECISIONS = [
   { id: 'notes', text: 'Il copilota perde il segno nelle note: «Aspetta… non so dove siamo!»', a: { label: 'Guida a vista', desc: 'Nessuna perdita, rischio uscita', gain: 0, risk: 0.22, fail: 'off' }, b: { label: 'Rallenta finché ritrova il punto', desc: '+4s', gain: 4, risk: 0 } },
   { id: 'bank', text: 'Muro di neve all’esterno della curva veloce: ci si può appoggiare.', a: { label: 'Appoggiati al muro', desc: '−2.5s, rischio di restare piantati', gain: -2.5, risk: 0.18, fail: 'stuck' }, b: { label: 'Stai al centro', desc: '+0.5s', gain: 0.5, risk: 0 }, only: ['snow'] },
   { id: 'splash', text: 'Guado profondo dopo il dosso: l’acqua arriva al cofano!', a: { label: 'Entra in pieno', desc: '−2s, rischio acqua nel motore', gain: -2, risk: 0.16, fail: 'engine' }, b: { label: 'Entra piano', desc: '+2s', gain: 2, risk: 0 }, only: ['gravel', 'rough'] },
-  { id: 'mud', text: 'I tagli delle auto precedenti hanno portato fango sull’asfalto.', a: { label: 'Taglia anche tu', desc: '−1.5s, rischio foratura', gain: -1.5, risk: 0.2, fail: 'puncture' }, b: { label: 'Resta sull’asfalto pulito', desc: '+1s', gain: 1, risk: 0 }, only: ['tarmac'] },
+  { id: 'mud', text: 'I tagli delle auto precedenti hanno portato fango sull’asfalto.', a: { label: 'Taglia anche tu', desc: '−1.5s, rischio foratura', gain: -1.5, risk: 0.2, fail: 'puncture' }, b: { label: 'Resta sull’asfalto pulito', desc: '+1s', gain: 1, risk: 0 }, only: ['tarmac', 'mixed'] },
+  { id: 'ice', text: 'Gli apripista avevano segnalato ghiaccio nero dopo il ponte: «Attenzione, ghiaccio in uscita!»', a: { label: 'Fidati delle gomme', desc: '−2s, rischio testacoda', gain: -2, risk: 0.22, fail: 'off' }, b: { label: 'Entra in punta di piedi', desc: '+2.5s', gain: 2.5, risk: 0 }, only: ['mixed', 'snow'] },
   { id: 'crowd', text: 'Spettatori in traiettoria all’uscita del tornante!', a: { label: 'Clacson e avanti', desc: '−1s, rischio di dover frenare di colpo', gain: -1, risk: 0.2, fail: 'stall' }, b: { label: 'Rallenta, sicurezza prima di tutto', desc: '+2s', gain: 2, risk: 0 } },
 ];
 
@@ -78,15 +98,26 @@ export class RallyEvent {
   constructor(state, ev, track, setups) {
     this.state = state; this.ev = ev; this.track = track;
     this.C = CATEGORIES.rally;
-    this.stages = ev.stages.map((s, i) => ({ ...s, idx: i, wet: s.surface !== 'snow' && (state.forceRain === true ? true : state.forceRain === false ? false : chance(state.forceRain === 'mixed' ? 0.5 : track.rain)) }));
+    // weather: fronts come and go, so a wet stage tends to be followed by another (Markov chain over the event)
+    const fr = state.forceRain, rain = fr === 'mixed' ? 0.5 : track.rain || 0;
+    let wasWet = chance(rain);
+    this.stages = ev.stages.map((s, i) => {
+      const p = i === 0 ? rain : wasWet ? clamp(0.5 + rain * 0.45, 0, 0.95) : rain * 0.6;
+      const w = fr === true ? true : fr === false ? false : chance(p);
+      wasWet = w;
+      return { ...s, idx: i, wet: s.surface !== 'snow' && w };
+    });
     // pace-note sectors and a weather forecast per stage (deterministic per event)
     let h = 5; for (const ch of `${track.id}|${state.season}|${state.round}`) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     const r = mulberry32(h);
+    this.rng = r;
     for (const s of this.stages) {
       const pool = SECTOR_POOL[s.surface] || SECTOR_POOL.gravel;
       s.sectors = [0, 1, 2].map(() => pool[Math.floor(r() * pool.length)]);
-      s.rainP = s.surface === 'snow' ? 0 : state.forceRain === true || state.forceRain === false ? (s.wet ? 95 : 3) : Math.round(clamp(s.wet ? 52 + r() * 40 : (track.rain || 0) * 60 + r() * 22, 2, 96));
+      // icy tarmac: more ice on the morning loops (first and third), the afternoon sun melts part of it
+      if (s.surface === 'mixed') { const loop = Math.floor(s.idx / 2); s.ice = +clamp((loop === 1 ? 0.12 : 0.3) + r() * 0.5, 0.05, 0.95).toFixed(2); }
     }
+    this.wxNews = [];
     // night stage: the closing stage of the second loop can run in the dark (light pods needed)
     { const ni = this.stages.length >= 4 && r() < 0.6 ? 3 : -1; this.stages.forEach((s, i) => { s.night = i === ni && !s.power; }); }
     this.stageIdx = 0;
@@ -103,10 +134,43 @@ export class RallyEvent {
       };
     });
     this.log = [];
+    this.forecast(true);
     this.setRoadOrder();
+    // highlights: stage clock, incident list for the replay views, recorder
+    this.clock = 0; this.incidents = [];
+    try { this.hl = new RallyRecorder(this); } catch { this.hl = null; }
   }
+  // crew keyframe (time, progress, waiting at the start): positions in the replays are rebuilt from these
+  kfPush(c, t) { if (!c.kf) return; const pc = c.pieces?.[c.pieceIdx]; const last = c.kf[c.kf.length - 1]; const w = pc?.type === 'wait' ? 1 : 0; if (last && Math.abs(last[0] - t) < 1e-6) { last[1] = c.progress || 0; last[2] = w; return; } c.kf.push([t, c.progress || 0, w]); if (c.kf.length > 400) c.kf.splice(1, 1); }
+  hlMark(m) { try { this.hl?.mark(m); } catch { /* never breaks a stage */ } }
   driver(c) { return this.state.drivers[c.driverIds[0]]; }
   get stage() { return this.stages[this.stageIdx]; }
+  // Weather forecast for the stages still to run: sharp for the loop about to start, vaguer further
+  // ahead. Refreshed at every service: when the outlook for a stage flips, the team hears about it.
+  forecast(first = false) {
+    const fr = this.state.forceRain, r = this.rng, cur = this.stageIdx;
+    const curLoop = this.loopOf(cur);
+    for (const s of this.stages) {
+      if (s.idx < cur) continue;
+      const far = Math.min(2, this.loopOf(s.idx) - curLoop); // 0 = this loop, 1 = next, 2 = the one after
+      const prevP = s.rainP;
+      if (s.surface === 'snow') s.rainP = 0;
+      else if (fr === true || fr === false) s.rainP = s.wet ? 95 : 3;
+      else {
+        const noise = (r() - 0.5) * [16, 40, 56][far];
+        const truth = s.wet ? 80 : 8, clim = (this.track.rain || 0) * 100, k = [0.85, 0.55, 0.35][far];
+        s.rainP = Math.round(clamp(truth * k + clim * (1 - k) + noise, 2, 97));
+      }
+      if (s.surface === 'mixed') { const sp = [0.08, 0.2, 0.28][far]; s.iceF = +clamp(s.ice + (r() - 0.5) * 2 * sp, 0, 1).toFixed(2); }
+      if (!first && prevP != null && Math.abs(s.rainP - prevP) >= 25) {
+        const up = s.rainP > prevP;
+        const text = `Meteo: ${up ? 'pioggia in arrivo' : 'schiarite in arrivo'} su PS${s.idx + 1} ${s.name} (pioggia ${prevP}% → ${s.rainP}%)`;
+        this.wxNews.push({ stage: cur, idx: s.idx, up, text });
+        this.pushLog(text, up ? 'warn' : 'info', null);
+      }
+    }
+  }
+  loopOf(i) { let n = 0; for (let k = 1; k <= i; k++) if (this.isLoopStart(k)) n++; return n; }
   isServiceAfter(i) { return i % 2 === 1 && i < this.stages.length - 1; }
   // first stage of a loop: tyres are chosen here (start of the rally or right after a service)
   isLoopStart(i = this.stageIdx) { return i === 0 || this.isServiceAfter(i - 1); }
@@ -132,6 +196,7 @@ export class RallyEvent {
     const x = c.roadPos / Math.max(1, (this.roadN || 2) - 1); // 0 = first on the road, 1 = last
     if (st.surface === 'gravel' || st.surface === 'rough') return st.wet ? 0.005 * x : 0.009 * Math.pow(1 - x, 1.6); // dry: loose gravel swept by the first cars; wet: ruts and mud for the last
     if (st.surface === 'snow') return 0.006 * Math.pow(1 - x, 1.6);
+    if (st.surface === 'mixed') return 0.006 * iceOf(st) * Math.pow(1 - x, 1.6) + 0.002 * x; // the first cars scrape a line through the snow
     return 0.0025 * x; // tarmac: dirt pulled onto the line by the cuts
   }
   roadInfo(c, st = this.stage) { return { pos: (c.roadPos ?? 0) + 1, n: this.roadN || this.crews.length, secs: st ? this.roadLoss(c, st) * st.km / (SURFACES[st.surface].speed * this.fast) * 3600 : 0 }; }
@@ -169,8 +234,8 @@ export class RallyEvent {
     for (const t of Object.keys(RALLY_TYRES)) {
       let v = 0, wear = 0;
       for (const s of stages) {
-        const pw = s.idx === this.stageIdx ? (s.wet ? 1 : 0) : s.rainP / 100;
-        v += s.km * ((1 - pw) * tyreFit(t, s, false) + pw * tyreFit(t, s, true) - wearPenalty(wear + stageWear(t, s) / 2));
+        const now = s.idx === this.stageIdx, pw = now ? (s.wet ? 1 : 0) : s.rainP / 100, ice = iceOf(s, now);
+        v += s.km * ((1 - pw) * tyreFit(t, s, false, ice) + pw * tyreFit(t, s, true, ice) - wearPenalty(wear + stageWear(t, s) / 2));
         wear += stageWear(t, s);
       }
       if (v > bv) { bv = v; best = t; }
@@ -191,11 +256,14 @@ export class RallyEvent {
     return { dt, risk: 1 - safe };
   }
   offChance(c, st, riskMult, d = this.driver(c)) {
-    const surfRisk = { rough: 1.45, snow: 1.15, gravel: 1, tarmac: 0.9 }[st.surface] * (st.wet ? 1.35 : 1);
+    const surfRisk = ({ rough: 1.45, snow: 1.15, gravel: 1, tarmac: 0.9, mixed: 1 + 0.5 * iceOf(st) }[st.surface] || 1) * (st.wet ? 1.35 : 1);
     // approximate pace notes and darkness make every blind corner a gamble
     const notes = 1.15 - (c.recce ?? 0.5) * 0.3;
     const night = st.night ? (c.lightPod ? 1.2 : 1.75) : 1;
-    return 0.032 * riskMult * (1.38 - d.attrs.cons / 100) * surfRisk * (1 + c.damage.suspension * 0.6) * notes * night;
+    // the wrong tyre for the conditions (slicks on ice, gravel tyres on wet tarmac) bites back
+    const fit = c.tyre ? tyreFit(c.tyre, st, st.wet) : 0;
+    const grip = fit < -0.03 ? 1 + Math.min(0.6, (-fit - 0.03) * 12) : 1;
+    return 0.032 * riskMult * (1.38 - d.attrs.cons / 100) * surfRisk * (1 + c.damage.suspension * 0.6) * notes * night * grip;
   }
   nominalTime(c, st, tyre = c.tyre || bestTyreFor(st, st.wet)) {
     const d = this.driver(c); const surf = SURFACES[st.surface];
@@ -235,7 +303,7 @@ export class RallyEvent {
       const stops = [];
       for (let s = 0; s < 3; s++) { const st2 = this.rollSector(c, st, s, ch.paces[s], 0); if (st2) stops.push(st2); }
       const rel = c.team.car.parts.reliability;
-      if (chance(0.016 * ((100 - rel) / 20) ** 2 * (ch.paces.includes('push') ? 1.3 : 1) * (1 - c.check * 0.5))) {
+      if (chance(0.016 * ((100 - rel) / 20) ** 2 * (ch.paces.includes('push') ? 1.3 : 1) * (1 - c.check * 0.5) * (1 + c.damage.engine * 2 + c.damage.gearbox))) {
         const comp = pick(['engine', 'gearbox', 'suspension']);
         const terminal = chance(0.18);
         stops.push({ p: rand(0.1, 0.95), dur: terminal ? 9999 : rand(8, 30), text: terminal ? `🔧 Guasto fatale per ${d.name}: ${comp === 'engine' ? 'motore' : comp === 'gearbox' ? 'cambio' : 'sospensione'} KO` : `🔧 ${d.name} ha un problema meccanico, rallenta`, kind: terminal ? 'terminal' : 'mech', dmg: terminal ? null : { [comp]: rand(0.3, 0.6) } });
@@ -271,7 +339,7 @@ export class RallyEvent {
       return { p, dur: 9999, text: `💥 ${d.name} si cappotta! Equipaggio OK, ma la gara finisce qui per oggi`, kind: 'crash', sec: s };
     }
     const tyre = c.tyre || 'gravel_hard';
-    const puncP = 0.018 * ({ rough: 2.2, gravel: 1.2, snow: 0.6, tarmac: 0.7 }[st.surface]) * (tyre.endsWith('soft') ? 1.5 : 1) * (st.km > 18 ? 1.3 : 1) * T.punc * (1 + c.tyreWear * 1.2) * (pace === 'push' ? 1.3 : pace === 'safe' ? 0.8 : 1) / 3 * frac;
+    const puncP = 0.018 * ({ rough: 2.2, gravel: 1.2, snow: 0.6, tarmac: 0.7, mixed: 0.65 }[st.surface] || 1) * (tyre.endsWith('soft') ? 1.5 : 1) * (st.km > 18 ? 1.3 : 1) * T.punc * (1 + c.tyreWear * 1.2) * (1 + c.damage.suspension * 0.5) * (pace === 'push' ? 1.3 : pace === 'safe' ? 0.8 : 1) / 3 * frac;
     if (chance(puncP)) return { p, dur: rand(40, 95), text: `${d.name} fora! Cambio ruota in prova`, kind: 'puncture', sec: s };
     return null;
   }
@@ -314,6 +382,7 @@ export class RallyEvent {
     return pieces;
   }
   buildPieces() {
+    this.clock = 0; this.hl?.stageStart();
     // start order = road order, 20s apart (see setRoadOrder: it matters on loose surfaces)
     const order = (this.roadList || this.crews).filter((c) => c.plan);
     const startIdx = new Map(order.map((c, i) => [c, i]));
@@ -322,6 +391,7 @@ export class RallyEvent {
       const delay = (startIdx.get(c) || 0) * 20;
       c.pieces = this.piecesFrom(c, 0, delay ? [{ type: 'wait', p0: 0, p1: 0, dur: delay }] : []);
       c.pieceIdx = 0; c.pieceT = 0; c.progress = 0; c.stageT = 0; c.done = false; c.splits = []; c.splitTimes = {}; c.stageResult = null; c.waiting = !!delay;
+      c.kf = [[0, 0, delay ? 1 : 0]];
     }
   }
   sectorAt(p) { return Math.min(2, Math.floor(p * 3 + 1e-9)); }
@@ -352,6 +422,7 @@ export class RallyEvent {
     else if (pc?.type === 'stop') { lead.push({ type: 'stop', p: p0, dur: pc.dur - c.pieceT, stop: pc.stop, logged: true }); if (pc.stop) pc.stop.used = true; }
     // stops already behind the car never come back
     for (const so of c.plan.stops) if (so.p < p0) so.used = true;
+    this.kfPush(c, this.clock);
     c.pieces = this.piecesFrom(c, p0 + 1e-6, lead);
     c.pieceIdx = 0; c.pieceT = 0;
     return true;
@@ -390,7 +461,7 @@ export class RallyEvent {
         if (pc.type === 'move') c.progress = pc.p0 + (pc.p1 - pc.p0) * (pc.dur ? c.pieceT / pc.dur : 1);
         if (pc.type === 'stop' && !pc.logged) {
           pc.logged = true; if (pc.stop) pc.stop.used = true;
-          this.onStop(c, pc);
+          this.onStop(c, pc, this.clock + dt - left - use);
           if (pc.stop.dur >= 9999) {
             c.done = true;
             if (pc.stop.kind === 'terminal' || (pc.stop.kind === 'crash' && chance(0.35))) { c.status = 'out'; this.pushLog(`${this.driver(c).name} è definitivamente ritirato dal rally.`, 'out', c); }
@@ -400,13 +471,34 @@ export class RallyEvent {
           }
         }
         for (const sp of [1 / 3, 2 / 3]) if (c.progress >= sp - 1e-9 && !c.splits.includes(sp)) { c.splits.push(sp); (c.splitTimes ||= {})[sp] = c.stageT; this.onSplit(c, sp); }
-        if (c.pieceT >= pc.dur - 1e-9) { c.pieceIdx++; c.pieceT = 0; if (c.pieceIdx >= c.pieces.length) this.finishCrew(c); }
+        if (c.pieceT >= pc.dur - 1e-9) {
+          const tNow = this.clock + dt - left;
+          if (pc.type === 'wait' && c.isPlayer) this.hlMark({ type: 'start', keys: [c.key], t: tNow, title: `Via! ${this.driver(c).name}`, text: `PS${this.stageIdx + 1} ${this.stage.name} · ${this.stage.km} km`, score: 2.6, pre: 2.5, post: 9 });
+          c.pieceIdx++; c.pieceT = 0; this.kfPush(c, tNow);
+          if (c.pieceIdx >= c.pieces.length) this.finishCrew(c, tNow);
+        }
       }
     }
+    this.clock += dt;
     return req;
   }
-  onStop(c, pc) {
+  onStop(c, pc, t = this.clock) {
     const s = pc.stop;
+    if (s && s.kind !== 'adj') {
+      // the replay views: how the car leaves the road (pace = progress per second in this sector)
+      const kind = { minor: 'off', major: 'off', crash: 'roll', terminal: 'park', mech: 'park', puncture: 'park' }[s.kind];
+      if (kind) {
+        const sec = this.sectorAt(c.progress || 0);
+        const inc = { key: c.key, stage: this.stageIdx, kind, t0: t, u0: c.progress || 0, v: (1 / 3) / (c.plan?.secT?.[sec] || 100), side: chance(0.5) ? 1 : -1, sub: s.kind };
+        this.incidents.push(inc); if (this.incidents.length > 120) this.incidents.shift();
+        const pos = this.overall().indexOf(c);
+        const sc = ({ crash: 8, terminal: 5, major: 6, puncture: 4, mech: 3, minor: 3 }[s.kind] || 3) + (c.isPlayer ? 2 : 0) + (pos >= 0 && pos < 3 ? 1.2 : 0);
+        const T = { crash: 'crash', terminal: 'issue', major: 'off', puncture: 'puncture', mech: 'issue', minor: 'off' }[s.kind];
+        const d = this.driver(c);
+        const title = { crash: `${d.name} si cappotta!`, terminal: `Guasto fatale per ${d.name}`, major: `${d.name} esce di strada`, puncture: `Foratura per ${d.name}`, mech: `Problema meccanico per ${d.name}`, minor: `${d.name} va lungo` }[s.kind];
+        this.hlMark({ type: T, keys: [c.key], t, title, text: String(s.text || '').replace(/^[^\p{L}]+/u, ''), score: sc, pre: 6, post: Math.min(10, (s.dur >= 9999 ? 7 : s.dur + 3)) });
+      }
+    }
     // punctures use a spare; without one the crew limps on the rim
     if (s.kind === 'puncture') {
       if (c.spares > 0) { c.spares--; this.pushLog(`${s.text} (scorte rimaste: ${c.spares})`, 'puncture', c); }
@@ -434,6 +526,7 @@ export class RallyEvent {
     const pi = c.pieceIdx;
     let extra = opt.gain;
     let dmg = null;
+    this.kfPush(c, this.clock);
     if (opt.spare) { if (c.spares > 0) c.spares--; else { extra += 50; text = 'Nessuna scorta a bordo: sostituzione di fortuna. '; } }
     if (opt.risk && chance(risk)) {
       if (opt.fail === 'puncture') { if (c.spares > 0) { c.spares--; extra += rand(45, 80); } else extra += rand(100, 140); text = `Foratura! ${d.name} perde tempo cambiando la ruota.`; }
@@ -455,9 +548,11 @@ export class RallyEvent {
     return { text, good: extra <= 0, gain: extra };
   }
 
-  finishCrew(c) {
+  finishCrew(c, t = this.clock) {
     c.done = true;
     c.stageResult = c.stageT;
+    { const others = this.crews.filter((x) => x !== c && x.stageResult != null && x.plan); const best = !others.length || others.every((x) => x.stageResult > c.stageT);
+      if (best || c.isPlayer) this.hlMark({ type: 'stage', keys: [c.key], t, title: `${this.driver(c).name} al traguardo`, text: `PS${this.stageIdx + 1} in ${Math.floor(Math.round(c.stageT * 10) / 600)}:${(Math.round(c.stageT * 10) / 10 % 60).toFixed(1).padStart(4, '0')}${best && others.length ? ' · miglior tempo' : ''}`, score: c.isPlayer ? 3.5 : 2.5, pre: 7, post: 3 }); }
     (c.splitTimes ||= {})[1] = c.stageT;
     this.onSplit(c, 1);
   }
@@ -471,16 +566,18 @@ export class RallyEvent {
     const st = this.stage;
     const before = this.overall().filter((c) => c.status !== 'out').map((c) => c.key);
     const finishers = this.crews.filter((c) => c.plan && c.stageResult != null);
-    const best = Math.min(...finishers.map((c) => c.stageResult));
-    const slowest = Math.max(...finishers.map((c) => c.stageResult));
+    // nobody through (all crews stopped): the nominal times come from the stage length
+    const nominal = st.km / SURFACES[st.surface].speed * 3600;
+    const best = finishers.length ? Math.min(...finishers.map((c) => c.stageResult)) : nominal;
+    const slowest = finishers.length ? Math.max(...finishers.map((c) => c.stageResult)) : nominal * 1.1;
     for (const c of this.crews) {
       if (c.status === 'out') { if (c.stageTimes.length <= this.stageIdx) c.stageTimes.push(null); continue; }
       if (c.plan && c.stageResult != null) c.stageTimes.push(c.stageResult);
       else {
-        // super rally nominal time
+        // super rally: nominal time for every stage missed, plus 5 minutes each time the crew restarts
         const t = slowest + 60;
         c.stageTimes.push(t);
-        if (!c.superRally) { c.penalty += 300; c.superRally = 1; }
+        if (!c.srOpen) { c.penalty += 300; c.superRally = (c.superRally || 0) + 1; c.srOpen = true; }
       }
       c.total = c.stageTimes.reduce((s, x) => s + (x || 0), 0) + c.penalty;
     }
@@ -498,10 +595,13 @@ export class RallyEvent {
       if (st.surface === 'rough' && c.plan && chance(0.2)) c.damage.suspension = clamp(c.damage.suspension + rand(0.05, 0.15), 0, 1);
       c.plan = null; c.choice = null;
     }
+    try { this.hl?.stageEnd(st, { seed: (this.track.seed || 0) + st.idx * 101, trackId: this.track.id }); } catch (e) { console.warn('highlights', e); }
     const ov = this.overall();
     ov.forEach((c, i) => c.posHist.push(c.status === 'out' ? null : i + 1));
     st.gapsAfter = Object.fromEntries(ov.filter((c) => c.status !== 'out').map((c) => [c.key, c.total - ov[0].total]));
     this.stageIdx++;
+    // back at the service park: the meteo crew updates the forecast for the loops still to run
+    if (!this.finished() && this.isLoopStart(this.stageIdx)) this.forecast();
     this.setRoadOrder();
     return ranking;
   }
@@ -524,7 +624,7 @@ export class RallyEvent {
       if (!c.isPlayer && c.setupQ < 0.6 && chance(0.4)) c.setupQ += 0.08;
       const over = Math.max(0, minutes - SERVICE_TIME);
       if (over > 0) { const pen = Math.ceil(over) * 10; c.penalty += pen; notes.push(`${this.driver(c).name}: ${Math.ceil(over)} min di ritardo al controllo orario, penalità ${pen}s`); }
-      c.retiredLeg = false;
+      c.retiredLeg = false; c.srOpen = false;
       c.tyreWear = 0; c.spares = 2;
     }
     for (const c of this.crews) c.total = c.stageTimes.reduce((s, x) => s + (x || 0), 0) + c.penalty;

@@ -1,7 +1,8 @@
 Textures and HDRIs: Poly Haven (https://polyhaven.com) - CC0 1.0 Public Domain.
 asphalt_02, aerial_grass_rock, gravel_floor, snow_02, concrete_floor_worn_001, rocky_trail,
 corrugated_iron_02, metal_plate, concrete_wall_008, aerial_rocks_02 (re-compressed),
-kloofendal_48d_partly_cloudy_puresky, qwantani_late_afternoon_puresky, qwantani_dusk_2_puresky, moonless_golf.
+kloofendal_48d_partly_cloudy_puresky, qwantani_late_afternoon_puresky, qwantani_dusk_2_puresky, moonless_golf,
+kloofendal_overcast_puresky (wet races), asphalt_track (racing surface, 1k + 2k, re-compressed).
 Circuit geometry: bacinger/f1-circuits (MIT).
 Vegetation impostors (veg/trees.webp): rendered from Poly Haven CC0 models
 fir_sapling_medium, pine_sapling_small, searsia_lucida, searsia_burchellii, shrub_02,
@@ -9,3 +10,15 @@ quiver_tree_02, othonna_cerarioides (https://polyhaven.com/models) - CC0 1.0 Pub
 
 Facade textures (tex/facade001_*, tex/facade006_*): ambientCG Facade001, Facade006
 (https://ambientcg.com) - CC0 1.0 Public Domain (re-compressed).
+
+Rally textures (rally/*.webp, re-compressed 1k webp): Poly Haven (https://polyhaven.com) - CC0 1.0 Public Domain.
+pebble_ground_01, brown_mud_rocks_01, dry_ground_rocks, asphalt_snow, snow_03, forest_ground_04.
+Scontro Totale (derby/): Poly Haven (https://polyhaven.com) - CC0 1.0 Public Domain, re-compressed to webp.
+dirt (derby/dirt_diff.webp), muddy_tracks (derby/mud_diff.webp), models Barrel_01 (derby/barrel.*)
+and old_tyre (derby/tyre.*), HDRI overcast_soil_puresky (derby/overcast_soil_puresky_1k.hdr).
+v7 paddock models (512 px webp textures): covered_car (derby/wreck.*), propane_tank (derby/propane.*),
+metal_jerrycan_green (derby/jerrycan.*).
+
+Voragine facades (voragine/f_*.webp, 1k webp; *_e = night window emission, partly generated from the colour maps):
+ambientCG (https://ambientcg.com) - CC0 1.0 Public Domain: Facade001, Facade003, Facade006, Facade017, Facade018A.
+Road grain reuses tex/asphalt_02 (Poly Haven, CC0).
