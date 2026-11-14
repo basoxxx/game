@@ -40,7 +40,7 @@ registerScreen({
   render(params) {
     const st = S();
     const ev = st.calendar[params?.idx ?? st.round - 1];
-    if (!ev?.results) return `<div class="full-screen">${pageHead({ backAction: 'done', title: 'Risultati' })}<div class="empty">Nessun risultato</div></div>`;
+    if (!ev?.results) return `<div class="full-screen">${pageHead({ backAction: 'done', title: 'Risultati' })}<div class="empty">${icon('flag')}<b>Nessun risultato</b><span>Questo evento non è ancora stato disputato.</span></div></div>`;
     const tr = getTrack(st.category, ev.trackId);
     const res = ev.results;
     const pt = playerTeam(st);
@@ -112,6 +112,7 @@ registerScreen({
   actions: {
     highlights() { const st = S(); openSavedHighlights(st, App.params?.idx ?? st.round - 1); },
     done() {
+      document.querySelectorAll('canvas.confetti').forEach((c) => c.remove());
       const st = S();
       if (st.quick) { App.go(st.challenge ? 'challenges' : 'quickrace'); return; }
       if (st.round >= st.calendar.length) App.go('seasonend'); else App.go('hub');

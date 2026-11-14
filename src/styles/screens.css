@@ -520,3 +520,13 @@ html.reduce-motion .ring-v, html.reduce-motion .objp-bar i, html.reduce-motion .
   .cal-row .cal-res > span { display: none; }
   .cal-row .cal-res b { font-size: 19px; }
 }
+
+/* v6: hub hero on phones — the next event, the facts and the button within the first screen */
+@media (max-width: 760px) {
+  .hub-hero .hh-info { padding: 18px 16px 20px; }
+  .hub-hero .hh-name { font-size: 38px; gap: 12px; }
+  .hub-hero .hh-name .flag { width: 36px; height: 24px; }
+  .hub-hero .hh-facts { margin: 16px 0 18px; }
+  .hub-hero .hh-facts b { font-size: 20px; }
+  .hub-hero:not(.live) .hh-visual { min-height: 180px; }
+}
