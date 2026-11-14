@@ -94,7 +94,8 @@ export function startTour(id, steps, opts = {}) {
   };
   const onResize = () => place();
   window.addEventListener('resize', onResize); document.addEventListener('keydown', onKey, true);
-  active = { id, mask, card, opts, onKey, onResize, watch: setInterval(() => { if (opts.screen && window.__apex?.App?.cur !== opts.screen) endTour(false); else place(); }, 400) };
+  // a passive tour (race) ends when a decision or dialog pops up, so it never covers it
+  active = { id, mask, card, opts, onKey, onResize, watch: setInterval(() => { if ((opts.screen && window.__apex?.App?.cur !== opts.screen) || (opts.passive && document.querySelector('#dec-modal, .modal-wrap'))) endTour(false); else place(); }, 400) };
   sfx.open();
   show();
 }
