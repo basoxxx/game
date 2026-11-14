@@ -122,11 +122,15 @@ export const RALLY_TYRES = {
   wet: { name: 'Pioggia', short: 'WT', color: '#1e90ff', surf: 'wet', pace: 0, wear: 0.9 },
 };
 
+// speed: average stage speed (km/h) of a top crew on a dry stage, matched to real rally averages
+// (Sweden's packed snow is fast, Safari / Acropolis rocks slow, Monte's icy tarmac in between)
 export const SURFACES = {
-  gravel: { name: 'Sterrato', color: '#c98b4a', weights: { engine: 1, suspension: 1.6, chassis: 0.8, gearbox: 1.1, reliability: 0.6 }, speed: 112 },
-  tarmac: { name: 'Asfalto', color: '#7f8a99', weights: { engine: 1.3, suspension: 0.6, chassis: 1.6, gearbox: 1, reliability: 0.3 }, speed: 118 },
-  snow: { name: 'Neve', color: '#dff3ff', weights: { engine: 0.8, suspension: 1.1, chassis: 1.0, gearbox: 1.6, reliability: 0.4 }, speed: 104 },
-  rough: { name: 'Sterrato Duro', color: '#9b6a3a', weights: { engine: 0.8, suspension: 1.8, chassis: 0.6, gearbox: 0.9, reliability: 1.2 }, speed: 96 },
+  gravel: { name: 'Sterrato', color: '#c98b4a', weights: { engine: 1, suspension: 1.6, chassis: 0.8, gearbox: 1.1, reliability: 0.6 }, speed: 105 },
+  tarmac: { name: 'Asfalto', color: '#7f8a99', weights: { engine: 1.3, suspension: 0.6, chassis: 1.6, gearbox: 1, reliability: 0.3 }, speed: 106 },
+  snow: { name: 'Neve', color: '#dff3ff', weights: { engine: 0.8, suspension: 1.1, chassis: 1.0, gearbox: 1.6, reliability: 0.4 }, speed: 113 },
+  rough: { name: 'Sterrato Duro', color: '#9b6a3a', weights: { engine: 0.8, suspension: 1.8, chassis: 0.6, gearbox: 0.9, reliability: 1.2 }, speed: 88 },
+  // Monte-Carlo style: tarmac with snow and ice patches (how much ice changes loop by loop)
+  mixed: { name: 'Misto Ghiaccio', color: '#a9c3dc', weights: { engine: 1.1, suspension: 0.8, chassis: 1.4, gearbox: 1.2, reliability: 0.4 }, speed: 94 },
 };
 
 export const DIFFICULTY = {

@@ -30,7 +30,7 @@ const fmt = (n) => Math.round(n).toLocaleString('it-IT');
 function setup(p) {
   const key = `${p.mode}:${p.city}`;
   return `<div class="full-screen vg-menu">
-    ${pageHead({ back: V.from, eyebrow: 'Sala Giochi · Arcade', title: 'Voragine', sub: 'Sei una voragine che si apre in città. Inghiotti ciò che è più piccolo di te, cresci, divora le rivali.', right: `<div class="vg-wallet"><div class="w-k">Monete</div><b>${icon('coin')} ${fmt(p.coins)}</b><div class="w-s">${p.games} partite · ${p.wins} vittorie · ${fmt(p.eaten)} oggetti inghiottiti</div></div>` })}
+    ${pageHead({ back: V.from, eyebrow: 'Baso Hub · Arcade', title: 'Voragine', sub: 'Sei una voragine che si apre in città. Inghiotti ciò che è più piccolo di te, cresci, divora le rivali.', right: `<div class="vg-wallet"><div class="w-k">Monete</div><b>${icon('coin')} ${fmt(p.coins)}</b><div class="w-s">${p.games} partite · ${p.wins} vittorie · ${fmt(p.eaten)} oggetti inghiottiti</div></div>` })}
     <div class="vg-setup">
       <section><h3>Modalità</h3><div class="vg-opts">${Object.entries(MODES).map(([id, m]) => `<div class="vg-opt ${p.mode === id ? 'on' : ''}" data-a="vg-mode" data-id="${id}">${icon(m.icon)}<b>${m.name}</b><span>${m.sub}</span>${p.best[`${id}:${p.city}`] ? `<em>Record ${fmt(p.best[`${id}:${p.city}`])}</em>` : ''}</div>`).join('')}</div></section>
       <section><h3>Città</h3><div class="vg-opts">${Object.entries(CITIES).map(([id, c]) => `<div class="vg-opt vg-city ${p.city === id ? 'on' : ''}" data-a="vg-city" data-id="${id}" style="--sky:${c.sky};--fog:${c.fog}"><i class="vg-sky"></i><b>${c.name}</b><span>${c.sub}</span></div>`).join('')}</div></section>
@@ -57,11 +57,12 @@ function results(r, p) {
         <div><b>${r.mode === 'solitaria' ? r.pct.toFixed(1) + '%' : `${r.pos}/${r.of}`}</b><span>${r.mode === 'solitaria' ? 'della città' : 'posizione'}</span></div>
         <div><b>${fmt(r.eaten)}</b><span>oggetti</span></div>
         <div><b>${r.holes}</b><span>voragini</span></div>
+        <div><b>x${r.combo || 0}</b><span>combo max</span></div>
         <div><b>+${r.coins}</b><span>monete</span></div>
       </div>
       ${r.big ? `<div class="vg-res-big">Boccone più grande: <b>${esc(r.big)}</b></div>` : ''}
       ${r.ranking.length > 1 ? `<ol class="vg-res-rank">${r.ranking.map((h, i) => `<li class="${h.player ? 'me' : ''}" style="--c:${h.color}"><span>${i + 1}</span><i></i><b>${esc(h.name)}</b><em>${h.out && r.mode === 'battaglia' ? 'fuori' : fmt(h.score)}</em></li>`).join('')}</ol>` : ''}
-      <div class="vg-res-btns"><button class="btn primary" data-a="vg-again">${icon('replay')} Rivincita</button><button class="btn" data-a="vg-back">${icon('left')} Menu Voragine</button><button class="btn ghost" data-a="vg-hall">${icon('gamepad')} Sala Giochi</button></div>
+      <div class="vg-res-btns"><button class="btn primary" data-a="vg-again">${icon('replay')} Rivincita</button><button class="btn" data-a="vg-back">${icon('left')} Menu Voragine</button><button class="btn ghost" data-a="vg-hall">${icon('gamepad')} Baso Hub</button></div>
     </div>
   </div>`;
 }
@@ -72,6 +73,9 @@ registerScreen({
   id: 'voragine', full: true,
   render(params) {
     if (params?.from) V.from = params.from; else if (params?.to === 'voragine') V.from = 'launcher';
+    // the Baso Hub can preselect a mode/city, or start straight away
+    if (params?.mode || params?.city) { const p = vgLoad(); if (params.mode) p.mode = params.mode; if (params.city) p.city = params.city; vgSave(p); }
+    if (params?.quick && !V.playing && !V.quickDone) { V.quickDone = true; V.playing = true; }
     if (V.playing) return `<div class="vg-stage"><div class="vg-root" id="vg-root"><div class="vg-loading">Si apre la terra…</div></div><div class="vg-over" id="vg-over"></div></div>`;
     return setup(vgLoad());
   },
@@ -110,7 +114,7 @@ registerScreen({
     window.__voragine = g;
     try { await g.start(); } catch (e) { console.error(e); root.innerHTML = `<div class="vg-loading">Impossibile avviare il gioco: ${esc(e.message || String(e))}<br><button class="btn mt16" data-a="vg-back">Indietro</button></div>`; }
   },
-  unmount() { stopGame(); V.playing = false; },
+  unmount() { stopGame(); V.playing = false; V.quickDone = false; },
   actions: {
     'vg-mode'(el) { const p = vgLoad(); p.mode = el.dataset.id; vgSave(p); App.refresh(); },
     'vg-city'(el) { const p = vgLoad(); p.city = el.dataset.id; vgSave(p); App.refresh(); },

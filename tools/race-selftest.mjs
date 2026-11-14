@@ -57,12 +57,30 @@ for (const cat of ['formula', 'junior', 'endurance']) {
 {
   const st = createWorld({ playerName: 'Test', category: 'rally', teamId: TEAMS.rally[2].id, difficulty: 'normal', seasonLength: 'short', raceLength: 'normal' });
   setState(st);
-  for (let r = 0; r < Math.min(runs, st.calendar.length); r++) {
+  for (let r = 0; r < st.calendar.length; r++) {
     st.round = r; const ev = st.calendar[r]; const tr = getTrack('rally', ev.trackId);
     const R = new RallyEvent(st, ev, tr, {});
     while (!R.finished()) { R.planStage({}); let g = 0; while (!R.allDone() && g++ < 1e5) { const q = R.advance(2); if (q) R.resolveDecision(q, 'b'); } R.completeStage(); if (R.isServiceAfter(R.stageIdx - 1)) R.service({}); }
     const res = R.results();
-    console.log(`rally ${tr.id} stages ${res.stages.length} winner ${res.classification[0].key} time ${res.classification[0].time.toFixed(1)} out ${res.classification.filter((x) => x.status === 'dnf').length}`);
+    // ---- rally sanity: stage speeds by surface, totals, classification order, power stage points ----
+    const SPD = { gravel: [85, 135], rough: [72, 112], tarmac: [85, 130], snow: [95, 135], mixed: [78, 118] };
+    for (const s of R.stages) {
+      const v = s.km / s.best * 3600, [lo, hi] = SPD[s.surface] || [70, 140];
+      if (!(v >= lo && v <= hi)) bad.push(`rally/${tr.id}: PS${s.idx + 1} ${s.surface} media vincitore ${v.toFixed(0)} km/h fuori scala`);
+      const rk = s.results || [];
+      for (let i = 1; i < rk.length; i++) if (rk[i].time < rk[i - 1].time) bad.push(`rally/${tr.id}: PS${s.idx + 1} tempi non ordinati`);
+      if (s.power) { const pts = rk.slice(0, 5).map((x) => R.crews.find((c) => c.key === x.key).psPoints); if (pts.join() !== [5, 4, 3, 2, 1].slice(0, pts.length).join()) bad.push(`rally/${tr.id}: punti power stage errati ${pts}`); }
+    }
+    for (const c of R.crews) {
+      const sum = c.stageTimes.reduce((a2, x) => a2 + (x || 0), 0) + c.penalty;
+      if (!isFinite(c.total) || Math.abs(sum - c.total) > 1e-6) bad.push(`rally/${tr.id}: totale incoerente per ${c.key}`);
+      if (c.stageTimes.length !== R.stages.length) bad.push(`rally/${tr.id}: ${c.key} ha ${c.stageTimes.length} tempi su ${R.stages.length} prove`);
+    }
+    const fin = res.classification.filter((x) => x.status !== 'dnf');
+    for (let i = 1; i < fin.length; i++) if (fin[i].time < fin[i - 1].time) bad.push(`rally/${tr.id}: classifica assoluta non ordinata`);
+    if (res.classification.length - fin.length > res.classification.length * 0.4) bad.push(`rally/${tr.id}: troppi ritiri`);
+    if (fin[0] && fin[0].pts < 25) bad.push(`rally/${tr.id}: il vincitore ha ${fin[0].pts} punti`);
+    console.log(`rally ${tr.id} stages ${res.stages.length} winner ${res.classification[0].key} time ${res.classification[0].time.toFixed(1)} out ${res.classification.filter((x) => x.status === 'dnf').length} avg ${R.stages.map((s) => (s.km / s.best * 3600).toFixed(0)).join('/')}`);
   }
 }
 console.log(bad.length ? 'SANITY FAILURES:\n  ' + bad.join('\n  ') : 'sanity: ok');

@@ -37,7 +37,7 @@ export const TRACKS = {
     { id: 'bhr', cid: 'bhr', name: '8 Ore del Bahrain', circuit: 'Circuito delle Dune', nat: 'BHR', lap: 106.0, hours: 8, pit: 32, wear: 1.35, ovt: 0.7, rain: 0.02, seed: 278, night: true },
   ],
   rally: [
-    { id: 'mc', name: 'Rally del Principato', nat: 'MON', surfaces: ['tarmac', 'snow', 'tarmac', 'snow', 'tarmac', 'tarmac'], rain: 0.35, seed: 301 },
+    { id: 'mc', name: 'Rally del Principato', nat: 'MON', surfaces: ['mixed', 'tarmac', 'mixed', 'mixed', 'tarmac', 'mixed'], rain: 0.35, seed: 301 },
     { id: 'swe', name: 'Rally di Svezia', nat: 'SWE', surfaces: ['snow', 'snow', 'snow', 'snow', 'snow', 'snow'], rain: 0.1, seed: 311 },
     { id: 'ken', name: 'Rally della Savana', nat: 'KEN', surfaces: ['rough', 'rough', 'gravel', 'rough', 'rough', 'gravel'], rain: 0.3, seed: 321 },
     { id: 'cro', name: 'Rally di Croazia', nat: 'CRO', surfaces: ['tarmac', 'tarmac', 'tarmac', 'tarmac', 'tarmac', 'tarmac'], rain: 0.4, seed: 331 },

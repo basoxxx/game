@@ -92,7 +92,7 @@ export const CITIES = {
     w: { downtown: 0.36, shops: 0.22, plaza: 0.14, park: 0.1, parking: 0.12, res: 0.06 } },
 };
 
-export const ROAD = 12, BLOCK = 30, PITCH = ROAD + BLOCK, NB = 6;
+export const ROAD = 12, BLOCK = 30, PITCH = ROAD + BLOCK, NB = 7;
 export const HALF = (NB * PITCH) / 2; // road centres at -HALF + k*PITCH, k = 0..NB
 export const roadC = (k) => -HALF + k * PITCH;
 
