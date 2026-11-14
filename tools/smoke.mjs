@@ -34,7 +34,7 @@ function hook(page, tag) {
 }
 async function checkCrash(page, tag) {
   const cur = await page.evaluate(() => window.__apex?.App?.cur).catch(() => null); if (cur) visited.add(`${tag}:${cur}`);
-  const txt = await page.evaluate(() => { const c = document.querySelector('.crash'); return c ? (c.querySelector('pre')?.textContent || c.textContent) : null; });
+  const txt = await page.evaluate(() => { const c = document.querySelector('.modal-wrap .crash'); return c ? (c.querySelector('pre')?.textContent || c.textContent) : null; });
   if (txt) {
     note(`${tag}:crash-dialog`, txt.trim());
     await page.evaluate(() => document.querySelector('[data-a="crash-retry"]') && window.__apex.App.closeModal());
@@ -51,7 +51,7 @@ async function go(page, id, params) {
 async function closeOverlays(page) {
   await page.evaluate(() => {
     document.querySelector('.tour-mask')?.remove(); document.querySelector('.coach')?.remove();
-    if (document.querySelector('.modal-wrap') && !document.querySelector('.crash')) window.__apex.App.closeModal();
+    if (document.querySelector('.modal-wrap') && !document.querySelector('.modal-wrap .crash')) window.__apex.App.closeModal();
   });
 }
 async function clickAll(page, sel, tag) {
@@ -146,7 +146,19 @@ async function deep(browser) {
     await go(page, 'hub');
     where = `${cat}:simRound`;
     const ok = await page.evaluate(() => { try { window.__apex.simRound(); window.__apex.simRound(); return true; } catch (e) { console.error('simRound: ' + (e.stack || e)); return false; } });
-    if (ok) { await go(page, 'results', { idx: 1 }); await checkCrash(page, `deep-${cat}`); }
+    if (ok) {
+      await go(page, 'results', { idx: 1 }); await checkCrash(page, `deep-${cat}`);
+      // the highlights reel of that round: open, skip through a couple of moments, close
+      where = `${cat}:highlights`;
+      await page.evaluate(() => { document.querySelectorAll('.modal-wrap').forEach((m) => m.remove()); document.querySelector('[data-a="highlights"]')?.click(); });
+      if (await page.waitForSelector('.hl-wrap', { timeout: 20000 }).catch(() => null)) {
+        await settle(page, 2500);
+        for (let i = 0; i < 2; i++) { await page.evaluate(() => document.querySelector('.hl-wrap [data-hl="next"]')?.click()); await settle(page, 1500); }
+        await page.evaluate(() => document.querySelector('.hl-wrap [data-hl="close"]')?.click()); await settle(page, 300);
+        if (await page.locator('.hl-wrap').count()) note('flow', `${cat}: highlights non chiusi`);
+      } else note('flow', `${cat}: highlights non aperti`);
+      await checkCrash(page, `deep-${cat}`);
+    }
     if (cat === 'formula' || cat === 'rally') { const end = await playWeekend(page, `play-${cat}`); if (end === 'results') await clickAll(page, '[data-a="done"]', `play-${cat}`); }
     for (const id of SIDEBAR) { await go(page, id); await checkCrash(page, `deep-${cat}`); await closeOverlays(page); await clickAll(page, TAB_SEL, `deep-${cat}`); }
     where = `${cat}:season`;

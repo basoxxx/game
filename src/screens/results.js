@@ -13,6 +13,8 @@ import { sfx } from '../ui/audio.js';
 import { fmtM } from '../engine/season.js';
 import { principal, TP_PERSONAS } from '../engine/dynasty.js';
 import { portraitSVG, teamCol } from './career-ui.js';
+import { hasReel } from '../engine/highlights.js';
+import { openSavedHighlights } from './highlights.js';
 
 export function celebrate(n = 150) {
   const cv = document.createElement('canvas');
@@ -52,7 +54,7 @@ registerScreen({
     const w0 = top3[0]; const wd = st.drivers[w0.driverIds[0]]; const wt = st.teams[w0.teamId];
     const wcol = teamColor(wt.car.livery);
     return `<div class="full-screen" style="--pc:${wcol}">
-      ${pageHead({ backAction: 'done', eyebrow: `Risultati · Round ${ev.round} · ${esc(C.name)}`, title: esc(tr.name), right: `<button class="btn primary xl" data-a="done">${S().quick ? 'Nuova gara rapida' : 'Continua'} ${icon('right')}</button>` })}
+      ${pageHead({ backAction: 'done', eyebrow: `Risultati · Round ${ev.round} · ${esc(C.name)}`, title: esc(tr.name), right: `${hasReel(st, params?.idx ?? st.round - 1) ? `<button class="btn lg hl-open" data-a="highlights" data-tip="Rivedi i momenti migliori ${rally ? 'del rally' : 'della gara'} con la regia TV">${icon('replay')} Highlights</button>` : ''}<button class="btn primary xl" data-a="done">${S().quick ? 'Nuova gara rapida' : 'Continua'} ${icon('right')}</button>` })}
       <section class="res-hero" style="--wc:${wcol}">
         <div class="rh-info">
           <div class="hh-eyebrow">${flagSVG(tr.nat, 30, 20)} ${rally ? 'Vincitore del rally' : 'Vincitore'}</div>
@@ -101,6 +103,7 @@ registerScreen({
     }
   },
   actions: {
+    highlights() { const st = S(); openSavedHighlights(st, App.params?.idx ?? st.round - 1); },
     done() {
       const st = S();
       if (st.quick) { App.go(st.challenge ? 'challenges' : 'quickrace'); return; }

@@ -22,6 +22,8 @@ import { PERKS, xpForLevel, ensureProgress, buyPerk } from '../engine/progress.j
 import { legacyInfo } from '../engine/legacy.js';
 import { STATUS, MANDATES, ensureDynasty, statusInfo, relColor } from '../engine/dynasty.js';
 import { statusEmblem, statusLadder, portraitSVG } from './career-ui.js';
+import { hasReel } from '../engine/highlights.js';
+import { openSavedHighlights } from './highlights.js';
 
 // ---------------- INBOX ----------------
 let selMail = null, mailFilter = 'all';
@@ -169,6 +171,7 @@ function calPreview(st, ev, i, pt) {
       <div class="cp-wx" data-tip="Probabilità di pioggia stimata per l’evento">${weatherIcon(tr.rain, tr.night, 30)}<div><b>${Math.round(tr.rain * 100)}%</b><span>${rainTxt}</span></div></div></div>
     <div class="cp-facts">${facts}</div>
     ${podium}
+    ${res && hasReel(st, i) ? `<button class="btn lg cp-go" data-a="cal-hl" data-i="${i}">${icon('replay')} Guarda gli highlights</button>` : ''}
     ${i === st.round ? `<button class="btn primary lg cp-go" data-a="continue">${st.weekend ? 'Riprendi il weekend' : 'Vai al weekend'} ${icon('right')}</button>` : ''}
   </aside>`;
 }
@@ -200,7 +203,7 @@ registerScreen({
       </div>`;
     }).join('')}</div>${calPreview(st, st.calendar[calSel], calSel, pt)}</div>`;
   },
-  actions: { 'cal-sel'(el) { calSel = +el.dataset.i; App.refresh(); } },
+  actions: { 'cal-sel'(el) { calSel = +el.dataset.i; App.refresh(); }, 'cal-hl'(el) { openSavedHighlights(S(), +el.dataset.i); } },
 });
 
 // ---------------- CAREER ----------------
