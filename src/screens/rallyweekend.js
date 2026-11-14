@@ -19,6 +19,7 @@ import { sfx, engineStart, engineSet, engineStop, music } from '../ui/audio.js';
 import { celebrate } from './results.js';
 import { shortName } from './weekend.js';
 import { DecisionHub, hubLogHTML } from './decisions.js';
+import { load3D } from './loader3d.js';
 import { Race3D, webglAvailable, stageGeometry, stageSampleAt } from '../ui/race3d.js';
 import { saveReel, incidentPose, kfAt } from '../engine/highlights.js';
 import { openHighlights } from './highlights.js';
@@ -357,7 +358,7 @@ function mountRun() {
   engineStart('rally');
   const loop = (t) => {
     const dt = Math.min(0.1, (t - X.last) / 1000); X.last = t;
-    if (!X.paused && !X.finished) {
+    if (!X.paused && !X.finished && !(X.load && !X.load.done)) {
       let rem = dt * X.speed;
       // a crew waiting on a co-driver call stands still (the others keep going): the hub pauses or slows the game
       while (rem > 0) { const d = Math.min(1, rem); const req = X.ev.advance(d); X.t += d; rem -= d; if (req && offerCall(req)) break; splitCalls(); }
@@ -373,27 +374,41 @@ function mountRun() {
   renderUI(true); speedUI();
   X.raf = requestAnimationFrame(loop);
 }
-function stopRun() { X.hub = null; cancelAnimationFrame(X.raf); X.view?.destroy(); X.view = null; X.r3d?.destroy(); X.r3d = null; engineStop(); }
+function stopRun() { X.load?.cancel(); X.load = null; X.hub = null; cancelAnimationFrame(X.raf); X.view?.destroy(); X.view = null; X.r3d?.destroy(); X.r3d = null; engineStop(); }
 function rallyViewBtns() {
   const el = document.getElementById('view-btns'); if (!el) return;
   el.innerHTML = [['2d', 'Mappa 2D'], ['chase', 'Camera car'], ['onboard', 'Onboard'], ['tv', 'TV'], ['heli', 'Elicottero']].map(([k, n]) => `<button class="btn sm ${((X.view3d || '2d') === k) ? 'active' : ''}" data-a="${k === '2d' ? 'rview2d' : 'rcam'}" data-c="${k}" ${k !== '2d' && !webglAvailable() ? 'disabled' : ''}>${n}</button>`).join('');
 }
 function rallyEnable3D(cam) {
-  const st = S(); const stg = X.ev.stage; const rv = document.getElementById('race-view');
+  const st = S(); const stg = X.ev.stage; const rv = document.getElementById('race-view'); if (!rv) return;
+  X.view3d = cam;
   if (!X.r3d) {
-    const div = document.createElement('div'); div.className = 'r3d'; rv.prepend(div);
-    X.geo.rally = { id: st.weekend.trackId, ice: iceOf(stg), wet: !!stg.wet };
-    try {
-      X.r3d = new Race3D(div, { geo: X.geo, category: 'rally', surface: stg.surface === 'mixed' ? 'tarmac' : stg.surface, ice: iceOf(stg), wet: stg.wet, cars: X.ev.crews.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: X.ev.driver(c).helmet.c1, tyreColor: '#888', isPlayer: c.isPlayer, number: X.ev.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })) });
-    } catch (e) { console.warn(e); div.remove(); X.view3d = null; rallyViewBtns(); return; }
+    if (X.load && !X.load.done) return; // being built: the latest camera is applied when it is ready
+    const ev = X.ev, si = ev.stageIdx;
+    const alive = () => X.ev === ev && ev.stageIdx === si && rv.isConnected;
+    X.load = load3D(rv, () => {
+      if (!X.view3d || !alive()) return null;
+      const div = document.createElement('div'); div.className = 'r3d'; rv.prepend(div);
+      X.geo.rally = { id: st.weekend.trackId, ice: iceOf(stg), wet: !!stg.wet };
+      try {
+        X.r3d = new Race3D(div, { geo: X.geo, category: 'rally', surface: stg.surface === 'mixed' ? 'tarmac' : stg.surface, ice: iceOf(stg), wet: stg.wet, cars: X.ev.crews.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: X.ev.driver(c).helmet.c1, tyreColor: '#888', isPlayer: c.isPlayer, number: X.ev.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })) });
+      } catch (e) { console.warn(e); div.remove(); X.r3d = null; X.view3d = null; rallyViewBtns(); return null; }
+      // night stage: moonlight instead of the circuits' floodlights, headlights and light pods do the work
+      if (stg.night) { X.r3d.nightable = true; X.r3d.floodlit = false; }
+      rallyCam3D(X.view3d || cam);
+      return X.r3d;
+    }, { kind: 'rally', title: stg.name || `Prova speciale ${si + 1}`, sub: `PS${si + 1}${stg.km != null ? ' · ' + (+stg.km).toFixed(1) + ' km' : ''}${SURFACES[stg.surface]?.name ? ' · ' + SURFACES[stg.surface].name : ''}`, skip: 'rview2d', alive });
+    return;
   }
-  // night stage: moonlight instead of the circuits' floodlights, headlights and light pods do the work
-  if (stg.night) { X.r3d.nightable = true; X.r3d.floodlit = false; }
-  X.r3d.camMode = cam; X.r3d._cut = true; rv.classList.add('mode3d');
+  rallyCam3D(cam);
+}
+function rallyCam3D(cam) {
+  const rv = document.getElementById('race-view'); if (!X.r3d) return;
+  X.r3d.camMode = cam; X.r3d._cut = true; rv?.classList.add('mode3d');
   document.getElementById('hud3d')?.classList.remove('hidden');
   X.view?.resize();
 }
-function rallyDisable3D() { X.r3d?.destroy(); X.r3d = null; X.view3d = null; const rv = document.getElementById('race-view'); rv?.classList.remove('mode3d'); rv?.querySelector('.r3d')?.remove(); document.getElementById('hud3d')?.classList.add('hidden'); setTimeout(() => X.view?.resize(), 30); }
+function rallyDisable3D() { X.load?.cancel(); X.load = null; X.r3d?.destroy(); X.r3d = null; X.view3d = null; const rv = document.getElementById('race-view'); rv?.classList.remove('mode3d'); rv?.querySelector('.r3d')?.remove(); document.getElementById('hud3d')?.classList.add('hidden'); setTimeout(() => X.view?.resize(), 30); }
 function rallyUpdate3D(dt) {
   const r = X.r3d; if (!r) return; const geo = X.geo;
   const states = X.ev.crews.map((c) => {
@@ -461,7 +476,7 @@ function runScreen(st, tr) {
       <div class="tb-stat" id="rx-delta"><b>—</b><span>Delta</span></div>
       <div class="grow"></div>
       <div class="speed-btns" id="speedbtns">${[1, 4, 8, 16, 32, 64].map((v) => `<button class="btn sm" data-a="speed" data-v="${v}">${v === 1 ? '1x LIVE' : v + 'x'}</button>`).join('')}</div>
-      <button class="btn sm dec-open" data-a="dec-cfg" data-tip="Decisioni a gioco accelerato: pausa automatica, rallenta a 1x o decide il copilota">${icon('settings')} Decisioni</button>
+      <button class="btn sm dec-open" data-a="dec-cfg" data-tip="Decisioni a gioco accelerato: pausa automatica, rallenta a 1x o decide il copilota">${icon('settings')}<span class="bl">Decisioni</span></button>
       <button class="btn sm" data-a="skip-stage">${icon('ff')} Fine prova</button>
     </div>
     <div class="race-board" id="board"></div>

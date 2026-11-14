@@ -99,9 +99,19 @@
 .hud3d { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 5; display: flex; gap: 12px; align-items: center; background: rgba(6,7,9,0.84); padding: 8px 18px; border-bottom: 3px solid var(--team); font-family: var(--display); }
 .hud3d .pos { width: auto; font-size: 26px; }
 .hud3d .spd { font-size: 36px; font-weight: 800; font-style: italic; min-width: 70px; text-align: right; }
-#lights { top: 64px !important; z-index: 7 !important; }
-.start-lights { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; background: #050607; padding: 12px 16px; border: 1px solid var(--line2); border-bottom: 3px solid var(--accent); box-shadow: 0 20px 50px rgba(0,0,0,0.6); z-index: 3; }
-.start-lights > div { width: 36px; height: 36px; border-radius: 50%; background: #1b1d21; box-shadow: inset 0 0 8px #000; }
+/* Start lights: a gantry of five pods (two lamps each), "VIA!" when the lights go out */
+.race-view .start-lights { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; pointer-events: none; animation: slDrop .45s var(--ease-out) both; }
+.race-view .start-lights > .sl-gantry { display: flex; gap: 8px; width: auto; height: auto; padding: 10px 14px 12px; background: linear-gradient(#15171c, #07080a); border: 1px solid var(--line2); border-radius: 0; box-shadow: 0 22px 50px rgba(0,0,0,.65); }
+.sl-pod { display: flex; flex-direction: column; gap: 6px; padding: 6px; background: #000; border-radius: 6px; }
+.sl-pod i { display: block; width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #2a2d33, #121317 70%); box-shadow: inset 0 0 6px #000; transition: background .06s, box-shadow .06s; }
+.sl-pod.on i { background: radial-gradient(circle at 40% 35%, #ffb3a8, #ff1a1a 45%, #a00000 80%); box-shadow: 0 0 18px #ff2020, 0 0 4px #ff8a80 inset; }
+.race-view .start-lights > .sl-go { width: auto; height: auto; margin-top: 10px; padding: 4px 26px; font-family: var(--display); font-weight: 800; font-style: italic; font-size: 34px; text-transform: uppercase; letter-spacing: .06em; color: #04130a; background: var(--good); clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); opacity: 0; transform: scale(.7); border-radius: 0; box-shadow: none; }
+.start-lights.out .sl-go { opacity: 1; transform: scale(1); transition: opacity .12s, transform .25s var(--ease-out); }
+.start-lights.out .sl-gantry { opacity: 0; transition: opacity .5s .5s; }
+.start-lights.out { animation: slFade .4s ease .75s both; }
+@keyframes slDrop { from { opacity: 0; transform: translate(-50%, -24px); } }
+@keyframes slFade { to { opacity: 0; } }
+@media (max-width: 760px) { .sl-pod i { width: 20px; height: 20px; } .race-view .start-lights { top: 46px; } .race-view .start-lights > .sl-gantry { gap: 5px; padding: 6px 8px; } .race-view .start-lights > .sl-go { font-size: 24px; } }
 
 /* TV subtitles */
 .race-sub { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%); z-index: 5; width: min(760px, 92%); display: flex; flex-direction: column-reverse; gap: 6px; pointer-events: none; align-items: center; }
@@ -211,3 +221,145 @@
 @media (min-width: 2200px) and (min-height: 1200px) {
   .race-screen, .rally-screen { grid-template-columns: 440px 1fr 420px; grid-template-rows: 78px 1fr 300px; }
 }
+
+/* ---- Live top bar: never wraps, never clips (event name and flag status ellipsize instead) ---- */
+.race-top { min-width: 0; }
+.race-top .rt-event { flex: 0 1 auto; min-width: 0; }
+.race-top .rt-event > div { min-width: 0; }
+.race-top .rt-event svg { flex: none; }
+.race-top .rt-name, .race-top .rt-circ { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+.race-top .tb-stat { flex: none; }
+#flagstatus, #ss-flag { flex: none; }
+.flagplate { white-space: nowrap; }
+.flagplate.yellow { background: #ffd23a; color: #1a1400; }
+.flagplate.yellow i { background: #1a1400; }
+.flagplate.red { background: var(--bad); color: #fff; animation: pulseText 1.2s ease-in-out infinite; }
+.flagplate.red i { background: #fff; }
+.race-top .btn .bl { display: inline; }
+@media (max-width: 1500px) and (min-width: 761px) {
+  .race-top .rt-name { font-size: 20px; max-width: 170px; }
+  .race-top .rt-circ { max-width: 170px; }
+  .race-top .btn.sm .bl { display: none; }
+  .race-top .btn.sm:has(.bl) { padding: 5px 10px; }
+  .ss-screen .race-top .ss-hide-sm { display: none; }
+}
+@media (max-width: 1180px) and (min-width: 761px) {
+  .race-top .rt-circ { display: none; }
+  .race-top .rt-name { font-size: 17px; max-width: 120px; }
+  .race-top .tb-stat { padding: 0 8px; }
+  .race-top .tb-stat b { font-size: 18px; }
+  .race-top #lapcount { font-size: 22px; }
+  .race-top #wx, .race-top .kbd-help { display: none; }
+  .flagplate { margin-left: 6px; padding: 0 10px 0 8px; font-size: 13px; }
+  .speed-btns { margin-right: 6px; }
+  .speed-btns .btn { min-width: 30px; padding: 4px 5px; font-size: 12.5px; }
+  .race-top > .btn.icon-btn:first-child { margin: 0 6px; }
+  .view-btns { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; left: 12px; right: 12px; justify-content: flex-start; }
+  .view-btns .btn { flex: none; }
+  #feed-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  #feed-tabs .tab { flex: none; white-space: nowrap; }
+}
+
+/* ---- Timing tower: tyre + age, DRS, position change, team colour ---- */
+#board .lb-row { grid-template-columns: 34px 5px minmax(0, 1fr) 46px 50px 72px; }
+#board .tw-tyre { display: inline-flex; align-items: center; gap: 4px; }
+#board .tw-tyre small { font-family: var(--display); font-size: 12.5px; font-weight: 600; color: var(--muted); min-width: 14px; }
+#board .lb-row.gain { background: linear-gradient(90deg, color-mix(in srgb, var(--good) 22%, transparent), transparent 70%); }
+#board .lb-row.lost { background: linear-gradient(90deg, color-mix(in srgb, var(--bad) 18%, transparent), transparent 70%); }
+#board .lb-row.me.gain, #board .lb-row.me.lost { background-color: color-mix(in srgb, var(--team) 20%, transparent); }
+#board .lb-row.gain .pos:not(.p1) { color: var(--good); }
+#board .lb-row.pit .nm { color: var(--warn); }
+.tw-ic.drs { background: var(--good); color: #02130a; }
+#board .lb-row.focus { box-shadow: inset 3px 0 0 var(--tc, #fff), inset 0 0 0 1px rgba(255,255,255,0.35); }
+@media (max-width: 1400px) { .race-screen #board .lb-row { grid-template-columns: 28px 4px minmax(0, 1fr) 40px 36px 64px; } #board .tw-tyre small { font-size: 11.5px; min-width: 10px; } }
+.race-top .tb-stat.final b { color: #000; background: #fff; padding: 1px 6px; animation: pulseText 1s ease-in-out infinite; }
+.race-top .tb-stat.final > span { color: #fff; }
+
+/* ---- TV boards: safety car / VSC / red / green flag / last lap ---- */
+.tvb-layer { position: absolute; left: 0; right: 0; top: 30%; z-index: 7; display: flex; justify-content: center; pointer-events: none; }
+.tvb { --bc: var(--warn); --bt: #1a1000; min-width: min(460px, 90%); text-align: center; animation: tvbIn .5s var(--ease-out) both; }
+.tvb.out { animation: tvbOut .45s ease both; }
+.tvb-in { position: relative; padding: 12px 36px 14px; background: var(--bc); color: var(--bt); clip-path: polygon(18px 0, 100% 0, calc(100% - 18px) 100%, 0 100%); box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.tvb-in::before, .tvb-in::after { content: ''; position: absolute; top: 0; bottom: 0; width: 46px; background: repeating-linear-gradient(-55deg, rgba(0,0,0,.85) 0 9px, transparent 9px 18px); opacity: .5; }
+.tvb-in::before { left: 14px; } .tvb-in::after { right: 14px; }
+.tvb-k { display: block; font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .26em; text-transform: uppercase; opacity: .75; }
+.tvb b { display: block; font-family: var(--display); font-weight: 800; font-style: italic; font-size: clamp(30px, 4.4vw, 54px); line-height: 1; text-transform: uppercase; letter-spacing: .02em; }
+.tvb small { display: block; margin-top: 4px; font-family: var(--display); font-weight: 600; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; opacity: .8; }
+.tvb-red { --bc: var(--bad); --bt: #fff; }
+.tvb-green { --bc: var(--good); --bt: #02130a; }
+.tvb-final { --bc: #fff; --bt: #000; }
+.tvb-final .tvb-in::before, .tvb-final .tvb-in::after { background: repeating-conic-gradient(#000 0 25%, #fff 0 50%) 0 0 / 12px 12px; opacity: 1; }
+@keyframes tvbIn { from { opacity: 0; clip-path: inset(0 50% 0 50%); transform: scale(1.06); } to { opacity: 1; clip-path: inset(0 0 0 0); } }
+@keyframes tvbOut { to { opacity: 0; transform: translateY(-12px); } }
+/* neutralised race: the whole view gets a yellow / red frame */
+.race-view.fl-sc::after, .race-view.fl-red::after { content: ''; position: absolute; inset: 0; z-index: 6; pointer-events: none; box-shadow: inset 0 0 0 3px #ffd23a, inset 0 0 40px rgba(255,210,58,.25); }
+.race-view.fl-red::after { box-shadow: inset 0 0 0 3px var(--bad), inset 0 0 50px rgba(255,40,40,.3); }
+@media (max-width: 760px) { .tvb-layer { top: 34%; } .tvb-in { padding: 8px 26px 10px; } .tvb small { font-size: 12px; } .tvb-in::before, .tvb-in::after { width: 22px; } }
+
+/* ---- Finish: chequered flag sweep, podium with team colours ---- */
+.fin-wrap { position: absolute; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,.55); overflow: hidden; animation: finBg .5s ease both; }
+.fin-flag { position: absolute; inset: -20% -40%; background: repeating-conic-gradient(#f4f4f4 0 25%, #0b0b0b 0 50%) 0 0 / 64px 64px; transform: translateX(-110%) skewX(-12deg); animation: finSweep 1.5s cubic-bezier(.6, .05, .3, 1) both; pointer-events: none; }
+.fin-card { animation: pop .5s var(--ease-out) 1s both; max-height: 100%; overflow-y: auto; padding: 24px 34px 20px; width: min(720px, 100%); }
+.fin-card .fc-t { font-size: clamp(32px, 4.2vw, 46px); }
+.fin-eyebrow { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+.fin-podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 8px; margin-top: 12px; }
+.fin-step { display: flex; flex-direction: column; align-items: center; min-width: 0; animation: rise .5s var(--ease-out) both; }
+.fin-step.p1 { animation-delay: 1.5s; } .fin-step.p2 { animation-delay: 1.3s; } .fin-step.p3 { animation-delay: 1.15s; }
+.fin-who { display: flex; flex-direction: column; align-items: center; gap: 2px; padding-bottom: 8px; min-width: 0; max-width: 100%; }
+.fin-who b { font-family: var(--display); font-weight: 800; font-size: 18px; text-transform: uppercase; line-height: 1.05; margin-top: 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fin-step.p1 .fin-who b { font-size: 23px; }
+.fin-who small { display: inline-flex; align-items: center; gap: 5px; font-family: var(--display); font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text2); }
+.fin-who small::before { content: ''; width: 4px; height: 11px; background: var(--tc); transform: skewX(calc(-1 * var(--slant))); }
+.fin-gap { font-family: var(--display); font-weight: 700; font-size: 14px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.fin-step.p1 .fin-gap { color: var(--gold); }
+.fin-block { width: 100%; height: var(--h); display: flex; align-items: flex-start; justify-content: center; padding-top: 6px; background: linear-gradient(180deg, color-mix(in srgb, var(--tc) 85%, #000), color-mix(in srgb, var(--tc) 35%, #000)); border-top: 3px solid color-mix(in srgb, var(--tc) 60%, #fff); }
+.fin-block span { font-family: var(--display); font-weight: 800; font-style: italic; font-size: 34px; line-height: 1; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
+.fin-step.me .fin-block { box-shadow: 0 0 0 2px #fff inset; }
+.fin-mine { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 16px; margin-top: 12px; padding: 10px 12px; background: color-mix(in srgb, var(--team) 14%, var(--s1)); border-left: 3px solid var(--team); font-size: 15px; }
+.fin-lbl { font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.fin-me b { font-family: var(--display); font-size: 19px; }
+.fin-me i { font-style: normal; font-size: 12.5px; font-weight: 700; }
+.fin-me em { font-style: normal; color: var(--gold); font-weight: 700; font-size: 13px; }
+.fin-fl { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 10px; font-size: 14px; color: var(--text2); }
+.fin-fl i { width: 9px; height: 9px; background: var(--purple); transform: skewX(calc(-1 * var(--slant))); }
+.fin-fl .lap-t { color: var(--purple); font-family: var(--display); font-weight: 700; font-size: 16px; }
+.fin-btns { justify-content: center; gap: 10px; flex-wrap: nowrap; }
+.fin-btns .btn.lg { padding-left: 14px; padding-right: 14px; }
+@media (max-width: 1100px) { .fin-btns { flex-wrap: wrap; } }
+@keyframes finSweep { 0% { transform: translateX(-110%) skewX(-12deg); } 45% { transform: translateX(0) skewX(-12deg); } 100% { transform: translateX(115%) skewX(-12deg); } }
+@keyframes finBg { from { background: rgba(0,0,0,0); } }
+@media (max-width: 760px), (max-height: 560px) {
+  .race-view .fin-wrap { position: fixed; z-index: 40; }
+  .fin-card { padding: 22px 14px 16px; }
+  .fin-step .fin-who svg { width: 36px; height: 36px; }
+  .fin-who b, .fin-step.p1 .fin-who b { font-size: 15px; }
+  .fin-block { height: calc(var(--h) * .5); }
+  .fin-block span { font-size: 24px; }
+  .fin-btns .btn.xl { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .fin-flag { display: none; } .fin-card, .fin-step, .tvb { animation: none; } }
+
+/* ---- 3D "loading track" overlay (shown until the shaders are compiled) ---- */
+.r3d-load { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 16px; background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--team) 16%, #0b0d11), #040506 72%); transition: opacity .45s ease; overflow: hidden; }
+.r3d-load::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, rgba(255,255,255,.025) 0 2px, transparent 2px 22px); pointer-events: none; }
+.r3d-load.out { opacity: 0; pointer-events: none; }
+.rl-card { position: relative; width: min(440px, 100%); text-align: center; }
+.rl-track { display: flex; justify-content: center; margin-bottom: 10px; opacity: .9; filter: drop-shadow(0 0 14px color-mix(in srgb, var(--team) 70%, transparent)); }
+.rl-track svg { width: min(260px, 60vw); height: auto; max-height: 26vh; }
+.rl-eyebrow { display: inline-flex; align-items: center; gap: 8px; font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .22em; text-transform: uppercase; color: var(--team); }
+.rl-eyebrow .ico { width: 15px; height: 15px; }
+.rl-title { font-family: var(--display); font-weight: 800; font-style: italic; font-size: clamp(24px, 4vw, 36px); text-transform: uppercase; line-height: 1; margin-top: 6px; }
+.rl-sub { font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--text2); margin-top: 6px; }
+.rl-bar { position: relative; height: 6px; margin-top: 18px; background: rgba(255,255,255,.08); overflow: hidden; transform: skewX(calc(-1 * var(--slant))); }
+.rl-bar i { position: absolute; inset: 0; background: linear-gradient(90deg, var(--team), color-mix(in srgb, var(--team) 40%, #fff)); transform-origin: left; transform: scaleX(.03); }
+/* composited transitions: they keep moving while the main thread compiles shaders */
+.r3d-load.go .rl-bar i { transform: scaleX(.93); transition: transform 16s cubic-bezier(.08, .75, .2, 1); }
+.r3d-load.full .rl-bar i { transform: scaleX(1); transition: transform .3s ease-out; }
+.rl-bar::after { content: ''; position: absolute; top: 0; bottom: 0; width: 30%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); animation: rlShine 1.4s linear infinite; }
+@keyframes rlShine { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+.rl-row { display: flex; justify-content: space-between; margin-top: 8px; font-family: var(--display); font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.rl-tip { display: flex; gap: 10px; align-items: flex-start; text-align: left; margin-top: 18px; padding: 12px 14px; background: rgba(8,9,11,.72); border-left: 3px solid var(--team); font-size: 14px; line-height: 1.45; color: var(--text2); }
+.rl-tip .ico { flex: none; width: 18px; height: 18px; color: var(--gold); margin-top: 1px; }
+.rl-tip b { color: #fff; }
+.rl-skip { margin-top: 14px; }
+@media (max-height: 520px) { .rl-track, .rl-tip { display: none; } .rl-bar { margin-top: 10px; } }
