@@ -148,6 +148,6 @@
 /* touch controls on: keep the speedometer and the damage list clear of the pedals */
 .dz-touch .dzx-help { display: none; }
 .dz-touch .dzx-dash { right: auto; left: 50%; transform: translateX(-50%) scale(.82); transform-origin: bottom center; bottom: 6px; width: 260px; }
-.dz-touch .dzx-map { width: 120px; height: 120px; bottom: auto; top: 128px; left: 12px; opacity: .85; pointer-events: none; }
+.dz-touch .dzx-map { width: 112px; height: 112px; bottom: auto; top: 164px; left: 12px; opacity: .85; pointer-events: none; }
 .dz-touch .dzx-carmap, .dz-touch .dzx-dmg, .dz-touch .dzx-heat { display: none !important; }
-@media (max-width: 700px) { .dz-touch .dzx-dash { transform: translateX(-50%) scale(.68); } .dz-touch .dzx-map { display: none; } }
+@media (max-width: 700px), (max-height: 500px) { .dz-touch .dzx-dash { transform: translateX(-50%) scale(.56); bottom: 2px; } .dz-touch .dzx-map { display: none; } }

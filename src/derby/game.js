@@ -51,7 +51,7 @@ const CRASH_KINDS = {
 export class DerbyGame {
   constructor(container, opts) {
     this.c = container; this.o = { opponents: 7, laps: null, ...opts };
-    this.venue = typeof opts.venue === 'string' ? null : opts.venue; this.low = getSettings().gfx === 'low';
+    this.venue = typeof opts.venue === 'string' ? null : opts.venue; this.low = getSettings().gfx === 'low'; this.med = getSettings().gfxTier === 'med';
     this.keys = {}; this.time = 0; this.state = 'loading'; this.msgs = [];
     this.onEnd = opts.onEnd || (() => {});
     this.timeScale = 1; this.slowT = 0; this.slowCool = 0; this.shake = 0;
@@ -1486,10 +1486,11 @@ export class DerbyGame {
       // dust / mud spray, heavier when sliding; splashes in water
       if (near) {
         if (wetHere && speed > 3) { if (Math.random() < 0.8) for (let k = 0; k < 2; k++) this.splash.emit(P.x, P.y + 0.15, P.z, -lv.x * 0.15 + side.x * (Math.random() - 0.5) * 6, 2.5 + Math.random() * 3.5 * Math.min(1, speed / 15), -lv.z * 0.15 + side.z * (Math.random() - 0.5) * 6, 0.9 + Math.random() * 0.5, 0.7, 0.78, 0.84, 0.86, 0.55); }
-        else if ((dustC || !onTrack) && (speed > 5 || spin) && Math.random() < (rear ? 0.4 : 0.15) * (1 + slideAmt) * (this.low ? 0.5 : 1)) {
+        // v6: the dust plume thickens with speed and with the venue's dryness (look.dust: dusty quarry 1.5, rain 0.15)
+        else if ((dustC || !onTrack) && (speed > 5 || spin) && Math.random() < Math.min(0.95, (rear ? 0.4 : 0.15) * (1 + slideAmt) * (1 + Math.min(1, speed / 45) * 0.8) * Math.min(1.4, this.look.dust ?? 1)) * (this.low ? 0.5 : 1)) {
           const c = onTrack ? (dustC || [0.4, 0.38, 0.33]) : [0.42, 0.38, 0.28];
           if (mud) this.chips.emit(P.x, P.y + 0.2, P.z, -fwd.x * speed * 0.25 + (Math.random() - 0.5) * 3, 1.5 + Math.random() * 3, -fwd.z * speed * 0.25 + (Math.random() - 0.5) * 3, 0.8, 0.2, 0.25, 0.19, 0.12, 1);
-          this.dust.emit(P.x, P.y + 0.3, P.z, -lv.x * 0.12 + (Math.random() - 0.5) * 2, 0.5 + Math.random(), -lv.z * 0.12 + (Math.random() - 0.5) * 2, 1.6 + Math.random() * 1.6 * (mud ? 0.5 : 1), 0.8 + speed * 0.025 + slideAmt * 0.5, c[0], c[1], c[2], (mud ? 0.16 : 0.22) * Math.min(1.6, 0.6 + slideAmt));
+          this.dust.emit(P.x, P.y + 0.3, P.z, -lv.x * 0.12 + (Math.random() - 0.5) * 2, 0.5 + Math.random(), -lv.z * 0.12 + (Math.random() - 0.5) * 2, 1.6 + Math.random() * 1.6 * (mud ? 0.5 : 1), 0.8 + speed * 0.03 + slideAmt * 0.5, c[0], c[1], c[2], (mud ? 0.16 : 0.22) * Math.min(1.6, 0.6 + slideAmt + Math.min(0.5, speed / 80)) * Math.min(1.3, 0.55 + 0.45 * (this.look.dust ?? 1)));
         }
         if (!dustC && slideAmt > 0.45 && Math.random() < Math.min(0.9, 0.35 + slideAmt * 0.4)) this.smoke.emit(P.x, P.y + 0.15, P.z, -lv.x * 0.08 + (Math.random() - 0.5) * 1.5, 0.5 + Math.random() * 0.6, -lv.z * 0.08 + (Math.random() - 0.5) * 1.5, 1.5 + Math.random(), 0.7 + slideAmt * 0.5, 0.86, 0.86, 0.88, Math.min(0.4, 0.14 + slideAmt * 0.12)); // tyre smoke on asphalt
       }
@@ -1584,11 +1585,11 @@ export class DerbyGame {
     const c = this.spectate || this.player, q = c.mesh.quaternion, p = c.mesh.position;
     const fwd = c.dyn?.fwd || new THREE.Vector3(1, 0, 0).applyQuaternion(q);
     const sp = c.dyn?.speed || 0, lv = c.body.linvel();
-    // speed you can feel: the field of view opens progressively with speed (62 -> 84 deg at ~230 km/h),
+    // speed you can feel: the field of view opens progressively with speed (61 -> 76 deg at ~230 km/h),
     // kicks wider when the nitro opens and breathes with the boost; a light high-frequency buzz at speed
     const spK = Math.max(0, Math.min(1, (sp - 6) / 58)), boostK = c.boost ? 1 : 0;
     this._fovBoost = (this._fovBoost || 0) + (boostK - (this._fovBoost || 0)) * Math.min(1, dt * (boostK ? 6 : 2.2));
-    let fov = 62 + 22 * spK * spK * (3 - 2 * spK) + 9 * this._fovBoost + (this.camPull || 0) * 6;
+    let fov = 61 + 15 * spK * spK * (3 - 2 * spK) + 6 * this._fovBoost + (this.camPull || 0) * 4;
     if (c === this.player && sp > 30 && c.dyn?.grounded >= 2) this.shake = Math.max(this.shake, Math.min(0.14, (sp - 30) / 260) + (c.boost ? 0.07 : 0));
     const sh = this.shake; this.shake = Math.max(0, sh - dt * 2.2);
     const tt = performance.now() / 1000;
@@ -1631,6 +1632,9 @@ export class DerbyGame {
     else {
       // critically damped follow: stiff horizontally, softer vertically (absorbs bumps and landings)
       const kH = Math.min(1, dt * 9), kV = Math.min(1, dt * 5);
+      // lead the target by most of the follow lag: at 200+ km/h a plain first-order follow trails ~7 m
+      // behind and the car shrinks into the distance; this keeps it big on screen (a little stretch remains)
+      if (!this.lookBack) { pos.x += lv.x * 0.75 / 9; pos.z += lv.z * 0.75 / 9; }
       this.camPos.x += (pos.x - this.camPos.x) * kH; this.camPos.z += (pos.z - this.camPos.z) * kH; this.camPos.y += (pos.y - this.camPos.y) * kV;
       if (this.lookBack !== this._lb) { this.camPos.copy(pos); this._lb = this.lookBack; }
       this.camLook.lerp(look, Math.min(1, dt * 12));

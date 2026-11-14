@@ -31,7 +31,7 @@ function propMat(src, tint) {
 
 // swaps the geometry and material of the instanced barrel and tyre-stack props for the scanned models
 export async function upgradeProps(game) {
-  if (game.low) return false;
+  if (game.low) return false; // the medium tier keeps the procedural tyre stacks (see the vertex budget below)
   const [barrel, tyre] = await loadGltf();
   if (game.dead) return false;
   const T = game.propTypes;
@@ -47,8 +47,10 @@ export async function upgradeProps(game) {
     const one = tm.geometry.clone(); one.computeBoundingBox(); const bb = one.boundingBox, r = (bb.max.x - bb.min.x) / 2;
     one.rotateX(Math.PI / 2); const s = 0.43 / r; one.scale(s, s * 1.05, s);
     const parts = [0, 1, 2].map((k) => one.clone().rotateY(k * 1.9).translate(0, -0.26 + k * 0.26, 0));
-    const g = mergeGeometries(parts.map((p) => { const q = p.index ? p.toNonIndexed() : p; for (const n of Object.keys(q.attributes)) if (!['position', 'normal', 'uv', 'tangent'].includes(n)) q.deleteAttribute(n); return q; }));
-    if (g) swap(T.tyres, g, propMat(tm));
+    for (const p of parts) for (const n of Object.keys(p.attributes)) if (!['position', 'normal', 'uv'].includes(n)) p.deleteAttribute(n);
+    const g = mergeGeometries(parts);
+    // vertex budget: a scanned stack is ~6k vertices; venues lined with a hundred stacks keep the light ones
+    if (g && T.tyres.list.length * g.attributes.position.count <= 420000 && !game.med) swap(T.tyres, g, propMat(tm));
   }
   return true;
 }
