@@ -37,10 +37,10 @@ export const HL_TYPES = {
 // Returns null when the incident does not affect the car at time t, else { u, lat, yaw, roll, lift }.
 const K = {
   spin: { pre: 0.35, slide: 1.9, lat: 2.6, yaw: Math.PI * 2, rejoin: true },
-  crash: { pre: 0.35, slide: 1.7, lat: 7.5, yaw: Math.PI * 1.15, rejoin: false },
+  crash: { pre: 0.3, slide: 1.7, lat: 9, yaw: Math.PI * 1.15, rejoin: false },
   roll: { pre: 0.3, slide: 2.2, lat: 5.5, yaw: Math.PI * 0.75, roll: Math.PI * 3, rejoin: false },
   off: { pre: 0.3, slide: 1.5, lat: 4.2, yaw: 1.0, rejoin: true },
-  park: { pre: 3.2, slide: 0.8, lat: 2.4, yaw: 0.18, rejoin: true },
+  park: { pre: 0, slide: 4.5, lat: 2.4, yaw: 0.18, rejoin: true },
   wide: { creep: 0.55, lat: 1.8, wob: 0.32 },
   contact: { creep: 0.6, lat: 1.2, wob: 0.55 },
   limp: { creep: 0.42, lat: -0.55, wob: 0 },
@@ -50,9 +50,62 @@ const easeOut = (x) => { const k = Math.max(0, Math.min(1, x)); return 1 - (1 - 
 // cubic Hermite position between (p0, v0) and (p1, v1) over T seconds
 const herm = (p0, v0, p1, v1, T, s) => { const k = Math.max(0, Math.min(1, s / T)); const k2 = k * k, k3 = k2 * k; return (2 * k3 - 3 * k2 + 1) * p0 + (k3 - 2 * k2 + k) * T * v0 + (-2 * k3 + 3 * k2) * p1 + (k3 - k2) * T * v1; };
 
+// a car that goes straight on at a corner and into the barrier: run-off (decelerating, drifting wide on a
+// tangent), impact at IMPACT_T after t0 (speed gone, yaw kick, debris), a short slide, then it stays there
+export const IMPACT_T = { crash: 0.9, roll: 0.7 };
+function crashPose(inc, P, t, uAt, W, memo, v, side) {
+  const tA = inc.t0 - P.pre; if (t < tA) return null;
+  const uA = memo?.uA ?? uAt(tA) ?? inc.u0 - v * P.pre;
+  if (memo) memo.uA = uA;
+  const T1 = P.pre + IMPACT_T[inc.kind], T2 = 0.75, vI = 0.55, vR = 0.14;
+  const latEnd = side * (W + P.lat);
+  const tau = t - tA;
+  if (tau <= T1) {
+    const k = tau / T1;
+    return { u: uA + v * tau - (v * (1 - vI) / (2 * T1)) * tau * tau, lat: latEnd * k ** 1.7, yaw: side * 0.28 * sm(k), roll: 0, lift: 0 };
+  }
+  const uI = uA + v * T1 * (1 + vI) / 2, t2 = Math.min(T2, tau - T1), k2 = t2 / T2;
+  const u = uI + v * vR * (t2 - t2 * t2 / (2 * T2));
+  const yawEnd = side * P.yaw, rollEnd = P.roll ? side * P.roll : 0;
+  const e = easeOut(Math.min(1, (tau - T1) / 0.9));
+  return { u, lat: latEnd - side * 0.5 * sm(k2), yaw: side * 0.28 + (yawEnd - side * 0.28) * e, roll: rollEnd * e, lift: P.roll ? Math.abs(Math.sin(rollEnd * e)) * 0.9 * (1 - k2 * 0.4) : 0 };
+}
+// incidents recorded by the continuous race engine (inc.ph): the recorded positions already slow the car
+// down, stop it and get it going again (ti: slowing, th: stopped / slow, to: back up to speed, seconds);
+// the pose only takes it off the racing line and turns it
+function physPose(inc, P, t, uAt, W, side) {
+  const tau = t - inc.t0; if (tau < 0) return null;
+  const tI = Math.max(0.2, inc.ti || 0.8), tH = inc.th || 0, tO = Math.max(0.4, inc.to || 1.5), dur = tI + tH + tO;
+  if (tau > dur + 0.15) return null;
+  const u = uAt(t); if (u == null) return null;
+  const k = Math.min(1, tau / dur);
+  if (inc.kind === 'spin') {
+    // it snaps round under braking, slides into the run-off, stops, then rejoins facing the right way
+    const latEnd = side * (W + P.lat), yawEnd = side * P.yaw * 0.92, yawRound = Math.round(yawEnd / (2 * Math.PI)) * 2 * Math.PI;
+    if (tau <= tI + tH) return { u, lat: latEnd * sm(tau / tI), yaw: yawEnd * easeOut(tau / (tI * 1.05)), roll: 0, lift: 0 };
+    const kr = sm((tau - tI - tH) / tO);
+    return { u, lat: latEnd * (1 - kr), yaw: yawEnd + (yawRound - yawEnd) * kr, roll: 0, lift: 0 };
+  }
+  if (inc.kind === 'off') {
+    // straight on into the run-off, then back onto the track
+    const latEnd = side * (W + P.lat);
+    const lat = tau <= tI + tH ? latEnd * sm(tau / (tI + tH * 0.5)) : latEnd * (1 - sm((tau - tI - tH) / tO));
+    return { u, lat, yaw: side * 0.45 * Math.sin(Math.PI * Math.min(1, tau / (tI + tH * 0.6 + 0.3))) * (1 - k), roll: 0, lift: 0 };
+  }
+  if (inc.kind === 'limp') {
+    const e = sm(Math.min(tau, dur - tau) / 1.2);
+    return { u, lat: side * W * -P.lat * e, yaw: 0, roll: 0, lift: 0 };
+  }
+  // wide / contact: a wobble out towards (or over) the kerb and back
+  const lat = side * ((inc.kind === 'contact' ? W * 0.45 : W) + P.lat) * Math.sin(Math.PI * k);
+  return { u, lat, yaw: P.wob ? side * P.wob * Math.sin(2 * Math.PI * k) * (1 - k) : 0, roll: 0, lift: 0 };
+}
+
 export function incidentPose(inc, t, uAt, W = 6, memo = null) {
   const P = K[inc.kind]; if (!P) return null;
   const v = Math.max(1e-5, inc.v || 0.011), side = inc.side || 1;
+  if (inc.ph && inc.kind !== 'crash' && inc.kind !== 'roll' && inc.kind !== 'park') return physPose(inc, P, t, uAt, W, side);
+  if ((inc.kind === 'crash' || inc.kind === 'roll') && inc.cc) return crashPose(inc, P, t, uAt, W, memo, v, side);
   if (P.creep != null) {
     if (t < inc.t0) return null;
     // the car drops to a fraction of its pace until the (time-jumped) recorded car catches up
@@ -117,7 +170,8 @@ export class CircuitRecorder {
     if (!force && sim.time < this.nextT) return;
     this.nextT = (Math.floor(sim.time / HL_DT) + 1) * HL_DT;
     const n = this.keys.length, u = new Float32Array(n), f = new Uint8Array(n);
-    sim.cars.forEach((c, i) => { u[i] = this.carU(c); f[i] = (c.inPit > 0 ? 1 : 0) | (c.pitReq ? 2 : 0) | (c.status === 'dnf' ? 4 : 0) | (c.status === 'finished' ? 8 : 0); });
+    // flags: 1 in the pits, 2 heading for the pits, 4 out, 8 finished, 16 / 32 duel side (left / right)
+    sim.cars.forEach((c, i) => { u[i] = this.carU(c); f[i] = (c.inPit > 0 ? 1 : 0) | (c.pitReq ? 2 : 0) | (c.status === 'dnf' ? 4 : 0) | (c.status === 'finished' ? 8 : 0) | (c.ovS > 0.3 ? 16 : c.ovS < -0.3 ? 32 : 0); });
     (sim.traffic || []).forEach((g, j) => { u[sim.cars.length + j] = g.dist; });
     const fr = { t: sim.time, u, f, rain: sim.rain || 0 };
     this.ring.push(fr);
@@ -170,7 +224,7 @@ export class CircuitRecorder {
       events: cl.events.map((e) => ({ type: e.type, t: e.t, keys: e.keys, title: e.title })),
       rain: cl.frames.reduce((a, x) => a + (x.rain || 0), 0) / Math.max(1, cl.frames.length),
       T, U: this.keys.map((_, i) => cl.frames.map((x) => x.u[i])), F: this.keys.map((_, i) => cl.frames.map((x) => x.f[i])),
-      inc: inc.map((i) => ({ key: i.key, kind: i.kind, t0: i.t0, u0: i.u0, v: i.v, side: i.side, loss: i.loss })),
+      inc: inc.map((i) => ({ key: i.key, kind: i.kind, t0: i.t0, u0: i.u0, v: i.v, side: i.side, loss: i.loss, ...(i.cc ? { cc: 1 } : {}), ...(i.ph ? { ph: 1, ti: i.ti, th: i.th, to: i.to } : {}) })),
     };
   }
   // end of the race: close everything still open, pick the reel
@@ -191,7 +245,13 @@ export class CircuitRecorder {
   ringU(i, t) {
     const R = this.ring; if (!R.length) return null;
     const last = R[R.length - 1];
-    if (t >= last.t) { if (t - last.t > 8) return null; const c = this.sim.cars[i]; const v = c && c.status === 'running' && c.inPit <= 0 ? 1 / (c.lapTarget || this.sim.track.lap) : 0; return last.u[i] + v * (t - last.t); }
+    if (t >= last.t) {
+      if (t - last.t > 8) return null;
+      const c = this.sim.cars[i], now = this.sim.time;
+      // between the last sample and now: towards where the car really is (no extrapolation error)
+      if (c && now > last.t + 1e-6 && t <= now) return last.u[i] + (this.carU(c) - last.u[i]) * (t - last.t) / (now - last.t);
+      const v = c && c.status === 'running' && c.inPit <= 0 ? (c.vf ?? 1) / (c.lapTarget || this.sim.track.lap) : 0; return (c && now > last.t ? this.carU(c) : last.u[i]) + v * (t - Math.max(last.t, now));
+    }
     if (t <= R[0].t) return R[0].u[i];
     let lo = 0, hi = R.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (R[m].t <= t) lo = m; else hi = m; }
     const f = (t - R[lo].t) / ((R[hi].t - R[lo].t) || 1);
@@ -204,7 +264,8 @@ export class CircuitRecorder {
       const inc = sim.incidents[k]; if (inc.key !== c.key) continue;
       const age = sim.time - inc.t0;
       if (age > ((inc.kind === 'crash' || inc.kind === 'park') ? PARKED_LIVE : 40)) break;
-      const p = incidentPose(inc, sim.time, (t) => this.ringU(i, t), W);
+      // the memo keeps the pose anchored once the ring buffer has moved on
+      const p = incidentPose(inc, sim.time, (t) => (t >= sim.time - 1e-6 ? this.carU(c) : this.ringU(i, t)), W, inc.kind === 'crash' || inc.kind === 'roll' || inc.kind === 'park' ? (inc._lm ||= {}) : null);
       if (p) return p;
     }
     return null;

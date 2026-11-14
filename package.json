@@ -1,7 +1,7 @@
 {
   "name": "apex-dynasty",
   "productName": "Apex Dynasty",
-  "version": "6.0.0",
+  "version": "6.1.0",
   "description": "Apex Dynasty - Motorsport Manager multi-categoria (Formula, Rally, Endurance)",
   "author": "Apex Dynasty Team",
   "license": "MIT",
@@ -27,6 +27,8 @@
     "@dimforge/rapier3d-compat": "^0.14.0",
     "@fontsource/exo-2": "^5.3.0",
     "@fontsource/titillium-web": "^5.3.0",
+    "peerjs": "^1.5.5",
+    "qrcode": "^1.5.4",
     "three": "^0.170.0"
   },
   "build": {

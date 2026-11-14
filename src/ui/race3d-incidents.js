@@ -16,6 +16,9 @@ function smokeTexture() {
 }
 
 const MAX_DEBRIS = 48, MAX_PUFF = 70;
+// seconds after t0 when the car hits something (same timing as the incident poses and the highlights reel)
+const IMPACT = { crash: 0.9, roll: 0.7, contact: 0.05, spin: 0.35, off: 0.6 };
+const SLIDE = { spin: 2.4, crash: 1.6, roll: 1.6, off: 1.4, wide: 0.8 };
 export class IncidentFx {
   constructor(r3d) {
     this.r = r3d;
@@ -82,6 +85,30 @@ export class IncidentFx {
     g.position.set(pos.x, pos.y || 0, pos.z); g.rotation.y = -h;
     this.group.add(g);
     this.flags.push({ g, flag, t: Math.random() * 3 });
+  }
+  // live race: the incidents happening now get their debris at the impact, smoke / dust while the car
+  // slides, and a marshal waving the yellow flag a little way up the road from a crashed car
+  live(sim, r = this.r) {
+    const incs = sim?.incidents; if (!incs?.length || !r?.cars) return;
+    const now = sim.time, seen = (this._seen ||= new WeakSet());
+    for (let k = incs.length - 1; k >= 0; k--) {
+      const inc = incs[k]; if (now - inc.t0 > 8) break;
+      const car = r.cars.get(inc.key); if (!car?.mesh?.visible) continue;
+      const p = car.mesh.position;
+      const ti = inc.t0 + (IMPACT[inc.kind] ?? 99);
+      if (!seen.has(inc) && inc.kind in IMPACT && now >= ti) {
+        seen.add(inc);
+        if (now - ti > 2) continue; // fast-forwarded past it
+        const big = inc.kind === 'crash' || inc.kind === 'roll';
+        this.burst(p, { color: car.teamColor || '#e10600', n: big ? 26 : inc.kind === 'contact' ? 9 : 4, speed: big ? 16 : 8, dust: inc.kind === 'off' || inc.kind === 'spin' ? '#c9b48a' : null });
+        if (big && r.pose && Number.isFinite(car._s) && !r.open) { const N = r.geo.N; const q = r.pose((((car._s + 22) % N) + N) % N, (Math.sign(car._lane || inc.side || 1)) * (r.TW / 2 + 5)); this.yellowFlag({ x: q.x, y: q.y, z: q.z }, q.h); }
+      }
+      const sl = SLIDE[inc.kind];
+      if (sl && now > inc.t0 - 0.1 && now < inc.t0 + (inc.ti ? Math.min(3, inc.ti + 0.4) : sl)) {
+        this._smT = (this._smT || 0) - 1 / 60;
+        if (this._smT <= 0) { this._smT = 0.07; const off = Math.abs(car._lane || 0) > (r.TW || 12) / 2; this.smoke(p, { n: 1, col: off ? '#c9b48a' : '#e8e8e8', size: off ? 3 : 2.2, op: off ? 0.6 : 0.45 }); }
+      }
+    }
   }
   update(dt) {
     if (!(dt > 0)) return;

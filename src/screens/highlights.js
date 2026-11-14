@@ -64,7 +64,7 @@ export function clipStates(reel, clip, t, ctx) {
       if (f & 1) speed = 0;
     }
     if (!car.gt && !(f & 4)) order.push({ key: car.key, u });
-    out.push({ key: car.key, s, u, speed, inPit: !!(f & 1), pitting: !!(f & 2), fx, tyreColor: undefined, me: !!car.me });
+    out.push({ key: car.key, s, u, speed, inPit: !!(f & 1), pitting: !!(f & 2), fx, tyreColor: undefined, me: !!car.me, ov: f & 16 ? 0.8 : f & 32 ? -0.8 : 0 });
   });
   // running order from the recorded positions (labels + mini tower)
   order.sort((a, b) => b.u - a.u);
@@ -354,7 +354,8 @@ class HighlightsViewer {
     }
     const cv = document.createElement('canvas'); cv.className = 'hl-cv'; this.stage.appendChild(cv);
     const path = rally ? genStage(clip.stage.seed, STAGE_STYLE[clip.stage.trackId] || 'rough') : circuitPath(reel.cid);
-    this.view = new TrackView(cv, path, rally ? { pad: 70, rally: true, surface: clip.stage.surface } : { pad: 60, padTop: 80, padBottom: 150, glow: 'rgba(255,255,255,0.12)' });
+    this.view = new TrackView(cv, path, rally ? { pad: 70, rally: true, surface: clip.stage.surface } : { // margins follow the window (read on every resize): a phone held sideways keeps a usable map
+      get pad() { return innerHeight < 520 ? 20 : 60; }, get padTop() { return innerHeight < 520 ? 40 : 80; }, get padBottom() { return innerHeight < 520 ? 96 : 150; }, glow: 'rgba(255,255,255,0.12)' });
     if (!this.geo && rally) { const M = await load3D(); this.geo = M.stageGeometry(clip.stage.seed, clip.stage.km, STAGE_STYLE[clip.stage.trackId] || 'rough'); }
   }
   safeStart(i, first) { this.startClip(i, first).catch((e) => { console.warn('highlights', e); if (this.mode3d) { this.mode3d = false; this.teardownView(); this.safeStart(i, true); } }); }

@@ -86,6 +86,7 @@ registerScreen({
     const sp = { Digit1: 1, Digit2: 4, Digit3: 8, Digit4: 16, Digit5: 32, Digit6: 64 }[e.code]; if (sp) { X.speed = sp; X.paused = false; speedUI(); }
   },
   actions: {
+    pitwall() { import('../pitwall/panel.js').then((m) => m.openPitwallPanel()).catch((e) => console.warn('pitwall', e)); }, // second screen for the live stage
     exit() { App.go(S().quick ? (S().challenge ? 'challenges' : 'quickrace') : 'hub'); },
     slider(el) { const c = S().weekend.cars[el.dataset.key]; c.vals[el.dataset.p] = +el.value; const l = document.getElementById(`rv-${el.dataset.key}-${el.dataset.p}`); if (l) l.textContent = el.value; },
     run(el) {
@@ -478,6 +479,7 @@ function runScreen(st, tr) {
       <div class="grow"></div>
       <div class="speed-btns" id="speedbtns">${[1, 4, 8, 16, 32, 64].map((v) => `<button class="btn sm" data-a="speed" data-v="${v}">${v === 1 ? '1x LIVE' : v + 'x'}</button>`).join('')}</div>
       <button class="btn sm dec-open" data-a="dec-cfg" data-tip="Decisioni a gioco accelerato: pausa automatica, rallenta a 1x o decide il copilota">${icon('settings')}<span class="bl">Decisioni</span></button>
+      <button class="btn sm pw-open" data-a="pitwall" data-tip="Muretto box: tempi, strategia e diretta su un secondo schermo (monitor, tablet o telefono)">${icon('display')}<span class="bl">Muretto box</span></button>
       <button class="btn sm" data-a="skip-stage">${icon('ff')} Fine prova</button>
     </div>
     <div class="race-board" id="board"></div>

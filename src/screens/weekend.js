@@ -171,6 +171,7 @@ registerScreen({
     pause() { R.paused = !R.paused; R.last = performance.now(); updateSpeedUI(); },
     'sim-end'() { if (!R.sim || R.sim.finished) return; App.confirm('Simulare fino alla fine?', 'La strategia dei tuoi piloti passerà all’ingegnere.', () => { R.sim.cars.forEach((c) => { if (c.isPlayer) c.auto = true; }); R.sim.momentsOn = false; R.sim.moments = []; R.hub?.reset(); R.sim.runToEnd(); }); },
     'finish-race'() { finishRace(); },
+    pitwall() { import('../pitwall/panel.js').then((m) => m.openPitwallPanel()).catch((e) => console.warn('pitwall', e)); }, // second screen (practice, qualifying, race)
     'an-open'() { openAnalysis(); },
     'an-close'() { closeAnalysis(); },
     'an-tab'(el) { if (!R.an) return; R.an.tab = el.dataset.t; renderAnalysis(); },
@@ -222,6 +223,7 @@ function raceScreen(st) {
       <div class="grow"></div>
       <div class="speed-btns" id="speedbtns">${[1, 2, 4, 8, 16, 32].map((v, i) => `<button class="btn sm" data-a="speed" data-v="${v}" data-tip="${v === 1 ? 'Tempo reale' : `Velocità ${v}x`} · tasto ${i + 1}">${v === 1 ? '1x LIVE' : v + 'x'}</button>`).join('')}</div>
       <button class="btn sm dec-open" data-a="dec-cfg" data-tip="Decisioni a gioco accelerato: pausa automatica, rallenta a 1x o decide l’ingegnere">${icon('settings')}<span class="bl">Decisioni</span></button>
+      <button class="btn sm pw-open" data-a="pitwall" data-tip="Muretto box: tempi, strategia e diretta su un secondo schermo (monitor, tablet o telefono)">${icon('display')}<span class="bl">Muretto box</span></button>
       <button class="btn sm an-open" data-a="an-open" data-tip="Lap chart, distacchi, strategie, bilancio dei tempi e registro decisioni (A)">${icon('chart')}<span class="bl">Analisi</span></button>
       <button class="btn sm" data-a="sim-end" data-tip="Simula il resto della gara: le decisioni passano all’ingegnere">${icon('ff')}<span class="bl">Fine gara</span></button>
       <span class="kbd-help" data-a="shortcuts" data-tip="Scorciatoie: Spazio pausa · 1-6 velocità (+/−) · R replay · A analisi · decisioni: 1-3 e Invio, card rapide Z/X/C">?</span>
@@ -370,16 +372,17 @@ function update3D(dt) {
     let d = c.status === 'finished' ? sim.hl?.carU(c) ?? c.finishLap : c.dist;
     if (pose) d = pose.u;
     const frac = arcFrac(sim.cat, sim.track.cid, d, sim.track.lap);
-    let speed = c.inPit > 0 ? 0 : speedAtTimeFrac(sim.cat, sim.track.cid, d, c.lapTarget, sim.track.lap) / 3.6;
+    let speed = c.inPit > 0 ? 0 : speedAtTimeFrac(sim.cat, sim.track.cid, d, c.lapTarget, sim.track.lap) / 3.6 * (c.status === 'running' ? c.vf ?? 1 : 1);
     if (pose) speed = c.status === 'dnf' ? 0 : Math.abs(pose.lat) > W ? speed * 0.25 : speed;
     const show = c.isPlayer || c.key === R.focus || c.pos <= 3;
-    return { key: c.key, pos: c.pos, gap: c.status === 'running' && c.inPit <= 0 ? c.gapAhead : null, s: frac * g.N, speed, inPit: c.inPit > 0 && !pose, pitting: !!c.pitReq && !pose, close: c.gapAhead < 1, tyreColor: COMPOUNDS[c.tyre].color, label: c.status === 'dnf' ? '' : show ? `P${c.pos} ${shortName(sim.driver(c).name)}` : `${c.pos}`, fx: pose ? { lat: pose.lat, yaw: pose.yaw, roll: pose.roll, lift: pose.lift } : null };
+    return { key: c.key, pos: c.pos, gap: c.status === 'running' && c.inPit <= 0 ? c.gapAhead : null, s: frac * g.N, speed, inPit: c.inPit > 0 && !pose, pitting: !!c.pitReq && !pose, close: c.gapAhead < 1, tyreColor: COMPOUNDS[c.tyre].color, label: c.status === 'dnf' ? '' : show ? `P${c.pos} ${shortName(sim.driver(c).name)}` : `${c.pos}`, fx: pose ? { lat: pose.lat, yaw: pose.yaw, roll: pose.roll, lift: pose.lift } : null, ov: c.ovS || 0, blue: c.blueT > sim.time };
   });
   for (const g of sim.traffic || []) states.push({ key: g.key, s: arcFrac(sim.cat, sim.track.cid, g.dist, sim.track.lap) * g2N(sim), speed: speedAtTimeFrac(sim.cat, sim.track.cid, g.dist, g.lt, sim.track.lap) / 3.6, label: '' });
   r.focusKey = R.focus;
   r.setRain(sim.rain);
   if (sim.endurance && sim.track.night) { R.nightLvl = (R.nightLvl ?? 0) + ((sim.night ? 1 : 0) - (R.nightLvl ?? 0)) * Math.min(1, dt * 0.3); r.setNight(Math.round(R.nightLvl * 20) / 20); }
   r.update(states, dt);
+  R.ifx?.live?.(sim, r); // debris, smoke and marshals of the incidents happening now
   R.ifx?.update(dt * Math.min(4, R.speed || 1));
   const fc = sim.cars.find((c) => c.key === (r.director && r.dirFocus ? r.dirFocus : R.focus));
   const hud = document.getElementById('hud3d');

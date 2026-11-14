@@ -156,6 +156,7 @@ export function sessionRender(st) {
       <div class="grow"></div>
       <div class="speed-btns" id="ss-speeds">${speeds.map((v, i) => `<button class="btn sm" data-a="ss-speed" data-v="${v}" data-tip="${v === 1 ? 'Tempo reale' : `Velocità ${v}x`}${i < 7 ? ' · tasto ' + (i + 1) : ''}">${v === 1 ? '1x' : v + 'x'}</button>`).join('')}</div>
       <button class="btn sm dec-open" data-a="dec-cfg" data-tip="Decisioni a gioco accelerato: pausa automatica, rallenta a 1x o decide l’ingegnere">${icon('settings')}<span class="bl">Decisioni</span></button>
+      <button class="btn sm pw-open" data-a="pitwall" data-tip="Muretto box: tempi, strategia e diretta su un secondo schermo (monitor, tablet o telefono)">${icon('display')}<span class="bl">Muretto box</span></button>
       <button class="btn sm" data-a="ss-simulate" data-tip="Simula il resto della sessione: l’ingegnere gestisce i tuoi piloti">${icon('ff')}<span class="bl">${w.phase === 'practice' ? 'Simula il resto' : 'Simula sessione'}</span></button>
       ${w.phase !== 'practice' && fmt.length > 1 ? `<button class="btn sm" data-a="ss-simq" data-tip="Simula tutte le fasi rimaste della qualifica e vai alla griglia">${icon('ff')}<span class="bl">Simula qualifica</span></button>` : ''}
       <div class="race-prog"><i id="ss-progbar"></i></div>

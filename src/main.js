@@ -8,6 +8,7 @@ import { S, saveGame } from './engine/state.js';
 import { ensureQuality } from './ui/quality.js';
 import { loadStage } from './ui/stage3d.js';
 import { gfxTier } from './ui/quality.js';
+import { initOrientation } from './ui/orient.js';
 const audioDebug = Audio.audioDebug;
 
 // Everything else is code-split and arrives on demand (and on idle, right after the menu is up).
@@ -27,14 +28,21 @@ lazyScreens({
   voragine: () => import('./screens/voragine.js'),
   weekend: () => import('./screens/weekend.js'),
   rally: () => import('./screens/rallyweekend.js'),
+  pitwall: () => import('./screens/pitwall.js'),
   ...Object.fromEntries(['hub', 'inbox', 'standings', 'calendar', 'career', 'halloffame', 'car', 'drivers', 'market', 'staff', 'finance', 'paddock', 'results', 'seasonend'].map((id) => [id, career])),
 });
 
 App.init();
+initOrientation();
 // the Baso Hub comes first; ?game=… opens a game directly, ?intro forces the Apex title screen
 App.go(launchTarget() || (new URLSearchParams(location.search).has('intro') ? 'intro' : 'launcher'));
 window.addEventListener('beforeunload', () => { if (S()) saveGame(); });
 window.__apex = { App, S, audio: audioDebug, sound: Audio, perf: { boot: performance.now() } };
+// Muretto box: a pit wall window opened on this computer finds the game by itself (no network involved)
+if (!new URLSearchParams(location.search).has('pitwall') && typeof BroadcastChannel !== 'undefined') {
+  const pw = new BroadcastChannel('apex-pitwall');
+  pw.onmessage = (e) => { if (e.data?.role === 'viewer' && e.data.t === 'hello') { pw.close(); import('./pitwall/host.js').then((m) => m.startHost()).catch((x) => console.warn('pitwall', x)); } };
+}
 
 // Idle warm-up: quality probe (first run only), then the screen chunks in the order a player meets them
 const idle = (fn, t = 1200) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: t }) : setTimeout(fn, 200));

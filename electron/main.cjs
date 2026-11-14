@@ -12,7 +12,11 @@ function createWindow() {
   });
   win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   win.once('ready-to-show', () => win.show());
-  win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
+  // the Muretto box (pit wall) opens as a second window of the app, to be dragged to another monitor
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('file:') && /[?&]pitwall=/.test(url)) return { action: 'allow', overrideBrowserWindowOptions: { width: 1440, height: 900, backgroundColor: '#07080b', autoHideMenuBar: true, title: 'Apex Dynasty · Muretto box' } };
+    shell.openExternal(url); return { action: 'deny' };
+  });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
 }
 
