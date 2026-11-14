@@ -531,7 +531,7 @@ export class Race3D {
     const D = (m, o) => (this.low ? m : detailPatch(m, o));
     this.desert = ['bhr', 'qat', 'abu', 'ksa'].includes(this.geo.cid);
     this.computeLine();
-    this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x3b3e44, roughness: 0.85 }) : D(pbr('asphalt_track', { color: new THREE.Color().setRGB(1.12, 1.12, 1.16, THREE.LinearSRGBColorSpace), roughness: 1, normalScale: 0.9, repeat: [1.5, 1.5], res: gfxTier() === 'high' ? '2k' : '1k' }), { macro: 0.1, macroScale: 0.06, wet: true, rough: [0.62, 1.0], key: 'asph', track: { halfW: W / 2, uScale: 6 } });
+    this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x3b3e44, roughness: 0.85 }) : D(pbr('asphalt_track', { color: new THREE.Color().setRGB(1.1, 1.38, 1.52, THREE.LinearSRGBColorSpace), roughness: 1, normalScale: 0.9, repeat: [1.5, 1.5], res: gfxTier() === 'high' ? '2k' : '1k' }), { macro: 0.1, macroScale: 0.06, wet: true, rough: [0.62, 1.0], key: 'asph', track: { halfW: W / 2, uScale: 6 } });
     const runoffMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x777b82, roughness: 0.9 }) : D(pbr('concrete_floor_worn_001', { color: street > 0.7 ? 0x8a8a8a : 0xb8b8b8 }), { macro: 0.12, macroScale: 0.05, wet: true });
     const grassCol = this.biome.grass;
     const groundMat = this.low ? new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x84817b : 0x3f7a34, roughness: 1 }) : D(pbr(street > 0.7 ? 'concrete_floor_worn_001' : 'aerial_grass_rock', { repeat: [1400, 1400], color: street > 0.7 ? 0xb9b4aa : grassCol }), { macro: street > 0.7 ? 0.34 : 0.22, macroScale: street > 0.7 ? 0.03 : 0.012, tint: street > 0.7 ? 0x9a8f80 : this.biome.dry, tintAmt: street > 0.7 ? 0.5 : this.biome.dryAmt });
