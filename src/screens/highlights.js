@@ -232,7 +232,8 @@ export function highlightsOpen() { return !!HV; }
 if (typeof window !== 'undefined') window.__hl = { open: openHighlights, close: closeHighlights, get cur() { return HV; } };
 
 function want3D() { try { return getSettings().view3d !== false && gfxTier() !== 'low' && getSettings().hl3d !== false; } catch { return false; } }
-function canWebGL() { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; } }
+let _gl = null;
+function canWebGL() { if (_gl == null) { try { const c = document.createElement('canvas'); const gl = c.getContext('webgl2') || c.getContext('webgl'); _gl = !!gl; gl?.getExtension('WEBGL_lose_context')?.loseContext(); } catch { _gl = false; } } return _gl; }
 
 class HighlightsViewer {
   constructor(reel, opts) {
@@ -345,7 +346,7 @@ class HighlightsViewer {
         if (this.viewKey !== key || !this.el.isConnected) return;
         const div = document.createElement('div'); div.className = 'hl-r3d'; this.stage.appendChild(div);
         const cars = reel.cars.map((c) => c.gt ? { key: c.key, livery: { primary: c.c1, secondary: c.c2, accent: '#111111' }, tyreColor: '#ffd400', number: c.num, sponsor: 'LMGT3', category: 'rally' } : { key: c.key, livery: { primary: c.c1, secondary: c.c2, accent: c.c3 || '#111111' }, helmet: c.helmet, tyreColor: '#d9d9d9', isPlayer: !!c.me, number: c.num, sponsor: c.sponsor });
-        this.r3d = rally ? new M.Race3D(div, { geo, category: 'rally', surface: clip.stage.surface, wet: clip.stage.wet, cars }) : new M.Race3D(div, { cid: reel.cid, street: reel.street || 0, night: !!reel.night, category: reel.cat, cars });
+        this.r3d = rally ? new M.Race3D(div, { geo, category: 'rally', surface: clip.stage.surface === 'mixed' ? 'tarmac' : clip.stage.surface, wet: clip.stage.wet, cars }) : new M.Race3D(div, { cid: reel.cid, street: reel.street || 0, night: !!reel.night, category: reel.cat, cars });
         this.r3d.director = false;
         this.fx = new M.IncidentFx(this.r3d);
         return;

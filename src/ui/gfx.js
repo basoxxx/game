@@ -9,12 +9,17 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { getSettings } from '../engine/state.js';
+import { gfxTier } from './quality.js';
 
 const BASE = './assets/';
 const texLoader = new THREE.TextureLoader();
 const cache = new Map();
+// the light setting loads half-resolution copies of every PBR map (<name>_512.<ext>, next to the
+// 1k / 2k originals) and of the skies: a quarter of the download and of the GPU memory
+export const lowRes = (url) => (gfxTier() === 'low' ? url.replace(/_(1k|2k)\.(jpg|webp|hdr)$/, '_512.$2') : url);
 
 function load(url, srgb) {
+  url = lowRes(url);
   const key = url + (srgb ? ':s' : '');
   if (cache.has(key)) return cache.get(key);
   const t = texLoader.load(url);
@@ -303,7 +308,7 @@ export function applyHDRI(renderer, scene, kind = 'day', { background = true, in
       resolve(true);
     };
     if (hdrCache[kind]) return done(hdrCache[kind]);
-    new RGBELoader().setDataType(THREE.FloatType).load(BASE + 'hdri/' + HDRIS[kind], (t) => {
+    new RGBELoader().setDataType(THREE.FloatType).load(lowRes(BASE + 'hdri/' + HDRIS[kind]), (t) => {
       t.mapping = THREE.EquirectangularReflectionMapping;
       // some skies store a sun brighter than half-float range: the PMREM (half float) would turn
       // it into Inf/NaN and black out every reflection, so clamp the peak
@@ -733,6 +738,13 @@ export function updateSunFlare(composer, camera, sunDir, amount = 1) {
   const amt = amount * THREE.MathUtils.smoothstep(facing, 0.2, 0.75);
   f.enabled = amt > 0.01 && _sv.z < 1 && u > -0.5 && u < 1.5 && v > -0.5 && v < 1.5;
   f.uniforms.uSun.value.set(u, v); f.uniforms.uAmt.value = amt; f.uniforms.uAspect.value = camera.aspect;
+}
+
+// Frees a view's GPU side on screen exit: composer targets and passes, renderer caches, and the
+// WebGL context itself (browsers cap live contexts at ~16 and keep a dropped one until GC)
+export function releaseGL(renderer, composer) {
+  try { for (const p of composer?.passes || []) p.dispose?.(); composer?.dispose?.(); } catch {}
+  try { renderer?.dispose(); renderer?.forceContextLoss(); } catch {}
 }
 
 export function makeComposer(renderer, scene, camera, { bloom = 0.22, low = false, ao = false, grade = true, filter = true, flare = false, rays = false, dof = false } = {}) {

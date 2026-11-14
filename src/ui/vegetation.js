@@ -3,12 +3,17 @@
 // camera-facing quad that shows the baked view matching the camera direction.
 import * as THREE from 'three';
 import META from '../../public/assets/veg/trees.json';
+import { gfxTier } from './quality.js';
 
 const BASE = './assets/veg/';
-let atlas = null;
+let atlas = null, atlasHi = null;
 function atlasTex() {
-  if (atlas) return atlas;
-  atlas = new THREE.TextureLoader().load(BASE + 'trees.webp');
+  const hi = gfxTier() === 'high';
+  if (atlas && atlasHi === hi) return atlas;
+  atlasHi = hi;
+  // 4096x2048 RGBA is ~45 MB of GPU memory with mipmaps: Media / Bassa take the half-size atlas
+  // (same layout, normalised uvs), which also downloads ~30% less
+  atlas = new THREE.TextureLoader().load(BASE + (hi ? 'trees.webp' : 'trees_half.webp'));
   atlas.colorSpace = THREE.SRGBColorSpace;
   atlas.anisotropy = 4;
   atlas.generateMipmaps = true;
@@ -61,7 +66,7 @@ const FRAG = /* glsl */`
     #include <logdepthbuf_fragment>
     vec4 c = texture2D(map, vUv);
     // keep thin foliage alive in the distance: mip levels average alpha down, so boost it
-    vec2 tx = vUv * vec2(4096.0, 2048.0);
+    vec2 tx = vUv * vec2(ATLAS_W, ATLAS_W * 0.5);
     float lod = log2(max(1.0, max(length(dFdx(tx)), length(dFdy(tx)))));
     float a = c.a * (1.0 + lod * 0.7);
     if (a < 0.42) discard;
@@ -166,11 +171,12 @@ export function makeForest(items, opts = {}) {
   g.setAttribute('iRot', new THREE.InstancedBufferAttribute(R, 1));
   g.setAttribute('iTint', new THREE.InstancedBufferAttribute(T, 3));
   g.instanceCount = n;
+  const map = atlasTex();
   const mat = new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: null }, light: { value: 1 }, gain: { value: 1.4 }, sunDir: { value: new THREE.Vector3(0.55, 0.62, 0.45) } }]),
-    vertexShader: VERT, fragmentShader: FRAG, fog: true, side: THREE.DoubleSide,
+    vertexShader: VERT, fragmentShader: FRAG.replace(/ATLAS_W/g, atlasHi ? '4096.0' : '2048.0'), fog: true, side: THREE.DoubleSide,
   });
-  mat.uniforms.map.value = atlasTex();
+  mat.uniforms.map.value = map;
   if (opts.canopy) mat.defines = { CANOPY: 1 };
   const mesh = new THREE.Mesh(g, mat);
   mesh.frustumCulled = false;

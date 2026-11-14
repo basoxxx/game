@@ -13,6 +13,7 @@ import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 import { buildCar } from './cars3d.js';
 import { applyFilterSettings, makeComposer } from './gfx.js';
 import { getSettings } from '../engine/state.js';
+import { pixelRatio } from './quality.js';
 import { helmetSVG } from './art.js';
 
 const FONT = '"Barlow Condensed", "Arial Narrow", sans-serif';
@@ -201,7 +202,7 @@ function ensureRenderer() {
   if (ST.r) return ST.r;
   ST.low = low;
   const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
-  r.setPixelRatio(low ? 1 : Math.min(2, window.devicePixelRatio || 1));
+  r.setPixelRatio(low ? 1 : pixelRatio(2));
   r.shadowMap.enabled = !low; r.shadowMap.type = THREE.PCFSoftShadowMap;
   r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.0;
   r.outputColorSpace = THREE.SRGBColorSpace;
@@ -514,7 +515,7 @@ function resizeStage() {
   if (!W || !H) return [0, 0];
   if (W !== ST.W || H !== ST.H || ST.snapDirty) {
     ST.W = W; ST.H = H; ST.snapDirty = false;
-    ST.r.setPixelRatio(ST.low || ST.soft ? 1 : Math.min(W * H > 2600000 ? 1.25 : 2, window.devicePixelRatio || 1));
+    ST.r.setPixelRatio(ST.low || ST.soft ? 1 : pixelRatio(W * H > 2600000 ? 1.25 : 2));
     ST.r.setSize(W, H, false);
     if (ST.comp) { ST.comp.setPixelRatio(ST.r.getPixelRatio()); ST.comp.setSize(W, H); }
   }
