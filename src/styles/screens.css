@@ -444,3 +444,46 @@ html.reduce-motion .ring-v, html.reduce-motion .objp-bar i, html.reduce-motion .
   .sg-v { font-size: 24px; }
   .objp-t b { white-space: normal; }
 }
+
+/* ============================ v6: RESULTS — "Il tuo weekend" ============================ */
+.my-weekend { margin-bottom: 18px; background: var(--s1); border: 1px solid var(--line); border-left: 4px solid var(--team); padding: 16px 18px; animation: rise .5s var(--ease-out) .15s both; }
+.mw-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.mw-k { display: inline-flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: .12em; text-transform: uppercase; }
+.mw-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.mw-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 13px; font-weight: 600; background: var(--s3); color: var(--text); animation: mwPop .5s var(--ease-out) .6s both; }
+.mw-badge .ico { width: 14px; height: 14px; color: var(--team); }
+.mw-badge.rec { background: color-mix(in srgb, #b04bff 26%, var(--s2)); }
+.mw-badge.rec .ico { color: #d9a6ff; }
+.mw-badge.obj { background: color-mix(in srgb, var(--good) 22%, var(--s2)); }
+.mw-badge.obj .ico { color: var(--good); }
+.mw-row { display: flex; gap: 12px; align-items: stretch; }
+.mw-tiles { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; min-width: 0; }
+.mw-tile { position: relative; padding: 12px 14px; background: var(--s2); min-width: 0; overflow: hidden; animation: rise .45s var(--ease-out) both; }
+.mw-tile:nth-child(2) { animation-delay: .08s; } .mw-tile:nth-child(3) { animation-delay: .16s; } .mw-tile:nth-child(4) { animation-delay: .24s; } .mw-tile:nth-child(5) { animation-delay: .32s; }
+.mw-n { display: block; font-family: var(--display); font-weight: 800; font-style: italic; font-size: 38px; line-height: 1; white-space: nowrap; }
+.mw-l { display: block; margin-top: 6px; font-family: var(--display); font-weight: 600; font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.mw-s { display: block; margin-top: 3px; font-size: 13px; color: var(--text2); }
+.mw-tile.good .mw-n, .mw-tile.good .mw-s { color: var(--good); }
+.mw-tile.bad .mw-n, .mw-tile.bad .mw-s { color: var(--bad); }
+.mw-tile.gold { background: linear-gradient(135deg, color-mix(in srgb, var(--gold) 30%, var(--s2)), var(--s2) 70%); }
+.mw-tile.gold .mw-n { color: var(--gold); }
+.mw-tile.pod .mw-n { color: var(--silver); }
+.mw-xp .mw-n { color: var(--gold); }
+.mw-lv { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12.5px; color: var(--text2); }
+.mw-lv .bar { flex: 1; }
+.mw-xp.lvup { box-shadow: inset 0 0 0 2px var(--gold); }
+.mw-xp.lvup .mw-lv span { color: var(--gold); font-weight: 800; animation: mwPop .6s var(--ease-out) .9s both; }
+.mw-hl { flex: 0 0 auto; display: flex; align-items: center; gap: 14px; padding: 0 26px 0 20px; min-height: 64px; border: 0; cursor: pointer; color: #fff; text-align: left; background: linear-gradient(110deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000)); clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); transition: filter var(--t-med), transform var(--t-fast); }
+.mw-hl:hover { filter: brightness(1.15); }
+.mw-hl:active { transform: scale(.98); }
+.mw-hl > .ico { width: 34px; height: 34px; padding: 8px; background: rgba(0,0,0,.28); border-radius: 50%; }
+.mw-hl b { display: block; font-family: var(--display); font-weight: 800; font-style: italic; font-size: 22px; text-transform: uppercase; line-height: 1; }
+.mw-hl small { display: block; font-size: 12.5px; opacity: .85; margin-top: 4px; }
+@keyframes mwPop { from { opacity: 0; transform: scale(.7); } 60% { transform: scale(1.06); } }
+@media (max-width: 1100px) { .mw-row { flex-direction: column; } .mw-hl { min-height: 56px; justify-content: center; } }
+@media (max-width: 760px) {
+  .my-weekend { padding: 12px; }
+  .mw-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mw-xp { grid-column: 1 / -1; }
+  .mw-n { font-size: 30px; }
+}

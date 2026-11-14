@@ -12,7 +12,9 @@ import { recordChallenge, CHALLENGES } from './challenges.js';
 import { sfx } from '../ui/audio.js';
 import { fmtM } from '../engine/season.js';
 import { principal, TP_PERSONAS } from '../engine/dynasty.js';
-import { portraitSVG, teamCol } from './career-ui.js';
+import { portraitSVG, teamCol, objectiveProgress } from './career-ui.js';
+import { seasonStats, xpForLevel } from '../engine/progress.js';
+import { countUp } from '../ui/dom.js';
 import { hasReel } from '../engine/highlights.js';
 import { openSavedHighlights } from './highlights.js';
 
@@ -64,6 +66,7 @@ registerScreen({
         </div>
         <div class="rh-car">${carImg(st.category, wt.car.livery, { number: wd.number, sponsor: wt.sponsors[0]?.name }, 900, 400, carSVG(st.category, wt.car.livery, { number: wd.number, sponsor: wt.sponsors[0]?.name || wt.short }))}</div>
       </section>
+      ${myWeekend(st, ev, params?.idx ?? st.round - 1, hasReel(st, params?.idx ?? st.round - 1))}
       <div class="res-grid">
         <div class="panel flush"><table class="tbl"><thead><tr><th>Pos</th><th></th><th>${C.driversPerCar > 1 ? 'Equipaggio' : 'Pilota'}</th><th>Team</th>${rally ? '<th class="right">PS vinte</th><th class="right">Tempo</th>' : '<th class="right">Griglia</th><th>Gomme</th><th class="right">Soste</th><th class="right">Best</th>'}<th class="right">Distacco</th><th class="right">Pt</th></tr></thead><tbody>
           ${res.classification.map((r) => { const tm = st.teams[r.teamId]; const d = st.drivers[r.driverIds[0]]; return `<tr class="${tm.isPlayer ? 'me' : ''}"><td class="pos p${r.pos}">${r.status === 'dnf' ? 'RIT' : r.pos}</td><td style="width:8px;padding-left:0;padding-right:0">${teamStripe(tm)}</td><td>${C.driversPerCar > 1 ? `<div class="small"><b>${r.driverIds.map((id) => esc(st.drivers[id].name)).join(' / ')}</b></div>` : driverChip(st, d, { size: 22 })}</td><td class="small muted">${esc(tm.name)}</td>${rally ? `<td class="right mono">${r.stageWins || 0}</td><td class="right mono small">${r.time ? fmtLong(r.time) : '-'}</td>` : `<td class="right mono">${r.grid}</td><td><div class="row gap4">${(r.tyres || []).map((t) => tyreBadge(t)).join('')}</div></td><td class="right mono">${r.pitStops}</td><td class="right mono small ${res.fastest?.key === r.key ? 'fastest' : ''}"${res.fastest?.key === r.key ? ' data-tip="Giro più veloce della gara"' : ''}>${fmtTime(r.bestLap)}</td>`}<td class="right mono small">${r.status === 'dnf' ? `<span class="bad">${esc(r.reason || 'Ritiro')}</span>` : r.pos === 1 ? (rally ? '' : 'Vincitore') : rally ? fmtGap(r.gap) : fmtGap(r.gap)}</td><td class="right mono"><b>${r.pts || ''}</b>${r.ps ? `<span class="tiny warn"> (+${r.ps} PS)</span>` : ''}</td></tr>`; }).join('')}
@@ -84,6 +87,8 @@ registerScreen({
     const ev = st.calendar[App.params?.idx ?? st.round - 1];
     const mine = ev?.results?.classification.filter((r) => r.teamId === st.playerTeam) || [];
     if (mine.some((r) => r.pos === 1 && r.status !== 'dnf')) celebrate(220);
+    else if (mine.some((r) => r.pos <= 3 && r.status !== 'dnf')) celebrate(70);
+    countUp(document.querySelectorAll('.mw-tile .mw-n'), 'res', 900);
     if (st.challenge && ev?.results && !st._chDone) {
       st._chDone = true;
       const r = recordChallenge(st, ev.results); const ch = CHALLENGES.find((c) => c.id === st.challenge);
@@ -99,7 +104,7 @@ registerScreen({
         App.modal(`<div class="tiny upper" style="color:var(--team);display:flex;align-items:center;gap:8px">${icon('mic', 'ico', 'style="width:16px;height:16px"')} Conferenza stampa · ${esc(pq.journalist)}</div><h2 style="margin-top:8px">«${esc(pq.q)}»</h2>
           <div class="col gap6 mt16">${pq.a.map((a, i) => `<div class="card click" data-a="answer" data-i="${i}"><b style="font-size:16px">«${esc(a.t)}»</b><div class="small muted mt8">${esc(a.note)}</div></div>`).join('')}</div>`,
           { answer(el) { pq.a[+el.dataset.i].fx(); sfx.ok(); App.closeModal(); App.toast('Dichiarazione rilasciata', pq.a[+el.dataset.i].note, 'good'); } }, 'locked');
-      }, 1200);
+      }, 2600);
     }
   },
   actions: {
@@ -111,6 +116,54 @@ registerScreen({
     },
   },
 });
+
+// "Il tuo weekend": what the race gave the player — result, points, championship move, money, XP,
+// objectives and records — plus the way into the highlights. Money/XP only for the round just run.
+function myWeekend(st, ev, idx, reel) {
+  if (st.quick || !ev?.results) return '';
+  const pt = playerTeam(st); const res = ev.results;
+  const mine = res.classification.filter((r) => r.teamId === pt.id);
+  if (!mine.length) return '';
+  const latest = idx === st.round - 1;
+  const best = Math.min(...mine.map((r) => (r.status === 'dnf' ? 99 : r.pos)));
+  const pts = mine.reduce((a, r) => a + (r.pts || 0), 0) + (res.sprint || []).filter((r) => r.teamId === pt.id).reduce((a, r) => a + (r.pts || 0), 0);
+  // the championship and the season stats without this round (results removed for a moment, synchronously)
+  const keep = ev.results; ev.results = null;
+  let before, statsBefore;
+  try { before = standings(st); statsBefore = seasonStats(st); } finally { ev.results = keep; }
+  const after = standings(st);
+  const pNow = after.teams.findIndex((x) => x.id === pt.id) + 1; const pWas = before.teams.findIndex((x) => x.id === pt.id) + 1;
+  const mv = idx === 0 ? 0 : pWas - pNow;
+  const statsNow = seasonStats(st);
+  const newObj = (st.objectives || []).filter((o) => o.done && objectiveProgress({ ...o, done: false }, statsBefore).pct < 100 && objectiveProgress({ ...o, done: false }, statsNow).pct >= 100);
+  const tile = (n, l, cls = '', sub = '') => `<div class="mw-tile ${cls}"><b class="mw-n">${n}</b><span class="mw-l">${l}</span>${sub ? `<span class="mw-s">${sub}</span>` : ''}</div>`;
+  let tiles = tile(best === 99 ? 'RIT' : `P${best}`, 'Miglior arrivo', best === 1 ? 'gold' : best <= 3 ? 'pod' : best === 99 ? 'bad' : '', mine.length > 1 ? mine.map((r) => (r.status === 'dnf' ? 'RIT' : 'P' + r.pos)).join(' · ') : '');
+  tiles += tile(`+${pts}`, 'Punti squadra', pts ? 'good' : '');
+  tiles += tile(`${pNow}°`, 'Costruttori', mv > 0 ? 'good' : mv < 0 ? 'bad' : '', mv > 0 ? `▲ ${mv} ${mv === 1 ? 'posizione' : 'posizioni'}` : mv < 0 ? `▼ ${-mv} ${mv === -1 ? 'posizione' : 'posizioni'}` : idx === 0 ? `obiettivo ${st.board.target}°` : 'stabile');
+  let extra = '';
+  if (latest) {
+    // income of the race (commercial rights, sponsors, bonuses, prizes): the week's costs live in Finanze
+    const fin = st.finance.filter((f) => f.season === st.season && f.round === idx && f.amount > 0).reduce((a, f) => a + f.amount, 0);
+    const R = st.dyn?.lastReport;
+    const dyn = R ? R.goals.filter((g) => g.ok).reduce((a, g) => a + g.reward, 0) + (R.bet?.win ? R.bet.stake : 0) : 0;
+    tiles += tile(`+${fmtM(fin + dyn)}`, 'Incassi del weekend', 'good', 'sponsor, diritti e premi');
+    // XP of the round (same formula as engine/season.js applyRoundResults) plus the season objectives it completed
+    const podN = mine.filter((r) => r.pos <= 3 && r.status !== 'dnf').length;
+    const pole = res.pole && st.drivers[res.pole]?.teamId === pt.id;
+    const xp = Math.round(20 + mine.reduce((a, r) => a + r.pts, 0) * 2.5 + podN * 40 + (best === 1 ? 80 : 0) + (pole ? 30 : 0) + (pNow <= st.board.target ? 15 : 0)) + newObj.reduce((a, o) => a + o.xp, 0);
+    const c = st.career; const need = xpForLevel(c.level || 1); const lvUp = (c.xp || 0) < xp;
+    tiles += `<div class="mw-tile mw-xp ${lvUp ? 'lvup' : ''}"><b class="mw-n">+${xp}</b><span class="mw-l">XP manager</span><div class="mw-lv"><span>${lvUp ? `Livello ${c.level}!` : `Livello ${c.level}`}</span><div class="bar gold"><i style="width:${Math.min(100, ((c.xp || 0) / need) * 100)}%"></i></div></div></div>`;
+    const rec = st.records?.[`${st.category}:${ev.trackId}`];
+    if (rec && res.fastest && rec.time === res.fastest.time && rec.team === pt.name && rec.season === st.season) extra += `<span class="mw-badge rec">${icon('speed')} Nuovo record della pista · ${esc(rec.driver)} ${fmtTime(rec.time)}</span>`;
+    if (pole) extra += `<span class="mw-badge">${icon('flag')} Pole position</span>`;
+    for (const o of newObj) extra += `<span class="mw-badge obj">${icon('target')} Obiettivo stagionale: ${esc(o.text)} · +${o.xp} XP</span>`;
+  }
+  const hl = reel ? `<button class="mw-hl" data-a="highlights">${icon('play')}<span><b>Rivedi la gara</b><small>Highlights con regia TV</small></span></button>` : '';
+  return `<section class="my-weekend">
+    <div class="mw-head"><span class="mw-k">${teamBadge(pt, 26)} Il tuo weekend</span>${extra ? `<div class="mw-badges">${extra}</div>` : ''}</div>
+    <div class="mw-row"><div class="mw-tiles">${tiles}</div>${hl}</div>
+  </section>`;
+}
 
 function medalSVG(col) {
   return `<svg class="medal-big" viewBox="0 0 120 120"><path d="M38 6h18l10 30H48z" fill="#c8102e"/><path d="M82 6H64L54 36h18z" fill="#1d3f8f"/><circle cx="60" cy="74" r="38" fill="${col}"/><circle cx="60" cy="74" r="29" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="3"/><path d="M60 54l6 13 14 1.5-10.5 9.5 3 14L60 85l-12.5 7 3-14L40 68.5 54 67z" fill="rgba(0,0,0,.28)"/></svg>`;
