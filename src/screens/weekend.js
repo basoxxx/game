@@ -566,7 +566,7 @@ function updateBoard() {
   }).join('');
   const b = document.getElementById('board');
   const fk = sim.fastest.key && sim.cars.find((c) => c.key === sim.fastest.key);
-  if (b) b.innerHTML = `<div class="lb-row lb-head"><span>Pos</span><span></span><span>Pilota</span><span>Gomme</span><span>Usura</span><span class="gapmode" data-a="gapmode" data-tip="Clicca per alternare distacco dal leader / intervallo con chi precede">${interval ? 'Interv.' : 'Gap'}</span></div>${html}<div class="lb-foot muted"><i class="fl" style="display:inline-block;width:9px;height:9px;background:var(--purple)"></i>Giro veloce: ${fk ? `<b style="color:#fff">${esc(sim.driver(fk).name)}</b> <span class="lap-t">${fmtTime(sim.fastest.time)}</span>` : '—'}</div>`;
+  if (b && !(R.holding && b.matches(":hover"))) b.innerHTML = `<div class="lb-row lb-head"><span>Pos</span><span></span><span>Pilota</span><span>Gomme</span><span>Usura</span><span class="gapmode" data-a="gapmode" data-tip="Clicca per alternare distacco dal leader / intervallo con chi precede">${interval ? 'Interv.' : 'Gap'}</span></div>${html}<div class="lb-foot muted"><i class="fl" style="display:inline-block;width:9px;height:9px;background:var(--purple)"></i>Giro veloce: ${fk ? `<b style="color:#fff">${esc(sim.driver(fk).name)}</b> <span class="lap-t">${fmtTime(sim.fastest.time)}</span>` : '—'}</div>`;
 }
 
 // Gap to the car ahead, sampled once per lap, for the sparkline in the control card
@@ -759,7 +759,8 @@ function updateFeed(force) {
   }
   const tab = R.tab || 'feed';
   const head = document.getElementById('feed-tabs');
-  if (head) head.innerHTML = [['feed', 'Cronaca'], ['tele', 'Telemetria'], ['lap', 'Analisi giro'], ['strat', 'Strategie'], ...(S().quick ? [] : [['champ', 'Mondiale live']])].map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="tele-tab" data-t="${k}">${n}</div>`).join('') + `<div class="grow"></div><button class="btn sm ghost" data-a="lessons" style="padding:3px 10px">${icon('info')} Lezioni</button>`;
+  const headH = [['feed', 'Cronaca'], ['tele', 'Telemetria'], ['lap', 'Analisi giro'], ['strat', 'Strategie'], ...(S().quick ? [] : [['champ', 'Mondiale live']])].map(([k, n]) => `<div class="tab ${tab === k ? 'active' : ''}" data-a="tele-tab" data-t="${k}">${n}</div>`).join('') + `<div class="grow"></div><button class="btn sm ghost" data-a="lessons" style="padding:3px 10px">${icon('info')} Lezioni</button>`;
+  if (head && head._h !== headH) { head._h = headH; head.innerHTML = headH; } // 4 times a second: only when it changes
   const f = document.getElementById('feed');
   if (!f) return;
   if (tab === 'feed') {

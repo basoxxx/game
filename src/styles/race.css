@@ -347,6 +347,20 @@
 }
 @media (prefers-reduced-motion: reduce) { .fin-flag { display: none; } .fin-card, .fin-step, .tvb { animation: none; } }
 
+/* ---- Tablet portrait (e.g. 820x1180): the view across the full width on top,
+   timing tower and pit wall side by side below it ---- */
+@media (min-width: 761px) and (max-width: 1100px) and (orientation: portrait) {
+  .race-screen, .rally-screen { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto minmax(300px, 42vh) minmax(0, 1fr) 210px; }
+  .race-top { grid-column: 1 / -1; grid-row: 1; flex-wrap: wrap; row-gap: 2px; padding: 4px 8px; min-height: 56px; }
+  .race-top > .grow { flex: 1 1 0; }
+  .race-view { grid-column: 1 / -1; grid-row: 2; }
+  .race-board { grid-column: 1; grid-row: 3; }
+  .race-side { grid-column: 2; grid-row: 3 / 5; }
+  .race-feed { grid-column: 1; grid-row: 4; }
+  .race-view.mode3d #race-cv, .race-view.mode3d #rally-cv { width: 180px; height: 130px; }
+  .dec-stack { top: 52px; width: min(320px, 60%); }
+}
+
 /* ---- 3D "loading track" overlay (shown until the shaders are compiled) ---- */
 .r3d-load { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 16px; background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--team) 16%, #0b0d11), #040506 72%); transition: opacity .45s ease; overflow: hidden; }
 .r3d-load::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, rgba(255,255,255,.025) 0 2px, transparent 2px 22px); pointer-events: none; }
