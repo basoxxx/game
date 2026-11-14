@@ -263,8 +263,8 @@ export class RallyRecorder {
     const byStage = {};
     const sorted = this.clips.slice().sort((a, b) => b.score - a.score);
     const out = [];
-    let nStage = 0;
-    for (const c of sorted) { const n = byStage[c.stage.idx] || 0; if (n >= 3 || out.length >= max) continue; if (c.type === 'stage' && ++nStage > 4) continue; byStage[c.stage.idx] = n + 1; out.push(c); }
+    let nStage = 0, nStart = 0;
+    for (const c of sorted) { const n = byStage[c.stage.idx] || 0; if (n >= 3 || out.length >= max) continue; if (c.type === 'stage' && ++nStage > 4) continue; if (c.type === 'start' && ++nStart > 1) continue; byStage[c.stage.idx] = n + 1; out.push(c); }
     out.sort((a, b) => a.stage.idx - b.stage.idx || a.t0 - b.t0);
     const ev = this.ev;
     return { v: 1, kind: 'rally', cat: 'rally', cars: ev.crews.map((c) => { const d = ev.driver(c), L = c.team.car.livery || {}; return { key: c.key, name: d?.name || c.key, team: c.team.short || c.team.name, c1: L.primary, c2: L.secondary, c3: L.accent, num: d?.number || 0, helmet: d?.helmet?.c1, sponsor: c.team.sponsors?.[0]?.name || c.team.short || '', me: c.isPlayer ? 1 : 0 }; }), clips: out, ...meta };
