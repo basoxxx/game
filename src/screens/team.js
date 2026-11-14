@@ -14,7 +14,7 @@ import { negotiate, canPrecontract, nextSeasonRoster, persona } from '../engine/
 import { licencePoints, BAN_POINTS } from '../engine/stewards.js';
 import { compEnabled, compSummaryText } from '../engine/components.js';
 import { ensureDynasty, academyDrivers, academySlots, prospectFee, scoutedPot, signProspect, promoteJunior, releaseJunior, academyUpkeep, traitInfo, teamTrait, facilityCap, STATUS, goalText, INVEST, investState, investCost, stakeCost, investUpkeep, investSpent, startInvestment, sellStake, bonusRates, toggleJuniorRenewal, principal, relColor } from '../engine/dynasty.js';
-import { lineChart } from './career-ui.js';
+import { lineChart, signFx } from './career-ui.js';
 import { ensureDepth, formLabel, formClass, isInjured, injuryText, reserveCandidates, currentReserve, setReserve, fansInfo, fmtFans, ownerInfo, incomingStaff, buyOutLeave, prizeTable, loanTargets, loanJunior, onLoan } from '../engine/depth.js';
 import '../styles/career.css';
 
@@ -87,6 +87,7 @@ registerScreen({
       const st = S(); const r = signProspect(st, el.dataset.id);
       if (!r.ok) { App.toast('Impossibile', r.msg, 'bad'); sfx.bad(); return; }
       sfx.win(); App.toast('Nuovo talento in accademia!', 'Crescerà ogni inverno: promuovilo quando è pronto.', 'good'); App.refresh();
+      const nd = st.drivers[el.dataset.id]; if (nd) signFx('Accademia', nd.name, 'Nuovo talento del vivaio', nd.helmet ? helmetSVG(nd.helmet, 84) : '');
     },
     'acad-release'(el) {
       const st = S(); const d = st.drivers[el.dataset.id];
@@ -147,6 +148,7 @@ export function openContract(driverId, replaceId = null, renew = false) {
       const r = negotiate(st, d.id, { salary, years, no1, replaceId, mode });
       if (!r.ok) { reply = r.msg; counter = r.counter || null; sfx.bad(); rerender(); return; }
       App.closeModal(); App.toast(renew ? 'Contratto rinnovato' : mode === 'pre' ? 'Precontratto firmato!' : 'Firmato!', r.msg || `${d.name} è un nuovo pilota di ${t.name}`, 'good'); sfx.win(); App.refresh();
+      signFx(renew ? 'Rinnovato' : mode === 'pre' ? 'Precontratto' : 'Firmato', d.name, `${years} ${years === 1 ? 'anno' : 'anni'} · ${fmtM(salary)} a stagione`, helmetSVG(d.helmet, 84));
     },
   });
 }
@@ -321,7 +323,7 @@ registerScreen({
     <div class="fin-cols mt16">
       <div class="col gap16">
         <div class="panel"><div class="panel-head"><h3>Sponsor attivi (${t.sponsors.length}/3)</h3></div>
-          ${t.sponsors.length ? `<div class="grid3">${t.sponsors.map((s) => `<div class="card"><div class="tiny upper muted">${s.tier === 3 ? 'Title sponsor' : s.tier === 2 ? 'Partner' : 'Fornitore'}</div><div style="font-family:var(--display);font-weight:800;font-size:18px">${esc(s.name)}</div><div class="small mt8">${fmtM(s.perRace)}/evento</div><div class="tiny muted">Bonus ${objNames[s.objective]}: ${fmtM(s.bonus)}</div><div class="tiny muted">${s.seasonsLeft} ${s.seasonsLeft === 1 ? 'stagione' : 'stagioni'} rimanenti</div>${sponsorExtra(st, s)}<button class="btn sm ghost mt8" data-a="drop-sp" data-id="${s.id}">${icon('x')} Rescindi</button></div>`).join('')}</div>` : `<div class="empty">${icon('money')}<b>Livrea ancora bianca</b><span>Nessuno sponsor attivo: firma una delle offerte qui sotto.</span></div>`}
+          ${t.sponsors.length ? `<div class="grid3">${t.sponsors.map((s) => `<div class="card"><div class="tiny upper muted">${s.tier === 3 ? 'Title sponsor' : s.tier === 2 ? 'Partner' : 'Fornitore'}</div><div style="font-family:var(--display);font-weight:800;font-size:18px">${esc(s.name)}</div><div class="small mt8">${fmtM(s.perRace)}/evento</div><div class="tiny muted">Bonus ${objNames[s.objective]}: ${fmtM(s.bonus)}</div><div class="tiny muted">${s.seasonsLeft} ${s.seasonsLeft === 1 ? 'stagione' : 'stagioni'} rimanenti</div>${sponsorExtra(st, s)}<button class="btn sm ghost mt8" data-a="drop-sp" data-id="${s.id}">${icon('x')} Rescindi</button></div>`).join('')}${Array.from({ length: Math.max(0, 3 - t.sponsors.length) }, () => `<div class="sp-slot">${icon('plus')}<b>Spazio libero</b><span>${st.sponsorOffers.length ? 'Firma un’offerta qui sotto: bonus subito e incassi a ogni evento' : 'Nuove offerte arrivano dopo i risultati'}</span></div>`).join('')}</div>` : `<div class="empty">${icon('money')}<b>Livrea ancora bianca</b><span>Nessuno sponsor attivo: firma una delle offerte qui sotto.</span></div>`}
         </div>
         <div class="panel"><div class="panel-head"><h3>Offerte di sponsorizzazione</h3></div>
           ${st.sponsorOffers.length ? `<div class="col gap6">${st.sponsorOffers.map((o) => `<div class="card row" style="gap:14px"><div class="grow"><div class="row"><b style="font-family:var(--display);font-size:17px">${esc(o.name)}</b><span class="stars small">${'★'.repeat(o.tier)}</span></div><div class="small muted">${o.objText}: +${fmtM(o.bonus)} · ${o.seasons} ${o.seasons === 1 ? 'stagione' : 'stagioni'}</div></div><div class="right"><div><b>${fmtM(o.perRace)}</b><span class="tiny muted">/evento</span></div><div class="tiny good">Firma: +${fmtM(o.signing)}</div></div><button class="btn sm primary" data-a="sign" data-id="${o.id}" ${t.sponsors.length >= 3 ? 'disabled' : ''}>Firma</button></div>`).join('')}</div>` : `<div class="empty">${icon('mail')}<b>Telefono muto</b><span>Nessuna offerta al momento: arriveranno con i risultati o con una campagna marketing.</span></div>`}
@@ -372,6 +374,7 @@ registerScreen({
       st.sponsorOffers = st.sponsorOffers.filter((x) => x.id !== o.id);
       addFinance(st, `Bonus firma ${o.name}`, o.signing);
       sfx.win(); App.toast('Sponsor firmato!', `${o.name} appare ora sulla livrea`, 'good'); App.refresh();
+      signFx('Firmato', o.name, `Bonus firma +${fmtM(o.signing)} · ${fmtM(o.perRace)} a evento`);
     },
   },
 });

@@ -160,3 +160,15 @@ export function ring(v, { size = 76, stroke = 7, color = 'var(--team)', label = 
   const r = (size - stroke) / 2, c = 2 * Math.PI * r, f = Math.max(0, Math.min(1, v)), m = size / 2;
   return `<div class="ring" style="width:${size}px;height:${size}px"><svg viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle cx="${m}" cy="${m}" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="${stroke}"/><circle class="ring-v" cx="${m}" cy="${m}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="butt" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - f)).toFixed(1)}" style="--c:${c.toFixed(1)}" transform="rotate(-90 ${m} ${m})"/></svg><div class="ring-l"><b>${label}</b>${sub ? `<span>${sub}</span>` : ''}</div></div>`;
 }
+
+// ---------- signing moment: a short "stamp" over the screen (contracts, sponsors, academy) ----------
+// Non-blocking (pointer-events: none), removes itself; respects reduced motion via CSS.
+export function signFx(stamp, title, sub = '', art = '', tone = '') {
+  document.querySelector('.sign-fx')?.remove();
+  const el = document.createElement('div');
+  el.className = `sign-fx ${tone}`; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+  el.innerHTML = `<div class="sf-card">${art ? `<div class="sf-art">${art}</div>` : ''}<div class="sf-stamp">${esc(stamp)}</div><div class="sf-t">${esc(title)}</div>${sub ? `<div class="sf-s">${esc(sub)}</div>` : ''}</div>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.classList.add('out'), 1900);
+  setTimeout(() => el.remove(), 2400);
+}

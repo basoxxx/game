@@ -12,7 +12,7 @@ import { recordChallenge, CHALLENGES } from './challenges.js';
 import { sfx } from '../ui/audio.js';
 import { fmtM } from '../engine/season.js';
 import { principal, TP_PERSONAS } from '../engine/dynasty.js';
-import { portraitSVG, teamCol, objectiveProgress } from './career-ui.js';
+import { portraitSVG, teamCol, objectiveProgress, signFx } from './career-ui.js';
 import { seasonStats, xpForLevel } from '../engine/progress.js';
 import { countUp } from '../ui/dom.js';
 import { hasReel } from '../engine/highlights.js';
@@ -89,6 +89,8 @@ registerScreen({
     if (mine.some((r) => r.pos === 1 && r.status !== 'dnf')) celebrate(220);
     else if (mine.some((r) => r.pos <= 3 && r.status !== 'dnf')) celebrate(70);
     countUp(document.querySelectorAll('.mw-tile .mw-n'), 'res', 900);
+    // manager level-up: a short golden stamp once the summary has counted up (the shell still shows its toast)
+    if (st._levelUp && !st.quick) { const lv = st._levelUp; setTimeout(() => { if (App.cur === 'results') signFx(`Livello ${lv}`, 'Nuovo livello manager', '+1 punto abilità da spendere in Carriera', '', 'gold'); }, 1000); }
     if (st.challenge && ev?.results && !st._chDone) {
       st._chDone = true;
       const r = recordChallenge(st, ev.results); const ch = CHALLENGES.find((c) => c.id === st.challenge);
