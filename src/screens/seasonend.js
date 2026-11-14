@@ -13,7 +13,8 @@ import { celebrate } from './results.js';
 import { sfx } from '../ui/audio.js';
 import { getTrack } from '../engine/world.js';
 import { STATUS, MANDATES, principal, TP_PERSONAS } from '../engine/dynasty.js';
-import { lineChart, chartLegend, statusEmblem, teamCol, portraitSVG } from './career-ui.js';
+import { lineChart, chartLegend, statusEmblem, teamCol, portraitSVG, objectiveRow } from './career-ui.js';
+import { seasonStats } from '../engine/progress.js';
 
 let summary = null, offers = null;
 
@@ -33,8 +34,9 @@ registerScreen({
     const champMine = sm.champ.teamId === pt.id;
     const consMine = sm.st.teams[0].id === pt.id;
     return `<div class="full-screen" style="--pc:${ok ? 'var(--gold)' : 'var(--accent)'}">
-      ${pageHead({ back: null, eyebrow: esc(cat(st).full), title: `Fine stagione ${sm.season}`, right: `<div class="kpi" style="text-align:right"><b class="${ok ? 'good' : 'bad'}" style="font-size:48px;font-style:italic">${sm.teamPos}°</b><span>Costruttori · obiettivo ${sm.target}°</span></div>` })}
-      <div class="grid3 anim-in">
+      ${pageHead({ back: null, eyebrow: esc(cat(st).full), title: `Fine stagione ${sm.season}`, right: sm.fired ? '' : `<button class="btn primary lg" data-a="stay">Resta con ${esc(pt.name)} ${icon('right')}</button>` })}
+      ${seasonHero(st, sm, pt, ok, champMine, consMine)}
+      <div class="grid3 anim-in mt16">
         <div class="panel ${champMine ? 'glow' : ''}"><div class="tiny upper muted">Campione Piloti</div><div class="row mt8" style="gap:14px">${helmet3D(sm.champ.helmet, 64)}<div><div style="font-family:var(--display);font-weight:900;font-size:22px">${esc(sm.champ.name)}</div><div class="muted">${esc(sm.champTeam.name)} · ${sm.st.drivers[0].pts} punti</div></div></div></div>
         <div class="panel ${consMine ? 'glow' : ''}"><div class="tiny upper muted">Campione Costruttori</div><div class="row mt8" style="gap:14px">${teamBadge(sm.constructors, 60)}<div><div style="font-family:var(--display);font-weight:900;font-size:22px">${esc(sm.constructors.name)}</div><div class="muted">${sm.st.teams[0].pts} punti</div></div></div></div>
         <div class="panel"><div class="tiny upper muted">La tua stagione</div><div style="font-family:var(--display);font-weight:900;font-size:44px;font-style:italic" class="${ok ? 'good' : 'bad'}">${sm.teamPos}°</div><div class="muted">Obiettivo: ${sm.target}° · Premio: <b>${fmtM(sm.prize)}</b></div>${sm.legacy ? `<div class="small mt8">Eredità: <b>${sm.legacy.score}</b>${sm.legacy.gained > 0 ? ` <span class="good">(+${sm.legacy.gained})</span>` : ''} · ${esc(sm.legacy.tier)}</div>` : ''}</div>
@@ -54,7 +56,11 @@ registerScreen({
       </div>
     </div>`;
   },
-  mount() { const st = S(); if (summary && (summary.champ.teamId === st.playerTeam || summary.st.teams[0].id === st.playerTeam)) { celebrate(300); sfx.win(); } },
+  mount() {
+    const st = S(); if (!summary) return;
+    if (summary.champ.teamId === st.playerTeam || summary.st.teams[0].id === st.playerTeam) { celebrate(300); sfx.win(); }
+    else if (summary.teamPos <= summary.target && !summary.fired) celebrate(90);
+  },
   actions: {
     stay() { const st = S(); newSeason(st); summary = null; saveGame(); sfx.ok(); App.go('hub'); },
     take(el) {
@@ -80,6 +86,35 @@ registerScreen({
     },
   },
 });
+
+// ---------- the verdict up top: title / target, the season in numbers, the season objectives ----------
+export function trophySVG(col = 'var(--gold)', size = 150) {
+  return `<svg class="se-cup" width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="cupg" x1="0" x2="1"><stop offset="0" stop-color="#fff6c8"/><stop offset=".45" stop-color="${col}"/><stop offset="1" stop-color="#8a6400"/></linearGradient></defs>
+    <path d="M34 14h52v18c0 22-11 38-26 40C45 70 34 54 34 32z" fill="url(#cupg)"/><path d="M34 22H18c0 16 8 26 20 28M86 22h16c0 16-8 26-20 28" fill="none" stroke="${col}" stroke-width="6"/>
+    <rect x="54" y="70" width="12" height="16" fill="url(#cupg)"/><path d="M38 86h44l6 16H32z" fill="url(#cupg)"/><rect x="28" y="102" width="64" height="8" fill="#3a2a00"/>
+    <path d="M60 26l4 8.5 9.3 1-7 6.3 2 9.2L60 46.3 51.7 51l2-9.2-7-6.3 9.3-1z" fill="rgba(0,0,0,.25)"/><rect class="se-shine" x="20" y="-20" width="14" height="160" fill="rgba(255,255,255,.45)" transform="rotate(25 60 60)"/></svg>`;
+}
+function seasonHero(st, sm, pt, ok, champMine, consMine) {
+  const ss = seasonStats(st);
+  const title = consMine && champMine ? 'Doppietta iridata' : consMine ? 'Campioni costruttori' : champMine ? 'Campione del mondo' : sm.fired ? 'Fine del ciclo' : ok ? 'Obiettivo centrato' : 'Obiettivo mancato';
+  const sub = consMine && champMine ? `${esc(pt.name)} e ${esc(sm.champ.name)} sul tetto del mondo` : consMine ? `${esc(pt.name)} è la squadra campione ${sm.season}` : champMine ? `${esc(sm.champ.name)} porta il titolo piloti a ${esc(pt.name)}` : sm.fired ? 'Il consiglio ha deciso di cambiare guida tecnica' : ok ? `${sm.teamPos}° tra i costruttori: richiesto ${sm.target}°` : `${sm.teamPos}° tra i costruttori: ne servivano almeno ${sm.target}°`;
+  const tier = consMine || champMine ? 'title' : sm.fired ? 'fired' : ok ? 'ok' : 'ko';
+  const diff = sm.target - sm.teamPos;
+  const xp = 200 + Math.max(0, diff) * 120 + (consMine ? 900 : 0) + (champMine ? 700 : 0);
+  const num = (v, l, cls = '') => `<div class="se-num ${cls}"><b>${v}</b><span>${l}</span></div>`;
+  const objs = st.objectives || [];
+  const art = tier === 'title' ? trophySVG() : tier === 'ok' ? `<div class="se-medal">${icon('target')}</div>` : `<div class="se-medal muted">${icon(sm.fired ? 'logout' : 'flag')}</div>`;
+  return `<section class="se-hero t-${tier}">
+    <div class="se-art">${art}</div>
+    <div class="se-main">
+      <div class="se-k">Stagione ${sm.season} · ${esc(cat(st).name)}</div>
+      <h2 class="se-title">${title}</h2>
+      <div class="se-sub">${sub}</div>
+      <div class="se-nums">${num(`${sm.teamPos}°`, `Costruttori · obiettivo ${sm.target}°`, ok ? 'good' : 'bad')}${num(ss.wins, ss.wins === 1 ? 'Vittoria' : 'Vittorie')}${num(ss.podiums, 'Podi')}${num(ss.poles, 'Pole')}${num(fmtM(sm.prize), 'Premio')}${num(`+${xp}`, 'XP manager', 'xp')}</div>
+    </div>
+    ${objs.length ? `<div class="se-objs"><div class="se-k">Obiettivi stagionali · ${objs.filter((o) => o.done).length}/${objs.length}</div>${objs.map((o) => objectiveRow(o, ss)).join('')}</div>` : ''}
+  </section>`;
+}
 
 // ---------- season review: charts, status and plan ----------
 function reviewPanel(st, sm) {
