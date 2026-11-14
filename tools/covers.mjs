@@ -74,7 +74,7 @@ if (!ONLY || ONLY === 'apex') {
   await page.waitForFunction(() => window.__apex.App.cur === 'hub' && window.__apex.ready, null, { timeout: 60000 });
   await page.evaluate(() => { document.querySelector('.tour-mask')?.remove(); window.__apex.simRound(); });
   await page.evaluate(() => window.__apex.highlights(0, {}));
-  await page.waitForSelector('.hl-wrap', { timeout: 60000 });
+  await page.waitForSelector('.hl-wrap', { timeout: 400000 });
   // let the reel reach a racing moment, then hide the TV furniture
   await page.waitForTimeout(Number(process.env.COVER_WAIT || 70000));
   await page.evaluate(() => { for (const s of ['.hl-bug', '.hl-top-r', '.hl-tower', '.hl-replay', '.hl-lower', '.hl-letter', '.hl-ctrl', '.hl-bar', '.hl-chapters', '.hl-end', '.tip']) document.querySelectorAll(s).forEach((e) => (e.style.display = 'none')); });
