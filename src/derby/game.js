@@ -634,7 +634,7 @@ export class DerbyGame {
         // reverse gear
         car.gearLabel = 'R'; force = -inp.brk * 4200 * s.power * Math.max(0, 1 - Math.max(0, -vF) / 14); rpmT = 0.25 + inp.brk * 0.5 * Math.min(1, aF / 14);
       } else {
-        while (car.gear < G && aF > gTop(car.gear) * 0.97) { car.gear++; car.shiftT = 0.18; }
+        while (car.gear < G && aF > gTop(car.gear) * 0.97) { car.gear++; car.shiftT = 0.18; if (inp.thr > 0.8 && car.gear >= 3 && Math.random() < 0.7) car.backfire = 1; }
         while (car.gear > 1 && aF < gTop(car.gear - 1) * 0.7) car.gear--;
         const lo = car.gear > 1 ? gTop(car.gear - 1) * 0.55 : 0;
         const frac = Math.max(0, Math.min(1, (aF - lo) / (gTop(car.gear) - lo)));
@@ -658,6 +658,9 @@ export class DerbyGame {
       if (car.boostKick > 0) { car.boostKick -= dt; if (grounded >= 2) force += PACE.kick * s.power * (car.boostKick / 0.35); }
       if (grounded < 2 && inp.thr > 0) rpmT = 0.95; // free revving in the air
     } else { brake = 8; rpmT = 0.05; }
+    // lifting off at high revs pops the exhaust (the shift pops are set in the gearbox above)
+    if ((car.lastThr || 0) > 0.8 && (inp.thr || 0) < 0.1 && car.rpm > 0.72 && !dead && Math.random() < 0.8) car.backfire = 2;
+    car.lastThr = inp.thr || 0;
     car.rpm += (rpmT - car.rpm) * Math.min(1, dt * (car.shiftT > 0 ? 18 : 7));
     // weight-transfer grip: braking loads the front, throttle unloads it (and can break the rear loose)
     const brakingLoad = Math.max(0, Math.min(1, -car.accF / 9)), accLoad = Math.max(0, Math.min(1, car.accF / 6));
@@ -1155,7 +1158,8 @@ export class DerbyGame {
       this.laps = this.o.laps || 2;
       // reference lap from the racing-line speed profile at a strong AI pace, scaled by the player's car
       let ref = 0; for (let i = 0; i < this.track.N; i++) ref += this.track.ds / Math.max(4, this.line.spd[i] * 0.958 * this.player.spec.top ** 0.5);
-      const total = ref * this.laps + 2.5; // standing start
+      // narrow wooded tracks (fords, blind crests) cannot be driven on the ideal profile: a little slack there
+      const total = ref * this.laps * (this.track.width < 14 ? 1.06 : 1) + 2.5; // standing start
       this.targets = (this.mode === 'distruzione' ? [total * 1.22, total * 1.1, total * 1.02] : [total * 1.16, total * 1.06, total * 1.0]).map((t) => Math.round(t * 10) / 10);
     }
     MODES5.setup(this);
@@ -1504,6 +1508,14 @@ export class DerbyGame {
       if (burning) for (let n = 0; n < 2; n++) this.fire.emit(ep.x + (Math.random() - 0.5) * 0.7, ep.y, ep.z + (Math.random() - 0.5) * 0.7, (Math.random() - 0.5) - lv.x * 0.1, 1.6 + Math.random() * 2.2, (Math.random() - 0.5) - lv.z * 0.1, 0.35 + Math.random() * 0.35, car.burnT > 0 ? 0.8 : 0.55, 1, 0.3 + Math.random() * 0.25, 0.04, 0.75);
     }
     if (car.hotT > 0 && near && Math.random() < 0.6) { const ep = new THREE.Vector3(ud.dims.L - 0.5, 0.9, 0).applyQuaternion(q).add(car.mesh.position); this.smoke.emit(ep.x, ep.y, ep.z, (Math.random() - 0.5) * 2 - lv.x * 0.15, 2.5 + Math.random() * 2, (Math.random() - 0.5) * 2 - lv.z * 0.15, 1.6, 0.9, 0.95, 0.95, 0.97, 0.5); }
+    // backfire: a fireball and a pop from the exhaust on fast upshifts and on lifting off at high revs
+    if (car.backfire) {
+      const n = car.backfire; car.backfire = 0;
+      if (near) { const ey = ud.shape.y0 - 0.1, ep = new THREE.Vector3(-ud.dims.L - 0.2, ey, -0.5).applyQuaternion(q).add(car.mesh.position);
+        for (let k = 0; k < (this.low ? 4 : 9) * n; k++) { const u = Math.random(); this.fire.emit(ep.x - fwd.x * u * 0.4, ep.y + (Math.random() - 0.5) * 0.1, ep.z - fwd.z * u * 0.4, -fwd.x * (3 + u * 5) + lv.x * 0.9 + (Math.random() - 0.5), 0.3 + Math.random() * 0.6, -fwd.z * (3 + u * 5) + lv.z * 0.9 + (Math.random() - 0.5), 0.1 + u * 0.14, 0.22 + u * 0.12, 1, 0.45 + Math.random() * 0.3, 0.1, 0.95); }
+        if (n > 1) for (let k = 0; k < 3; k++) this.smoke.emit(ep.x, ep.y, ep.z, -fwd.x * 2 + lv.x * 0.7, 0.6, -fwd.z * 2 + lv.z * 0.7, 0.7, 0.5, 0.25, 0.24, 0.23, 0.35);
+        this.snd?.backfire?.(car, ep, n); }
+    }
     if (car.boost && near) { const ey = ud.shape.y0 - 0.1; for (const ez of (ud.shape.scoop || ud.shape.hotrod ? [-0.5, 0.5] : [-0.5])) { const ep = new THREE.Vector3(-ud.dims.L - 0.25, ey, ez).applyQuaternion(q).add(car.mesh.position); for (let k = 0; k < 3; k++) { const u = Math.random(); this.fire.emit(ep.x - fwd.x * u * 0.5, ep.y, ep.z - fwd.z * u * 0.5, -fwd.x * (6 + u * 8) + lv.x, 0.2 + Math.random() * 0.5, -fwd.z * (6 + u * 8) + lv.z, 0.07 + u * 0.1, 0.42 - u * 0.15, k ? 0.3 + Math.random() * 0.3 : 1, k ? 0.5 : 0.55, k ? 1 : 0.2, 0.9); } if (Math.random() < 0.3) this.sparks.emit(ep.x, ep.y, ep.z, -fwd.x * 8 + lv.x + (Math.random() - 0.5) * 3, Math.random() * 2, -fwd.z * 8 + lv.z + (Math.random() - 0.5) * 3, 0.3, 0.3, 0.5, 0.7, 1); } }
   }
 
