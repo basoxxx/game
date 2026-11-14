@@ -75,10 +75,15 @@ if (!ONLY || ONLY === 'apex') {
   await page.evaluate(() => { document.querySelector('.tour-mask')?.remove(); window.__apex.simRound(); });
   await page.evaluate(() => window.__apex.highlights(0, {}));
   await page.waitForSelector('.hl-wrap', { timeout: 400000 });
-  // let the reel reach a racing moment, then hide the TV furniture
-  await page.waitForTimeout(Number(process.env.COVER_WAIT || 70000));
-  await page.evaluate(() => { for (const s of ['.hl-bug', '.hl-top-r', '.hl-tower', '.hl-replay', '.hl-lower', '.hl-letter', '.hl-ctrl', '.hl-bar', '.hl-chapters', '.hl-end', '.tip']) document.querySelectorAll(s).forEach((e) => (e.style.display = 'none')); });
-  await page.waitForTimeout(3000);
+  // first clip is the start: the whole grid bunched up. Take over the camera: low chase behind the pack
+  await page.waitForFunction(() => window.__hl?.cur?.r3d?._ready, null, { timeout: 600000 });
+  await page.evaluate(() => {
+    const hv = window.__hl.cur, r = hv.r3d;
+    hv._coverCam = setInterval(() => { r.director = false; r.camMode = process?.env?.x || 'chase'; r.replay = true; }, 200);
+  }).catch(() => page.evaluate(() => { const hv = window.__hl.cur, r = hv.r3d; hv._coverCam = setInterval(() => { r.director = false; r.camMode = 'chase'; r.replay = true; }, 200); }));
+  await page.waitForTimeout(Number(process.env.COVER_WAIT || 25000));
+  await page.evaluate(() => { window.__hl.cur.paused = true; for (const s of ['.hl-bug', '.hl-top-r', '.hl-tower', '.hl-replay', '.hl-lower', '.hl-letter', '.hl-ctrl', '.hl-bar', '.hl-chapters', '.hl-end', '.hl-seg', '.tip']) document.querySelectorAll(s).forEach((e) => (e.style.display = 'none')); document.querySelectorAll('.hl-wrap > *:not(.hl-stage)').forEach((e) => (e.style.display = 'none')); });
+  await page.waitForTimeout(4000);
   await shot(page, 'apex');
   await page.close();
 }
