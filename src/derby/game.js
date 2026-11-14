@@ -147,7 +147,7 @@ export class DerbyGame {
 
   destroy() {
     this.dead = true; cancelAnimationFrame(this.raf); try { engineStop(); } catch {} try { this.snd?.stop(); } catch {}
-    window.removeEventListener('keydown', this._kd); window.removeEventListener('keyup', this._ku); window.removeEventListener('resize', this._rs);
+    window.removeEventListener('keydown', this._kd); window.removeEventListener('keyup', this._ku); window.removeEventListener('resize', this._rs); if (this._podKey) window.removeEventListener('keydown', this._podKey);
     releaseGL(this.renderer, this.composer); this.world?.free?.();
     this.c.innerHTML = '';
   }
