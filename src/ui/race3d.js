@@ -256,6 +256,8 @@ export class Race3D {
       if (ok && this.tod) { this.scene.backgroundIntensity = this.tod.bg; if (this._lit) this._lit.bg = this.tod.bg; }
       if (sd) { const el = Math.min(0.95, Math.max(this.tod?.el ?? 0.45, Math.asin(sd.y))); const az = Math.atan2(sd.z, sd.x); this.sunDir.set(Math.cos(az) * Math.cos(el), Math.sin(el), Math.sin(az) * Math.cos(el)); }
       if (sd) this.buildSunDisc(sd);
+      // nightfall already applied before the sky finished loading: apply it again on top of it
+      if ((this._night || 0) > 0.01) { const n = this._night; this._night = -1; this._nightSkyOn = false; this._daySky = null; this._skyNight = false; this.setNight(n); }
     });
     this.composer = makeComposer(this.renderer, this.scene, this.camera, { bloom: night ? 0.45 : 0.18, low: this.low, ao: true, flare: !night, rays: !night, dof: true });
     // AgX tone mapping (soft highlight roll-off, no hue skews on the liveries) with a broadcast
