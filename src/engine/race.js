@@ -514,7 +514,7 @@ export class CircuitSim {
     if (need > boostMax * 1.15 && !(z.dv > 38 && gap < MIN_GAP * 1.05)) return;
     let pA = (0.03 + clamp(q - 0.04, -0.3, 1.2) * 1.6 + (drs ? 0.22 : 0) + (b.ersMode === 'deploy' ? 0.1 : 0) + (b.mode === 'push' ? 0.08 : 0) + (b.attackUntil > this.time ? 0.3 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.15 : 0) + (db.attrs.race - 75) / 250 + (b.conf || 0) * 0.04 + duel.heat / 400) * z.w * (0.05 + 1.2 * this.track.ovt ** 1.3);
     if (!chance(clamp(pA, 0, 0.9))) return;
-    const pOk = clamp(duel.pBonus + 0.1 + this.track.ovt * 0.3 + q * 0.8 + (db.attrs.race - da.attrs.race) / 110 + (drs ? 0.1 : 0) + (b.mode === 'push' ? 0.05 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.08 : 0) - (a.ersMode === 'deploy' ? 0.06 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.1 : 0) + (b.attackUntil > this.time ? 0.1 : 0) - (a.defendUntil > this.time ? 0.18 : 0) + (b.conf || 0) * 0.04 - (a.conf || 0) * 0.03 - (z.w < 0.15 ? 0.15 : 0), 0.04, 0.92);
+    const pOk = clamp(duel.pBonus + 0.1 + this.track.ovt * 0.3 + q * 0.8 + (db.attrs.race - da.attrs.race) / 110 + (drs ? 0.1 : 0) + (b.mode === 'push' ? 0.05 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.08 : 0) - (a.ersMode === 'deploy' ? 0.06 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.1 : 0) + (b.attackUntil > this.time ? 0.1 : 0) - (a.defendUntil > this.time ? 0.18 : 0) + (b.conf || 0) * 0.04 - (a.conf || 0) * 0.03 - (z.w < 0.15 ? 0.15 : 0), 0.04, 0.92) * (0.3 + 0.7 * Math.min(1, this.track.ovt / 0.55)); // tight tracks: even a much quicker car rarely makes it stick
     b.att = { def: a.key, ph: 'close', z, t0: this.time, gap0: Math.max(gap, OVL), boostMax, pOk, pos: i, drs, blow: drs && q > 0.3 && chance(0.4), cover: chance(0.5 + (a.defendUntil > this.time ? 0.4 : 0)) };
     a._defBy = b.key;
     // covering the inside costs the defender a little on the straight
@@ -536,6 +536,8 @@ export class CircuitSim {
       const tgt = P.blow ? OVL * 1.4 : -OVL * 0.35;
       const need = (tgt - rel) * b.lapTarget / Math.max(0.6, left * b.lapTarget) - (a.lapTarget / b.lapTarget - 1);
       b.boost = clamp(need, -0.03, P.boostMax);
+      // without the tow to blow past, the attacker sits alongside until the braking point
+      if (!P.blow) b.dist = Math.min(b.dist, a.dist + (b.dist - b._p0 > 0 ? -OVL * 0.15 : 0));
       // out of the slipstream towards the inside of the corner; the defender (maybe) covers it
       const k = clamp(1 - (-rel) / P.gap0, 0, 1);
       b.ovS = side * (0.2 + 0.6 * k); if (P.cover) a.ovS = side * 0.45 * k;
@@ -544,6 +546,8 @@ export class CircuitSim {
     // alongside through the braking zone: the attacker on the inside, the defender squeezed to the outside
     b.boost = P.ok ? 0.01 : 0;
     b.ovS = side * 0.85; a.ovS = -side * 0.5;
+    // the door is shut: the attacker cannot get his nose ahead, he has to back out
+    if (!P.ok) b.dist = Math.min(b.dist, a.dist - OVL * 0.25);
     if (rel > OVL * 1.05) this.endPass(b, true);
     else if (-rel > OVL * 2 || this.time - P.tSide > 6) this.endPass(b, false);
   }
@@ -600,7 +604,7 @@ export class CircuitSim {
   // a mistake under pressure at a braking point: lock-up / runs wide, the car behind goes through
   pressureError(a, b, i, k) {
     const da = this.driver(a), db = this.driver(b);
-    const errP = 0.0055 * (1.35 - da.attrs.cons / 100) * (a.wear > 0.75 ? 2 : 1) * (this.rain > 0.3 ? 1.6 : 1) * (a.defendUntil > this.time ? 1.4 : 1) * (a.mode === 'push' ? 1.3 : 1) * this.nerves(a) * Math.min(1.6, k.w / 1.1);
+    const errP = 0.0045 * 14 / Math.max(10, this._corners.length) * (1.35 - da.attrs.cons / 100) * (a.wear > 0.75 ? 2 : 1) * (this.rain > 0.3 ? 1.6 : 1) * (a.defendUntil > this.time ? 1.4 : 1) * (a.mode === 'push' ? 1.3 : 1) * this.nerves(a) * Math.min(1.6, k.w / 1.1);
     if (!chance(errP)) return false;
     const loss = rand(0.6, 2.2);
     const how = pick(['bloccaggio in staccata', 'va lungo in curva', 'sbaglia la cambiata in uscita', 'finisce sul cordolo e perde trazione']);
