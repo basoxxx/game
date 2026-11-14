@@ -776,13 +776,13 @@ function startReplay(focusKey) {
   const r = R.r3d; if (!r || !R.rbuf || R.rbuf.length < 3) { App.toast('Replay non disponibile', 'Attiva la vista 3D e lascia scorrere la gara qualche secondo.', ''); return; }
   const t1 = R.rbuf[R.rbuf.length - 1].t, t0 = Math.max(R.rbuf[0].t, t1 - 10);
   R.replay = { t0, t1, t: t0, focus: focusKey || R.focus, prevCam: r.camMode, prevDir: r.director, wasPaused: R.paused };
-  r.director = false; r.camMode = 'chase'; r._cut = true; r.focusKey = R.replay.focus;
+  r.director = false; r.camMode = 'chase'; r._cut = true; r.focusKey = R.replay.focus; r.replay = true;
   const ov = document.getElementById('finish-overlay');
   if (ov) ov.insertAdjacentHTML('beforeend', `<div id="replay-badge" class="replay-badge"><span class="tag red">${icon('replay')} Replay · <span id="rp-cam">camera car</span></span></div>`);
 }
 function stopReplay() {
   const r = R.r3d, rp = R.replay; if (!rp) return;
-  if (r) { r.camMode = rp.prevCam; r.director = rp.prevDir; r._cut = true; r.focusKey = R.focus; }
+  if (r) { r.camMode = rp.prevCam; r.director = rp.prevDir; r._cut = true; r.focusKey = R.focus; r.replay = false; }
   R.replay = null; document.getElementById('replay-badge')?.remove();
   R.last = performance.now();
 }

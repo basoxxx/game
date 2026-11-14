@@ -5,9 +5,10 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { trackGeometry, speedProfile, sampleAtTimeFrac } from '../engine/trackphys.js';
 import { genStage, STAGE_STYLE } from './trackview.js';
 import { getSettings } from '../engine/state.js';
+import { gfxTier } from './quality.js';
 import { passBy } from './audio.js';
 import { buildCar, setTyreColor, setCarLOD, MAT } from './cars3d.js';
-import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, RAIN, FXT, updateSunFlare, updateGodRays, HeightFog, stabilizeShadow, triMat, loadTex, addLensRain } from './gfx.js';
+import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, RAIN, FXT, updateSunFlare, updateGodRays, HeightFog, stabilizeShadow, triMat, loadTex, addLensRain, addXFade } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { biomeOf, RALLY_LOOK } from './env/biomes.js';
 import { buildCoast, buildMidTerrain, buildDecals, buildLife, buildRallyExtras, buildGridSlots } from './env/scenery.js';
@@ -265,7 +266,7 @@ export class Race3D {
     this.renderer.toneMappingExposure *= this._expK;
     if (this.composer?.grade) { const gu = this.composer.grade.uniforms; gu.uCon.value = this._gCon; gu.uSat.value = (this.tod?.sat ?? 1.08) * this._gSat; if (this.tod) gu.uWarm.value = this.tod.warm; }
     if (this.composer?.rays && this.tod) this.composer.rays.uniforms.uTint.value.setHex(this.tod.disc);
-    if (this.composer && !this.open) addLensRain(this.composer);
+    if (this.composer && !this.open) { addLensRain(this.composer); addXFade(this.composer); }
     this.cars = new Map();
     for (const c of cars) this.addCar(c);
     this.camPos = new THREE.Vector3(0, 50, 0);
@@ -440,7 +441,7 @@ export class Race3D {
     const D = (m, o) => (this.low ? m : detailPatch(m, o));
     this.desert = ['bhr', 'qat', 'abu', 'ksa'].includes(this.geo.cid);
     this.computeLine();
-    this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x3b3e44, roughness: 0.85 }) : D(pbr('asphalt_02', { color: 0x75757a, roughness: 1, normalScale: 0.8 }), { macro: 0.1, macroScale: 0.06, wet: true, rough: [0.62, 1.0], key: 'asph', track: { halfW: W / 2, uScale: 6 } });
+    this.asphaltMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x3b3e44, roughness: 0.85 }) : D(pbr('asphalt_track', { color: new THREE.Color().setRGB(1.12, 1.12, 1.16, THREE.LinearSRGBColorSpace), roughness: 1, normalScale: 0.9, repeat: [1.5, 1.5], res: gfxTier() === 'high' ? '2k' : '1k' }), { macro: 0.1, macroScale: 0.06, wet: true, rough: [0.62, 1.0], key: 'asph', track: { halfW: W / 2, uScale: 6 } });
     const runoffMat = this.low ? new THREE.MeshStandardMaterial({ color: 0x777b82, roughness: 0.9 }) : D(pbr('concrete_floor_worn_001', { color: street > 0.7 ? 0x8a8a8a : 0xb8b8b8 }), { macro: 0.12, macroScale: 0.05, wet: true });
     const grassCol = this.biome.grass;
     const groundMat = this.low ? new THREE.MeshStandardMaterial({ color: street > 0.7 ? 0x84817b : 0x3f7a34, roughness: 1 }) : D(pbr(street > 0.7 ? 'concrete_floor_worn_001' : 'aerial_grass_rock', { repeat: [1400, 1400], color: street > 0.7 ? 0xb9b4aa : grassCol }), { macro: street > 0.7 ? 0.34 : 0.22, macroScale: street > 0.7 ? 0.03 : 0.012, tint: street > 0.7 ? 0x9a8f80 : this.biome.dry, tintAmt: street > 0.7 ? 0.5 : this.biome.dryAmt });
@@ -2798,8 +2799,16 @@ export class Race3D {
       this._blobMat ||= new THREE.MeshBasicMaterial({ map: canvasTex(128, 64, (c, w, h) => { c.clearRect(0, 0, w, h); c.filter = 'blur(9px)'; c.fillStyle = 'rgba(0,0,0,0.85)'; c.beginPath(); c.roundRect ? c.roundRect(18, 14, w - 36, h - 28, 12) : c.rect(18, 14, w - 36, h - 28); c.fill(); }), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, toneMapped: false });
       this._blobGeo ||= new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
       const blob = new THREE.Mesh(this._blobGeo, this._blobMat);
-      blob.scale.set(sz.x * 1.25 / m.scale.x, 1, sz.z * 1.3 / m.scale.z); blob.position.set(ctr.x / m.scale.x, 0.03, 0); blob.renderOrder = 2;
+      blob.scale.set(sz.x * 1.25 / m.scale.x, 1, sz.z * 1.3 / m.scale.z); blob.position.set(ctr.x / m.scale.x, 0.03, 0); blob.renderOrder = 2; blob.userData.blob = true;
       m.add(blob);
+    }
+    // circuit cars: the sprung body goes into its own group so roll / pitch / heave move it on
+    // its suspension while the wheels (and the contact shadow) stay on the road
+    if (this.category !== 'rally' && !this.open) {
+      const body = new THREE.Group(); body.name = 'body';
+      const keep = new Set([...(m.userData.wheels || [])]);
+      for (const c of [...m.children]) if (!keep.has(c) && !c.userData.blob) body.add(c);
+      m.add(body); m.userData.body = body;
     }
     this.scene.add(m);
     const label = document.createElement('div');
@@ -3182,7 +3191,24 @@ export class Race3D {
     // per-frame draw statistics (renderer.info resets per pass inside the composer)
     const info = this.renderer.info; info.autoReset = false; info.reset();
     this.renderWetReflect();
+    // soft dissolve when the shot type changes (director / replay), hard cuts within a type
+    const xf = this.composer?.xfade;
+    if (xf) {
+      const md = this._camDbg?.mode, rp = !!this.replay;
+      if (this._xfMode && md && (md !== this._xfMode || rp !== this._xfRp) && !this.introT && this._xfTex && !this._fxOff) this._xfT = 0.45;
+      this._xfMode = md; this._xfRp = rp;
+      xf.enabled = (this._xfT || 0) > 0;
+      if (xf.enabled) { const k = this._xfT / 0.45; xf.uniforms.uMix.value = k * k * (3 - 2 * k); xf.uniforms.tPrev.value = this._xfTex; }
+    }
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
+    if (xf) {
+      if (this._xfT > 0) this._xfT -= Math.min(0.1, dt || 0.016);
+      else if (!this._fxOff) {
+        const sz = this.renderer.getDrawingBufferSize(this._xfSz ||= new THREE.Vector2());
+        if (!this._xfTex || this._xfTex.image.width !== sz.x || this._xfTex.image.height !== sz.y) { this._xfTex?.dispose(); this._xfTex = new THREE.FramebufferTexture(sz.x, sz.y); }
+        this.renderer.copyFramebufferToTexture(this._xfTex);
+      }
+    }
     this._stats = { calls: info.render.calls, tris: info.render.triangles }; info.autoReset = true;
     this.updateLabels();
   }
@@ -3256,7 +3282,7 @@ export class Race3D {
     for (const car of cars) {
       const m = car.mesh, sp = car.state?.speed || 0, acc = car._acc || 0;
       if (!m.visible || sp < 45 || car.pc || m.position.distanceToSquared(cam) > 180 * 180) continue;
-      const rate = (acc < -18 ? 40 : 0) + (sp > 75 ? 6 : 0) + (car._bump || 0);
+      const rate = (acc < -18 ? 40 : 0) + (sp > 75 ? 6 : 0) + (car._bump || 0) + (car._kerb && sp > 50 ? 30 : 0);
       car._spk = (car._spk || 0) + rate * dt * (0.3 + Math.random());
       const fx = Math.cos(m.rotation.y), fz = -Math.sin(m.rotation.y);
       let n = Math.min(14, Math.floor(car._spk)); car._spk -= n;
@@ -3719,9 +3745,30 @@ export class Race3D {
     // body roll towards the outside of the corner, pitch from braking / acceleration
     const stiff = this.category === 'rally' ? 2.2 : this.category === 'endurance' ? 1.3 : 1;
     car._roll = (car._roll || 0) + (Math.max(-0.05, Math.min(0.05, -k * speed ** 2 * 0.0011 * stiff)) - (car._roll || 0)) * Math.min(1, dt * 6);
-    m.rotation.x = car._roll;
     if (dt > 0) { const acc = (speed - (car._v ?? speed)) / dt; car._v = speed; car._acc = (car._acc || 0) + (Math.max(-45, Math.min(15, acc)) - (car._acc || 0)) * Math.min(1, dt * 5); }
-    m.rotation.z = (this.geo.h ? m.rotation.z : 0) + Math.max(-0.035, Math.min(0.02, (car._acc || 0) * 0.0009 * stiff));
+    const pitch = Math.max(-0.035, Math.min(0.02, (car._acc || 0) * 0.0009 * stiff));
+    const body = m.userData.body;
+    if (body) {
+      // sprung body on its suspension: roll and pitch about the roll centre near the ground,
+      // the wheels stay planted. Aero load squats the car at speed, kerbs and bumps shake it.
+      const half = this.TW / 2, onKerb = !car.pc && Math.abs(laneCur) > half - 1.25 && Math.abs(laneCur) < half + 1.5 && speed > 20;
+      const fm = this.category === 'formula' || this.category === 'junior';
+      const squat = -(fm ? 0.022 : 0.014) * Math.min(1, (speed / 85) ** 2);
+      car._kerbT = (car._kerbT || 0) + dt * speed;
+      const buzz = onKerb ? Math.sin(car._kerbT * 2.6) * 0.012 + Math.sin(car._kerbT * 6.1) * 0.006 : Math.sin(car._kerbT * 0.9 + car.lane) * 0.0016 * Math.min(1, speed / 60);
+      body.position.y = squat + buzz;
+      body.rotation.x = car._roll + (onKerb ? Math.sin(car._kerbT * 3.7) * 0.008 * Math.sign(laneCur) : 0);
+      body.rotation.z = pitch;
+      car._kerb = onKerb;
+      m.rotation.x = 0; m.rotation.z = this.geo.h ? m.rotation.z : 0;
+      // a hint of slip angle: the tail steps out a little through fast corners, more on exit
+      const slip = Math.max(-0.035, Math.min(0.035, k * speed * speed * 0.00018 * (1 + Math.max(0, car._acc || 0) * 0.06)));
+      car._slip = (car._slip || 0) + (slip - (car._slip || 0)) * Math.min(1, dt * 4);
+      m.rotation.y -= car._slip;
+    } else {
+      m.rotation.x = car._roll;
+      m.rotation.z = (this.geo.h ? m.rotation.z : 0) + pitch;
+    }
     const spin = speed * dt / 0.34;
     const steer = Math.max(-0.42, Math.min(0.42, Math.atan(3.5 * (kL[(i0 + 1) % N] || k)) * 1.4));
     m.userData.wheels.forEach((w, wi) => { for (const sp of w.userData.spin) sp.rotation.z -= spin; if (wi < 2) w.rotation.y = -steer; });
@@ -3798,12 +3845,12 @@ export class Race3D {
         this.dirFocus = b || this.focusKey;
         const df = this.cars.get(this.dirFocus);
         const fast = (this._simK || 1) > 12; // fast-forward: only the steady wide shots are readable
-        const pool = fast ? ['tv', 'heli'] : df?.pc ? ['garage', 'garage', 'tv'] : ['tv', 'tv', 'chase', 'heli', 'tv', 'onboard'];
+        const pool = fast ? ['tv', 'heli'] : df?.pc ? ['garage', 'garage', 'tv'] : ['tv', 'tv', 'chase', 'heli', 'tv', 'onboard', 'rail', 'low'];
         // never cut to the same shot type twice in a row unless nothing else fits
         const opts = pool.filter((m2) => m2 !== this.camMode);
         const mode = (opts.length ? opts : pool)[Math.floor(Math.random() * (opts.length || pool.length))];
         this.camMode = mode;
-        this.dirT = mode === 'tv' ? 8 + Math.random() * 6 : mode === 'heli' ? 6 + Math.random() * 4 : mode === 'garage' ? 7 + Math.random() * 5 : 5 + Math.random() * 4;
+        this.dirT = mode === 'tv' ? 8 + Math.random() * 6 : mode === 'heli' ? 6 + Math.random() * 4 : mode === 'garage' ? 7 + Math.random() * 5 : mode === 'rail' || mode === 'low' ? 4 + Math.random() * 3 : 5 + Math.random() * 4;
         this._cut = true;
       }
       const df = this.cars.get(this.dirFocus);
@@ -3873,7 +3920,8 @@ export class Race3D {
       m.updateMatrixWorld();
       const formula = this.category === 'formula' || this.category === 'junior';
       // driver's eye point from the car model when it provides one (local coords, +x forward)
-      const eye = m.userData?.eye;
+      // (the models store it as [x, y, z]; a Vector3-like object works too)
+      const e0 = m.userData?.eye, eye = Array.isArray(e0) ? { x: e0[0], y: e0[1], z: e0[2] } : e0;
       const ex = eye ? eye.x : formula ? -0.36 : 0.05, ey = eye ? eye.y : formula ? 0.9 : 1.05, ez = eye ? eye.z : formula ? 0 : 0.35;
       pos = m.localToWorld(new THREE.Vector3(ex, ey, ez));
       look = m.localToWorld(new THREE.Vector3(30, ey - (formula ? 1.5 : 0.25), ez));
@@ -3910,6 +3958,40 @@ export class Race3D {
         look = target.clone().addScaledVector(fwd, Math.min(14, spd * 0.25));
         fov = k === 3 ? 30 : k === 2 ? 26 : 34;
       }
+    } else if (this.camMode === 'rail') {
+      // tracking shot: a camera on a dolly beside the track running at the car's pace (follows
+      // the track distance, so it glides without any lag), slightly ahead, long lens
+      const s = focus.state?.s || 0, N = this.geo.N;
+      if (!this._rail || this._cut) {
+        const i = ((Math.floor(s) % N) + N) % N;
+        // the outside of the coming bend, so the car is seen turning towards the lens
+        let ks = 0; for (let q = 0; q < 30; q++) ks += this.geo.k[(i + q) % N];
+        this._rail = { side: ks > 0 ? -1 : 1, ph: Math.random() * 6 };
+      }
+      const sd = this._rail.side, q = (s + 1.4 + N) % N, iq = Math.floor(q) % N;
+      let off = this.TW / 2 + 5;
+      if (this.wallOff && this.street > 0.7) off = Math.min(off, this.wallOff(iq, sd) - 0.6);
+      const p0 = this.pose(q, sd * off);
+      pos = new THREE.Vector3(p0.x, (p0.y || 0) + 1.25 + 0.08 * Math.sin(this._shT * 0.7 + this._rail.ph), p0.z);
+      look = target.clone().add(new THREE.Vector3(0, 0.55, 0));
+      fov = 30;
+    } else if (this.camMode === 'low') {
+      // low trackside camera at the inside of the next corner: the car comes at the lens and
+      // sweeps past the apex, shallow depth of field
+      const s = focus.state?.s || 0, N = this.geo.N;
+      const rel = (i) => { let d = i - s; if (d < -N / 2) d += N; if (d > N / 2) d -= N; return d; };
+      if (!this._low || this._cut || rel(this._low.i) < -9) {
+        let best = null, bd = 1e9;
+        for (const c of this.geo.corners || []) { const d = ((c.i - s) % N + N) % N; if (d > 18 && d < bd && c.r < 300) { bd = d; best = c; } }
+        const ci = best ? best.i : Math.round(s + 40) % N, side = best ? (Math.sign(this.geo.k[ci]) || 1) : 1;
+        const p0 = this.pose(ci, side * (this.TW / 2 + 2.4));
+        this._low = { i: ci, pos: new THREE.Vector3(p0.x, (p0.y || 0) + 0.5, p0.z) };
+        if (!this._cut && bd < 1e9) this._cut = true;
+      }
+      pos = this._low.pos.clone();
+      look = target.clone().add(new THREE.Vector3(0, 0.45, 0)).addScaledVector(fwd, Math.min(3, spd * 0.03));
+      const dl = pos.distanceTo(target);
+      fov = Math.max(9, Math.min(55, 2 * Math.atan(7 / Math.max(1, dl)) * 180 / Math.PI));
     } else {
       // TV: nearest camera ahead of the car that actually sees it. A shot is held for a minimum
       // time and until the car has gone by; at high sim speed cameras further ahead are picked
@@ -3962,7 +4044,8 @@ export class Race3D {
     }
     if (this.camMode !== 'onboard' && this.camMode !== 'cockpit') {
       const gy = this.groundH ? this.groundH(pos.x, pos.z) : Math.max(this.envH ? this.envH(pos.x, pos.z) : -1e9, this.hillH ? this.hillH(pos.x, pos.z) : -1e9);
-      if (Number.isFinite(gy) && pos.y < gy + 1.4) pos.y = gy + 1.4;
+      const minH = this.camMode === 'low' ? 0.35 : this.camMode === 'rail' ? 0.9 : 1.4;
+      if (Number.isFinite(gy) && pos.y < gy + minH) pos.y = gy + minH;
     }
     // validity: a broken position / target falls back to a plain shot of the car
     {
@@ -4008,7 +4091,7 @@ export class Race3D {
     const half = mode === 'heli' ? 70 : mode === 'tv' ? 60 : mode === 'chase' || mode === 'garage' ? 40 : 46;
     if (this.sun.shadow.camera.right !== half) this.sun.shadow.normalBias = 0.02 * Math.max(0.5, half / 70);
     const fc = (this._shC ||= new THREE.Vector3());
-    if (mode === 'tv' || mode === 'heli') fc.copy(target); else fc.copy(this.camera.position).lerp(target, 0.5).addScaledVector(fwd, half * 0.45);
+    if (mode === 'tv' || mode === 'heli' || mode === 'low' || mode === 'rail') fc.copy(target); else fc.copy(this.camera.position).lerp(target, 0.5).addScaledVector(fwd, half * 0.45);
     stabilizeShadow(this.sun, fc, this.sunDir, half);
     this.skyDome.position.copy(this.camera.position);
     if (this.clouds) this.clouds.position.set(this.camera.position.x, 0, this.camera.position.z);
@@ -4016,11 +4099,15 @@ export class Race3D {
     const dof = this.composer?.dof;
     if (dof) {
       const fd = this.camera.position.distanceTo(this.camLook), px = (this.H || 720) / 720;
-      const on = !this._fxOff && (mode === 'garage' || (mode === 'tv' && this.camera.fov < 16));
+      // replays get the cinematic treatment: every outside shot focuses on the car
+      const rp = !!this.replay && mode !== 'onboard' && mode !== 'cockpit';
+      const on = !this._fxOff && (mode === 'garage' || mode === 'low' || rp || (mode === 'tv' && this.camera.fov < 16));
       dof.enabled = on;
       if (on) {
-        const u = dof.uniforms;
+        const u = dof.uniforms, fc2 = this.camera.position.distanceTo(target);
         if (mode === 'garage') { u.uFocus.value = fd; u.uRange.value = Math.max(2, fd * 0.35); u.uMax.value = 7 * px; u.uNear.value = 0.5; }
+        else if (mode === 'low') { u.uFocus.value = fc2; u.uRange.value = Math.max(1.5, fc2 * 0.14); u.uMax.value = 8 * px; u.uNear.value = 0.6; }
+        else if (rp) { u.uFocus.value = fc2; u.uRange.value = Math.max(3, fc2 * (mode === 'heli' ? 0.5 : 0.3)); u.uMax.value = (mode === 'heli' ? 3.5 : 5) * px; u.uNear.value = 0.4; }
         else { u.uFocus.value = fd; u.uRange.value = fd * 0.25; u.uMax.value = 3.2 * px; u.uNear.value = 0.25; }
       }
     }

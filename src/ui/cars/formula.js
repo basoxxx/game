@@ -55,10 +55,19 @@ export function formula(L, opts) {
     { x: 0.3, top: 0.665, bot: 0.07, w: 0.32, wt: 0.25, wb: 0.3, n: 3 },
     { x: 1.0, top: 0.62, bot: 0.15, w: 0.25, wt: 0.19, wb: 0.22, n: 2.9 },
     { x: 1.8, top: 0.52, bot: 0.21, w: 0.17, wt: 0.13, wb: 0.15, n: 2.7 },
-    { x: 2.35, top: 0.375, bot: 0.2, w: 0.125, wt: 0.1, wb: 0.11, n: 2.6 },
-    { x: 2.75, top: 0.26, bot: 0.17, w: 0.095, wt: 0.08, wb: 0.085, n: 2.5 },
-    { x: 2.88, top: 0.215, bot: 0.17, w: 0.06, wt: 0.05, wb: 0.05, n: 2.3 },
+    // junior: the older high, blunt nose of the spec chassis; F1: low, long, pointed
+    ...(jr ? [
+      { x: 2.35, top: 0.44, bot: 0.25, w: 0.13, wt: 0.105, wb: 0.115, n: 2.6 },
+      { x: 2.72, top: 0.37, bot: 0.24, w: 0.11, wt: 0.09, wb: 0.095, n: 2.5 },
+      { x: 2.84, top: 0.33, bot: 0.25, w: 0.085, wt: 0.07, wb: 0.07, n: 2.3 },
+    ] : [
+      { x: 2.35, top: 0.375, bot: 0.2, w: 0.125, wt: 0.1, wb: 0.11, n: 2.6 },
+      { x: 2.75, top: 0.26, bot: 0.17, w: 0.095, wt: 0.08, wb: 0.085, n: 2.5 },
+      { x: 2.88, top: 0.215, bot: 0.17, w: 0.06, wt: 0.05, wb: 0.05, n: 2.3 },
+    ]),
   ], { u0: 0.6, u1: 1, seg: 56, around: 32 }, paint));
+  // junior: nose pylons down to the front wing (the high nose does not reach it)
+  if (jr) for (const s of [1, -1]) car.add(blade([2.62, 0.25, s * 0.07], [2.72, 0.1, s * 0.16], 0.16, 0.012, MAT.carbonGloss()));
   // sidepods: high letterbox inlets, deep undercut, downwash ramp into the coke bottle
   const pod = [
     { x: -1.95, top: 0.25, bot: 0.11, belt: 0.16, w: 0.24, wt: 0.18, wb: 0.22, n: 3 },
@@ -83,7 +92,9 @@ export function formula(L, opts) {
   const tc = MAT.paint((opts.number || 0) % 2 ? '#ffd400' : '#101012');
   car.add(far(box(0.16, 0.045, 0.035, tc, -0.66, 1.0, 0))); car.add(box(0.09, 0.03, 0.2, tc, -0.66, 1.0, 0));
   // engine cover fin with the race number and driver code
-  for (const s of [1, -1]) car.add(far(decalPlate([[-0.95, 0.93], [-2.12, 0.72], [-2.12, 0.6], [-1.35, 0.78]], 0.006, finMat(L, opts.number, opts.driver, s < 0), s * 0.0035, s < 0)));
+  // (junior: the tall 'shark fin' of the spec car, running back to the rear wing)
+  const finP = jr ? [[-0.8, 1.0], [-2.3, 0.98], [-2.3, 0.62], [-1.35, 0.78]] : [[-0.95, 0.93], [-2.12, 0.72], [-2.12, 0.6], [-1.35, 0.78]];
+  for (const s of [1, -1]) car.add(far(decalPlate(finP, 0.006, finMat(L, opts.number, opts.driver, s < 0), s * 0.0035, s < 0)));
   // cockpit: dark opening, padded surround, driver
   car.add(mesh(hull([{ x: -0.62, top: 0.7, bot: 0.6, w: 0.19, n: 2.6 }, { x: -0.2, top: 0.705, bot: 0.6, w: 0.225, n: 2.8 }, { x: 0.26, top: 0.69, bot: 0.6, w: 0.13, n: 2.6 }], { seg: 12, around: 20 }), dark));
   car.add(tube([[0.12, 0.69, 0.17], [-0.2, 0.715, 0.235], [-0.5, 0.75, 0.2], [-0.62, 0.79, 0], [-0.5, 0.75, -0.2], [-0.2, 0.715, -0.235], [0.12, 0.69, -0.17]], 0.036, blk, { seg: 28, rad: 8 }));
@@ -94,8 +105,10 @@ export function formula(L, opts) {
     for (const s of [1, -1]) car.add(rod([-0.42, 0.7, s * 0.09], [-0.15, 0.6, s * 0.06], 0.012, MAT.matte(L.secondary === '#ffffff' ? '#c9ccd2' : '#2a2c31'), 6)); }
   const sw = steeringWheel(cf, MAT.matte(L.primary === '#ffffff' ? '#202226' : L.secondary)); sw.position.set(0.02, 0.705, 0); sw.rotation.z = 0.4; car.add(sw);
   // halo with its centre strut
-  car.add(far(tube([[-0.66, 0.7, 0.275], [-0.42, 0.865, 0.275], [-0.08, 0.9, 0.2], [0.2, 0.875, 0], [-0.08, 0.9, -0.2], [-0.42, 0.865, -0.275], [-0.66, 0.7, -0.275]], 0.028, cg, { seg: 44, rad: 10 })));
-  car.add(blade([0.2, 0.875, 0], [0.4, 0.655, 0], 0.07, 0.034, cg));
+  // (junior: the spec halo comes painted in the team colour, F1 teams run it in bare carbon)
+  const haloM = jr ? pri : cg;
+  car.add(far(tube([[-0.66, 0.7, 0.275], [-0.42, 0.865, 0.275], [-0.08, 0.9, 0.2], [0.2, 0.875, 0], [-0.08, 0.9, -0.2], [-0.42, 0.865, -0.275], [-0.66, 0.7, -0.275]], 0.028, haloM, { seg: 44, rad: 10 })));
+  car.add(blade([0.2, 0.875, 0], [0.4, 0.655, 0], 0.07, 0.034, haloM));
   // mirrors on stays
   for (const s of [1, -1]) {
     const z = s * 0.57;
@@ -106,7 +119,7 @@ export function formula(L, opts) {
   // floor with raised leading edge, edge wings and tunnel fences, diffuser
   const fl = [[1.28, 0.26], [1.12, 0.62], [0.82, 0.9], [0.3, 0.955], [-0.95, 0.955], [-1.3, 0.9], [-1.44, 0.6], [-2.12, 0.56]];
   car.add(far(slab([...fl, ...fl.slice().reverse().map(([x, z]) => [x, -z])], 0.02, cf, 0.05)));
-  for (const s of [1, -1]) {
+  if (!jr) for (const s of [1, -1]) {
     car.add(at(plate([[0.25, 0.075], [-0.92, 0.075], [-0.98, 0.13], [0.1, 0.12]], 0.01, cg), 0, 0, s * 0.955));
     for (const [z, ry, h] of [[0.36, 0.1, 0.11], [0.52, 0.2, 0.13], [0.7, 0.34, 0.13], [0.86, 0.5, 0.11]]) { const f = plate([[0.3, 0], [-0.1, 0], [-0.06, h], [0.2, h * 0.7]], 0.008, cg); f.position.set(0.82, 0.06, s * z); f.rotation.y = -s * ry; car.add(f); }
   }
@@ -116,28 +129,33 @@ export function formula(L, opts) {
   const NE = jr ? 3 : 4, fwX = 2.95;
   const fw = (k) => spanSamples(0.955, 22, (u) => {
     const out = Math.max(0, (u - 0.16) / 0.84), tip = Math.max(0, (u - 0.8) / 0.2);
+    if (jr) return { x: fwX - 0.035 - k * 0.15 - out * 0.05, y: 0.085 + k * 0.05 + out * 0.01 * k, c: 0.25 - k * 0.045, a: -0.06 - k * 0.24, t: 0.03 - k * 0.004 };
     return { x: fwX - 0.035 - k * 0.135 - out * out * (0.16 - k * 0.02), y: 0.085 + k * 0.047 + out * (0.012 * k) - tip * tip * k * 0.03, c: (0.225 - k * 0.02) * (1 - out * 0.12), a: -0.05 - k * (jr ? 0.2 : 0.16) + tip * 0.1 * k, t: 0.03 - k * 0.003 };
   });
-  const fwM = jr ? [cg, pri, acc] : [cg, pri, pri, sec];
+  const fwM = jr ? [cg, cg, pri] : [cg, pri, pri, sec];
   for (let k = 0; k < NE; k++) car.add(sweptWing(fw(k), fwM[k], 4));
   for (const s of [1, -1]) {
-    const ep = far(plate([[fwX - 0.12, 0.045], [fwX - 0.75, 0.045], [fwX - 0.8, 0.3], [fwX - 0.62, 0.345], [fwX - 0.3, 0.2], [fwX - 0.14, 0.11]], 0.012, pri)); ep.position.z = s * 0.972; ep.rotation.y = s * 0.05; car.add(ep);
+    const ep = far(plate(jr ? [[fwX - 0.05, 0.04], [fwX - 0.6, 0.04], [fwX - 0.6, 0.32], [fwX - 0.12, 0.32]] : [[fwX - 0.12, 0.045], [fwX - 0.75, 0.045], [fwX - 0.8, 0.3], [fwX - 0.62, 0.345], [fwX - 0.3, 0.2], [fwX - 0.14, 0.11]], 0.012, pri)); ep.position.z = s * 0.972; ep.rotation.y = s * 0.05; car.add(ep);
     car.add(at(plate([[fwX - 0.3, 0.2], [fwX - 0.62, 0.22], [fwX - 0.62, 0.235], [fwX - 0.32, 0.215]], 0.09, cg), 0, 0, s * 1.0));
   }
   // nose cameras, pitot tubes, antennas
-  for (const s of [1, -1]) car.add(at(sph(1, cf, { ws: 10, hs: 8, sx: 0.07, sy: 0.022, sz: 0.035 }), 2.3, 0.33, s * 0.15));
+  for (const s of [1, -1]) car.add(at(sph(1, cf, { ws: 10, hs: 8, sx: 0.07, sy: 0.022, sz: 0.035 }), 2.3, jr ? 0.41 : 0.33, s * 0.15));
   car.add(rod([1.4, 0.58, 0.05], [1.37, 0.72, 0.05], 0.004, blk)); car.add(rod([1.37, 0.72, 0.05], [1.44, 0.725, 0.05], 0.004, blk));
   car.add(rod([-1.15, 0.86, 0], [-1.22, 1.0, 0], 0.005, blk));
   // rear wing: main plane and flap between rounded end plates, swan-neck pylon, beam wing
   const rs = jr ? 0.47 : 0.52, rwT = jr ? 0.88 : 0.94;
-  car.add(sweptWing(spanSamples(rs, 14, (u) => ({ x: -2.07, y: rwT - 0.16 + u * u * 0.045, c: 0.34, a: -0.14 - (1 - u * u) * 0.06, t: 0.045 })), pri, 3));
-  car.add(sweptWing(spanSamples(rs, 14, (u) => ({ x: -2.37, y: rwT - 0.055 + u * u * 0.01, c: 0.21, a: -0.62, t: 0.03 })), acc, 3));
+  // junior: straight, flat spec planes in black carbon; F1: spoon-shaped and painted
+  car.add(sweptWing(spanSamples(rs, 14, (u) => ({ x: -2.07, y: rwT - 0.16 + (jr ? 0 : u * u * 0.045), c: jr ? 0.36 : 0.34, a: jr ? -0.16 : -0.14 - (1 - u * u) * 0.06, t: 0.045 })), jr ? cg : pri, 3));
+  car.add(sweptWing(spanSamples(rs, 14, (u) => ({ x: -2.37, y: rwT - 0.055 + (jr ? 0 : u * u * 0.01), c: jr ? 0.24 : 0.21, a: -0.62, t: 0.03 })), jr ? cg : acc, 3));
   const epP = jr ? [[-2.0, 0.42], [-1.98, rwT + 0.02], [-2.64, rwT + 0.02], [-2.62, 0.56], [-2.42, 0.42]] : [[-2.03, 0.36], [-1.985, 0.68], [-2.03, rwT - 0.1], [-2.14, rwT - 0.02], [-2.62, rwT + 0.015], [-2.67, rwT - 0.04], [-2.62, 0.52], [-2.46, 0.36]];
   for (const s of [1, -1]) car.add(far(decalPlate(epP, 0.012, endplateMat(L, opts.sponsor), s * rs, s < 0)));
   car.add(at(sph(1, cg, { ws: 10, hs: 8, sx: 0.11, sy: 0.022, sz: 0.03 }), -2.3, rwT - 0.045, 0)); // DRS actuator
   car.add(far(plate([[-1.98, 0.45], [-2.12, 0.45], [-2.3, rwT - 0.15], [-2.2, rwT - 0.15]], 0.028, cg)));
-  car.add(sweptWing(spanSamples(rs - 0.02, 8, () => ({ x: -2.12, y: 0.4, c: 0.2, a: -0.12, t: 0.025 })), cg, 2));
-  car.add(sweptWing(spanSamples(rs - 0.02, 8, () => ({ x: -2.28, y: 0.47, c: 0.15, a: -0.4, t: 0.02 })), cg, 2));
+  if (!jr) {
+    // beam wing (F1 only)
+    car.add(sweptWing(spanSamples(rs - 0.02, 8, () => ({ x: -2.12, y: 0.4, c: 0.2, a: -0.12, t: 0.025 })), cg, 2));
+    car.add(sweptWing(spanSamples(rs - 0.02, 8, () => ({ x: -2.28, y: 0.47, c: 0.15, a: -0.4, t: 0.02 })), cg, 2));
+  }
   // gearbox / crash structure, exhaust, rain light
   car.add(mesh(hull([{ x: -2.46, top: 0.4, bot: 0.33, w: 0.035, n: 2.5 }, { x: -2.2, top: 0.42, bot: 0.3, w: 0.07, n: 2.5 }, { x: -1.7, top: 0.44, bot: 0.16, w: 0.15, n: 2.8 }], { seg: 8, around: 16 }), cf));
   car.add(at(cyl(0.052, 0.052, 0.3, MAT.metal('#5c5148', 0.4), { seg: 14, axis: 'x', open: true }), -2.26, 0.475, 0)); car.add(at(cyl(0.046, 0.046, 0.02, dark, { seg: 14, axis: 'x' }), -2.38, 0.475, 0));

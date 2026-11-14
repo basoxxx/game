@@ -27,9 +27,10 @@ function load(url, srgb) {
 export function loadTex(path, srgb = true) { return load(BASE + path, srgb); }
 
 // PBR material from a Poly Haven texture set. repeat = [u, v]
-export function pbr(id, { repeat = [1, 1], color = 0xffffff, normalScale = 1, roughness = 1, metalness = 0 } = {}) {
-  const map = load(`${BASE}tex/${id}_diff_1k.jpg`, true).clone();
-  const nor = load(`${BASE}tex/${id}_nor_gl_1k.jpg`).clone();
+// res: '1k' | '2k' (albedo + normal; roughness stays 1k)
+export function pbr(id, { repeat = [1, 1], color = 0xffffff, normalScale = 1, roughness = 1, metalness = 0, res = '1k' } = {}) {
+  const map = load(`${BASE}tex/${id}_diff_${res}.jpg`, true).clone();
+  const nor = load(`${BASE}tex/${id}_nor_gl_${res}.jpg`).clone();
   const rough = load(`${BASE}tex/${id}_rough_1k.jpg`).clone();
   // clones share the image source: the upload happens once the original finishes loading
   for (const t of [map, nor, rough]) t.repeat.set(repeat[0], repeat[1]);
@@ -443,6 +444,21 @@ export function addLensRain(comp) {
   p.setSize = (w, h) => p.uniforms.uTexel.value.set(1 / Math.max(1, w), 1 / Math.max(1, h));
   const i = comp.grade ? comp.passes.indexOf(comp.grade) + 1 : comp.passes.length;
   comp.insertPass(p, i); comp.lensRain = p;
+  return p;
+}
+
+// ---- cross-dissolve between camera shots ---------------------------------------------------
+// The previous frame is kept in a texture (copied from the canvas after each frame while no
+// dissolve runs); on a change of shot type the new image fades in over it. Last pass.
+const XFadeShader = {
+  uniforms: { tDiffuse: { value: null }, tPrev: { value: null }, uMix: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform sampler2D tDiffuse, tPrev; uniform float uMix; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); vec3 p = texture2D(tPrev, vUv).rgb; gl_FragColor = vec4(mix(c.rgb, p, uMix), c.a); }',
+};
+export function addXFade(comp) {
+  if (!comp || comp.xfade) return comp?.xfade || null;
+  const p = new ShaderPass(XFadeShader); p.enabled = false;
+  comp.addPass(p); comp.xfade = p;
   return p;
 }
 
