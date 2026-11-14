@@ -6,7 +6,7 @@
 const ROOT = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
 globalThis.window ??= globalThis; globalThis.addEventListener ??= () => {};
 globalThis.localStorage ??= { _d: {}, getItem(k) { return this._d[k] ?? null; }, setItem(k, v) { this._d[k] = String(v); }, removeItem(k) { delete this._d[k]; } };
-globalThis.document ??= { documentElement: { classList: { contains: () => false } }, querySelector: () => null, getElementById: () => null, addEventListener() {} };
+globalThis.document ??= { documentElement: { classList: { contains: () => false } }, querySelector: () => null, querySelectorAll: () => [], getElementById: () => null, addEventListener() {} };
 globalThis.requestAnimationFrame ??= (f) => setTimeout(f, 0);
 const { createWorld, getTrack } = await import(ROOT + '/src/engine/world.js');
 const { setState, setSettings } = await import(ROOT + '/src/engine/state.js');
