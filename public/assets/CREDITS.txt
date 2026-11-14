@@ -12,3 +12,6 @@ Facade textures (tex/facade001_*, tex/facade006_*): ambientCG Facade001, Facade0
 
 Rally textures (rally/*.webp, re-compressed 1k webp): Poly Haven (https://polyhaven.com) - CC0 1.0 Public Domain.
 pebble_ground_01, brown_mud_rocks_01, dry_ground_rocks, asphalt_snow, snow_03, forest_ground_04.
+Scontro Totale (derby/): Poly Haven (https://polyhaven.com) - CC0 1.0 Public Domain, re-compressed to webp.
+dirt (derby/dirt_diff.webp), muddy_tracks (derby/mud_diff.webp), models Barrel_01 (derby/barrel.*)
+and old_tyre (derby/tyre.*), HDRI overcast_soil_puresky (derby/overcast_soil_puresky_1k.hdr).

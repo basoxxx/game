@@ -20,7 +20,7 @@ import { aiInput, initAI, PERSONALITIES } from './ai.js';
 import { buildGround, buildWaterMeshes, buildScenery, buildTrees, buildScorch, CROWD } from './scenery.js';
 import { buildHud, updateHud, message, showResults, showObjectivesHud } from './hud.js';
 import { CHAMPIONSHIP, champRecord } from './champ.js';
-import { driveOpts, handlingOf, surfaceAt, shapeSteer, PRESETS } from './handling.js';
+import { driveOpts, handlingOf, surfaceAt, shapeSteer, PRESETS, PACE } from './handling.js';
 const AI_H = PRESETS.normale;
 import * as MODES5 from './modes.js';
 import { ARENA_MODES } from './modes.js';
@@ -28,6 +28,8 @@ import { buildFurniture, PARK } from './park.js';
 import { pickObjectives, evalObjectives } from './objectives.js';
 import { rivalOfCup, rivalState, recordRival, portrait, cupPodium } from './rivals.js';
 import { CUPS } from './career.js';
+import { TouchControls, wantsTouch } from './touch.js';
+import { upgradeProps, overcastSky } from './assets.js';
 
 let rapierReady = null;
 export function initPhysics() { return (rapierReady ||= RAPIER.init()); }
@@ -49,7 +51,7 @@ const CRASH_KINDS = {
 export class DerbyGame {
   constructor(container, opts) {
     this.c = container; this.o = { opponents: 7, laps: null, ...opts };
-    this.venue = typeof opts.venue === 'string' ? null : opts.venue; this.low = getSettings().gfx === 'low';
+    this.venue = typeof opts.venue === 'string' ? null : opts.venue; this.low = getSettings().gfx === 'low'; this.med = getSettings().gfxTier === 'med';
     this.keys = {}; this.time = 0; this.state = 'loading'; this.msgs = [];
     this.onEnd = opts.onEnd || (() => {});
     this.timeScale = 1; this.slowT = 0; this.slowCool = 0; this.shake = 0;
@@ -87,15 +89,18 @@ export class DerbyGame {
     try { buildFurniture(this); } catch (e) { console.warn('furniture', e); }
     try { buildExtras(this, this.standsInfo || []); } catch (e) { console.warn('extras', e); }
     this.buildProps();
+    this.assetsP = upgradeProps(this).catch((e) => { console.warn('props', e); return false; });
     buildTrees(this);
     this.buildCars();
     if (this.o.thumb) { await this.envReady; return; }
     this.setupMode();
     buildHud(this);
+    if (wantsTouch()) { try { this.touch = new TouchControls(this, this.c); this.c.classList.add('dz-touch'); } catch (e) { console.warn('touch', e); } }
     this.rivalCard();
     this.bindInput();
     this.snd = new DerbySound(this);
     await this.envReady;
+    await Promise.race([this.assetsP, new Promise((r) => setTimeout(r, 3500))]);
     // precompile every shader of the scene before the lights go out (no first-crash / first-fire hitch);
     // parallel compile where the driver supports it, never waiting more than 4 s
     try { this.updateCamera(0.016); const t0 = performance.now(); await Promise.race([this.renderer.compileAsync ? this.renderer.compileAsync(this.scene, this.camera) : Promise.resolve(this.renderer.compile(this.scene, this.camera)), new Promise((r) => setTimeout(r, 4000))]); this.compileMs = Math.round(performance.now() - t0); } catch (e) { console.warn('precompile', e); }
@@ -157,6 +162,10 @@ export class DerbyGame {
       const hz = hdriHorizon(look.sky); if (hz && look.fogMix < 1) s.fog.color.copy(hz).lerp(new THREE.Color(look.fogCol), look.fogMix);
       if (look.flatSky != null) { s.background = new THREE.Color(look.flatSky).multiplyScalar(night ? 0.1 : 0.82); s.fog.color.copy(s.background); }
       else if (night && look.rain) { s.backgroundIntensity = 0.2; }
+    }).then(() => {
+      // daytime rain: a real overcast sky behind the curtain of rain (high setting); fog keeps its grey
+      if (!look.rain || night || this.low) return;
+      return Promise.race([overcastSky(), new Promise((res) => setTimeout(() => res(null), 3000))]).then((t) => { if (!t || this.dead) return; s.background = t; s.backgroundIntensity = 0.85; s.backgroundBlurriness = 0.04; s.environment = t; s.environmentIntensity = look.env * 1.1; });
     }).catch(() => {});
     this.composer = makeComposer(r, s, this.camera, { bloom: look.bloom, low: this.low, ao: !this.low, flare: look.flare > 0, rays: !!look.rays });
     if (this.composer?.grade) { const u = this.composer.grade.uniforms; u.uCon.value = look.con; u.uSat.value = look.sat; u.uWarm.value = look.warm; }
@@ -341,7 +350,7 @@ export class DerbyGame {
       const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffcf3a, transparent: true, opacity: 0.92, depthTest: false }));
       m.renderOrder = 10; this.lepreMark = m; this.scene.add(m);
     }
-    this.rec = []; this.replay = null; this.bestCrash = null;
+    this.rec = []; this.replay = null; this.bestCrash = null; this.highlights = [];
   }
 
   makeCar({ spec, color, num, name, isPlayer, pos, skill, look = {} }) {
@@ -511,6 +520,8 @@ export class DerbyGame {
       if (gp.buttons[9]?.pressed && !this._padS && (this.state === 'race' || this.state === 'paused')) this.togglePause(); this._padS = gp.buttons[9]?.pressed;
       if (gp.buttons[8]?.pressed && !this._padB) this.restart(); this._padB = gp.buttons[8]?.pressed;
     }
+    // touch screen: the virtual stick is analog (it replaces the keyboard steering while held)
+    if (this.touch?.active) { const t = this.touch.state(); thr = Math.max(thr, t.thr); brk = Math.max(brk, t.brk); hb = Math.max(hb, t.hb); nitro = Math.max(nitro, t.nitro); if (t.st) { st = Math.sign(t.st) * Math.min(1, Math.abs(t.st) ** 1.25 * (this.dopts.sens || 1)); analog = true; } }
     this.lookBack = back;
     return { thr, brk, st, hb, nitro, analog };
   }
@@ -608,7 +619,7 @@ export class DerbyGame {
     vc.setWheelSteering(0, car.steer); vc.setWheelSteering(1, car.steer);
     // ---- engine, gearbox, brakes
     const G = s.gears || 4, boost = car.boost;
-    const vmax = 46 * s.top * (boost ? 1.16 : 1) * (car.rubber || 1);
+    const vmax = PACE.vmax * s.top * (boost ? PACE.nitroTop : 1) * (car.rubber || 1);
     const gTop = (g) => vmax * (g / G) ** 0.8;
     car.shiftT -= dt;
     const aF = Math.abs(vF);
@@ -623,7 +634,7 @@ export class DerbyGame {
         // reverse gear
         car.gearLabel = 'R'; force = -inp.brk * 4200 * s.power * Math.max(0, 1 - Math.max(0, -vF) / 14); rpmT = 0.25 + inp.brk * 0.5 * Math.min(1, aF / 14);
       } else {
-        while (car.gear < G && aF > gTop(car.gear) * 0.97) { car.gear++; car.shiftT = 0.18; }
+        while (car.gear < G && aF > gTop(car.gear) * 0.97) { car.gear++; car.shiftT = 0.18; if (inp.thr > 0.8 && car.gear >= 3 && Math.random() < 0.7) car.backfire = 1; }
         while (car.gear > 1 && aF < gTop(car.gear - 1) * 0.7) car.gear--;
         const lo = car.gear > 1 ? gTop(car.gear - 1) * 0.55 : 0;
         const frac = Math.max(0, Math.min(1, (aF - lo) / (gTop(car.gear) - lo)));
@@ -632,7 +643,7 @@ export class DerbyGame {
         if (inp.thr > 0) {
           const tq = 0.82 + 0.3 * Math.sin(Math.min(1, frac) * Math.PI * 0.85);
           const gm = 1.5 - 0.6 * (car.gear - 1) / Math.max(1, G - 1);
-          force = inp.thr * 8200 * s.power * (mass / 1450) ** 0.3 * gm * tq * Math.max(0, Math.min(1, (1 - aF / vmax) * 7)) * (car.rubber || 1);
+          force = inp.thr * PACE.engine * s.power * (mass / 1450) ** 0.3 * gm * tq * Math.max(0, Math.min(1, (1 - aF / vmax) * 7)) * (car.rubber || 1);
           if (car.shiftT > 0) force *= 0.3;
           force *= car.engK ?? 1;
           if (aF < 6 && car.gear === 1) rpmT = Math.max(rpmT, 0.35 + inp.thr * 0.35); // clutch slip at launch
@@ -641,12 +652,15 @@ export class DerbyGame {
       }
       const wasBoost = car.boost;
       car.boost = inp.nitro && car.nitro > 0 && inp.thr > 0.2;
-      if (car.boost) { force += 6200 * s.power * (s.nitroBoost || 1); car.nitro = Math.max(0, car.nitro - dt * 22 * (s.nitroDrain || 1)); }
+      if (car.boost) { force += PACE.nitro * s.power * (s.nitroBoost || 1); car.nitro = Math.max(0, car.nitro - dt * PACE.nitroDrain * (s.nitroDrain || 1)); }
       // nitro "kick": a short shove in the back when the bottle opens (felt in the seat and the camera)
-      if (car.boost && !wasBoost && grounded >= 2) { car.boostKick = 0.35; if (car.isPlayer) { this.camPull = 1; this.rumble(0.25, 0.5, 220); } }
-      if (car.boostKick > 0) { car.boostKick -= dt; if (grounded >= 2) force += 5200 * s.power * (car.boostKick / 0.35); }
+      if (car.boost && !wasBoost && grounded >= 2) { car.boostKick = 0.35; if (car.isPlayer) { this.camPull = 1; this.shake = Math.min(1, this.shake + 0.35); this.rumble(0.3, 0.6, 260); this.snd?.boostOpen?.(); } }
+      if (car.boostKick > 0) { car.boostKick -= dt; if (grounded >= 2) force += PACE.kick * s.power * (car.boostKick / 0.35); }
       if (grounded < 2 && inp.thr > 0) rpmT = 0.95; // free revving in the air
     } else { brake = 8; rpmT = 0.05; }
+    // lifting off at high revs pops the exhaust (the shift pops are set in the gearbox above)
+    if ((car.lastThr || 0) > 0.8 && (inp.thr || 0) < 0.1 && car.rpm > 0.72 && !dead && Math.random() < 0.8) car.backfire = 2;
+    car.lastThr = inp.thr || 0;
     car.rpm += (rpmT - car.rpm) * Math.min(1, dt * (car.shiftT > 0 ? 18 : 7));
     // weight-transfer grip: braking loads the front, throttle unloads it (and can break the rear loose)
     const brakingLoad = Math.max(0, Math.min(1, -car.accF / 9)), accLoad = Math.max(0, Math.min(1, car.accF / 6));
@@ -665,7 +679,7 @@ export class DerbyGame {
       vc.setWheelEngineForce(i, driven && !car.wheelLost[i] ? force * share : 0);
       vc.setWheelBrake(i, inp.hold ? brake : brake * (front ? 0.62 : 0.38) + (hbOn && !front ? 16 : 0));
       const sf = car.surf[i];
-      let g = s.grip * sf.g * (front ? (s.frontGrip || 1) : (s.rearGrip || 1));
+      let g = PACE.grip * s.grip * sf.g * (front ? (s.frontGrip || 1) : (s.rearGrip || 1));
       g *= front ? 1 + brakingLoad * 0.2 - accLoad * 0.06 : 1 - brakingLoad * 0.14 + accLoad * 0.05;
       // lift-off: coming off the throttle mid-corner lets the tail step out a touch (trail-braking into a drift)
       if (!front && car.isPlayer && inp.thr < 0.1 && Math.abs(inp.st) > 0.5 && speed > 14) g *= 0.93;
@@ -682,8 +696,8 @@ export class DerbyGame {
     // aero drag, downforce (along the car's own down axis, so it also holds the car in a loop), surface drag (mud, water)
     const p = b.translation();
     const inWater = this.terrain.waterAt(p.x, p.z) > 0.35 && p.y < this.terrain.heightAt(p.x, p.z) + 1.0;
-    const sd = dragS + (inWater ? 0.12 : 0), dfm = speed * speed * 0.9;
-    b.addForce({ x: -vel.x * speed * 0.42 - vel.x * mass * sd - up.x * dfm, y: -up.y * dfm, z: -vel.z * speed * 0.42 - vel.z * mass * sd - up.z * dfm }, true);
+    const sd = dragS + (inWater ? 0.12 : 0), dfm = speed * speed * PACE.down + (grounded >= 2 ? mass * 9.81 * PACE.extraG : 0), cd = PACE.drag;
+    b.addForce({ x: -vel.x * speed * cd - vel.x * mass * sd - up.x * dfm, y: -up.y * dfm, z: -vel.z * speed * cd - vel.z * mass * sd - up.z * dfm }, true);
     car.inWater = inWater;
     // slipstream: tucked in behind another car the air is thinner (a pull forward, and the player's nitro trickles back): the fair way to come back
     if (!dead && vF > 17 && grounded >= 3 && this.state === 'race' && !this.track.arena && !this.track.stunt) {
@@ -691,7 +705,7 @@ export class DerbyGame {
       if (best > 0.05) { const f = mass * 1.5 * best; b.addForce({ x: fwd.x * f, y: 0, z: fwd.z * f }, true); car.draftT = (car.draftT || 0) + dt; if (car.isPlayer) { this.draftUsed = (this.draftUsed || 0) + dt; car.nitro = Math.min(100, car.nitro + dt * 4 * best); if (car.draftT > 1.3 && this.time - (this._draftMsg ?? -99) > 12) { this._draftMsg = this.time; this.message('SCIA!', 'bonus', 'meno aria, più nitro'); } } } else car.draftT = 0;
     }
     // service brakes as a controlled deceleration (Rapier's wheel brake alone is far too grabby)
-    if (car.brakeF > 0 && grounded >= 2 && vF > 0.5) { const dec = car.brakeF * mass * H.brake * Math.max(0.72, Math.min(1.15, car.surfG / 1.05 * (this.look.grip || 1))) * Math.min(1, vF / 3); b.addForce({ x: -fwd.x * dec, y: 0, z: -fwd.z * dec }, true); }
+    if (car.brakeF > 0 && grounded >= 2 && vF > 0.5) { const dec = car.brakeF * mass * H.brake * PACE.brake * Math.max(0.72, Math.min(1.15, car.surfG / 1.05 * (this.look.grip || 1))) * Math.min(1, vF / 3); b.addForce({ x: -fwd.x * dec, y: 0, z: -fwd.z * dec }, true); }
     const av = b.angvel();
     if (!grounded) {
       if (car.airT === 0) { const tp = b.translation(); car.takeoff = [tp.x, tp.z]; }
@@ -760,6 +774,7 @@ export class DerbyGame {
       this.award(car, bonus, clean && airT > 1 ? 'ATTERRAGGIO PERFETTO!' : airT > 1.4 ? 'VOLO SPETTACOLARE!' : 'IN VOLO!', Math.round(airT * 60) + (clean ? 50 : 0));
       if (car.isPlayer && car.takeoff && airT > 0.9) { const d = Math.hypot(p.x - car.takeoff[0], p.z - car.takeoff[1]); if (d > 12) this.callout(`SALTO ${Math.round(d)} m`, clean ? 'gold' : 'air'); }
     }
+    if (car.isPlayer && airT > 1.1 && this.mode !== 'stunt' && car.takeoff) { const d = Math.hypot(p.x - car.takeoff[0], p.z - car.takeoff[1]); this.crashCandidate(10 + airT * 5 + (clean ? 0 : 6), [car], `Volo di ${Math.round(d)} m${clean ? '' : ', atterraggio duro'}`); }
     if (car.isPlayer) { this.shake = Math.min(1, this.shake + airT * (clean ? 0.22 : 0.4)); this.camDip = Math.min(0.9, Math.max(this.camDip || 0, -vel.y * 0.07)); this.rumble(airT * 0.5, airT * 0.6, 160); }
   }
   callout(text, kind = '') { const el = this.hud?.callout; if (!el) return; el.textContent = text; el.className = 'dzx-callout ' + kind; void el.offsetWidth; el.classList.add('on'); clearTimeout(this._coT); this._coT = setTimeout(() => el.classList.remove('on'), 1700); }
@@ -842,12 +857,13 @@ export class DerbyGame {
     if (att.isPlayer) this.message(K.label, closing > 15 ? 'big' : 'bonus', `+${pts} punti · +${Math.round(K.nitro * Math.min(1.4, sev))} nitro`);
     if (closing > 18 && (att.isPlayer || vic.isPlayer)) this.callout(K.label.replace('!', ''), kind === 'tbone' || kind === 'frontale' ? 'red' : '');
     if (att.isPlayer || vic.isPlayer) {
-      if (closing > 15 && this.slowCool <= 0) this.slowmo(0.85);
+      // v6: the faster the closing speed, the longer and deeper the slow motion (a 100 km/h T-bone nearly freezes)
+      if (closing > 17 && this.slowCool <= 0) this.slowmo(0.5 + Math.min(0.7, (closing - 17) / 18), closing > 28 || kind === 'tbone' ? 0.17 : 0.27);
       const desc = `${K.label.replace('!', '')} ${att.isPlayer ? 'su' : 'da'} ${att.isPlayer ? vic.name : att.name}`;
       this.crashCandidate(closing * (kind === 'tbone' ? 1.5 : kind === 'frontale' ? 1.3 : 1), [att, vic], desc);
     }
   }
-  slowmo(t) { this.slowT = t; this.slowCool = 7; }
+  slowmo(t, depth = 0.28) { this.slowT = t; this.slowDepth = depth; this.slowCool = 6; this.snd?.slowHit?.(depth < 0.2); }
   // risky driving pays nitro: near misses, two wheels, the loop; also the run's stats for the objectives
   playerStunts(car, dt) {
     const d = car.dyn; if (!d) return;
@@ -1021,11 +1037,25 @@ export class DerbyGame {
   }
 
   // ---------------------------------------------------------------- crash replay
+  // crash highlights: every big moment involving the player is a candidate; the best three
+  // (at least 2.5 s apart) are kept as clips and shown as a reel at the end of the event
   crashCandidate(score, cars, desc) {
     if (this.state !== 'race') return;
-    if (this.bestCrash && this.bestCrash.score >= score) return;
+    const bc = this.bestCrash;
+    if (bc && !bc.saved) { if (bc.score >= score) return; if (this.time > bc.until + 0.5) this.saveCrash(bc); }
+    else if (this.highlights?.length >= 3 && Math.min(...this.highlights.map((h) => h.score)) >= score) return;
     this.bestCrash = { score, t: this.time, until: this.time + 1.6, focus: cars.map((c) => this.cars.indexOf(c)), desc };
-    this.player.bestCrash = desc;
+    if (!this.player.bestScore || score > this.player.bestScore) { this.player.bestScore = score; this.player.bestCrash = desc; }
+  }
+  saveCrash(bc) {
+    if (!bc || bc.saved) return; bc.saved = true;
+    const clip = { frames: this.rec.filter((r) => r.t >= bc.t - 3.2), focus: bc.focus, desc: bc.desc, hitT: bc.t, score: bc.score };
+    if (clip.frames.length < 20) return;
+    const H = (this.highlights ||= []);
+    const near = H.findIndex((h) => Math.abs(h.hitT - clip.hitT) < 2.5);
+    if (near >= 0) { if (H[near].score >= clip.score) return; H.splice(near, 1); }
+    H.push(clip); H.sort((a, b) => b.score - a.score); H.length = Math.min(H.length, 3);
+    this.replay = H[0];
   }
   record() {
     const n = this.cars.length, f = new Float32Array(n * 7);
@@ -1033,13 +1063,26 @@ export class DerbyGame {
     // flying debris (panels, wheels) is recorded too, so the replay shows the bonnet cartwheeling away
     const dbr = this.debris.length ? this.debris.map((d) => { const t = d.body.translation(), r = d.body.rotation(); return [d, t.x, t.y, t.z, r.x, r.y, r.z, r.w]; }) : null;
     this.rec.push({ t: this.time, f, dbr }); while (this.rec.length && this.rec[0].t < this.time - 6) this.rec.shift();
-    const bc = this.bestCrash; if (bc && !bc.saved && this.time >= bc.until) { bc.saved = true; this.replay = { frames: this.rec.filter((r) => r.t >= bc.t - 3.2), focus: bc.focus, desc: bc.desc, hitT: bc.t, score: bc.score }; }
+    const bc = this.bestCrash; if (bc && !bc.saved && this.time >= bc.until) this.saveCrash(bc);
   }
   startReplay(auto = false) {
-    if (!this.replay?.frames.length) return;
+    // the reel: the saved highlights in the order they happened (the end-of-event replay plays them all,
+    // the results button too); a single clip when there is only one
+    const reel = (this.highlights?.length ? this.highlights.slice().sort((a, b) => a.hitT - b.hitT) : this.replay ? [this.replay] : []).filter((c) => c.frames?.length);
+    if (!reel.length) return;
+    this.reel = reel; this.reelI = 0; this.replay = reel[0];
     this._preReplay = this.state === 'replay' ? this._preReplay : this.state; this.state = 'replay'; this.replayT = 0; this.replayAuto = auto; this.replayCut = -1;
     this.hud.root.classList.add('replaying'); this.hud.replay.classList.add('on');
-    const d = this.hud.replay.querySelector('span'); if (d) d.textContent = this.replay.desc || 'Il botto più bello della gara';
+    this.replayLabel();
+  }
+  replayLabel() {
+    const d = this.hud.replay.querySelector('span'), b = this.hud.replay.querySelector('b'), n = this.reel?.length || 1;
+    if (b) b.textContent = n > 1 ? `HIGHLIGHTS ${this.reelI + 1}/${n}` : 'REPLAY';
+    if (d) d.textContent = this.replay.desc || 'Il botto più bello della gara';
+  }
+  nextClip() {
+    if (!this.reel || this.reelI >= this.reel.length - 1) return false;
+    this.reelI++; this.replay = this.reel[this.reelI]; this.replayT = 0; this.replayCut = -1; this.replayLabel(); return true;
   }
   stopReplay() {
     if (this.state !== 'replay') return; for (const d of this.debris) d.mesh.visible = true;
@@ -1049,10 +1092,12 @@ export class DerbyGame {
   replayFrame(dt) {
     const R = this.replay, F = R.frames, t0 = F[0].t, tEnd = F[F.length - 1].t;
     // slow motion around the impact, quicker before and after; three camera cuts
-    const tHit = R.hitT ?? (t0 + 3.2), cur = t0 + this.replayT, near = Math.abs(cur - tHit) < 0.9;
-    const rate = near ? 0.28 : 0.85; this.replayT += dt * rate;
+    // a reel of several clips moves on briskly: shorter slow-motion window, quicker run-up and aftermath
+    const multi = (this.reel?.length || 1) > 1, tHit = R.hitT ?? (t0 + 3.2), cur = t0 + this.replayT, near = Math.abs(cur - tHit) < (multi ? 0.6 : 0.9);
+    if (multi && this.replayT === 0) this.replayT = Math.max(0, tHit - t0 - 2.2);
+    const rate = near ? (multi ? 0.32 : 0.28) : multi ? 1.25 : 0.85; this.replayT += dt * rate;
     let t = t0 + this.replayT;
-    if (t > tEnd) { if (this.replayAuto) { this.stopReplay(); return; } this.replayT = 0; t = t0; }
+    if (t > tEnd) { if (this.nextClip()) return; if (this.replayAuto) { this.stopReplay(); return; } this.reelI = -1; this.nextClip(); return; }
     let i = 0; while (i < F.length - 2 && F[i + 1].t < t) i++;
     const a = F[i], b = F[Math.min(F.length - 1, i + 1)], u = Math.max(0, Math.min(1, (t - a.t) / ((b.t - a.t) || 1)));
     const qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
@@ -1113,14 +1158,15 @@ export class DerbyGame {
       this.laps = this.o.laps || 2;
       // reference lap from the racing-line speed profile at a strong AI pace, scaled by the player's car
       let ref = 0; for (let i = 0; i < this.track.N; i++) ref += this.track.ds / Math.max(4, this.line.spd[i] * 0.958 * this.player.spec.top ** 0.5);
-      const total = ref * this.laps + 2.5; // standing start
+      // narrow wooded tracks (fords, blind crests) cannot be driven on the ideal profile: a little slack there
+      const total = ref * this.laps * (this.track.width < 14 ? 1.06 : 1) + 2.5; // standing start
       this.targets = (this.mode === 'distruzione' ? [total * 1.22, total * 1.1, total * 1.02] : [total * 1.16, total * 1.06, total * 1.0]).map((t) => Math.round(t * 10) / 10);
     }
     MODES5.setup(this);
     if (['race', 'elim', 'caccia'].includes(this.mode) && this.laps >= 4 && this.dopts.pit !== false && !this.track.arena && !this.track.stunt) this.buildPit();
     this.objectives = pickObjectives(this);
     if (this.mode === 'time') this.loadGhost();
-    if (this.mode === 'stunt') { this.targets = this.o.targets || [60, 80, 95]; this.stunt = { att: 1, max: 3, phase: 'hold', t: 0, best: 0, dists: [], hold: 1.6 }; }
+    if (this.mode === 'stunt') { this.targets = (this.o.targets || [60, 80, 95]).map((t) => Math.round(t * PACE.stunt)); this.stunt = { att: 1, max: 3, phase: 'hold', t: 0, best: 0, dists: [], hold: 1.6 }; }
     if (this.mode === 'caccia') { this.huntDmg = 0; this.player.nitro = 100; this.laps = this.o.laps || Math.max(4, this.venue.laps); }
   }
   // ---- pit box (v5): a drive-through repair lane on the straightest stretch, for races of 4+ laps
@@ -1159,7 +1205,7 @@ export class DerbyGame {
   }
 
   // ---- time-trial ghost: best run per venue and lap count, kept in its own localStorage key
-  ghostKey() { return `${this.venue.id}:${this.laps}`; }
+  ghostKey() { return `${this.venue.id}:${this.laps}:v6`; } // v6 pace: the slower v5 ghosts are retired
   loadGhost() {
     this.ghostRec = []; this.ghostRecT = 0;
     let all = {}; try { all = JSON.parse(localStorage.getItem('apexdynasty_derby_ghost') || '{}') || {}; } catch {}
@@ -1253,7 +1299,7 @@ export class DerbyGame {
   finish() {
     if (this.state === 'finished') return;
     this.state = 'finished'; this.endT = this.time; this.hud?.spec?.classList.remove('on');
-    if (this.bestCrash && !this.bestCrash.saved) { this.bestCrash.saved = true; this.replay = { frames: this.rec.filter((r) => r.t >= this.bestCrash.t - 3.2), focus: this.bestCrash.focus, desc: this.bestCrash.desc, hitT: this.bestCrash.t, score: this.bestCrash.score }; }
+    if (this.bestCrash && !this.bestCrash.saved) this.saveCrash(this.bestCrash);
     setTimeout(() => this.endScreen(), this.track.arena ? 1500 : 300);
   }
   endScreen() {
@@ -1328,7 +1374,7 @@ export class DerbyGame {
     if (this.state === 'paused' || this.state === 'loading') { this.render(dtReal, true); return; }
     // slow motion on big impacts, and a few frames of hit-stop on the heaviest blows
     this.slowCool -= dtReal; this._dt = dtReal;
-    if (this.slowT > 0) { this.slowT -= dtReal; this.timeScale += (0.28 - this.timeScale) * Math.min(1, dtReal * 12); } else this.timeScale += (1 - this.timeScale) * Math.min(1, dtReal * 5);
+    if (this.slowT > 0) { this.slowT -= dtReal; this.timeScale += ((this.slowDepth || 0.28) - this.timeScale) * Math.min(1, dtReal * 14); } else this.timeScale += (1 - this.timeScale) * Math.min(1, dtReal * 5);
     let ts = this.timeScale; if (this.hitStop > 0) { this.hitStop -= dtReal; ts = Math.min(ts, 0.12); }
     const dt = dtReal * ts;
     this.crowdHype = Math.max(0, (this.crowdHype || 0) - dtReal * 0.18);
@@ -1368,7 +1414,7 @@ export class DerbyGame {
       // fell into the sea (port quay) or below the world: back on the track
       if (this.venue.port) { const cp = car.body.translation(); if (cp.y < this.terrain.heightAt(cp.x, cp.z) - 1.5 || cp.y < -2.6) { car.seaT = (car.seaT || 0) + dt; if (car.seaT > 1.2) { car.seaT = 0; this.requestRespawn(car, 'sea'); } } else car.seaT = 0; }
       // flipping a rival earns a bonus
-      if (car.dyn.up.y < -0.2 && !car.flipCredited && car.lastHit && this.time - car.lastHit.t < 3) { car.flipCredited = true; this.award(car.lastHit.by, 18, car.lastHit.by.isPlayer ? 'RIBALTATO!' : null, 250); }
+      if (car.dyn.up.y < -0.2 && !car.flipCredited && car.lastHit && this.time - car.lastHit.t < 3) { car.flipCredited = true; this.award(car.lastHit.by, 18, car.lastHit.by.isPlayer ? 'RIBALTATO!' : null, 250); if (car.lastHit.by.isPlayer || car.isPlayer) this.crashCandidate(26, [car, car.lastHit.by], car.isPlayer ? `Ribaltato da ${car.lastHit.by.name}` : `${car.name} ribaltato`); }
       if (car.dyn.up.y > 0.6) car.flipCredited = false;
       if (racing) this.updateProgress(car);
       if (car.isPlayer && this.state === 'race') this.playerStunts(car, dt);
@@ -1379,8 +1425,9 @@ export class DerbyGame {
         car.stuckHintT = car.dyn.speed < 1 && pin.thr > 0.5 ? car.stuckHintT + dt : 0;
       }
     }
-    // physics: fixed-size substeps (<= 1/100 s) for stable high-speed contacts
-    const sub = Math.max(1, Math.ceil(dt / 0.01));
+    // physics: substeps of <= 1/118 s (two per 60 Hz frame) for stable contacts at v6 speeds (70 m/s = 0.6 m per step;
+    // the cars also run Rapier CCD, so walls and props are never tunnelled)
+    const sub = Math.max(1, Math.ceil(dt / 0.00847));
     for (let s = 0; s < sub; s++) { for (const car of this.cars) if (!car.removed) car.vc.updateVehicle(dt / sub); this.world.timestep = dt / sub; this.world.step(this.events); this.handleContacts(dt / sub); }
     // numerical safety net: a body that exploded (NaN / absurd speed) is put back on the track
     for (const car of this.cars) { if (car.removed) continue; const v = car.body.linvel(), t = car.body.translation(); if (!Number.isFinite(v.x + v.y + v.z + t.x + t.y + t.z) || v.x * v.x + v.y * v.y + v.z * v.z > 150 * 150) { (this.simStats.nan ||= []).push([car.name, car.wheelLost.join(''), Math.round(car.hp), +this.time.toFixed(1), car.ghostT > 0, Math.round(v.y)]); car.body.setLinvel({ x: 0, y: 0, z: 0 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true); if (!Number.isFinite(t.x + t.y + t.z)) car.body.setTranslation({ x: this.track.pts[car.idx]?.x ?? this.terrain.cx, y: 50, z: this.track.pts[car.idx]?.z ?? this.terrain.cz }, true); car.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true); this.respawn(car); } }
@@ -1425,6 +1472,8 @@ export class DerbyGame {
     const dustC = this.surface.dust, mud = this.venue.surface === 'mud';
     const T = this.terrain;
     const camD = this.camera.position.distanceToSquared(car.mesh.position), near = camD < 120 * 120;
+    // the chase camera sits right behind the followed car: its own plume is thinned so it never hides the car
+    const ownCam = car === (this.spectate || this.player) && this.camMode < 2 && !this.lookBack;
     // dirt build-up on the paint
     if (dustC && speed > 3) ud.dirt.value = Math.min(1, ud.dirt.value + dt * (mud ? 0.012 : 0.005) * Math.min(1, speed / 25));
     if (car.inWater && speed > 3) ud.dirt.value = Math.max(0.15, ud.dirt.value - dt * 0.05);
@@ -1439,10 +1488,11 @@ export class DerbyGame {
       // dust / mud spray, heavier when sliding; splashes in water
       if (near) {
         if (wetHere && speed > 3) { if (Math.random() < 0.8) for (let k = 0; k < 2; k++) this.splash.emit(P.x, P.y + 0.15, P.z, -lv.x * 0.15 + side.x * (Math.random() - 0.5) * 6, 2.5 + Math.random() * 3.5 * Math.min(1, speed / 15), -lv.z * 0.15 + side.z * (Math.random() - 0.5) * 6, 0.9 + Math.random() * 0.5, 0.7, 0.78, 0.84, 0.86, 0.55); }
-        else if ((dustC || !onTrack) && (speed > 5 || spin) && Math.random() < (rear ? 0.4 : 0.15) * (1 + slideAmt) * (this.low ? 0.5 : 1)) {
+        // v6: the dust plume thickens with speed and with the venue's dryness (look.dust: dusty quarry 1.5, rain 0.15)
+        else if ((dustC || !onTrack) && (speed > 5 || spin) && Math.random() < Math.min(0.95, (rear ? 0.4 : 0.15) * (1 + slideAmt) * (1 + Math.min(1, speed / 45) * 0.4) * Math.min(1.25, this.look.dust ?? 1)) * (this.low ? 0.5 : 1)) {
           const c = onTrack ? (dustC || [0.4, 0.38, 0.33]) : [0.42, 0.38, 0.28];
           if (mud) this.chips.emit(P.x, P.y + 0.2, P.z, -fwd.x * speed * 0.25 + (Math.random() - 0.5) * 3, 1.5 + Math.random() * 3, -fwd.z * speed * 0.25 + (Math.random() - 0.5) * 3, 0.8, 0.2, 0.25, 0.19, 0.12, 1);
-          this.dust.emit(P.x, P.y + 0.3, P.z, -lv.x * 0.12 + (Math.random() - 0.5) * 2, 0.5 + Math.random(), -lv.z * 0.12 + (Math.random() - 0.5) * 2, 1.6 + Math.random() * 1.6 * (mud ? 0.5 : 1), 0.8 + speed * 0.025 + slideAmt * 0.5, c[0], c[1], c[2], (mud ? 0.16 : 0.22) * Math.min(1.6, 0.6 + slideAmt));
+          this.dust.emit(P.x, P.y + 0.3, P.z, -lv.x * 0.12 + (Math.random() - 0.5) * 2, 0.5 + Math.random(), -lv.z * 0.12 + (Math.random() - 0.5) * 2, 1.6 + Math.random() * 1.6 * (mud ? 0.5 : 1), 0.8 + speed * 0.03 + slideAmt * 0.5, c[0], c[1], c[2], (mud ? 0.16 : 0.22) * Math.min(1.6, 0.6 + slideAmt + Math.min(0.25, speed / 160)) * Math.min(1.15, 0.6 + 0.4 * (this.look.dust ?? 1)) * (ownCam ? 0.45 : 1));
         }
         if (!dustC && slideAmt > 0.45 && Math.random() < Math.min(0.9, 0.35 + slideAmt * 0.4)) this.smoke.emit(P.x, P.y + 0.15, P.z, -lv.x * 0.08 + (Math.random() - 0.5) * 1.5, 0.5 + Math.random() * 0.6, -lv.z * 0.08 + (Math.random() - 0.5) * 1.5, 1.5 + Math.random(), 0.7 + slideAmt * 0.5, 0.86, 0.86, 0.88, Math.min(0.4, 0.14 + slideAmt * 0.12)); // tyre smoke on asphalt
       }
@@ -1461,6 +1511,14 @@ export class DerbyGame {
       if (burning) for (let n = 0; n < 2; n++) this.fire.emit(ep.x + (Math.random() - 0.5) * 0.7, ep.y, ep.z + (Math.random() - 0.5) * 0.7, (Math.random() - 0.5) - lv.x * 0.1, 1.6 + Math.random() * 2.2, (Math.random() - 0.5) - lv.z * 0.1, 0.35 + Math.random() * 0.35, car.burnT > 0 ? 0.8 : 0.55, 1, 0.3 + Math.random() * 0.25, 0.04, 0.75);
     }
     if (car.hotT > 0 && near && Math.random() < 0.6) { const ep = new THREE.Vector3(ud.dims.L - 0.5, 0.9, 0).applyQuaternion(q).add(car.mesh.position); this.smoke.emit(ep.x, ep.y, ep.z, (Math.random() - 0.5) * 2 - lv.x * 0.15, 2.5 + Math.random() * 2, (Math.random() - 0.5) * 2 - lv.z * 0.15, 1.6, 0.9, 0.95, 0.95, 0.97, 0.5); }
+    // backfire: a fireball and a pop from the exhaust on fast upshifts and on lifting off at high revs
+    if (car.backfire) {
+      const n = car.backfire; car.backfire = 0;
+      if (near) { const ey = ud.shape.y0 - 0.1, ep = new THREE.Vector3(-ud.dims.L - 0.2, ey, -0.5).applyQuaternion(q).add(car.mesh.position);
+        for (let k = 0; k < (this.low ? 4 : 9) * n; k++) { const u = Math.random(); this.fire.emit(ep.x - fwd.x * u * 0.4, ep.y + (Math.random() - 0.5) * 0.1, ep.z - fwd.z * u * 0.4, -fwd.x * (3 + u * 5) + lv.x * 0.9 + (Math.random() - 0.5), 0.3 + Math.random() * 0.6, -fwd.z * (3 + u * 5) + lv.z * 0.9 + (Math.random() - 0.5), 0.1 + u * 0.14, 0.22 + u * 0.12, 1, 0.45 + Math.random() * 0.3, 0.1, 0.95); }
+        if (n > 1) for (let k = 0; k < 3; k++) this.smoke.emit(ep.x, ep.y, ep.z, -fwd.x * 2 + lv.x * 0.7, 0.6, -fwd.z * 2 + lv.z * 0.7, 0.7, 0.5, 0.25, 0.24, 0.23, 0.35);
+        this.snd?.backfire?.(car, ep, n); }
+    }
     if (car.boost && near) { const ey = ud.shape.y0 - 0.1; for (const ez of (ud.shape.scoop || ud.shape.hotrod ? [-0.5, 0.5] : [-0.5])) { const ep = new THREE.Vector3(-ud.dims.L - 0.25, ey, ez).applyQuaternion(q).add(car.mesh.position); for (let k = 0; k < 3; k++) { const u = Math.random(); this.fire.emit(ep.x - fwd.x * u * 0.5, ep.y, ep.z - fwd.z * u * 0.5, -fwd.x * (6 + u * 8) + lv.x, 0.2 + Math.random() * 0.5, -fwd.z * (6 + u * 8) + lv.z, 0.07 + u * 0.1, 0.42 - u * 0.15, k ? 0.3 + Math.random() * 0.3 : 1, k ? 0.5 : 0.55, k ? 1 : 0.2, 0.9); } if (Math.random() < 0.3) this.sparks.emit(ep.x, ep.y, ep.z, -fwd.x * 8 + lv.x + (Math.random() - 0.5) * 3, Math.random() * 2, -fwd.z * 8 + lv.z + (Math.random() - 0.5) * 3, 0.3, 0.3, 0.5, 0.7, 1); } }
   }
 
@@ -1478,7 +1536,7 @@ export class DerbyGame {
     const pp = (this.spectate || this.player).mesh.position; this.sun.position.copy(pp).addScaledVector(this.sunDir, 150); this.sun.target.position.copy(pp);
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
     CROWD.time.value += dtReal * (frozen ? 0 : 1); CROWD.hype.value += (Math.min(1, (this.crowdHype || 0) + (this.state === 'countdown' ? 0.35 : 0)) - CROWD.hype.value) * Math.min(1, dtReal * 4);
-    updateHud(this, dtReal);
+    updateHud(this, dtReal); this.touch?.update();
     this.snd?.update(dtReal);
     const P = this.player, eg = ENGINE_GEARS[P.spec.engine] || 7;
     try { engineSet(P.rpm < 0.09 && (pin?.thr || 0) < 0.05 ? 0 : Math.min(0.995, Math.max(0.02, P.rpm)) / eg, { crowd: 0.25 }); } catch {}
@@ -1493,9 +1551,11 @@ export class DerbyGame {
     this.hurt = Math.max(0, (this.hurt || 0) - dt * 1.6);
     const sp = P.dyn?.speed || 0, chase = driving && this.state !== 'finished';
     if (pu) {
-      const blurT = chase ? Math.max(0, Math.min(1, (sp - 28) / 32)) * 0.022 * (this.camMode >= 2 ? 1.6 : 1) + (P.boost ? 0.03 : 0) : 0;
+      const blurT = chase ? Math.max(0, Math.min(1, (sp - 28) / 40)) * 0.022 * (this.camMode >= 2 ? 1.5 : 1) + (P.boost ? 0.018 : 0) : 0;
       pu.uBlur.value += (blurT - pu.uBlur.value) * Math.min(1, dt * 5);
-      pu.uCA.value += (((chase && P.boost) ? 0.45 : 0) + Math.min(1, this.shake || 0) * 0.35 - pu.uCA.value) * Math.min(1, dt * 6);
+      pu.uCA.value += (((chase && P.boost) ? 0.22 : 0) + Math.min(1, this.shake || 0) * 0.25 + (1 - this.timeScale) * 0.7 - pu.uCA.value) * Math.min(1, dt * 6);
+      const linesT = chase && this.camMode !== 1 ? Math.max(0, Math.min(1, (sp - 45) / 22)) * 0.5 + (P.boost ? 0.5 : 0) : 0;
+      if (pu.uLines) pu.uLines.value += (linesT - pu.uLines.value) * Math.min(1, dt * 5);
       pu.uTime.value = (performance.now() / 1000) % 600; pu.uAspect.value = cam.aspect; pu.uHurt.value = Math.min(0.6, this.hurt || 0);
       // heat haze behind the nitro flames
       let heat = 0;
@@ -1527,7 +1587,12 @@ export class DerbyGame {
     const c = this.spectate || this.player, q = c.mesh.quaternion, p = c.mesh.position;
     const fwd = c.dyn?.fwd || new THREE.Vector3(1, 0, 0).applyQuaternion(q);
     const sp = c.dyn?.speed || 0, lv = c.body.linvel();
-    let fov = 64 + Math.min(16, sp * 0.24) + (c.boost ? 10 : 0);
+    // speed you can feel: the field of view opens progressively with speed (61 -> 76 deg at ~230 km/h),
+    // kicks wider when the nitro opens and breathes with the boost; a light high-frequency buzz at speed
+    const spK = Math.max(0, Math.min(1, (sp - 6) / 58)), boostK = c.boost ? 1 : 0;
+    this._fovBoost = (this._fovBoost || 0) + (boostK - (this._fovBoost || 0)) * Math.min(1, dt * (boostK ? 6 : 2.2));
+    let fov = 61 + 15 * spK * spK * (3 - 2 * spK) + 6 * this._fovBoost + (this.camPull || 0) * 4;
+    if (c === this.player && sp > 30 && c.dyn?.grounded >= 2) this.shake = Math.max(this.shake, Math.min(0.14, (sp - 30) / 260) + (c.boost ? 0.07 : 0));
     const sh = this.shake; this.shake = Math.max(0, sh - dt * 2.2);
     const tt = performance.now() / 1000;
     const shk = new THREE.Vector3(Math.sin(tt * 37) + Math.sin(tt * 23.3) * 0.5, Math.sin(tt * 41.7) * 0.8, Math.sin(tt * 29.1) + Math.cos(tt * 17) * 0.5).multiplyScalar(sh * 0.16);
@@ -1561,7 +1626,7 @@ export class DerbyGame {
     this.camLag = (this.camLag || 0) + (lagT - (this.camLag || 0)) * Math.min(1, dt * 3);
     this.camPull = Math.max(0, (this.camPull || 0) - dt * 1.6);
     this.camDip = Math.max(0, (this.camDip || 0) - dt * 2.5);
-    const back = (far ? 10.5 : 6.6) + Math.min(2.5, sp * 0.05) + this.camLag, h = (far ? 3.9 : 2.3) + Math.min(0.6, sp * 0.012);
+    const back = (far ? 10.5 : 6.6) + Math.min(2.2, sp * 0.036) + this.camLag, h = (far ? 3.9 : 2.3) + Math.min(0.5, sp * 0.008);
     const pos = p.clone().addScaledVector(dir, -back); pos.y = p.y + h;
     let gy = this.terrain.heightAt(pos.x, pos.z) + 1.2; for (let k = 1; k <= 3; k++) { const f = k / 4; gy = Math.max(gy, this.terrain.heightAt(p.x + (pos.x - p.x) * f, p.z + (pos.z - p.z) * f) + 0.9); } if (pos.y < gy) pos.y = gy;
     const look = p.clone().addScaledVector(dir, 4.5); look.y += 1.0;
@@ -1569,6 +1634,9 @@ export class DerbyGame {
     else {
       // critically damped follow: stiff horizontally, softer vertically (absorbs bumps and landings)
       const kH = Math.min(1, dt * 9), kV = Math.min(1, dt * 5);
+      // lead the target by most of the follow lag: at 200+ km/h a plain first-order follow trails ~7 m
+      // behind and the car shrinks into the distance; this keeps it big on screen (a little stretch remains)
+      if (!this.lookBack) { pos.x += lv.x * 0.75 / 9; pos.z += lv.z * 0.75 / 9; }
       this.camPos.x += (pos.x - this.camPos.x) * kH; this.camPos.z += (pos.z - this.camPos.z) * kH; this.camPos.y += (pos.y - this.camPos.y) * kV;
       if (this.lookBack !== this._lb) { this.camPos.copy(pos); this._lb = this.lookBack; }
       this.camLook.lerp(look, Math.min(1, dt * 12));

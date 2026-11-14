@@ -154,7 +154,7 @@ function raceAI(game, car, A, k, dt) {
       const t = Math.min(1.2, d / Math.max(8, k.speed));
       let rx = op.x + ov.x * t, rz = op.z + ov.z * t;
       if (A.ram.kind === 'pit' && o.dyn?.fwd) { const f = o.dyn.fwd; rx += -f.x * 1.6 + f.z * A.ram.sgn * 0.9; rz += -f.z * 1.6 - f.x * A.ram.sgn * 0.9; } // rear corner on our side
-      if (Math.abs(game.lateralOf(rx, rz, i)) < hw + 1.5) { tx = rx; tz = rz; vT = Math.max(vT, Math.min(46, k.speed + 6)); ramTarget = o; }
+      if (Math.abs(game.lateralOf(rx, rz, i)) < hw + 1.5) { tx = rx; tz = rz; vT = Math.max(vT, Math.min(58, k.speed + 7)); ramTarget = o; }
     }
   }
   const { d, st } = steerTo(k, tx, tz, 2.3);
@@ -225,7 +225,7 @@ function derbyAI(game, car, A, k, dt) {
     // orbit around the arena centre to build speed, then hunt
     const dir = A.orbit || (A.orbit = Math.random() < 0.5 ? 1 : -1);
     const a = Math.atan2(rz, rx) + dir * 0.6, R = tr.R * 0.5;
-    tx = cx + Math.cos(a) * R; tz = cz + Math.sin(a) * R; vT = 18;
+    tx = cx + Math.cos(a) * R; tz = cz + Math.sin(a) * R; vT = 22;
     if (A.modeT <= 0) A.mode = 'hunt';
   } else if (o) {
     const op = o.body.translation(), ov = o.body.linvel();
@@ -238,8 +238,8 @@ function derbyAI(game, car, A, k, dt) {
     // no suicide runs: a weaker car does not charge into a nose that is pointing at it; it circles for the flank
     const facing = o.dyn?.fwd ? (o.dyn.fwd.x * (k.p.x - op.x) + o.dyn.fwd.z * (k.p.z - op.z)) / Math.max(1, d) : 0;
     const suicidal = facing > 0.75 && (o.dyn?.speed || 0) > 5 && car.hp < o.hp - 10 && game.mode !== 'ondate';
-    if (A.mode === 'hunt') { vT = d > 30 ? 22 : 16; if (d < 26 && Math.abs(al) < 0.35 && !suicidal) { A.mode = 'charge'; A.modeT = 2.5; } else if (suicidal && d < 20) { A.mode = 'circle'; A.modeT = 0.9; A.orbit = -(A.orbit || 1); } }
-    if (A.mode === 'charge') { vT = 40; nitro = car.nitro > 15 && Math.abs(al) < 0.2 ? 1 : 0; if (A.modeT <= 0 || Math.abs(al) > 1.4) { A.mode = 'circle'; A.modeT = 1 + Math.random(); } }
+    if (A.mode === 'hunt') { vT = d > 30 ? 27 : 19; if (d < 26 && Math.abs(al) < 0.35 && !suicidal) { A.mode = 'charge'; A.modeT = 2.5; } else if (suicidal && d < 20) { A.mode = 'circle'; A.modeT = 0.9; A.orbit = -(A.orbit || 1); } }
+    if (A.mode === 'charge') { vT = 48; nitro = car.nitro > 15 && Math.abs(al) < 0.2 ? 1 : 0; if (A.modeT <= 0 || Math.abs(al) > 1.4) { A.mode = 'circle'; A.modeT = 1 + Math.random(); } }
     if (Math.abs(al) > 1.6 && k.speed > 9) hb = 1;
   }
   // wall avoidance: heading out near the edge
