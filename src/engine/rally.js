@@ -4,6 +4,7 @@ import { CATEGORIES, RALLY_TYRES, SURFACES, POINTS_STD } from '../data/categorie
 import { buildEntries, aiSetupQuality } from './race.js';
 import { carPerf, standings } from './season.js';
 import { rand, randInt, chance, clamp, gauss, pick, mulberry32 } from './rng.js';
+import { RallyRecorder } from './highlights.js';
 
 export const PACE_MODES = {
   safe: { name: 'Prudente', speed: -0.013, risk: 0.45 },
@@ -104,7 +105,13 @@ export class RallyEvent {
     });
     this.log = [];
     this.setRoadOrder();
+    // highlights: stage clock, incident list for the replay views, recorder
+    this.clock = 0; this.incidents = [];
+    try { this.hl = new RallyRecorder(this); } catch { this.hl = null; }
   }
+  // crew keyframe (time, progress, waiting at the start): positions in the replays are rebuilt from these
+  kfPush(c, t) { if (!c.kf) return; const pc = c.pieces?.[c.pieceIdx]; const last = c.kf[c.kf.length - 1]; const w = pc?.type === 'wait' ? 1 : 0; if (last && Math.abs(last[0] - t) < 1e-6) { last[1] = c.progress || 0; last[2] = w; return; } c.kf.push([t, c.progress || 0, w]); if (c.kf.length > 400) c.kf.splice(1, 1); }
+  hlMark(m) { try { this.hl?.mark(m); } catch { /* never breaks a stage */ } }
   driver(c) { return this.state.drivers[c.driverIds[0]]; }
   get stage() { return this.stages[this.stageIdx]; }
   isServiceAfter(i) { return i % 2 === 1 && i < this.stages.length - 1; }
@@ -314,6 +321,7 @@ export class RallyEvent {
     return pieces;
   }
   buildPieces() {
+    this.clock = 0; this.hl?.stageStart();
     // start order = road order, 20s apart (see setRoadOrder: it matters on loose surfaces)
     const order = (this.roadList || this.crews).filter((c) => c.plan);
     const startIdx = new Map(order.map((c, i) => [c, i]));
@@ -322,6 +330,7 @@ export class RallyEvent {
       const delay = (startIdx.get(c) || 0) * 20;
       c.pieces = this.piecesFrom(c, 0, delay ? [{ type: 'wait', p0: 0, p1: 0, dur: delay }] : []);
       c.pieceIdx = 0; c.pieceT = 0; c.progress = 0; c.stageT = 0; c.done = false; c.splits = []; c.splitTimes = {}; c.stageResult = null; c.waiting = !!delay;
+      c.kf = [[0, 0, delay ? 1 : 0]];
     }
   }
   sectorAt(p) { return Math.min(2, Math.floor(p * 3 + 1e-9)); }
@@ -352,6 +361,7 @@ export class RallyEvent {
     else if (pc?.type === 'stop') { lead.push({ type: 'stop', p: p0, dur: pc.dur - c.pieceT, stop: pc.stop, logged: true }); if (pc.stop) pc.stop.used = true; }
     // stops already behind the car never come back
     for (const so of c.plan.stops) if (so.p < p0) so.used = true;
+    this.kfPush(c, this.clock);
     c.pieces = this.piecesFrom(c, p0 + 1e-6, lead);
     c.pieceIdx = 0; c.pieceT = 0;
     return true;
@@ -390,7 +400,7 @@ export class RallyEvent {
         if (pc.type === 'move') c.progress = pc.p0 + (pc.p1 - pc.p0) * (pc.dur ? c.pieceT / pc.dur : 1);
         if (pc.type === 'stop' && !pc.logged) {
           pc.logged = true; if (pc.stop) pc.stop.used = true;
-          this.onStop(c, pc);
+          this.onStop(c, pc, this.clock + dt - left - use);
           if (pc.stop.dur >= 9999) {
             c.done = true;
             if (pc.stop.kind === 'terminal' || (pc.stop.kind === 'crash' && chance(0.35))) { c.status = 'out'; this.pushLog(`${this.driver(c).name} è definitivamente ritirato dal rally.`, 'out', c); }
@@ -400,13 +410,34 @@ export class RallyEvent {
           }
         }
         for (const sp of [1 / 3, 2 / 3]) if (c.progress >= sp - 1e-9 && !c.splits.includes(sp)) { c.splits.push(sp); (c.splitTimes ||= {})[sp] = c.stageT; this.onSplit(c, sp); }
-        if (c.pieceT >= pc.dur - 1e-9) { c.pieceIdx++; c.pieceT = 0; if (c.pieceIdx >= c.pieces.length) this.finishCrew(c); }
+        if (c.pieceT >= pc.dur - 1e-9) {
+          const tNow = this.clock + dt - left;
+          if (pc.type === 'wait' && c.isPlayer) this.hlMark({ type: 'start', keys: [c.key], t: tNow, title: `Via! ${this.driver(c).name}`, text: `PS${this.stageIdx + 1} ${this.stage.name} · ${this.stage.km} km`, score: 2.6, pre: 2.5, post: 9 });
+          c.pieceIdx++; c.pieceT = 0; this.kfPush(c, tNow);
+          if (c.pieceIdx >= c.pieces.length) this.finishCrew(c, tNow);
+        }
       }
     }
+    this.clock += dt;
     return req;
   }
-  onStop(c, pc) {
+  onStop(c, pc, t = this.clock) {
     const s = pc.stop;
+    if (s && s.kind !== 'adj') {
+      // the replay views: how the car leaves the road (pace = progress per second in this sector)
+      const kind = { minor: 'off', major: 'off', crash: 'roll', terminal: 'park', mech: 'park', puncture: 'park' }[s.kind];
+      if (kind) {
+        const sec = this.sectorAt(c.progress || 0);
+        const inc = { key: c.key, stage: this.stageIdx, kind, t0: t, u0: c.progress || 0, v: (1 / 3) / (c.plan?.secT?.[sec] || 100), side: chance(0.5) ? 1 : -1, sub: s.kind };
+        this.incidents.push(inc); if (this.incidents.length > 120) this.incidents.shift();
+        const pos = this.overall().indexOf(c);
+        const sc = ({ crash: 8, terminal: 5, major: 6, puncture: 4, mech: 3, minor: 3 }[s.kind] || 3) + (c.isPlayer ? 2 : 0) + (pos >= 0 && pos < 3 ? 1.2 : 0);
+        const T = { crash: 'crash', terminal: 'issue', major: 'off', puncture: 'puncture', mech: 'issue', minor: 'off' }[s.kind];
+        const d = this.driver(c);
+        const title = { crash: `${d.name} si cappotta!`, terminal: `Guasto fatale per ${d.name}`, major: `${d.name} esce di strada`, puncture: `Foratura per ${d.name}`, mech: `Problema meccanico per ${d.name}`, minor: `${d.name} va lungo` }[s.kind];
+        this.hlMark({ type: T, keys: [c.key], t, title, text: String(s.text || '').replace(/^[^\p{L}]+/u, ''), score: sc, pre: 6, post: Math.min(10, (s.dur >= 9999 ? 7 : s.dur + 3)) });
+      }
+    }
     // punctures use a spare; without one the crew limps on the rim
     if (s.kind === 'puncture') {
       if (c.spares > 0) { c.spares--; this.pushLog(`${s.text} (scorte rimaste: ${c.spares})`, 'puncture', c); }
@@ -434,6 +465,7 @@ export class RallyEvent {
     const pi = c.pieceIdx;
     let extra = opt.gain;
     let dmg = null;
+    this.kfPush(c, this.clock);
     if (opt.spare) { if (c.spares > 0) c.spares--; else { extra += 50; text = 'Nessuna scorta a bordo: sostituzione di fortuna. '; } }
     if (opt.risk && chance(risk)) {
       if (opt.fail === 'puncture') { if (c.spares > 0) { c.spares--; extra += rand(45, 80); } else extra += rand(100, 140); text = `Foratura! ${d.name} perde tempo cambiando la ruota.`; }
@@ -455,9 +487,11 @@ export class RallyEvent {
     return { text, good: extra <= 0, gain: extra };
   }
 
-  finishCrew(c) {
+  finishCrew(c, t = this.clock) {
     c.done = true;
     c.stageResult = c.stageT;
+    { const others = this.crews.filter((x) => x !== c && x.stageResult != null && x.plan); const best = !others.length || others.every((x) => x.stageResult > c.stageT);
+      if (best || c.isPlayer) this.hlMark({ type: 'stage', keys: [c.key], t, title: `${this.driver(c).name} al traguardo`, text: `PS${this.stageIdx + 1} in ${Math.floor(c.stageT / 60)}:${(c.stageT % 60).toFixed(1).padStart(4, '0')}${best && others.length ? ' · miglior tempo' : ''}`, score: c.isPlayer ? 3.5 : 2.5, pre: 7, post: 3 }); }
     (c.splitTimes ||= {})[1] = c.stageT;
     this.onSplit(c, 1);
   }
@@ -498,6 +532,7 @@ export class RallyEvent {
       if (st.surface === 'rough' && c.plan && chance(0.2)) c.damage.suspension = clamp(c.damage.suspension + rand(0.05, 0.15), 0, 1);
       c.plan = null; c.choice = null;
     }
+    try { this.hl?.stageEnd(st, { seed: (this.track.seed || 0) + st.idx * 101, trackId: this.track.id }); } catch (e) { console.warn('highlights', e); }
     const ov = this.overall();
     ov.forEach((c, i) => c.posHist.push(c.status === 'out' ? null : i + 1));
     st.gapsAfter = Object.fromEntries(ov.filter((c) => c.status !== 'out').map((c) => [c.key, c.total - ov[0].total]));
