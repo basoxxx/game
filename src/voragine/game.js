@@ -662,10 +662,11 @@ export class VoragineGame {
       let x = tmpV.x, y = tmpV.y; if (tmpV.z > 1) { x = -x; y = -y; }
       const k = 1 / Math.max(Math.abs(x), Math.abs(y), 1e-3);
       const px = Math.min(w - m, Math.max(m, ((x * k + 1) / 2) * w)), py = Math.min(hgt - m, Math.max(m + 60, ((1 - y * k) / 2) * hgt));
+      const mini = w > 640 ? 180 : 0; let qy = py; if (mini && px > w - mini && py > hgt - mini) qy = hgt - mini - 12;
       const d = Math.hypot(h.x - this.me.x, h.z - this.me.z);
       if (d > 140) { h.lab.style.opacity = 0; continue; }
       h.lab.classList.add('edge'); h.lab.classList.toggle('danger', h.r > this.me.r * 1.2); h.lab.classList.toggle('prey', this.me.r > h.r * 1.2);
-      h.lab.style.opacity = 0.9; h.lab.style.transform = `translate(${px}px, ${py}px) translate(-50%, -50%)`;
+      h.lab.style.opacity = 0.9; h.lab.style.transform = `translate(${px}px, ${qy}px) translate(-50%, -50%)`;
     }
   }
   updateHud(dt) {
