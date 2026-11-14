@@ -269,7 +269,7 @@ export class Race3D {
     if (this.composer && !this.open) { addLensRain(this.composer); addXFade(this.composer); }
     // shader-placed instances (grass grid) would be drawn untransformed by the AO normal pass
     const ao = this.composer?.ao;
-    if (ao?.overrideVisibility) { const ov = ao.overrideVisibility.bind(ao); ao.overrideVisibility = () => { ov(); this.grass?.mesh && (this.grass.mesh.visible = false); }; }
+    if (ao?.overrideVisibility) { const ov = ao.overrideVisibility.bind(ao); ao.overrideVisibility = () => { ov(); if (this.grass?.mesh) this.grass.mesh.visible = false; if (this.forest) this.forest.visible = false; }; }
     this.cars = new Map();
     for (const c of cars) this.addCar(c);
     this.camPos = new THREE.Vector3(0, 50, 0);
@@ -1578,7 +1578,7 @@ export class Race3D {
     }
     if (!items.length) return;
     this.scene.add(makeTreeShadows(items.filter((it) => !it.far)));
-    this.forest = makeForest(items); this.forest.material.uniforms.sunDir.value = this.sunDir;
+    this.forest = makeForest(items, { canopy: !this.low }); this.forest.material.uniforms.sunDir.value = this.sunDir;
     if (this.night) this.forest.material.uniforms.light.value = 0.42;
     this.scene.add(this.forest);
   }
