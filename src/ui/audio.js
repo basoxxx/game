@@ -16,7 +16,11 @@
 // Additions: setAudioScene(screenId), crowdCheer(amount), audioUnlocked(),
 //   AUDIO_BUSES (mixer metadata), audioDebug() (levels for tests).
 //   engineSet opts: { rain, crowd, rpm (0..1, overrides the gearbox),
-//                     throttle (0..1), slip (0..1 tyre squeal) }
+//                     throttle (0..1), slip (0..1 tyre squeal),
+//                     view ('onboard'|'cockpit'|'chase'|'tv'|'heli'), surface ('gravel'|'tarmac') }
+//   engineStart(cat): formula | junior | endurance (hypercar) | gt | rally
+//   engineView(mode): camera mix for the engine (same values as opts.view)
+//   passBy(intensity, cat, { speed km/h, dist m, cls: 'gt', side }) — doppler pass-by
 // Settings used: sound (effects/engines/ambience), music, engineSound,
 //   volume (master), musicVol, sfxVol, engineVol, ambVol.
 // =============================================================================
@@ -87,7 +91,8 @@ function ac() {
       // post-fader reverb sends (their gain follows the bus volume)
       B.musicRev = ctx.createGain(); B.musicRev.connect(B.rev);
       B.sfxRev = ctx.createGain(); B.sfxRev.connect(B.rev);
-      B.musicRev.gain.value = 0; B.sfxRev.gain.value = 0;
+      B.engRev = ctx.createGain(); B.engRev.connect(B.rev);
+      B.musicRev.gain.value = 0; B.sfxRev.gain.value = 0; B.engRev.gain.value = 0;
       // ping-pong delay for the music (dotted eighths, set per theme)
       B.delay = ctx.createGain();
       const dl = ctx.createDelay(2), dr = ctx.createDelay(2), fb = ctx.createGain(), tone = ctx.createBiquadFilter();
@@ -112,7 +117,8 @@ export function applyVolumes() {
   setG(B.music, mv); setG(B.musicRev, mv);
   const sv = fx ? clamp(s.sfxVol ?? 0.8, 0, 1) : 0;
   setG(B.sfx, sv); setG(B.sfxRev, sv);
-  setG(B.eng, fx && s.engineSound !== false ? clamp(s.engineVol ?? 0.85, 0, 1) : 0);
+  const ev = fx && s.engineSound !== false ? clamp(s.engineVol ?? 0.85, 0, 1) : 0;
+  setG(B.eng, ev); setG(B.engRev, ev);
   setG(B.amb, fx ? clamp(s.ambVol ?? 0.7, 0, 1) : 0);
   if (engine && (s.engineSound === false || !fx)) engineStop();
 }
@@ -721,6 +727,7 @@ const ambience = {
     this.rain = rg;
   },
   setCrowd(v) { if (this.crowd && Math.abs(v - this.crowdLvl) < 0.01) return; this.ensure(); if (!this.crowd) return; this.crowdLvl = v; for (const L of this.crowd) L.g.gain.setTargetAtTime(v * 0.05 * L.base, ctx.currentTime, 0.8); },
+  setWind(v) { this.windLvl = v; },
   setRain(v) { if (this.rain && Math.abs(v - this.rainLvl) < 0.01) return; this.ensure(); if (!this.rain) return; this.rainLvl = v; this.rain.gain.setTargetAtTime(v * 0.05, ctx.currentTime, 0.8); },
   // paddock bed: distant generators + random pit-lane events (wheel guns, revs, PA, tools)
   update() {
@@ -780,179 +787,305 @@ export function crowdCheer(amount = 1) {
 }
 
 // ---------------------------------------------------------------------------
-// ENGINES — firing-order synthesis per category
-// fire frequency = rpm/60 × cylinders/2 (4-stroke). Two detuned "banks", a
-// half-order sub (V8 burble), cycle-rate amplitude roughness, drive, a
-// throttle-tracking filter, intake noise, turbo whistle + blow-off, hybrid
-// whine, overrun crackle / anti-lag bangs, gear shift cuts, tyre squeal, wind.
+// ENGINES — engine-order synthesis per category
+// The oscillators run at the 4-stroke CYCLE rate (rpm/120), so every harmonic k
+// is an engine order: firing orders (k = cyl·m) carry the note, half orders give
+// the V8 burble / four-pot gargle, small irregular orders the mechanical texture
+// (each bank gets its own seed). On top: combustion noise amplitude-modulated at
+// the firing rate, induction roar, turbo whistle + flutter, hybrid ERS whine,
+// straight-cut gearbox whine, overrun crackle, anti-lag bangs, up/down-shift
+// logic with throttle blips, tyre squeal, wind, gravel and spray. A camera mix
+// (onboard / chase / tv / heli) rebalances the layers; pass-bys use a physical
+// doppler + distance + air-absorption model.
 // ---------------------------------------------------------------------------
 const ENG = {
-  formula:   { cyl: 6, idle: 4200, red: 12400, gears: 8, top: 345, gain: 0.17, wave: 'v6', sub: 0.12, rough: 0.07, cyc: 1, cut: [1100, 7000], drive: 1.6, turbo: 0.2, hybrid: 0.7, intake: 0.25, pops: 0.25, antilag: 0, scream: 5 },
-  junior:    { cyl: 6, idle: 3800, red: 9800, gears: 6, top: 290, gain: 0.17, wave: 'v6', sub: 0.16, rough: 0.09, cyc: 1, cut: [900, 5600], drive: 1.8, turbo: 0.1, hybrid: 0, intake: 0.3, pops: 0.3, antilag: 0, scream: 3 },
-  endurance: { cyl: 8, idle: 3000, red: 9600, gears: 7, top: 340, gain: 0.18, wave: 'v8', sub: 0.32, rough: 0.14, cyc: 1, cut: [800, 5200], drive: 2, turbo: 0.15, hybrid: 0.45, intake: 0.25, pops: 0.45, antilag: 0, scream: 1 },
-  rally:     { cyl: 4, idle: 2500, red: 7800, gears: 6, top: 200, gain: 0.19, wave: 'i4', sub: 0.26, rough: 0.2, cyc: 1, cut: [650, 4300], drive: 2.4, turbo: 1, hybrid: 0, intake: 0.35, pops: 1, antilag: 1, scream: -1 },
-  banger:    { cyl: 8, idle: 850, red: 6000, gears: 7, top: 200, gain: 0.14, wave: 'v8x', sub: 0.6, rough: 0.38, cyc: 0.5, cut: [380, 3000], drive: 2.8, turbo: 0, hybrid: 0, intake: 0.3, pops: 0.7, antilag: 0, scream: -3 },
-  hatch:     { cyl: 4, idle: 900, red: 7000, gears: 6, top: 180, gain: 0.19, wave: 'i4', sub: 0.22, rough: 0.22, cyc: 1, cut: [500, 3800], drive: 2.2, turbo: 0.3, hybrid: 0, intake: 0.4, pops: 0.45, antilag: 0, scream: -2 },
+  // F1-like 1.6 V6 turbo hybrid: very high revs, smooth even firing, screaming top end, ERS whine, seamless shifts
+  formula:   { cyl: 6, idle: 5000, red: 12600, gears: 8, top: 345, gain: 0.15, half: 0.06, irr: 0.04, decay: 0.8, seed: 3, sub: 0.05, rough: 0.03, drive: 1.5, cut: [1500, 9500], body: 1.9, scream: 6, turbo: 0.5, turboF: [5600, 10500], hybrid: 1, intake: 0.2, pops: 0.35, antilag: 0, blip: 1, cutT: 0.018, whine: 0.5 },
+  // F2-like 3.4 V6 turbo: lower revs, rawer, bigger shift cuts, more crackle, no hybrid
+  junior:    { cyl: 6, idle: 4000, red: 9000, gears: 6, top: 300, gain: 0.16, half: 0.18, irr: 0.12, decay: 0.75, seed: 7, sub: 0.1, rough: 0.08, drive: 2, cut: [1100, 6800], body: 1.7, scream: 3, turbo: 0.75, turboF: [3600, 7600], hybrid: 0, intake: 0.3, pops: 0.6, antilag: 0, blip: 1, cutT: 0.05, whine: 0.7 },
+  // LMH/LMDh hypercar: twin-turbo V8 hybrid, deep and smooth, hybrid hum on top
+  endurance: { cyl: 8, idle: 3400, red: 9000, gears: 7, top: 340, gain: 0.17, half: 0.3, irr: 0.06, decay: 0.95, seed: 11, sub: 0.2, rough: 0.06, drive: 1.7, cut: [900, 6200], body: 1.6, scream: 1.5, turbo: 0.45, turboF: [4200, 8600], hybrid: 0.55, intake: 0.25, pops: 0.45, antilag: 0, blip: 1, cutT: 0.03, whine: 0.45 },
+  // GT3: big naturally aspirated cross-plane V8, lumpy burble, loud overrun
+  gt:        { cyl: 8, idle: 1900, red: 7800, gears: 6, top: 290, gain: 0.18, half: 0.85, irr: 0.15, decay: 1.05, seed: 5, sub: 0.38, rough: 0.14, drive: 2.2, cut: [700, 5000], body: 1.4, scream: -1, turbo: 0, turboF: [3000, 6000], hybrid: 0, intake: 0.35, pops: 1, antilag: 0, blip: 1.3, cutT: 0.06, whine: 0.3 },
+  // Rally1-like 1.6 turbo four: gravelly, big whistle, anti-lag bangs and wastegate flutter
+  rally:     { cyl: 4, idle: 3000, red: 7800, gears: 5, top: 200, gain: 0.18, half: 0.5, irr: 0.2, decay: 0.8, seed: 13, sub: 0.22, rough: 0.16, drive: 2.4, cut: [700, 4800], body: 1.5, scream: -1, turbo: 1.4, turboF: [2600, 6800], hybrid: 0, intake: 0.4, pops: 1, antilag: 1, blip: 1.2, cutT: 0.04, whine: 1, gravel: 1 },
+  // Scontro Totale cars
+  banger:    { cyl: 8, idle: 850, red: 6000, gears: 7, top: 200, gain: 0.14, half: 0.9, irr: 0.25, decay: 1.2, seed: 17, sub: 0.6, rough: 0.35, drive: 2.8, cut: [380, 3000], body: 1.3, scream: -3, turbo: 0, turboF: [3000, 6000], hybrid: 0, intake: 0.3, pops: 0.7, antilag: 0, blip: 0.6, cutT: 0.07, whine: 0.2 },
+  hatch:     { cyl: 4, idle: 900, red: 7000, gears: 6, top: 180, gain: 0.18, half: 0.45, irr: 0.2, decay: 0.9, seed: 19, sub: 0.22, rough: 0.2, drive: 2.2, cut: [500, 3800], body: 1.5, scream: -2, turbo: 0.3, turboF: [3000, 6500], hybrid: 0, intake: 0.4, pops: 0.45, antilag: 0, blip: 0.6, cutT: 0.05, whine: 0.3 },
 };
-// harmonic spectra of each engine "voice"
-const SPECTRA = {
-  v6: [0, 1, 0.75, 0.6, 0.55, 0.42, 0.38, 0.3, 0.26, 0.22, 0.2, 0.16, 0.14, 0.12, 0.1, 0.09, 0.08, 0.07, 0.06, 0.05, 0.05, 0.04],
-  v8: [0, 1, 0.85, 0.55, 0.42, 0.35, 0.25, 0.2, 0.15, 0.12, 0.1, 0.08, 0.06, 0.05, 0.04],
-  i4: [0, 1, 0.55, 0.65, 0.3, 0.38, 0.2, 0.24, 0.12, 0.15, 0.08, 0.1, 0.05, 0.06],
-  v8x: [0, 1, 0.95, 0.6, 0.45, 0.28, 0.2, 0.12, 0.08, 0.05, 0.03],
+// camera mixes: how much induction / gearbox / wind the microphone hears, distance filter, reverb, level
+const VIEWS = {
+  onboard: { intake: 1.8, whine: 1.7, wind: 1.6, lp: 15000, rev: 0.02, gain: 1, rain: 1.4 },
+  chase:   { intake: 1, whine: 0.8, wind: 1, lp: 12000, rev: 0.06, gain: 1, rain: 1 },
+  tv:      { intake: 0.45, whine: 0.15, wind: 0.35, lp: 6500, rev: 0.2, gain: 0.85, rain: 0.6 },
+  heli:    { intake: 0.2, whine: 0, wind: 0.2, lp: 2600, rev: 0.32, gain: 0.5, rain: 0.4 },
 };
-function periodic(name) {
-  if (WAVES[name]) return WAVES[name];
-  const amp = SPECTRA[name] || SPECTRA.v6, re = new Float32Array(amp.length), im = new Float32Array(amp.length);
-  for (let i = 1; i < amp.length; i++) { const ph = (i * 2.399) % (Math.PI * 2); re[i] = amp[i] * Math.cos(ph); im[i] = amp[i] * Math.sin(ph); }
-  return (WAVES[name] = ctx.createPeriodicWave(re, im));
+VIEWS.cockpit = VIEWS.onboard; VIEWS.auto = VIEWS.tv;
+let engView = 'chase';
+// order spectrum for one bank of an engine, as a PeriodicWave on the cycle frequency
+function engineWave(P, bank = 0) {
+  const id = `eng:${P.cyl}:${P.seed + bank}:${P.half}:${P.irr}:${P.decay}`;
+  if (WAVES[id]) return WAVES[id];
+  const K = 128, re = new Float32Array(K + 1), im = new Float32Array(K + 1), half = P.cyl / 2;
+  let s = (P.seed + bank * 31) * 7919 + 1;
+  const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  for (let k = 1; k <= K; k++) {
+    const m = Math.max(0.5, k / P.cyl);
+    let a;
+    if (k % P.cyl === 0) a = Math.pow(m, -P.decay);
+    else if (k % half === 0) a = P.half * Math.pow(m, -P.decay);
+    else a = P.irr * (0.3 + 0.7 * r()) * Math.pow(m, -P.decay - 0.2);
+    const ph = r() * Math.PI * 2;
+    re[k] = a * Math.cos(ph); im[k] = a * Math.sin(ph);
+  }
+  return (WAVES[id] = ctx.createPeriodicWave(re, im));
+}
+// disconnect a group of nodes once their source has finished (no node leaks)
+function releaseOnEnd(srcNode, nodes) {
+  srcNode.onended = () => { for (const n of nodes) { try { n.disconnect(); } catch { /* */ } } nodes.length = 0; };
 }
 let engine = null;
+export function engineView(mode) {
+  if (!VIEWS[mode]) return;
+  engView = mode;
+  const e = engine; if (!e || !ctx) return;
+  const V = (e.V = VIEWS[mode]), t = ctx.currentTime;
+  e.cam.frequency.setTargetAtTime(V.lp, t, 0.12);
+  e.revG.gain.setTargetAtTime(V.rev, t, 0.12);
+  e.viewG.gain.setTargetAtTime(V.gain, t, 0.12);
+}
 export function engineStart(cat = 'formula') {
   const st = getSettings();
   if (st.sound === false || st.engineSound === false) return;
   const c = ac(); if (!c || engine) return;
-  const key = scene === 'derby' ? (cat === 'rally' ? 'hatch' : 'banger') : cat;
-  const P = ENG[key] || ENG.formula;
-  const t = c.currentTime;
-  const out = c.createGain(); out.gain.value = 0.0001; out.gain.setTargetAtTime(P.gain * 0.5, t, 0.4); out.connect(B.eng);
-  const wave = periodic(P.wave);
-  // engine core
-  const amp = c.createGain(); amp.gain.value = 1 - P.rough;
-  const o1 = c.createOscillator(); o1.setPeriodicWave(wave);
-  const o2 = c.createOscillator(); o2.setPeriodicWave(wave); o2.detune.value = 11;
-  const g2 = c.createGain(); g2.gain.value = 0.55; o2.connect(g2); g2.connect(amp); o1.connect(amp);
-  const sub = c.createOscillator(); sub.type = 'triangle'; const subG = c.createGain(); subG.gain.value = P.sub; sub.connect(subG); subG.connect(amp);
-  const lfo = c.createOscillator(); lfo.type = 'triangle'; const lfoG = c.createGain(); lfoG.gain.value = P.rough; lfo.connect(lfoG); lfoG.connect(amp.gain);
-  const drive = c.createGain(); drive.gain.value = P.drive;
-  const sh = c.createWaveShaper(); sh.curve = curve(1.8); sh.oversample = '2x';
-  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.9; lp.frequency.value = P.cut[0];
-  const body = c.createBiquadFilter(); body.type = 'peaking'; body.Q.value = 1.4; body.gain.value = 5;
-  const hs = c.createBiquadFilter(); hs.type = 'highshelf'; hs.frequency.value = 2600; hs.gain.value = P.scream;
-  const post = c.createGain(); post.gain.value = 0.55;
+  const key = scene === 'derby' ? (cat === 'rally' ? 'hatch' : 'banger') : ENG[cat] ? cat : 'formula';
+  const P = ENG[key];
+  const t = c.currentTime, N = [];
+  const G = (v) => { const g = c.createGain(); g.gain.value = v; N.push(g); return g; };
+  const F = (type, f, q = 0.7) => { const n = c.createBiquadFilter(); n.type = type; n.frequency.value = f; n.Q.value = q; N.push(n); return n; };
+  const O = (type) => { const o = c.createOscillator(); if (typeof type === 'string') o.type = type; else o.setPeriodicWave(type); N.push(o); return o; };
+  const S = (buf) => { const s = src(buf); N.push(s); return s; };
+  // output chain: shift-cut gain → camera distance filter → view level → engine bus (+ reverb send)
+  const out = G(0.0001); out.gain.setTargetAtTime(P.gain * 0.5, t, 0.4);
+  const cam = F('lowpass', 12000, 0.5), viewG = G(1), revG = G(0.06);
+  out.connect(cam); cam.connect(viewG); viewG.connect(B.eng); viewG.connect(revG); revG.connect(B.engRev);
+  // engine core: two banks on the cycle frequency + firing-order sub, cycle roughness
+  const amp = G(1 - P.rough);
+  const o1 = O(engineWave(P, 0)), o2 = O(engineWave(P, 1)); o2.detune.value = 7;
+  const g2 = G(0.5); o1.connect(amp); o2.connect(g2); g2.connect(amp);
+  const sub = O('sine'), subG = G(P.sub); sub.connect(subG); subG.connect(amp);
+  const lfo = O('triangle'), lfoG = G(P.rough); lfo.connect(lfoG); lfoG.connect(amp.gain);
+  const drive = G(P.drive), sh = c.createWaveShaper(); sh.curve = curve(1.8); sh.oversample = '2x'; N.push(sh);
+  const lp = F('lowpass', P.cut[0], 0.9);
+  const body = F('peaking', 1000, 1.4); body.gain.value = 5;
+  const hs = F('highshelf', 2600); hs.gain.value = P.scream;
+  const post = G(0.55);
   amp.connect(drive); drive.connect(sh); sh.connect(lp); lp.connect(body); body.connect(hs); hs.connect(post); post.connect(out);
-  // intake / mechanical noise
-  const ns = src(noiseBuf), nf = c.createBiquadFilter(), ng = c.createGain();
-  nf.type = 'bandpass'; nf.Q.value = 1.6; nf.frequency.value = 900; ng.gain.value = 0;
-  ns.connect(nf); nf.connect(ng); ng.connect(lp);
-  // turbo whistle (sine + airy band) and hybrid whine
-  const tb = c.createOscillator(); tb.type = 'sine'; const tbg = c.createGain(); tbg.gain.value = 0; tb.connect(tbg); tbg.connect(out);
-  const ta = src(noiseBuf), taf = c.createBiquadFilter(), tag = c.createGain(); taf.type = 'bandpass'; taf.Q.value = 6; taf.frequency.value = 4000; tag.gain.value = 0; ta.connect(taf); taf.connect(tag); tag.connect(out);
-  const hy = c.createOscillator(); hy.type = 'sine'; const hyg = c.createGain(); hyg.gain.value = 0; hy.connect(hyg); hyg.connect(out);
-  const hy2 = c.createOscillator(); hy2.type = 'triangle'; hy2.connect(hyg);
-  // tyre squeal (two resonant bands with a wobble) and wind
-  const sq = src(noiseBuf), sqf = c.createBiquadFilter(), sqf2 = c.createBiquadFilter(), sqg = c.createGain(), wob = c.createOscillator(), wobg = c.createGain();
-  sqf.type = 'bandpass'; sqf.frequency.value = 1750; sqf.Q.value = 14; sqf2.type = 'bandpass'; sqf2.frequency.value = 2450; sqf2.Q.value = 10;
-  wob.frequency.value = 7; wobg.gain.value = 90; wob.connect(wobg); wobg.connect(sqf.frequency); sqg.gain.value = 0;
-  sq.connect(sqf); sq.connect(sqf2); sqf.connect(sqg); sqf2.connect(sqg); sqg.connect(B.eng);
-  const wd = src(pinkBuf), wdf = c.createBiquadFilter(), wdg = c.createGain(); wdf.type = 'bandpass'; wdf.frequency.value = 500; wdf.Q.value = 0.5; wdg.gain.value = 0; wd.connect(wdf); wdf.connect(wdg); wdg.connect(B.eng);
-  const oscs = [o1, o2, sub, lfo, tb, hy, hy2, wob];
-  oscs.forEach((o) => o.start(t)); [ns, ta, sq, wd].forEach((s) => s.start(t, Math.random()));
-  engine = { P, key, out, o1, o2, sub, lfo, drive, lp, body, nf, ng, tb, tbg, taf, tag, hy, hy2, hyg, sqg, wdg, oscs, srcs: [ns, ta, sq, wd], gear: 1, kmh: 0, rpm: P.idle, thr: 0.3, boost: 0, lastT: t, lastPop: 0, lastShift: 0 };
+  // combustion noise: band-passed noise amplitude-modulated at the firing rate
+  const ns = S(noiseBuf), nf = F('bandpass', 900, 1.4), cn = G(0.5), am = O('sine'), amG = G(0.5), ng = G(0);
+  am.connect(amG); amG.connect(cn.gain); ns.connect(nf); nf.connect(cn); cn.connect(ng); ng.connect(lp);
+  // induction roar (what the onboard camera hears): the shaped core through a boomy band
+  const ib = F('bandpass', 600, 0.9), ig = G(0); sh.connect(ib); ib.connect(ig); ig.connect(out);
+  // turbo: compressor whistle (blade-pass + harmonic) and airy intake hiss
+  const tb = O('sine'), tb2 = O('sine'), tbg = G(0), tb2g = G(0.35); tb.connect(tbg); tb2.connect(tb2g); tb2g.connect(tbg); tbg.connect(out);
+  const ta = S(noiseBuf), taf = F('bandpass', 4000, 6), tag = G(0); ta.connect(taf); taf.connect(tag); tag.connect(out);
+  // hybrid ERS whine (MGU-K partials) and straight-cut gearbox whine
+  const hy = O('sine'), hy2 = O('triangle'), hyg = G(0), hy2g = G(0.4); hy.connect(hyg); hy2.connect(hy2g); hy2g.connect(hyg); hyg.connect(out);
+  const gw = O('sine'), gwg = G(0); gw.connect(gwg); gwg.connect(out);
+  // layers that do not follow the engine's shift cuts: tyres, wind, gravel, spray
+  const sq = S(noiseBuf), sqf = F('bandpass', 1750, 14), sqf2 = F('bandpass', 2450, 10), sqg = G(0), wob = O('sine'), wobg = G(90);
+  wob.frequency.value = 7; wob.connect(wobg); wobg.connect(sqf.frequency);
+  sq.connect(sqf); sq.connect(sqf2); sqf.connect(sqg); sqf2.connect(sqg); sqg.connect(cam);
+  const wd = S(pinkBuf), wdf = F('bandpass', 500, 0.5), wdg = G(0); wd.connect(wdf); wdf.connect(wdg); wdg.connect(B.eng);
+  const gv = S(brownBuf), gvf = F('lowpass', 520, 0.7), gvg = G(0); gv.connect(gvf); gvf.connect(gvg); gvg.connect(cam);
+  const sp = S(noiseBuf), spf = F('highpass', 2600, 0.5), spg = G(0); sp.connect(spf); spf.connect(spg); spg.connect(cam);
+  const oscs = [o1, o2, sub, lfo, am, tb, tb2, hy, hy2, gw, wob], srcs = [ns, ta, sq, wd, gv, sp];
+  oscs.forEach((o) => o.start(t)); srcs.forEach((s) => s.start(t, Math.random()));
+  engine = {
+    P, key, N, out, cam, viewG, revG, o1, o2, sub, lfo, am, drive, lp, body, nf, ng, ib, ig, tb, tb2, tbg, taf, tag, hy, hy2, hyg, gw, gwg, sqg, wdg, gvg, spg,
+    oscs, srcs, V: VIEWS[engView], gear: 1, kmh: 0, rpm: P.idle, thr: 0.3, boost: 0, lastT: t, lastPop: 0, lastShift: 0, alUntil: 0, nextAL: 0, blipT: 0, liftT: 0,
+  };
+  engineView(engView);
   setEngineFreq(engine, P.idle, t);
   ambience.update();
 }
 function setEngineFreq(e, rpm, t, tc = 0.035) {
-  const P = e.P, f = (rpm / 60) * (P.cyl / 2);
-  e.o1.frequency.setTargetAtTime(f, t, tc); e.o2.frequency.setTargetAtTime(f, t, tc);
+  const P = e.P, fc = rpm / 120, f = fc * P.cyl;
+  e.o1.frequency.setTargetAtTime(fc, t, tc); e.o2.frequency.setTargetAtTime(fc, t, tc);
   e.sub.frequency.setTargetAtTime(f / 2, t, tc);
-  e.lfo.frequency.setTargetAtTime((rpm / 120) * P.cyc * 2, t, tc);
-  e.body.frequency.setTargetAtTime(Math.min(4000, f * 2.2), t, 0.05);
-  e.nf.frequency.setTargetAtTime(Math.min(6000, f * 3.2), t, 0.05);
+  e.lfo.frequency.setTargetAtTime(fc, t, tc);
+  e.am.frequency.setTargetAtTime(f, t, tc);
+  e.body.frequency.setTargetAtTime(Math.min(4200, f * P.body), t, 0.05);
+  e.nf.frequency.setTargetAtTime(Math.min(6500, f * 3.2), t, 0.05);
+  e.ib.frequency.setTargetAtTime(Math.min(1800, f * 1.1), t, 0.05);
   e.hy.frequency.setTargetAtTime((rpm / 60) * 7.5, t, 0.05); e.hy2.frequency.setTargetAtTime((rpm / 60) * 11.2, t, 0.05);
+  e.gw.frequency.setTargetAtTime((rpm / 60) * (2.1 + e.gear * 0.17), t, tc);
 }
-// speed01: 0..1 of the category top speed. opts: { rain, crowd, rpm, throttle, slip }
+// speed01: 0..1 of the category top speed.
+// opts: { rain, crowd, rpm (0..1), throttle (0..1), slip (0..1), view ('onboard'|'chase'|'tv'|'heli'), surface ('gravel'|'tarmac') }
 export function engineSet(speed01, opts = {}) {
   if (!engine || !ctx) return;
   const e = engine, P = e.P, t = ctx.currentTime;
-  const dt = Math.max(0.001, t - e.lastT); e.lastT = t;
+  if (opts.view && opts.view !== engView) engineView(opts.view);
+  const V = e.V;
+  const dt = clamp(t - e.lastT, 0.001, 0.25); e.lastT = t;
   const kmh = Math.max(0, speed01) * P.top;
-  // gearbox: equal speed bands per gear with overlap
-  const band = P.top / P.gears;
-  const gear = Math.min(P.gears, Math.max(1, Math.floor(kmh / band) + 1));
-  const lo = (gear - 1) * band * 0.82, hi = gear * band;
-  const frac = opts.rpm != null ? clamp(opts.rpm, 0, 1) : clamp((kmh - lo) / (hi - lo), 0, 1);
   const stopped = opts.rpm == null && speed01 <= 0.01;
+  // gearbox: equal speed bands per gear, upshift at the top of the band, downshift with hysteresis
+  const band = P.top / P.gears;
+  const ideal = Math.min(P.gears, Math.max(1, Math.floor(kmh / band) + 1));
+  let gear = e.gear;
+  if (opts.rpm != null || stopped) gear = opts.rpm != null ? ideal : 1;
+  else if (ideal > gear) gear = ideal;
+  else while (gear > 1 && kmh < (gear - 1) * band - band * 0.12) gear--;
+  const lo = (gear - 1) * band * 0.78, hi = gear * band;
+  const frac = opts.rpm != null ? clamp(opts.rpm, 0, 1) : clamp((kmh - lo) / (hi - lo), 0, 1);
   let rpm = stopped ? P.idle * 0.85 : P.idle + (P.red - P.idle) * frac;
   if (stopped) rpm *= 1 + Math.sin(t * 9) * 0.015;            // idle hunting
   // throttle estimate from acceleration (unless given)
   const acc = (kmh - e.kmh) / dt; e.kmh = kmh;
   const thrRaw = opts.throttle != null ? opts.throttle : stopped ? 0.08 : clamp(0.6 + acc / 45, 0, 1);
+  const braking = opts.throttle != null ? opts.throttle < 0.1 && !stopped : acc < -25;
   const prevThr = e.thr;
   e.thr += (thrRaw - e.thr) * Math.min(1, dt * 7);
   const thr = e.thr;
-  // gear change: short torque cut + bark, pop on rally / banger
-  if (gear !== e.gear && !stopped) {
-    const up = gear > e.gear; e.gear = gear;
-    if (up && t - e.lastShift > 0.15) {
+  let tc = 0.035;
+  if (gear !== e.gear && !stopped && opts.rpm == null) {
+    if (gear > e.gear && t - e.lastShift > 0.12) {
+      // upshift: torque cut (seamless on the hybrids, a proper bark on the others), fast rpm drop
+      e.lastShift = t; tc = 0.012;
+      e.out.gain.cancelScheduledValues(t); e.out.gain.setTargetAtTime(P.gain * 0.22, t, 0.008); e.out.gain.setTargetAtTime(P.gain * (0.55 + 0.45 * thr), t + P.cutT, 0.025);
+      if (P.antilag) pop(e, t + 0.015, 1.2); else if (P.pops > 0.5 && Math.random() < 0.6) pop(e, t + 0.02, 0.7);
+    } else if (gear < e.gear) {
+      // downshift: the throttle blip
+      e.blipT = t; tc = 0.015;
+      e.out.gain.cancelScheduledValues(t); e.out.gain.setTargetAtTime(P.gain * 0.85 * P.blip, t, 0.01); e.out.gain.setTargetAtTime(P.gain * 0.4, t + 0.07, 0.04);
+      setEngineFreq(e, Math.min(P.red * 1.02, rpm * 1.1), t, 0.01);
+      if (P.pops > 0.3 && Math.random() < P.pops) for (let i = 0; i < 1 + Math.floor(Math.random() * 3); i++) pop(e, t + 0.07 + i * rnd(0.03, 0.08), 0.55);
       e.lastShift = t;
-      e.out.gain.cancelScheduledValues(t); e.out.gain.setTargetAtTime(P.gain * 0.25, t, 0.012); e.out.gain.setTargetAtTime(P.gain * (0.55 + 0.45 * thr), t + 0.05, 0.03);
-      setEngineFreq(e, rpm * 1.06, t, 0.01);
-      if (P.pops > 0.3 || P.antilag) pop(e, t + 0.02, P.antilag ? 1.2 : 0.7);
     }
-  } else e.gear = gear;
-  // lift-off: overrun crackle / anti-lag bangs / turbo blow-off
-  if (prevThr > 0.55 && thr < 0.45 && rpm > P.idle * 1.5) {
-    const n = Math.round(P.pops * 5 * Math.random()) + (P.antilag ? 2 : 0);
-    for (let i = 0; i < n; i++) pop(e, t + 0.04 + i * rnd(0.05, 0.13), P.antilag ? 1 : 0.6);
-    if (P.turbo > 0.25 && e.boost > 0.45) nz(0.35, 0.03 * P.turbo, { t, f: 3000, q: 1.2, sweep: 900, dest: B.eng, a: 0.01 });
   }
-  setEngineFreq(e, rpm, t);
-  const load = stopped ? 0.35 : 0.45 + 0.55 * thr;
+  e.gear = gear;
+  // lift-off: overrun crackle, turbo blow-off / flutter, anti-lag window
+  if (prevThr > 0.55 && thr < 0.45 && rpm > P.idle * 1.4) {
+    e.liftT = t;
+    const n = Math.round(P.pops * 4 * Math.random()) + (P.antilag ? 2 : 0);
+    for (let i = 0; i < n; i++) pop(e, t + 0.05 + i * rnd(0.05, 0.13), P.antilag ? 1 : 0.6);
+    if (P.turbo > 0.3 && e.boost > 0.35) blowOff(e, t);
+    if (P.antilag) e.alUntil = t + 1.8;
+  }
+  if (P.antilag && t < e.alUntil && thr < 0.4 && !stopped && t >= e.nextAL) { pop(e, t + 0.01, rnd(0.9, 1.4)); e.nextAL = t + rnd(0.07, 0.26); }
+  if (t - e.blipT > 0.07) setEngineFreq(e, rpm, t, tc);
+  e.rpm = rpm;
+  const load = stopped ? 0.35 : 0.42 + 0.58 * thr;
   e.lp.frequency.setTargetAtTime(P.cut[0] + (P.cut[1] - P.cut[0]) * (0.2 + 0.8 * thr) * (0.35 + 0.65 * frac), t, 0.06);
   e.drive.gain.setTargetAtTime(P.drive * (0.6 + thr * 0.8), t, 0.06);
   e.ng.gain.setTargetAtTime(P.intake * (0.15 + thr * frac) * 0.6, t, 0.08);
-  if (t - e.lastShift > 0.06) e.out.gain.setTargetAtTime(P.gain * load, t, 0.08);
-  // turbo spools with lag
-  e.boost += ((stopped ? 0 : thr * (0.3 + 0.7 * frac)) - e.boost) * Math.min(1, dt * (thr > e.boost ? 1.8 : 4));
-  e.tb.frequency.setTargetAtTime(2600 + e.boost * 5200, t, 0.08);
-  e.tbg.gain.setTargetAtTime(P.turbo * e.boost * e.boost * 0.012, t, 0.08);
-  e.taf.frequency.setTargetAtTime(3000 + e.boost * 3000, t, 0.1); e.tag.gain.setTargetAtTime(P.turbo * e.boost * 0.01, t, 0.1);
-  // hybrid: whine strongest while harvesting (off throttle) and at low speed
-  e.hyg.gain.setTargetAtTime(P.hybrid * (stopped ? 0.002 : 0.004 + (1 - thr) * 0.008), t, 0.1);
-  // tyres + wind
-  const slip = opts.slip != null ? clamp(opts.slip, 0, 1) : clamp((-acc - 70) / 180, 0, 0.6);
+  e.ig.gain.setTargetAtTime(P.intake * V.intake * (0.05 + 0.25 * thr * (0.4 + frac)), t, 0.08);
+  if (t - e.lastShift > 0.09) e.out.gain.setTargetAtTime(P.gain * load, t, 0.08);
+  // turbo spools with lag; anti-lag keeps it lit off throttle
+  const boostWant = stopped ? 0 : Math.max(thr * (0.3 + 0.7 * frac), P.antilag && t < e.alUntil ? 0.7 : 0);
+  e.boost += (boostWant - e.boost) * Math.min(1, dt * (boostWant > e.boost ? 1.6 : 3.5));
+  const [tf0, tf1] = P.turboF;
+  e.tb.frequency.setTargetAtTime(tf0 + e.boost * (tf1 - tf0), t, 0.08); e.tb2.frequency.setTargetAtTime((tf0 + e.boost * (tf1 - tf0)) * 1.5, t, 0.08);
+  e.tbg.gain.setTargetAtTime(P.turbo * e.boost * e.boost * 0.01, t, 0.08);
+  e.taf.frequency.setTargetAtTime(tf0 * 0.9 + e.boost * tf0, t, 0.1); e.tag.gain.setTargetAtTime(P.turbo * e.boost * 0.008, t, 0.1);
+  // hybrid: ERS whine on deploy (low gears, full throttle) and loudest when harvesting under braking
+  e.hyg.gain.setTargetAtTime(P.hybrid * (stopped ? 0.0015 : 0.003 + (braking ? 0.009 : 0) + thr * (1 - frac) * 0.003), t, 0.1);
+  // straight-cut gearbox: whines with load and speed, heard mostly onboard
+  e.gwg.gain.setTargetAtTime(stopped ? 0 : P.whine * V.whine * 0.004 * (0.3 + thr) * clamp(kmh / P.top + 0.2, 0, 1), t, 0.08);
+  // tyres, wind, gravel, spray
+  const sp01 = clamp(kmh / P.top, 0, 1), rain = opts.rain || 0;
+  const slip = opts.slip != null ? clamp(opts.slip, 0, 1) : clamp((-acc - 70) / 180, 0, 0.6) * (rain > 0.3 ? 0.4 : 1);
   e.sqg.gain.setTargetAtTime(slip * 0.05, t, 0.05);
-  e.wdg.gain.setTargetAtTime(Math.pow(clamp(kmh / P.top, 0, 1), 2) * 0.03, t, 0.2);
+  e.wdg.gain.setTargetAtTime(sp01 * sp01 * 0.03 * V.wind, t, 0.2);
+  const gravel = opts.surface ? (opts.surface === 'gravel' ? 1 : 0) : P.gravel || 0;
+  e.gvg.gain.setTargetAtTime(gravel * Math.pow(sp01, 0.7) * 0.07, t, 0.15);
+  if (gravel && sp01 > 0.05 && Math.random() < sp01 * dt * 16) stone(t + Math.random() * 0.02, sp01);
+  e.spg.gain.setTargetAtTime(rain * sp01 * 0.03 * V.rain, t, 0.2);
   ambience.setCrowd(opts.crowd || 0);
-  ambience.setRain(opts.rain || 0);
+  ambience.setRain(rain);
+  ambience.setWind(0.3 + sp01 * 0.4);
   return gear;
 }
-// backfire / anti-lag bang
+// backfire / anti-lag bang: a sharp crack plus (for big ones) a low boom with a bit of space
 function pop(e, t, k) {
   if (t - e.lastPop < 0.035) return; e.lastPop = t;
-  nz(rnd(0.008, 0.03), rnd(0.05, 0.12) * k * e.P.gain * 10, { t, f: rnd(350, 1300), q: 1.2, dest: B.eng, a: 0.001 });
-  if (k > 0.9) osc('sine', rnd(70, 110), t, 0.08, 0.06 * k, { slide: 0.5, dest: B.eng });
+  const lvl = rnd(0.05, 0.12) * k * e.P.gain * 10 * (0.6 + 0.4 * e.V.gain);
+  nz(rnd(0.008, 0.03), lvl, { t, f: rnd(350, 1300), q: 1.2, dest: B.eng, a: 0.001, voice: 'eng' });
+  if (k > 0.9) {
+    osc('sine', rnd(60, 100), t, 0.1, 0.07 * k, { slide: 0.45, dest: B.eng, voice: 'eng' });
+    nz(0.12, lvl * 0.5, { t, type: 'lowpass', f: 900, sweep: 200, dest: B.engRev, a: 0.001, voice: 'eng' });
+  }
 }
+// turbo blow-off: a dump-valve "pssh" and, on the rally car, the wastegate flutter
+function blowOff(e, t) {
+  const P = e.P, k = P.turbo * e.boost;
+  nz(0.3, 0.022 * k, { t, f: 3200, q: 1.1, sweep: 1100, dest: B.eng, a: 0.008, voice: 'eng' });
+  if (P.turbo > 1) for (let i = 0; i < 6; i++) nz(0.03, 0.03 * k * (1 - i / 7), { t: t + 0.02 + i * rnd(0.035, 0.05), f: rnd(1300, 2100), q: 2.5, dest: B.eng, a: 0.002, voice: 'eng' });
+}
+// a stone flicked into the wheel arch
+function stone(t, sp) { nz(rnd(0.005, 0.014), rnd(0.01, 0.035) * sp, { t, type: 'bandpass', f: rnd(2500, 6500), q: rnd(3, 8), dest: B.eng, pan: rnd(-0.6, 0.6), voice: 'eng' }); }
 export function engineStop() {
   if (!engine || !ctx) return;
   const e = engine; engine = null;
   const t = ctx.currentTime;
-  e.out.gain.cancelScheduledValues(t); e.out.gain.setTargetAtTime(0.0001, t, 0.25);
-  e.sqg.gain.setTargetAtTime(0, t, 0.1); e.wdg.gain.setTargetAtTime(0, t, 0.2);
-  ambience.setCrowd(0); ambience.setRain(0);
-  setTimeout(() => { try { e.oscs.forEach((o) => o.stop()); e.srcs.forEach((s) => s.stop()); e.out.disconnect(); } catch {} }, 1500);
+  for (const g of [e.out, e.sqg, e.wdg, e.gvg, e.spg]) { g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(0.0001, t, 0.2); }
+  ambience.setCrowd(0); ambience.setRain(0); ambience.setWind(0);
+  const end = t + 1.4;
+  e.oscs.forEach((o) => { try { o.stop(end); } catch { /* */ } }); e.srcs.forEach((s) => { try { s.stop(end); } catch { /* */ } });
+  releaseOnEnd(e.o1, e.N);
   ambience.update();
 }
 
-// Pass-by: the car's own engine voice with doppler shift, stereo sweep and air absorption
-let lastPass = 0;
-export function passBy(intensity = 1, cat = 'formula') {
+// Pass-by: the car's own engine voice on a straight line past the microphone.
+// Doppler factor c/(c + radial velocity), 1/r level, air absorption (low-pass falls
+// with distance), pan from the bearing. intensity 0..1 = how close it passes.
+// o: { speed (km/h), dist (m), cls ('gt' | 'hypercar'), side (-1|1), dur }
+const MAX_PASSBY = 3;
+let lastPass = 0, passLive = 0;
+export function passBy(intensity = 1, cat = 'formula', o = {}) {
   const st = getSettings(); if (st.sound === false || st.engineSound === false) return;
   const c = ac(); if (!c) return;
-  const t = c.currentTime; if (t - lastPass < 0.35) return; lastPass = t;
-  const P = ENG[cat] || ENG.formula;
-  const f0 = (P.red * rnd(0.78, 0.92) / 60) * (P.cyl / 2);
-  const dur = 1.1, mid = t + dur * 0.4;
-  const o = c.createOscillator(); o.setPeriodicWave(periodic(P.wave));
-  o.frequency.setValueAtTime(f0 * 1.14, t); o.frequency.setValueAtTime(f0 * 1.12, mid - 0.06); o.frequency.exponentialRampToValueAtTime(f0 * 0.84, mid + 0.12); o.frequency.linearRampToValueAtTime(f0 * 0.82, t + dur);
-  const sh = c.createWaveShaper(); sh.curve = curve(1.8);
-  const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(1800, t); f.frequency.linearRampToValueAtTime(5200, mid); f.frequency.exponentialRampToValueAtTime(900, t + dur);
-  const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05 * intensity, mid); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  const p = c.createStereoPanner(); const side = Math.random() < 0.5 ? -1 : 1; p.pan.setValueAtTime(-0.85 * side, t); p.pan.linearRampToValueAtTime(0.85 * side, t + dur * 0.75);
-  o.connect(sh); sh.connect(f); f.connect(g); g.connect(p); p.connect(B.eng);
-  o.start(t); o.stop(t + dur + 0.05);
-  nz(0.7, 0.025 * intensity, { t: t + 0.1, f: 1400, q: 0.8, sweep: 500, dest: B.eng, pan: -0.6 * side, panTo: 0.6 * side, a: 0.25 });
+  const t = c.currentTime; if (t - lastPass < 0.12 || passLive >= MAX_PASSBY) return; lastPass = t;
+  let key = ENG[cat] ? cat : 'formula';
+  if (o.cls === 'gt') key = 'gt'; else if (cat === 'endurance' && o.cls == null && Math.random() < 0.4) key = 'gt'; // mixed-class traffic
+  const P = ENG[key];
+  const v = (o.speed ?? P.top * rnd(0.7, 0.9)) / 3.6, d = o.dist ?? 2.5 + (1 - clamp(intensity, 0, 1)) * 26;
+  const dur = o.dur ?? 2.6, tc = dur * 0.42, side = o.side ?? (Math.random() < 0.5 ? -1 : 1);
+  const rpm0 = P.red * rnd(0.74, 0.86), rpm1 = P.red * rnd(0.88, 0.97);   // accelerating past
+  const n = 96, fr = new Float32Array(n), gn = new Float32Array(n), cut = new Float32Array(n), pan = new Float32Array(n), air = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const tau = (i / (n - 1)) * dur - tc, x = v * tau, r = Math.hypot(x, d), vr = (v * x) / r;
+    const dop = 343 / (343 + vr), rpm = rpm0 + (rpm1 - rpm0) * (i / (n - 1));
+    fr[i] = (rpm / 120) * dop;
+    const lvl = Math.min(1, 3 / r) * (i === 0 || i === n - 1 ? 0.0001 : 1);
+    gn[i] = Math.max(0.0001, 0.075 * lvl);
+    air[i] = Math.max(0.0001, 0.03 * lvl * clamp(1.2 - r / 40, 0.15, 1));
+    cut[i] = clamp(16000 / (1 + r / 7), 500, 15000);
+    pan[i] = clamp((x / r) * 0.9 * side, -1, 1);
+  }
+  const N = [];
+  const osc1 = c.createOscillator(); osc1.setPeriodicWave(engineWave(P, 0));
+  const osc2 = c.createOscillator(); osc2.setPeriodicWave(engineWave(P, 1)); osc2.detune.value = 8;
+  const m = c.createGain(); m.gain.value = 0.6;
+  const sh = c.createWaveShaper(); sh.curve = curve(2.2);
+  const hs = c.createBiquadFilter(); hs.type = 'highshelf'; hs.frequency.value = 2600; hs.gain.value = P.scream;
+  const lpf = c.createBiquadFilter(); lpf.type = 'lowpass'; lpf.Q.value = 0.6;
+  const g = c.createGain(), p = c.createStereoPanner();
+  const ns = src(noiseBuf), nf = c.createBiquadFilter(), ngn = c.createGain();
+  nf.type = 'bandpass'; nf.frequency.value = 1100; nf.Q.value = 0.7;
+  osc1.connect(m); osc2.connect(m); m.connect(sh); sh.connect(hs); hs.connect(lpf); lpf.connect(g); g.connect(p);
+  ns.connect(nf); nf.connect(ngn); ngn.connect(p); p.connect(B.eng);
+  const rv = c.createGain(); rv.gain.value = 0.12; g.connect(rv); rv.connect(B.engRev);
+  N.push(osc1, osc2, m, sh, hs, lpf, g, p, ns, nf, ngn, rv);
+  osc1.frequency.setValueCurveAtTime(fr, t, dur); osc2.frequency.setValueCurveAtTime(fr, t, dur);
+  g.gain.setValueCurveAtTime(gn, t, dur); ngn.gain.setValueCurveAtTime(air, t, dur);
+  lpf.frequency.setValueCurveAtTime(cut, t, dur); p.pan.setValueCurveAtTime(pan, t, dur);
+  const end = t + dur + 0.02;
+  osc1.start(t); osc2.start(t); ns.start(t, Math.random()); osc1.stop(end); osc2.stop(end); ns.stop(end);
+  passLive++;
+  osc1.onended = () => { passLive = Math.max(0, passLive - 1); for (const x of N) { try { x.disconnect(); } catch { /* */ } } };
 }
 
 // Test/diagnostic helper: RMS + peak of the master output and bus states
