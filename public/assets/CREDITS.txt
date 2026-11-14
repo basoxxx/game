@@ -1,7 +1,8 @@
 Textures and HDRIs: Poly Haven (https://polyhaven.com) - CC0 1.0 Public Domain.
 asphalt_02, aerial_grass_rock, gravel_floor, snow_02, concrete_floor_worn_001, rocky_trail,
 corrugated_iron_02, metal_plate, concrete_wall_008, aerial_rocks_02 (re-compressed),
-kloofendal_48d_partly_cloudy_puresky, qwantani_late_afternoon_puresky, qwantani_dusk_2_puresky, moonless_golf.
+kloofendal_48d_partly_cloudy_puresky, qwantani_late_afternoon_puresky, qwantani_dusk_2_puresky, moonless_golf,
+kloofendal_overcast_puresky (wet races), asphalt_track (racing surface, 1k + 2k, re-compressed).
 Circuit geometry: bacinger/f1-circuits (MIT).
 Vegetation impostors (veg/trees.webp): rendered from Poly Haven CC0 models
 fir_sapling_medium, pine_sapling_small, searsia_lucida, searsia_burchellii, shrub_02,
