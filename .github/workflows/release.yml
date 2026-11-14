@@ -61,12 +61,12 @@ jobs:
           tag_name: v${{ steps.ver.outputs.v }}
           target_commitish: ${{ github.sha }}
           make_latest: 'true'
-          name: Apex Dynasty v${{ steps.ver.outputs.v }}
+          name: Baso Hub v${{ steps.ver.outputs.v }}
           files: out/*
           body: |
-            ## Apex Dynasty — Motorsport Manager
+            ## Baso Hub — Apex Dynasty · Scontro Totale · Voragine
 
-            Gestionale motorsport multi-categoria: **Formula**, **Rally** ed **Endurance**.
+            Tre giochi in un'unica app: il gestionale motorsport **Apex Dynasty** (Formula, Formula Apex 2, Rally, Endurance, con highlights delle gare), le corse a contatto di **Scontro Totale** e l'arcade **Voragine**. Le novità sono nel README del progetto.
 
             ### Download
             | Sistema | File |
