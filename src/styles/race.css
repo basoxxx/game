@@ -345,6 +345,7 @@
   .fin-block span { font-size: 24px; }
   .fin-btns .btn.xl { width: 100%; }
 }
+@media (max-height: 560px) { .fin-who svg, .fin-who small, .fin-fl, .fin-eyebrow { display: none; } .fin-card .fc-t { font-size: 28px; } .fin-podium, .fin-mine { margin-top: 6px; } .fin-block { height: 26px; } .fin-block span { font-size: 18px; } .fin-btns { margin-top: 8px; flex-wrap: nowrap; } .fin-btns .btn.xl { width: auto; } }
 @media (prefers-reduced-motion: reduce) { .fin-flag { display: none; } .fin-card, .fin-step, .tvb { animation: none; } }
 
 /* ---- Tablet portrait (e.g. 820x1180): the view across the full width on top,
