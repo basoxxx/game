@@ -267,6 +267,9 @@ export class Race3D {
     if (this.composer?.grade) { const gu = this.composer.grade.uniforms; gu.uCon.value = this._gCon; gu.uSat.value = (this.tod?.sat ?? 1.08) * this._gSat; if (this.tod) gu.uWarm.value = this.tod.warm; }
     if (this.composer?.rays && this.tod) this.composer.rays.uniforms.uTint.value.setHex(this.tod.disc);
     if (this.composer && !this.open) { addLensRain(this.composer); addXFade(this.composer); }
+    // shader-placed instances (grass grid) would be drawn untransformed by the AO normal pass
+    const ao = this.composer?.ao;
+    if (ao?.overrideVisibility) { const ov = ao.overrideVisibility.bind(ao); ao.overrideVisibility = () => { ov(); this.grass?.mesh && (this.grass.mesh.visible = false); }; }
     this.cars = new Map();
     for (const c of cars) this.addCar(c);
     this.camPos = new THREE.Vector3(0, 50, 0);
@@ -335,6 +338,93 @@ export class Race3D {
     this.clouds = new THREE.Group();
     for (let i = 0; i < 26; i++) { const sp = new THREE.Sprite(cloudMat); const a = Math.random() * Math.PI * 2, d = 900 + Math.random() * 1800; sp.position.set(Math.cos(a) * d, 260 + Math.random() * 260, Math.sin(a) * d); const sc = 500 + Math.random() * 700; sp.scale.set(sc, sc / 2, 1); this.clouds.add(sp); }
     this.scene.add(this.clouds);
+  }
+
+  // 3D grass on the verges near the camera: a fixed grid of clumps (crossed alpha-tested blade
+  // cards) re-centred on the camera every frame in the vertex shader, so only the ~80 m around
+  // the lens carry grass, at a constant cost (one draw). Where it may grow comes from a top-down
+  // mask of the circuit (verges between the track shoulder and the barriers, minus gravel traps,
+  // painted run-off, pit lane and the other parts of the track); clumps shrink to nothing at the
+  // edge of the grid and of the mask. Sways in the wind, shades darker at the root.
+  buildGrass(W, runoff) {
+    const { N, x, y, hdg, bbox } = this.geo;
+    const pad = 80, x0 = bbox[0] - pad, z0 = bbox[1] - pad, span = Math.max(bbox[2] - bbox[0], bbox[3] - bbox[1]) + 2 * pad;
+    const R = 2048, sc = R / span;
+    const cv = document.createElement('canvas'); cv.width = cv.height = R; const g = cv.getContext('2d');
+    g.fillStyle = '#000'; g.fillRect(0, 0, R, R);
+    const P = (i, off) => { i = ((i % N) + N) % N; return [(x[i] - Math.sin(hdg[i]) * off - x0) * sc, (y[i] + Math.cos(hdg[i]) * off - z0) * sc]; };
+    const band = (i0, i1, a, b, col) => { g.fillStyle = col; for (let i = i0; i < i1; i++) { const p = [P(i, a), P(i + 1, a), P(i + 1, b), P(i, b)]; g.beginPath(); g.moveTo(...p[0]); for (let q = 1; q < 4; q++) g.lineTo(...p[q]); g.closePath(); g.fill(); } };
+    for (const sd of [1, -1]) {
+      for (let i = 0; i < N; i++) {
+        const out = Math.min(W / 2 + runoff + 5, this.wallOff ? this.wallOff(i, sd) - 0.9 : W / 2 + runoff);
+        if (out < W / 2 + 3.2 || (sd > 0 && this.inPitZone(i, 14)) || (this.geo.h && this.geo.h[i] > 0.3)) continue;
+        band(i, i + 1, sd * (W / 2 + 2.9), sd * out, '#fff');
+        // the strip next to the track is mown short; it grows longer towards the barriers
+        band(i, i + 1, sd * (W / 2 + 2.9), sd * Math.min(out, W / 2 + 9), '#909090');
+      }
+    }
+    // no grass in the gravel traps / painted run-off outside the corners, nor on any track part
+    for (const cn of this.geo.corners) {
+      if (cn.r > 260) continue;
+      const side = -cn.dir, span2 = Math.min(40, Math.max(14, Math.round(cn.r / 6)));
+      band(cn.i - Math.round(span2 * 0.75), cn.i + span2 + 1, side * (W / 2), side * (W / 2 + runoff), '#000');
+    }
+    band(0, N, -(W / 2 + 2.6), W / 2 + 2.6, '#000');
+    const blur = document.createElement('canvas'); blur.width = blur.height = R; const bg = blur.getContext('2d'); bg.filter = 'blur(2px)'; bg.drawImage(cv, 0, 0);
+    const mask = new THREE.CanvasTexture(blur); mask.flipY = false; mask.generateMipmaps = false; mask.minFilter = mask.magFilter = THREE.LinearFilter;
+    // blade card texture
+    const tex = canvasTex(256, 128, (c, w, h) => {
+      c.clearRect(0, 0, w, h);
+      for (let k = 0; k < 70; k++) {
+        const bx = 6 + Math.random() * (w - 12), hh = h * (0.45 + Math.random() * 0.55), lean = (Math.random() - 0.5) * 34, bw = 2.2 + Math.random() * 2.6;
+        const v = 150 + Math.random() * 105; c.fillStyle = `rgb(${v},${v},${v})`;
+        c.beginPath(); c.moveTo(bx - bw, h); c.quadraticCurveTo(bx + lean * 0.3, h - hh * 0.6, bx + lean, h - hh); c.quadraticCurveTo(bx + lean * 0.3 + bw * 0.4, h - hh * 0.6, bx + bw, h); c.closePath(); c.fill();
+      }
+    });
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping; tex.colorSpace = THREE.SRGBColorSpace;
+    const parts = [];
+    for (let k = 0; k < 3; k++) parts.push(new THREE.PlaneGeometry(0.75, 0.3, 1, 2).translate(0, 0.15, 0).rotateY(k * Math.PI / 3));
+    const base = mergeGeometries(parts);
+    const G = 84, CS = 0.85, n = G * G;
+    const geo = new THREE.InstancedBufferGeometry(); geo.index = base.index;
+    for (const k of ['position', 'normal', 'uv']) geo.setAttribute(k, base.attributes[k]);
+    const cell = new Float32Array(n * 2); for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) cell.set([i - G / 2, j - G / 2], (i * G + j) * 2);
+    geo.setAttribute('aCell', new THREE.InstancedBufferAttribute(cell, 2)); geo.instanceCount = n;
+    const col = new THREE.Color(this.biome.grass).lerp(new THREE.Color(0x9ab86a), 0.25).multiplyScalar(0.92);
+    const mat = new THREE.MeshStandardMaterial({ color: col, map: tex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.85 });
+    const U = { uMask: { value: mask }, uMT: { value: new THREE.Vector3(x0, z0, sc / R) }, uCamG: { value: new THREE.Vector3() }, uTime: TIME };
+    mat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, U); sh.uniforms.uWet = WET;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>
+        attribute vec2 aCell; uniform sampler2D uMask; uniform vec3 uMT, uCamG; uniform float uTime; varying float vRoot; varying vec3 vTint;
+        float gh(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }`)
+        .replace('#include <beginnormal_vertex>', 'vec3 objectNormal = vec3(0.0, 1.0, 0.0);')
+        .replace('#include <begin_vertex>', `
+          vec2 cel = floor(uCamG.xz / ${CS.toFixed(2)}) + aCell;
+          float h = gh(cel), h2 = gh(cel + 3.7), h3 = gh(cel + 9.1);
+          vec2 wp = (cel + vec2(h2, h3)) * ${CS.toFixed(2)};
+          float m = texture2D(uMask, (wp - uMT.xy) * uMT.z).r;
+          float dd = length(wp - uCamG.xz);
+          float sc = smoothstep(0.25, 0.45, m) * (1.0 - smoothstep(${(CS * G * 0.32).toFixed(1)}, ${(CS * G * 0.48).toFixed(1)}, dd)) * (0.6 + 0.8 * h)
+            * smoothstep(0.8, 3.5, length(wp - cameraPosition.xz));
+          float tall = mix(0.4, 1.0, smoothstep(0.6, 0.95, m));
+          vTint = vec3(0.85 + 0.3 * h2, 0.88 + 0.24 * h2, 0.8 + 0.2 * h3) * mix(vec3(1.0), vec3(1.12, 1.04, 0.72), step(0.86, h3) * 0.7);
+          float a = h * 6.2831;
+          vec3 p = position * vec3(1.0, (0.6 + 0.7 * h2) * tall, 1.0) * sc;
+          p.xz = mat2(cos(a), -sin(a), sin(a), cos(a)) * p.xz;
+          // wind: the blade tips sway, gusts roll across the field
+          float gust = sin(uTime * 1.3 + wp.x * 0.11 + wp.y * 0.07) * 0.5 + 0.5;
+          p.xz += vec2(0.7, 0.4) * (sin(uTime * 2.4 + h * 20.0) * 0.03 + gust * 0.05) * position.y / 0.3 * sc;
+          vRoot = position.y / 0.3;
+          vec3 transformed = vec3(wp.x, uCamG.y, wp.y) + p;`);
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vRoot; varying vec3 vTint; uniform float uWet;')
+        .replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb *= vTint * (0.55 + 0.6 * vRoot) * (1.0 - 0.3 * uWet);');
+    };
+    mat.customProgramCacheKey = () => 'grass3d';
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.frustumCulled = false; mesh.receiveShadow = true; mesh.renderOrder = 1; mesh.userData.noAO = true;
+    this.scene.add(mesh);
+    this.grass = { mesh, U };
   }
 
   // ribbon along the centerline from offset a to b (meters, + = left)
@@ -571,6 +661,7 @@ export class Race3D {
       this.scene.add(road);
     }
     this.buildKerbs(W, street);
+    if (!this.low && street <= 0.7) try { this.buildGrass(W, runoff); } catch (e) { console.warn('grass off', e); }
     const { N } = this.geo;
     // barriers
     const wallTex = canvasTex(256, 32, (c, w, h) => { const cols = street > 0.7 ? ['#e8e8e8', '#c81e1e'] : ['#d32f2f', '#f2f2f2']; for (let i = 0; i < 8; i++) { c.fillStyle = cols[i % 2]; c.fillRect(i * w / 8, 0, w / 8, h); } c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(0, h - 4, w, 4); });
@@ -3128,6 +3219,14 @@ export class Race3D {
     this._envTick?.(dt);
     if (!this._slots && !this.open) { this._slots = true; if (this.introT > 0) buildGridSlots(this); }
     this.updateCamera(focus, dt);
+    if (this.grass) {
+      // only the low shots see the blades: the helicopter / high TV towers skip the draw
+      const cp = this.camera.position, gy = this.groundH ? this.groundH(cp.x, cp.z) : 0;
+      this.grass.mesh.visible = !this._fxOff && cp.y - (Number.isFinite(gy) ? Math.max(0, gy) : 0) < 24;
+      // grid centred a little ahead of the lens
+      const d = this.camera.getWorldDirection(this._gD ||= new THREE.Vector3());
+      this.grass.U.uCamG.value.set(cp.x + d.x * 22, 0.0, cp.z + d.z * 22);
+    }
     this.updatePitCrew();
     // pass-by sounds for cars close to a fixed (TV) camera
     if (this.camMode === 'tv' && !this.introT) {
@@ -3990,7 +4089,7 @@ export class Race3D {
           const side = Math.sign(this.geo.k[c.i]) || 1;
           for (const [sd, off] of [[side, this.TW / 2 + 2.4], [-side, this.TW / 2 + 5]]) {
             const o2 = this.wallOff ? Math.max(this.TW / 2 + 1, Math.min(off, this.wallOff(c.i, sd) - 0.8)) : off;
-            const p0 = this.pose(c.i, sd * o2), p = new THREE.Vector3(p0.x, (p0.y || 0) + 0.55, p0.z);
+            const p0 = this.pose(c.i, sd * o2), p = new THREE.Vector3(p0.x, (p0.y || 0) + 0.7, p0.z);
             if (seesRun(p, c.i)) { pick = { i: c.i, pos: p }; break; }
           }
           if (pick) break;
