@@ -172,8 +172,8 @@ export function detailPatch(mat, { antiTile = true, macro = 0.18, macroScale = 0
         // the racing line dries first: tyres clear the water off it, so once the rain eases a
         // dark-grey dry line opens along the rubber while the rest of the track stays wet
         float dryK = clamp(1.0 - uRain / max(uWet, 0.02), 0.0, 1.0);
-        float dl2 = 1.0 - smoothstep(0.6, 2.0 + 0.8 * streak, dl);
-        wetL = uWet * (1.0 - max(0.5 * rub * smoothstep(0.9, 0.35, uWet), dl2 * dryK * (0.9 - 0.25 * streak)));
+        float dl2 = 1.0 - smoothstep(1.0, 2.6 + 0.8 * streak, dl);
+        wetL = uWet * (1.0 - max(0.5 * rub * smoothstep(0.9, 0.35, uWet), dl2 * dryK * (0.97 - 0.2 * streak)));
         // standing water collects in the low edges, spray-darkened stripes along the wheel tracks
         wetL = min(1.0, wetL * (1.0 + 0.25 * smoothstep(${f(track.halfW - 2.0)}, ${f(track.halfW)}, abs(lat))));
       }

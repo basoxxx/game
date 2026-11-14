@@ -418,7 +418,7 @@ export class Race3D {
           vRoot = position.y / 0.3;
           vec3 transformed = vec3(wp.x, uCamG.y, wp.y) + p;`);
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vRoot; varying vec3 vTint; uniform float uWet;')
-        .replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb *= vTint * (0.55 + 0.6 * vRoot) * (1.0 - 0.3 * uWet);');
+        .replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb *= vTint * (0.72 + 0.45 * vRoot) * (1.0 - 0.3 * uWet);');
     };
     mat.customProgramCacheKey = () => 'grass3d';
     const mesh = new THREE.Mesh(geo, mat);
@@ -3220,9 +3220,9 @@ export class Race3D {
     if (!this._slots && !this.open) { this._slots = true; if (this.introT > 0) buildGridSlots(this); }
     this.updateCamera(focus, dt);
     if (this.grass) {
-      // only the low shots see the blades: the helicopter / high TV towers skip the draw
+      // only the low shots see the blades (chase, on-board, tracking, low cameras)
       const cp = this.camera.position, gy = this.groundH ? this.groundH(cp.x, cp.z) : 0;
-      this.grass.mesh.visible = !this._fxOff && cp.y - (Number.isFinite(gy) ? Math.max(0, gy) : 0) < 24;
+      this.grass.mesh.visible = !this._fxOff && cp.y - (Number.isFinite(gy) ? Math.max(0, gy) : 0) < 5.5;
       // grid centred a little ahead of the lens
       const d = this.camera.getWorldDirection(this._gD ||= new THREE.Vector3());
       this.grass.U.uCamG.value.set(cp.x + d.x * 22, 0.0, cp.z + d.z * 22);
