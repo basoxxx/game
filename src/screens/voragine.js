@@ -83,7 +83,7 @@ registerScreen({
     if (!V.playing) { requestAnimationFrame(() => document.querySelector('.vg-go .btn')?.focus({ preventScroll: true })); return; }
     const root = document.getElementById('vg-root');
     const p = vgLoad();
-    try { music.setMood?.('derby'); } catch {}
+    try { music.setMood?.('voragine'); } catch {}
     const { VoragineGame } = await import('../voragine/game.js');
     if (!V.playing || !root.isConnected) return;
     const s = getSettings();
