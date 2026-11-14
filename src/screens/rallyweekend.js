@@ -377,6 +377,7 @@ function rallyEnable3D(cam) {
   const st = S(); const stg = X.ev.stage; const rv = document.getElementById('race-view');
   if (!X.r3d) {
     const div = document.createElement('div'); div.className = 'r3d'; rv.prepend(div);
+    X.geo.rally = { id: st.weekend.trackId, ice: iceOf(stg), wet: !!stg.wet };
     try {
       X.r3d = new Race3D(div, { geo: X.geo, category: 'rally', surface: stg.surface === 'mixed' ? 'tarmac' : stg.surface, ice: iceOf(stg), night: !!stg.night, wet: stg.wet, cars: X.ev.crews.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: X.ev.driver(c).helmet.c1, tyreColor: '#888', isPlayer: c.isPlayer, number: X.ev.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })) });
     } catch (e) { console.warn(e); div.remove(); X.view3d = null; rallyViewBtns(); return; }

@@ -149,8 +149,8 @@
 .rx-note i { font-style: normal; color: var(--warn); font-size: 11px; text-transform: uppercase; }
 .rx-note.slow { border-left-color: #ff6b6b; } .rx-note.mid { border-left-color: #ffc24a; } .rx-note.fast { border-left-color: #6fd38a; }
 .rx-note.crest { border-left-color: #8fd3ff; } .rx-note.jump { border-left-color: #8fd3ff; background: rgba(143,211,255,.12); }
-.rx-ticker { position: absolute; left: 14px; bottom: 14px; z-index: 6; display: flex; align-items: center; gap: 4px; pointer-events: none; max-width: calc(100% - 340px); overflow: hidden; }
-.race-view:not(.mode3d) .rx-ticker { bottom: 70px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 28px); }
+.rx-ticker { position: absolute; left: 14px; top: 14px; z-index: 6; display: flex; align-items: center; gap: 4px; pointer-events: none; max-width: calc(100% - 400px); overflow: hidden; }
+.race-view:not(.mode3d) .rx-ticker { top: auto; bottom: 70px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 28px); }
 .rx-ticker:empty { display: none; }
 .rx-tk-who { font-family: var(--display); font-weight: 800; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); background: rgba(6,7,9,.86); padding: 7px 9px; }
 .rx-ticker .rx-note { background: rgba(6,7,9,.86); font-size: 13px; padding: 6px 10px; opacity: .6; }
@@ -169,6 +169,6 @@
 .rx-wx { display: flex; flex-direction: column; gap: 6px; border-left: 3px solid #4aa8ff; }
 @media (max-width: 760px) {
   .rx-notes-scroll { grid-template-columns: 1fr; max-height: 260px; }
-  .rx-ticker { max-width: calc(100% - 20px); left: 10px; bottom: 64px; }
+  .rx-ticker { max-width: calc(100% - 20px); left: 10px; }
   .rx-ticker .rx-note:not(.cur) { display: none; }
 }
