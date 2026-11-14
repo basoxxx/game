@@ -10,7 +10,7 @@ import { standings, pointsFor } from '../engine/season.js';
 const short3 = (n) => { const p = String(n).split(' '); return (p[p.length - 1] || n).replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase(); };
 const lastName = (n) => { const p = String(n).split(' '); return p.slice(1).join(' ') || n; };
 const R3D = () => !!window.__race?.r3d;
-const PRIO = { sc: 3, vsc: 3, issue: 3, night: 3, wxcall: 2, lead: 2, restart: 2, weather: 2, retire: 2, fastest: 1, pit: 1, pass: 1 };
+const PRIO = { spin: 2, yellow: 2, sc: 3, vsc: 3, issue: 3, night: 3, wxcall: 2, lead: 2, restart: 2, weather: 2, retire: 2, fastest: 1, pit: 1, pass: 1 };
 
 // ---------------- LOWER THIRDS ----------------
 export function tvUpdate(sim, R) {
@@ -49,6 +49,8 @@ function tvHTML(sim, g) {
     case 'fastest': return wrap('fastest', 'Giro più veloce', `${who(a)}<span class="tvg-big purple">${fmtTime(g.time)}</span>`, 'var(--purple)');
     case 'pit': return wrap('pit', 'Pit stop', `<span class="tvg-pos">P${g.pos}</span>${who(a)}<span class="tvg-tyres">${tyreBadge(g.from)}${g.to ? `<span class="tvg-arrow">›</span>${tyreBadge(g.to)}` : ''}</span><span class="tvg-big ${g.stat < (sim.endurance ? 27 : 2.6) ? 'good' : g.stat < (sim.endurance ? 32 : 3.6) ? 'warn' : 'bad'}">${g.stat.toFixed(2)}<small>s</small></span>`, a?.col);
     case 'retire': return wrap('retire', g.title || 'Ritiro', `${who(a)}<span class="tvg-txt">${esc(String(g.text || '').split(' · ').slice(1).join(' · '))}</span>`, 'var(--bad)');
+    case 'spin': return wrap('retire', 'Testacoda', `${g.pos ? `<span class="tvg-pos">P${g.pos}</span>` : ''}${who(a)}<span class="tvg-txt">−${Math.round(g.loss || 0)}s</span>${R3D() ? '<em class="tvg-flag rp">R · Replay</em>' : ''}`, 'var(--warn)');
+    case 'yellow': return wrap('sc', g.title || 'Bandiera gialla', `<span class="tvg-txt">${esc(g.text || '')}</span>`, '#ffd23a');
     case 'lead': return wrap('lead', 'Nuovo leader', `<span class="tvg-pos p1">P1</span>${who(a)}`, a?.col);
     case 'issue': return wrap('issue', 'Problema tecnico', `${g.pos ? `<span class="tvg-pos">P${g.pos}</span>` : ''}${who(a)}<span class="tvg-txt">${esc(g.title)}</span>${g.choice ? `<em class="tvg-flag call">${esc(g.choice)}</em>` : ''}`, 'var(--warn)');
     case 'wxcall': return wrap('wxcall', g.first ? (g.toWet ? 'Primo sul bagnato' : 'Primo sulle slick') : 'Scelta meteo', `<span class="tvg-pos">P${g.pos}</span>${who(a)}<span class="tvg-tyres">${tyreBadge(g.from)}<span class="tvg-arrow">›</span>${tyreBadge(g.to)}</span>${g.first ? '<em class="tvg-flag err">Scommessa</em>' : ''}`, g.toWet ? 'var(--info)' : 'var(--gold)');

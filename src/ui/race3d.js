@@ -3160,6 +3160,8 @@ export class Race3D {
       const i0 = open ? Math.min(N - 2, Math.max(0, Math.floor(s))) : Math.floor(s) % N;
       const race = this.open || !this.lineK ? (this.line ? this.line[i0] * (st.close ? 0.45 : 1) : 0) + (st.close && st.pos ? (st.pos % 2 ? 2.6 : -2.6) : car.lane * 0.3)
         : this.laneFor(car, st, i0, st.pos ? byPos.get(st.pos - 1) : null, st.pos ? byPos.get(st.pos + 1) : null, dt);
+      // [highlights] incident pose from the replay views: explicit lateral offset / yaw, off the racing line
+      if (st.fx) { car.pc = null; items.push({ st, car, s: wrap(s), spd, lane: st.fx.lat || 0, pit: false, yaw: st.fx.yaw || 0, fx: st.fx }); continue; }
       if (Number.isFinite(st.yaw)) yaw = st.yaw;
       if (this.pitOff && !open) { const r = this.pitStep(car, st, dt, race); if (r) { items.push({ st, car, ...r, s: wrap(r.s) }); continue; } }
       lane = Math.max(-maxLane, Math.min(maxLane, race));
@@ -3179,20 +3181,22 @@ export class Race3D {
     for (const it of items) {
       const car = it.car;
       car.latOff = (car.latOff || 0) * Math.max(0, 1 - dt * 0.7);
-      const tgt = it.pit ? it.lane : Math.max(-maxLane, Math.min(maxLane, it.lane + car.latOff));
+      const tgt = it.pit || it.fx ? it.lane : Math.max(-maxLane, Math.min(maxLane, it.lane + car.latOff));
       // the racing line itself is followed exactly (no lag past the apex); only the car's
-      // deviation from it (race craft, avoiding, rejoining from the pits) is eased
-      const lnI = !it.pit && this.lineK && !open ? this.line[Math.floor(it.s) % N] : 0;
-      if (car.laneCur == null || it.exact || car._dev == null || car._pitPrev !== !!it.pit) car._dev = (car.laneCur ?? tgt) - lnI;
-      car._pitPrev = !!it.pit;
+      // deviation from it (race craft, avoiding, rejoining from the pits) is eased. An incident
+      // pose (it.fx) is placed exactly, no easing.
+      const lnI = !it.pit && !it.fx && this.lineK && !open ? this.line[Math.floor(it.s) % N] : 0;
+      const lm = it.pit ? 'p' : it.fx ? 'f' : 'r';
+      if (car.laneCur == null || it.exact || it.fx || car._dev == null || car._laneMode !== lm) car._dev = (it.fx ? tgt : car.laneCur ?? tgt) - lnI;
+      car._laneMode = lm;
       car._dev += (tgt - lnI - car._dev) * Math.min(1, dt * (it.pit ? 3 : 4));
-      car.laneCur = car.laneCur == null || it.exact ? tgt : lnI + car._dev;
-      if (!it.pit) car.laneCur = Math.max(-maxLane, Math.min(maxLane, car.laneCur));
+      car.laneCur = car.laneCur == null || it.exact || it.fx ? tgt : lnI + car._dev;
+      if (!it.pit && !it.fx) car.laneCur = Math.max(-maxLane, Math.min(maxLane, car.laneCur));
       // visual longitudinal back-off memory so a yielding car does not snap
       let s = wrap(it.s - (car.sBack || 0));
       let back = 0;
       const hitAt = (ss, lane) => { const q = this.pose(ss, lane); for (const o of placed) { const dx = o.x - q.x, dz = o.z - q.z; if (dx * dx + dz * dz > 64 || Math.abs((o.y || 0) - (q.y || 0)) > 2) continue; const c = Math.cos(q.h), sn = Math.sin(q.h); const lon = dx * c + dz * sn, lat = -dx * sn + dz * c; if (Math.abs(lon) < 5.5 && Math.abs(lat) < 2.25) return o; } return null; };
-      for (let iter = 0; iter < 24; iter++) {
+      for (let iter = 0; iter < 24 && !it.fx; iter++) {
         const hit = hitAt(s, car.laneCur);
         if (!hit) break;
         if (!it.pit && !hit.pit && iter < 3) {
@@ -3213,6 +3217,7 @@ export class Race3D {
       s = wrap(s);
       placed.push({ ...this.pose(s, car.laneCur), s, lane: car.laneCur, pit: it.pit });
       this.placeCar(car, it.st, s, car.laneCur, it.spd, dt, it.yaw || 0);
+      if (it.fx) this.applyFxPose(car, it.fx); else if (car.mesh.rotation.order !== 'XYZ') car.mesh.rotation.order = 'XYZ';
       if (it.st.key === this.focusKey) focus = car;
     }
     if (!focus) focus = [...this.cars.values()].find((c) => c.mesh.visible);
@@ -3936,7 +3941,7 @@ export class Race3D {
     if (body) {
       // sprung body on its suspension: roll and pitch about the roll centre near the ground,
       // the wheels stay planted. Aero load squats the car at speed, kerbs and bumps shake it.
-      const half = this.TW / 2, onKerb = !car.pc && Math.abs(laneCur) > half - 1.25 && Math.abs(laneCur) < half + 1.5 && speed > 20;
+      const half = this.TW / 2, onKerb = !car.pc && !st.fx && Math.abs(laneCur) > half - 1.25 && Math.abs(laneCur) < half + 1.5 && speed > 20;
       const fm = this.category === 'formula' || this.category === 'junior';
       const squat = -(fm ? 0.022 : 0.014) * Math.min(1, (speed / 85) ** 2);
       car._kerbT = (car._kerbT || 0) + dt * speed;
@@ -3948,7 +3953,7 @@ export class Race3D {
       m.rotation.x = 0; m.rotation.z = this.geo.h ? m.rotation.z : 0;
       // a hint of slip angle: the tail steps out a little through fast corners, more on exit
       const slip = Math.max(-0.035, Math.min(0.035, k * speed * speed * 0.00018 * (1 + Math.max(0, car._acc || 0) * 0.06)));
-      car._slip = (car._slip || 0) + (slip - (car._slip || 0)) * Math.min(1, dt * 4);
+      car._slip = st.fx ? 0 : (car._slip || 0) + (slip - (car._slip || 0)) * Math.min(1, dt * 4);
       m.rotation.y -= car._slip;
     } else {
       m.rotation.x = car._roll;
@@ -3971,6 +3976,21 @@ export class Race3D {
   }
 
   startIntro(sec = 5) { this.introT = sec; this.introDur = sec; this.introStart = performance.now(); }
+
+  // ---- [highlights] public hooks used by the replay / highlights views (src/screens/highlights.js) ----
+  // rollover / lift on top of the pose placeCar computed (roll about the car's own long axis)
+  applyFxPose(car, fx) {
+    const m = car.mesh;
+    if (fx.roll) { m.rotation.order = 'YXZ'; m.rotation.x += fx.roll; } else if (m.rotation.order !== 'XYZ') m.rotation.order = 'XYZ';
+    if (fx.lift) m.position.y += fx.lift;
+  }
+  // forget per-car motion memory (pit-lane state, lane smoothing): call after a time jump in a replay
+  resetMotion() {
+    for (const c of this.cars.values()) { c.pc = null; c.sBack = 0; c.laneCur = null; c.latOff = 0; c._pl = null; c._v = null; c._acc = 0; c._yaw = 0; c._dev = null; c._tac = 0; c._slip = 0; c._lock = 0; c._roll = 0; }
+    this._cut = true; this._mvPrev = 0; this._simK = 1;
+  }
+  // world position of a car (null when hidden)
+  carWorld(key) { const c = this.cars.get(key); return c && c.mesh.visible ? c.mesh.position : null; }
 
   pickBattle() {
     // auto director: find the closest fight among running cars, prefer player cars
