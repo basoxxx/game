@@ -137,6 +137,10 @@
    readable and the race tower beside the track ---------- */
 @media (min-width: 761px) and (max-width: 1100px) and (orientation: portrait) {
   .bh-hero .lg-art { min-height: 260px; }
+  /* the live top bar wraps on two lines: fixed-height items (they were 100% of the row,
+     which left the speed buttons and "Simula" spilling under the track view) */
+  .race-top { align-content: center; }
+  .race-top .rt-event, .race-top .tb-stat { height: 50px; }
 }
 
 /* ---------- optional rotate hint (live 3D race on a phone held upright): small, dismissible ---------- */
