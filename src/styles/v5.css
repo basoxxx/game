@@ -220,6 +220,13 @@
   .shell .nav-sep { margin: 8px 14px; }
   .shell .nav-group + .nav-group { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
   .shell .main { padding: 20px 22px 40px; }
+  .shell .main .grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .shell .main .grid3 > *, .shell .main .grid4 > *, .shell .main .grid2 > * { min-width: 0; }
+  /* page title on its own line, tabs/actions below it at full width */
+  .shell .screen-title { flex-wrap: wrap; gap: 12px 20px; }
+  .shell .screen-title > :first-child { flex: 1 1 100%; min-width: 0; }
+  .shell .screen-title > :not(:first-child) { max-width: 100%; }
+  .shell .screen-title .tabs { overflow-x: auto; scrollbar-width: none; }
   /* keep the race-weekend button in the top bar */
   .shell .tb-actions [data-a="shortcuts"], .shell .tb-actions [data-a="mixer"], .shell .tb-actions [data-to="howto"] { display: none; }
   .shell .tb-actions { padding: 0 6px; gap: 2px; }
@@ -228,4 +235,7 @@
   .shell .tb-stat { padding: 0 8px; }
   .shell .tb-stat b { font-size: 17px; }
   .shell .topbar .continue-btn { padding: 8px 16px; font-size: 14px; min-height: 38px; white-space: nowrap; flex: none; }
+}
+@media (min-width: 761px) and (max-width: 900px) {
+  .shell .main .grid3, .shell .main .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
