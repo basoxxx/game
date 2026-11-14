@@ -69,7 +69,7 @@ export class TouchControls {
     el.addEventListener('contextmenu', (e) => e.preventDefault());
   }
   // hidden while the results, replay, podium or pause overlays are up
-  update() { const st = this.g.state, vis = st === 'race' || st === 'countdown'; if (vis !== this._vis) { this._vis = vis; this.el.style.display = vis ? '' : 'none'; if (!vis) { for (const k in this.s) this.s[k] = 0; this.stick = null; this.knob.style.transform = ''; } } }
+  update() { const st = this.g.state, vis = (st === 'race' || st === 'countdown') && !this.g.spectate; if (vis !== this._vis) { this._vis = vis; this.el.style.display = vis ? '' : 'none'; if (!vis) { for (const k in this.s) this.s[k] = 0; this.stick = null; this.knob.style.transform = ''; } } }
   state() { return this.s; }
   destroy() { this.el.remove(); }
 }

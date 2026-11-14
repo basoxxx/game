@@ -1472,6 +1472,8 @@ export class DerbyGame {
     const dustC = this.surface.dust, mud = this.venue.surface === 'mud';
     const T = this.terrain;
     const camD = this.camera.position.distanceToSquared(car.mesh.position), near = camD < 120 * 120;
+    // the chase camera sits right behind the followed car: its own plume is thinned so it never hides the car
+    const ownCam = car === (this.spectate || this.player) && this.camMode < 2 && !this.lookBack;
     // dirt build-up on the paint
     if (dustC && speed > 3) ud.dirt.value = Math.min(1, ud.dirt.value + dt * (mud ? 0.012 : 0.005) * Math.min(1, speed / 25));
     if (car.inWater && speed > 3) ud.dirt.value = Math.max(0.15, ud.dirt.value - dt * 0.05);
@@ -1487,10 +1489,10 @@ export class DerbyGame {
       if (near) {
         if (wetHere && speed > 3) { if (Math.random() < 0.8) for (let k = 0; k < 2; k++) this.splash.emit(P.x, P.y + 0.15, P.z, -lv.x * 0.15 + side.x * (Math.random() - 0.5) * 6, 2.5 + Math.random() * 3.5 * Math.min(1, speed / 15), -lv.z * 0.15 + side.z * (Math.random() - 0.5) * 6, 0.9 + Math.random() * 0.5, 0.7, 0.78, 0.84, 0.86, 0.55); }
         // v6: the dust plume thickens with speed and with the venue's dryness (look.dust: dusty quarry 1.5, rain 0.15)
-        else if ((dustC || !onTrack) && (speed > 5 || spin) && Math.random() < Math.min(0.95, (rear ? 0.4 : 0.15) * (1 + slideAmt) * (1 + Math.min(1, speed / 45) * 0.8) * Math.min(1.4, this.look.dust ?? 1)) * (this.low ? 0.5 : 1)) {
+        else if ((dustC || !onTrack) && (speed > 5 || spin) && Math.random() < Math.min(0.95, (rear ? 0.4 : 0.15) * (1 + slideAmt) * (1 + Math.min(1, speed / 45) * 0.4) * Math.min(1.25, this.look.dust ?? 1)) * (this.low ? 0.5 : 1)) {
           const c = onTrack ? (dustC || [0.4, 0.38, 0.33]) : [0.42, 0.38, 0.28];
           if (mud) this.chips.emit(P.x, P.y + 0.2, P.z, -fwd.x * speed * 0.25 + (Math.random() - 0.5) * 3, 1.5 + Math.random() * 3, -fwd.z * speed * 0.25 + (Math.random() - 0.5) * 3, 0.8, 0.2, 0.25, 0.19, 0.12, 1);
-          this.dust.emit(P.x, P.y + 0.3, P.z, -lv.x * 0.12 + (Math.random() - 0.5) * 2, 0.5 + Math.random(), -lv.z * 0.12 + (Math.random() - 0.5) * 2, 1.6 + Math.random() * 1.6 * (mud ? 0.5 : 1), 0.8 + speed * 0.03 + slideAmt * 0.5, c[0], c[1], c[2], (mud ? 0.16 : 0.22) * Math.min(1.6, 0.6 + slideAmt + Math.min(0.5, speed / 80)) * Math.min(1.3, 0.55 + 0.45 * (this.look.dust ?? 1)));
+          this.dust.emit(P.x, P.y + 0.3, P.z, -lv.x * 0.12 + (Math.random() - 0.5) * 2, 0.5 + Math.random(), -lv.z * 0.12 + (Math.random() - 0.5) * 2, 1.6 + Math.random() * 1.6 * (mud ? 0.5 : 1), 0.8 + speed * 0.03 + slideAmt * 0.5, c[0], c[1], c[2], (mud ? 0.16 : 0.22) * Math.min(1.6, 0.6 + slideAmt + Math.min(0.25, speed / 160)) * Math.min(1.15, 0.6 + 0.4 * (this.look.dust ?? 1)) * (ownCam ? 0.45 : 1));
         }
         if (!dustC && slideAmt > 0.45 && Math.random() < Math.min(0.9, 0.35 + slideAmt * 0.4)) this.smoke.emit(P.x, P.y + 0.15, P.z, -lv.x * 0.08 + (Math.random() - 0.5) * 1.5, 0.5 + Math.random() * 0.6, -lv.z * 0.08 + (Math.random() - 0.5) * 1.5, 1.5 + Math.random(), 0.7 + slideAmt * 0.5, 0.86, 0.86, 0.88, Math.min(0.4, 0.14 + slideAmt * 0.12)); // tyre smoke on asphalt
       }
