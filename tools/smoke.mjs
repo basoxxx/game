@@ -34,7 +34,7 @@ function hook(page, tag) {
 }
 async function checkCrash(page, tag) {
   const cur = await page.evaluate(() => window.__apex?.App?.cur).catch(() => null); if (cur) visited.add(`${tag}:${cur}`);
-  const txt = await page.evaluate(() => { const c = document.querySelector('.crash'); return c ? (c.querySelector('pre')?.textContent || c.textContent) : null; });
+  const txt = await page.evaluate(() => { const c = document.querySelector('.modal-wrap .crash'); return c ? (c.querySelector('pre')?.textContent || c.textContent) : null; });
   if (txt) {
     note(`${tag}:crash-dialog`, txt.trim());
     await page.evaluate(() => document.querySelector('[data-a="crash-retry"]') && window.__apex.App.closeModal());
@@ -51,7 +51,7 @@ async function go(page, id, params) {
 async function closeOverlays(page) {
   await page.evaluate(() => {
     document.querySelector('.tour-mask')?.remove(); document.querySelector('.coach')?.remove();
-    if (document.querySelector('.modal-wrap') && !document.querySelector('.crash')) window.__apex.App.closeModal();
+    if (document.querySelector('.modal-wrap') && !document.querySelector('.modal-wrap .crash')) window.__apex.App.closeModal();
   });
 }
 async function clickAll(page, sel, tag) {
