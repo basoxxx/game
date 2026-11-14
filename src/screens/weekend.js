@@ -370,16 +370,17 @@ function update3D(dt) {
     let d = c.status === 'finished' ? sim.hl?.carU(c) ?? c.finishLap : c.dist;
     if (pose) d = pose.u;
     const frac = arcFrac(sim.cat, sim.track.cid, d, sim.track.lap);
-    let speed = c.inPit > 0 ? 0 : speedAtTimeFrac(sim.cat, sim.track.cid, d, c.lapTarget, sim.track.lap) / 3.6;
+    let speed = c.inPit > 0 ? 0 : speedAtTimeFrac(sim.cat, sim.track.cid, d, c.lapTarget, sim.track.lap) / 3.6 * (c.status === 'running' ? c.vf ?? 1 : 1);
     if (pose) speed = c.status === 'dnf' ? 0 : Math.abs(pose.lat) > W ? speed * 0.25 : speed;
     const show = c.isPlayer || c.key === R.focus || c.pos <= 3;
-    return { key: c.key, pos: c.pos, gap: c.status === 'running' && c.inPit <= 0 ? c.gapAhead : null, s: frac * g.N, speed, inPit: c.inPit > 0 && !pose, pitting: !!c.pitReq && !pose, close: c.gapAhead < 1, tyreColor: COMPOUNDS[c.tyre].color, label: c.status === 'dnf' ? '' : show ? `P${c.pos} ${shortName(sim.driver(c).name)}` : `${c.pos}`, fx: pose ? { lat: pose.lat, yaw: pose.yaw, roll: pose.roll, lift: pose.lift } : null };
+    return { key: c.key, pos: c.pos, gap: c.status === 'running' && c.inPit <= 0 ? c.gapAhead : null, s: frac * g.N, speed, inPit: c.inPit > 0 && !pose, pitting: !!c.pitReq && !pose, close: c.gapAhead < 1, tyreColor: COMPOUNDS[c.tyre].color, label: c.status === 'dnf' ? '' : show ? `P${c.pos} ${shortName(sim.driver(c).name)}` : `${c.pos}`, fx: pose ? { lat: pose.lat, yaw: pose.yaw, roll: pose.roll, lift: pose.lift } : null, ov: c.ovS || 0, blue: c.blueT > sim.time };
   });
   for (const g of sim.traffic || []) states.push({ key: g.key, s: arcFrac(sim.cat, sim.track.cid, g.dist, sim.track.lap) * g2N(sim), speed: speedAtTimeFrac(sim.cat, sim.track.cid, g.dist, g.lt, sim.track.lap) / 3.6, label: '' });
   r.focusKey = R.focus;
   r.setRain(sim.rain);
   if (sim.endurance && sim.track.night) { R.nightLvl = (R.nightLvl ?? 0) + ((sim.night ? 1 : 0) - (R.nightLvl ?? 0)) * Math.min(1, dt * 0.3); r.setNight(Math.round(R.nightLvl * 20) / 20); }
   r.update(states, dt);
+  R.ifx?.live?.(sim, r); // debris, smoke and marshals of the incidents happening now
   R.ifx?.update(dt * Math.min(4, R.speed || 1));
   const fc = sim.cars.find((c) => c.key === (r.director && r.dirFocus ? r.dirFocus : R.focus));
   const hud = document.getElementById('hud3d');

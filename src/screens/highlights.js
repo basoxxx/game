@@ -64,7 +64,7 @@ export function clipStates(reel, clip, t, ctx) {
       if (f & 1) speed = 0;
     }
     if (!car.gt && !(f & 4)) order.push({ key: car.key, u });
-    out.push({ key: car.key, s, u, speed, inPit: !!(f & 1), pitting: !!(f & 2), fx, tyreColor: undefined, me: !!car.me });
+    out.push({ key: car.key, s, u, speed, inPit: !!(f & 1), pitting: !!(f & 2), fx, tyreColor: undefined, me: !!car.me, ov: f & 16 ? 0.8 : f & 32 ? -0.8 : 0 });
   });
   // running order from the recorded positions (labels + mini tower)
   order.sort((a, b) => b.u - a.u);

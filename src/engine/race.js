@@ -426,10 +426,11 @@ export class CircuitSim {
     } catch { return []; }
   }
   // a time loss the car bleeds off by driving slower (never a jump of position); returns its shape
-  lose(c, secs, rate = 0.5, dIn = D_IN) {
+  lose(c, secs, rate = 0.5, dIn = D_IN, dOut = D_OUT) {
     if (!c || !(secs > 0)) return null;
     c.debt = (c.debt || 0) + secs; c.debtR = clamp(Math.max(c.debtR || 0, rate), 0.03, 1); c.debtIn = Math.min(V_DEC - 0.05, Math.max(c.debtIn || 0, dIn));
-    return lossProfile(c.debt, c.debtR, c.debtIn);
+    c.debtOut = Math.min(c.debtOut || D_OUT, dOut);
+    return lossProfile(c.debt, c.debtR, c.debtIn, c.debtOut);
   }
   // can b drive past a without a duel? (a is slowed / off line, or lifting to let him by)
   canPass(b, a) { return (a.dk || 0) > 0.3 || (a.yieldUntil > this.time && (!a.yieldTo || a.yieldTo === b.key)); }
@@ -484,7 +485,7 @@ export class CircuitSim {
       this.noseCheck(c); return;
     }
     if (x.kind === 'spin') {
-      const loss = rand(4, 12); this.noteIncident(c, 'spin', { side: x.side, loss, pf: this.lose(c, loss, 0.98, 0.42) });
+      const loss = rand(4, 12); this.noteIncident(c, 'spin', { side: x.side, loss, pf: this.lose(c, loss, 0.98, 0.42, 0.2) });
       c.ledger.err += loss; this.shake(c, -0.35);
       this.log(`↺ Testacoda di ${d.name}! Perde ${loss.toFixed(0)} secondi.`, 'warn', c.key, c.isPlayer); if (chance(0.5)) this.flatSpot(c, rand(0.08, 0.2));
       this.pushTV({ kind: 'spin', key: c.key, pos: c.pos, loss });
@@ -514,7 +515,7 @@ export class CircuitSim {
     let pA = (0.03 + clamp(q - 0.04, -0.3, 1.2) * 1.6 + (drs ? 0.22 : 0) + (b.ersMode === 'deploy' ? 0.1 : 0) + (b.mode === 'push' ? 0.08 : 0) + (b.attackUntil > this.time ? 0.3 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.15 : 0) + (db.attrs.race - 75) / 250 + (b.conf || 0) * 0.04 + duel.heat / 400) * z.w * (0.05 + 1.2 * this.track.ovt ** 1.3);
     if (!chance(clamp(pA, 0, 0.9))) return;
     const pOk = clamp(duel.pBonus + 0.1 + this.track.ovt * 0.3 + q * 0.8 + (db.attrs.race - da.attrs.race) / 110 + (drs ? 0.1 : 0) + (b.mode === 'push' ? 0.05 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.08 : 0) - (a.ersMode === 'deploy' ? 0.06 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.1 : 0) + (b.attackUntil > this.time ? 0.1 : 0) - (a.defendUntil > this.time ? 0.18 : 0) + (b.conf || 0) * 0.04 - (a.conf || 0) * 0.03 - (z.w < 0.15 ? 0.15 : 0), 0.04, 0.92);
-    b.att = { def: a.key, ph: 'close', z, t0: this.time, gap0: Math.max(gap, OVL), boostMax, pOk, pos: i, drs, cover: chance(0.5 + (a.defendUntil > this.time ? 0.4 : 0)) };
+    b.att = { def: a.key, ph: 'close', z, t0: this.time, gap0: Math.max(gap, OVL), boostMax, pOk, pos: i, drs, blow: drs && q > 0.3 && chance(0.4), cover: chance(0.5 + (a.defendUntil > this.time ? 0.4 : 0)) };
     a._defBy = b.key;
     // covering the inside costs the defender a little on the straight
     if (b.att.cover) this.lose(a, rand(0.03, 0.1), 0.04, 0.5);
@@ -528,9 +529,13 @@ export class CircuitSim {
     const side = P.z.dir;
     if (P.ph === 'close') {
       let left = P.z.fB - frac(b.dist); if (left < -0.5) left += 1; if (left > 0.5) left -= 1;
-      if (left <= 0 || rel > -OVL * 0.85) { this.sideBySideStart(a, b, P, rel); return; }
-      const need = (-rel - OVL * 0.6) * b.lapTarget / Math.max(0.6, left * b.lapTarget) - (a.lapTarget / b.lapTarget - 1);
-      b.boost = clamp(need, 0, P.boostMax);
+      if (left <= 0) { this.sideBySideStart(a, b, P, rel); return; }
+      // a DRS blow-by: cleared before the braking point
+      if (rel > OVL * 1.05) { this.endPass(b, true); return; }
+      // aim: nose alongside the defender's sidepod at the braking point (or clear ahead with a big tow)
+      const tgt = P.blow ? OVL * 1.4 : -OVL * 0.35;
+      const need = (tgt - rel) * b.lapTarget / Math.max(0.6, left * b.lapTarget) - (a.lapTarget / b.lapTarget - 1);
+      b.boost = clamp(need, -0.03, P.boostMax);
       // out of the slipstream towards the inside of the corner; the defender (maybe) covers it
       const k = clamp(1 - (-rel) / P.gap0, 0, 1);
       b.ovS = side * (0.2 + 0.6 * k); if (P.cover) a.ovS = side * 0.45 * k;
@@ -1774,7 +1779,7 @@ export class CircuitSim {
       const d = this.driver(c);
       if (is.fail === 'retire' || (is.fail === 'mixed' && chance(0.35))) { c.issue = null; this.retire(c, is.name, false); return; }
       if (is.fail === 'tyre') { const lt = rand(12, 20); this.noteIncident(c, 'limp', { loss: lt, pf: this.lose(c, lt, 0.6, 0.6) }); c.damage += 0.3; c.issue = null; c.pitReq = c.pitReq || { compound: this.dryChoice(c, this.laps - c.dist), fuel: true }; this.log(`💥 La gomma di ${d.name} cede del tutto! Rientro lentissimo ai box.`, 'warn', c.key, true); this.pushTV({ kind: 'retire', key: c.key, title: 'Foratura', text: d.name }); return; }
-      const loss = rand(3, 7); this.noteIncident(c, is.type === 'brakes' ? 'off' : 'limp', { loss, pf: is.type === 'brakes' ? this.lose(c, loss, 0.85, 0.7) : this.lose(c, loss, 0.45, 0.6) }); c.ledger.err += loss; c.damage += rand(0.2, 0.45); is.risk *= 0.5; if (is.type === 'brakes') this.flatSpot(c);
+      const loss = rand(3, 7); this.noteIncident(c, is.type === 'brakes' ? 'off' : 'limp', { loss, pf: is.type === 'brakes' ? this.lose(c, loss, 0.85, 0.7, 0.3) : this.lose(c, loss, 0.45, 0.6) }); c.ledger.err += loss; c.damage += rand(0.2, 0.45); is.risk *= 0.5; if (is.type === 'brakes') this.flatSpot(c);
       this.log(`⚠ ${d.name}: ${is.type === 'brakes' ? 'bloccaggio in staccata e lungo nella via di fuga' : 'perdita di potenza'}! Perde ${loss.toFixed(0)}s.`, 'warn', c.key, true);
     }
     if (c.issue && c.issue.laps <= 0 && !c.issue.untilPit) { this.log(`📻 Ingegnere a ${this.driver(c).name.split(' ')[0]}: «${c.issue.name}: valori tornati nella norma.»`, 'radio', c.key, true); c.issue = null; if (c.mode === 'save' && !c.auto) c.mode = 'normal'; }
@@ -1841,7 +1846,7 @@ export class CircuitSim {
     if (c3) {
       // pile-up: a is tagged into a spin, the car behind has nowhere to go
       const d3 = this.driver(c3); const loss = rand(5, 10);
-      this.noteIncident(a, 'spin', { side: x.side, loss, others: [b.key, c3.key], pf: this.lose(a, loss, 0.98, 0.45) }); a.ledger.err += loss;
+      this.noteIncident(a, 'spin', { side: x.side, loss, others: [b.key, c3.key], pf: this.lose(a, loss, 0.98, 0.45, 0.2) }); a.ledger.err += loss;
       this.noteIncident(b, 'contact', { side: -x.side, loss: 0.8, pf: this.lose(b, 0.8, 0.35, 1.2) }); this.addDamage(b, rand(0.2, 0.6), 0.1);
       if (chance(0.35)) { this.noteIncident(c3, 'crash', { side: x.side }); this.retire(c3, 'Carambola al primo giro', true); }
       else { const l3 = rand(1, 3); this.noteIncident(c3, 'contact', { side: x.side, loss: l3, pf: this.lose(c3, l3, 0.5, 1.0) }); this.addDamage(c3, rand(0.5, 1.2), 0.2); this.noseCheck(c3); }
@@ -1860,7 +1865,7 @@ export class CircuitSim {
       this.noseCheck(a);
       this.hlMark({ type: 'contact', keys: [a.key, b.key], title: 'Contatto in curva 1', text: `${db.name} tocca ${da.name}: ala danneggiata`, score: this.hlScore(5, a, b), pre: 8, post: 6 });
     } else if (r < 0.9) {
-      const loss = rand(4, 9); this.noteIncident(a, 'spin', { side: x.side, loss, others: [b.key], pf: this.lose(a, loss, 0.98, 0.45) }); this.noteIncident(b, 'contact', { side: -x.side, loss: 0.3, others: [a.key], pf: this.lose(b, 0.3, 0.2, 1.1) }); a.ledger.err += loss;
+      const loss = rand(4, 9); this.noteIncident(a, 'spin', { side: x.side, loss, others: [b.key], pf: this.lose(a, loss, 0.98, 0.45, 0.2) }); this.noteIncident(b, 'contact', { side: -x.side, loss: 0.3, others: [a.key], pf: this.lose(b, 0.3, 0.2, 1.1) }); a.ledger.err += loss;
       this.log(`↺ Curva 1: ${da.name} va in testacoda dopo un tocco di ${db.name}, perde ${loss.toFixed(0)}s.`, 'warn', a.key, mine);
       this.hlMark({ type: 'spin', keys: [a.key, b.key], title: 'Testacoda in curva 1', text: `${da.name} si gira dopo il tocco di ${db.name}`, score: this.hlScore(6.5, a, b), pre: 8, post: 8 });
     } else {
@@ -2209,8 +2214,9 @@ export class CircuitSim {
       const lt = c.lapTarget;
       // time debt: the car runs a share `dk` slower, ramping in and out, until the lost seconds are paid
       let k = c.dk || 0;
-      if (c.debt > 0) { if (c.debt <= k * k / (2 * D_OUT) + 1e-4) k = Math.max(0, k - D_OUT * dt); else k = Math.min(c.debtR || 0.5, k + (c.debtIn || D_IN) * dt); }
-      else { k = Math.max(0, k - D_OUT * dt); c.debtR = 0; c.debtIn = 0; }
+      const dOut = c.debtOut || D_OUT;
+      if (c.debt > 0) { if (c.debt <= k * k / (2 * dOut) + 1e-4) k = Math.max(0, k - dOut * dt); else k = Math.min(c.debtR || 0.5, k + (c.debtIn || D_IN) * dt); }
+      else { k = Math.max(0, k - dOut * dt); c.debtR = 0; c.debtIn = 0; if (!k) c.debtOut = 0; }
       const take = Math.min(dt, k * dt); c.debt = Math.max(0, (c.debt || 0) - take); c.dk = k;
       c._p0 = prev; c._adv = dt / lt;
       c.dist += (dt - take + (c.boost || 0) * dt) / lt;

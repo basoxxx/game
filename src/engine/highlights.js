@@ -170,7 +170,8 @@ export class CircuitRecorder {
     if (!force && sim.time < this.nextT) return;
     this.nextT = (Math.floor(sim.time / HL_DT) + 1) * HL_DT;
     const n = this.keys.length, u = new Float32Array(n), f = new Uint8Array(n);
-    sim.cars.forEach((c, i) => { u[i] = this.carU(c); f[i] = (c.inPit > 0 ? 1 : 0) | (c.pitReq ? 2 : 0) | (c.status === 'dnf' ? 4 : 0) | (c.status === 'finished' ? 8 : 0); });
+    // flags: 1 in the pits, 2 heading for the pits, 4 out, 8 finished, 16 / 32 duel side (left / right)
+    sim.cars.forEach((c, i) => { u[i] = this.carU(c); f[i] = (c.inPit > 0 ? 1 : 0) | (c.pitReq ? 2 : 0) | (c.status === 'dnf' ? 4 : 0) | (c.status === 'finished' ? 8 : 0) | (c.ovS > 0.3 ? 16 : c.ovS < -0.3 ? 32 : 0); });
     (sim.traffic || []).forEach((g, j) => { u[sim.cars.length + j] = g.dist; });
     const fr = { t: sim.time, u, f, rain: sim.rain || 0 };
     this.ring.push(fr);

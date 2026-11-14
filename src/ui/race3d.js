@@ -909,7 +909,14 @@ export class Race3D {
     if (wet > 0.35 && side) lane -= side * (wet - 0.35) * 2.2 * Math.max(0, 1 - Math.abs(nd - 18) / 18);
     // race craft
     let tac = 0;
-    if (ahead && st.close) {
+    if (Number.isFinite(st.ov) && st.ov) {
+      // the race engine says where this car is in a duel (attacker up the inside, defender squeezed
+      // to the outside, a car going round a slow one): + = left, in shares of the usable half width
+      tac = st.ov * (half - 1.1) - lane;
+    } else if (st.blue) {
+      // blue flags: the backmarker leaves the racing line to the car coming through
+      tac = (-(Math.sign(base) || 1) * (half - 1.4)) - lane;
+    } else if (ahead && st.close) {
       const dLat = ahead._laneT ?? ahead.laneCur ?? base;
       if (side && nd < 34) tac = side * (half - 0.4) - lane; // dive up the inside under braking
       else {
@@ -921,7 +928,7 @@ export class Race3D {
       // defending: cover the inside before the braking zone (one move)
       tac = (side * half * 0.55 - lane) * 0.85;
     }
-    car._tac = (car._tac || 0) + (tac - (car._tac || 0)) * Math.min(1, dt * 2.2);
+    car._tac = (car._tac || 0) + (tac - (car._tac || 0)) * Math.min(1, dt * (st.ov ? 1.8 : 2.2));
     lane += car._tac + (Number.isFinite(st.latOff) ? st.latOff : Number.isFinite(st.offset) ? st.offset : 0);
     car._laneT = lane;
     return lane;
@@ -2930,7 +2937,12 @@ export class Race3D {
       const race = this.open || !this.lineK ? (this.line ? this.line[i0] * (st.close ? 0.45 : 1) : 0) + (st.close && st.pos ? (st.pos % 2 ? 2.6 : -2.6) : car.lane * 0.3)
         : this.laneFor(car, st, i0, st.pos ? byPos.get(st.pos - 1) : null, st.pos ? byPos.get(st.pos + 1) : null, dt);
       // [highlights] incident pose from the replay views: explicit lateral offset / yaw, off the racing line
-      if (st.fx) { car.pc = null; items.push({ st, car, s: wrap(s), spd, lane: st.fx.lat || 0, pit: false, yaw: st.fx.yaw || 0, fx: st.fx }); continue; }
+      if (st.fx) {
+        // incident pose: off the line, but never through the barrier (the car stops against it)
+        let lat = st.fx.lat || 0;
+        if (this.wallOff && !open && lat) { const wl = this.wallOff(Math.floor(wrap(s)), Math.sign(lat)) - 1.15; if (Math.abs(lat) > wl) lat = Math.sign(lat) * Math.max(this.TW / 2 - 0.8, wl); }
+        car.pc = null; items.push({ st, car, s: wrap(s), spd, lane: lat, pit: false, yaw: st.fx.yaw || 0, fx: st.fx }); continue;
+      }
       if (Number.isFinite(st.yaw)) yaw = st.yaw;
       if (this.pitOff && !open) { const r = this.pitStep(car, st, dt, race); if (r) { items.push({ st, car, ...r, s: wrap(r.s) }); continue; } }
       lane = Math.max(-maxLane, Math.min(maxLane, race));
@@ -2964,6 +2976,8 @@ export class Race3D {
       // visual longitudinal back-off memory so a yielding car does not snap
       let s = wrap(it.s - (car.sBack || 0));
       let back = 0;
+      // the car behind may brake out of an overlap, but not faster than a car can (no visual jump back)
+      const maxBack = Math.max(0.03, (it.spd || 0) * dt * 0.5 / (ds || 5)), stB = Math.min(0.3, maxBack / 3);
       const hitAt = (ss, lane) => { const q = this.pose(ss, lane); for (const o of placed) { const dx = o.x - q.x, dz = o.z - q.z; if (dx * dx + dz * dz > 64 || Math.abs((o.y || 0) - (q.y || 0)) > 2) continue; const c = Math.cos(q.h), sn = Math.sin(q.h); const lon = dx * c + dz * sn, lat = -dx * sn + dz * c; if (Math.abs(lon) < 5.5 && Math.abs(lat) < 2.25) return o; } return null; };
       for (let iter = 0; iter < 24 && !it.fx; iter++) {
         const hit = hitAt(s, car.laneCur);
@@ -2978,7 +2992,8 @@ export class Race3D {
             continue;
           }
         }
-        s = wrap(s - 0.3); back += 0.3;
+        if (back + stB > maxBack + 1e-6) break;
+        s = wrap(s - stB); back += stB;
       }
       car._dev = car.laneCur - lnI;
       car.sBack = Math.max(0, (car.sBack || 0) + back) * Math.max(0, 1 - dt * 1.5);
@@ -3681,7 +3696,7 @@ export class Race3D {
 
   placeCar(car, st, s, laneCur, speed, dt, yawX = 0) {
     const N = this.geo.N, m = car.mesh;
-    m.visible = true; car._placed = true;
+    m.visible = true; car._placed = true; car._s = s; car._lane = laneCur;
     const i0 = this.open ? Math.min(N - 2, Math.max(0, Math.floor(s))) : Math.floor(s) % N, i1 = this.open ? i0 + 1 : (i0 + 1) % N, f = this.open ? Math.min(1, Math.max(0, s - i0)) : s - Math.floor(s);
     let hd = this.geo.hdg[i1] - this.geo.hdg[i0]; while (hd > Math.PI) hd -= 2 * Math.PI; while (hd < -Math.PI) hd += 2 * Math.PI;
     const h = this.geo.hdg[i0] + hd * f;
