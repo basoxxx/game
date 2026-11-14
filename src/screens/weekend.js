@@ -818,14 +818,14 @@ function finishHTML(st, res, best, reel) {
   const car = (r) => sim.cars.find((c) => c.key === r.key);
   const step = (r, h) => {
     if (!r) return '<div class="fin-step empty"></div>';
-    const c = car(r); const d = st.drivers[r.driverIds[0]]; const tm = st.teams[r.teamId];
+    const c = car(r); const d = (c && sim.driver(c)) || st.drivers[r.driverIds[0]]; const tm = st.teams[r.teamId];
     const gap = r.pos === 1 ? (sim.isSprint ? 'Sprint' : 'Vincitore') : r.status === 'dnf' ? 'Ritirato' : typeof r.gap === 'number' ? `+${r.gap.toFixed(3)}s` : esc(fmtGap(r.gap));
     return `<div class="fin-step p${r.pos}${tm?.isPlayer ? ' me' : ''}" style="--tc:${c?.team.car.livery.primary || 'var(--team)'};--h:${h}px">
       <div class="fin-who">${helmetSVG(d.helmet, r.pos === 1 ? 50 : 38)}<b>${esc(d.name)}</b><small>${esc(tm?.short || tm?.name || '')}</small><span class="fin-gap">${gap}</span></div>
       <div class="fin-block"><span>${r.pos}</span></div></div>`;
   };
   const mine = cls.filter((r) => r.teamId === st.playerTeam).map((r) => {
-    const d = st.drivers[r.driverIds[0]]; const delta = r.status === 'dnf' ? 0 : (r.grid || r.pos) - r.pos;
+    const c = car(r); const d = (c && sim.driver(c)) || st.drivers[r.driverIds[0]]; const delta = r.status === 'dnf' ? 0 : (r.grid || r.pos) - r.pos;
     return `<span class="fin-me">${esc(d.name.split(' ').pop())} <b>${r.status === 'dnf' ? 'RIT' : 'P' + r.pos}</b>${delta ? ` <i class="${delta > 0 ? 'good' : 'bad'}">${delta > 0 ? '▲' : '▼'}${Math.abs(delta)}</i>` : ''}${r.pts ? ` <em>+${r.pts} pt</em>` : ''}</span>`;
   }).join('');
   const fk = res.fastest?.key && sim.cars.find((c) => c.key === res.fastest.key);
