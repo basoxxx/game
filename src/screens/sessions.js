@@ -203,7 +203,7 @@ export function sessionMount() {
     if (P.uiT > 0.25) { P.uiT = 0; updateUI(); }
     if (sim.finished && !P.done) { P.done = true; updateUI(true); onSessionEnd(st, sim); }
     const fc = sim.car(P.focus);
-    engineSet(P.paused || sim.finished || !fc || fc.state !== 'run' ? 0.05 : (P.focusSpeed != null ? P.focusSpeed / 345 : 0.6), { rain: sim.rain, crowd: 0.25 });
+    engineSet(P.paused || sim.finished || !fc || fc.state !== 'run' ? 0.05 : (P.focusSpeed != null ? P.focusSpeed / 345 : 0.6), { rain: sim.rain, crowd: 0.25, view: ['onboard', 'cockpit'].includes(P.r3d?.camMode) ? 'onboard' : P.r3d?.camMode === 'chase' ? 'chase' : 'tv' });
     P.raf = requestAnimationFrame(loop);
   };
   P.raf = requestAnimationFrame(loop);

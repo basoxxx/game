@@ -366,7 +366,7 @@ function mountRun() {
     if (X.hub && !X.finished) X.hub.tick();
     if (X.r3d) rallyUpdate3D(dt);
     drawRally();
-    engineSet(X.paused || X.hub?.open || X.finished ? 0 : X.r3d && X.focusSpeed != null ? X.focusSpeed / 200 : 0.5 + Math.sin(t / 700) * 0.3, { rain: X.ev.stage.wet ? 0.7 : 0, crowd: 0.2 });
+    engineSet(X.paused || X.hub?.open || X.finished ? 0 : X.r3d && X.focusSpeed != null ? X.focusSpeed / 200 : 0.5 + Math.sin(t / 700) * 0.3, { rain: X.ev.stage.wet ? 0.7 : 0, crowd: 0.2, view: ['onboard', 'cockpit'].includes(X.r3d?.camMode) ? 'onboard' : X.r3d?.camMode === 'chase' ? 'chase' : 'tv' });
     X.uiT += dt; if (X.uiT > 0.25) { X.uiT = 0; renderUI(); }
     X.raf = requestAnimationFrame(loop);
   };

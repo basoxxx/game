@@ -2667,7 +2667,7 @@ export class Race3D {
     if (bay) bay.used = true;
     const dirtMat = m.userData.dirtMat || null;
     if (dirtMat) { dirtMat.userData.dirtCol.value.setRGB(...this._dirtCfg.col); dirtMat.userData.dirtU.value = this._dirtCfg.base; }
-    this.cars.set(c.key, { box: tIdx, bay, teamColor: c.livery?.primary, mesh: m, label, lane: ((c.key.charCodeAt(0) + c.key.length * 7) % 5 - 2) * 0.9, lastS: 0, tyre: c.tyreColor, isPlayer: c.isPlayer, dirtMat });
+    this.cars.set(c.key, { cls: c.category === 'rally' && this.category !== 'rally' ? 'gt' : undefined, box: tIdx, bay, teamColor: c.livery?.primary, mesh: m, label, lane: ((c.key.charCodeAt(0) + c.key.length * 7) % 5 - 2) * 0.9, lastS: 0, tyre: c.tyreColor, isPlayer: c.isPlayer, dirtMat });
   }
 
   setNight(n) {
@@ -2990,7 +2990,7 @@ export class Race3D {
       for (const car of this.cars.values()) {
         if (!car.mesh.visible) continue;
         const d = car.mesh.position.distanceTo(this.camera.position);
-        if (car._d != null && car._d < 45 && d > car._d && !car._passed) { car._passed = true; passBy(Math.max(0.3, 1 - car._d / 45), this.category === 'rally' ? 'rally' : this.category); }
+        if (car._d != null && car._d < 45 && d > car._d && !car._passed) { car._passed = true; passBy(Math.max(0.3, 1 - car._d / 45), this.category === 'rally' ? 'rally' : this.category, { speed: (car.state?.speed || 0) * 3.6, dist: car._d, cls: car.cls === 'gt' ? 'gt' : undefined }); }
         if (d > 70) car._passed = false;
         car._d = d;
       }

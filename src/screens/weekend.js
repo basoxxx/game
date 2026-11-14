@@ -15,7 +15,7 @@ import { COMPOUNDS } from '../data/categories.js';
 import { circuitPath, arcFrac, speedAtTimeFrac, TrackView } from '../ui/trackview.js';
 import { mulberry32, clamp, chance, rand } from '../engine/rng.js';
 import { tyreBadge, teamStripe, driverChip } from './common.js';
-import { sfx, engineStart, engineSet, engineStop, music } from '../ui/audio.js';
+import { sfx, engineStart, engineSet, engineStop, music, crowdCheer } from '../ui/audio.js';
 import { celebrate } from './results.js';
 import { hasPerk } from '../engine/progress.js';
 import { Race3D, webglAvailable } from '../ui/race3d.js';
@@ -299,7 +299,7 @@ function mountRace() {
     R.uiT += dt;
     if (R.uiT > 0.25) { R.uiT = 0; updateAll(); }
     if (R.sim.finished && !R.done) { R.done = true; updateAll(true); onRaceFinished(); }
-    engineSet(R.paused || R.sim.finished ? 0 : R.r3d && R.focusSpeed != null ? R.focusSpeed / 345 : 0.55 + Math.sin(t / 900) * 0.35, { rain: R.sim.rain, crowd: 0.5 });
+    engineSet(R.paused || R.sim.finished ? 0 : R.r3d && R.focusSpeed != null ? R.focusSpeed / 345 : 0.55 + Math.sin(t / 900) * 0.35, { rain: R.sim.rain, crowd: 0.5, view: audioView(R.r3d?.camMode) });
     R.raf = requestAnimationFrame(loop);
   };
   R.raf = requestAnimationFrame(loop);
@@ -400,7 +400,7 @@ function startLights(done) {
   ov.innerHTML = `<div class="start-lights" id="lights">${[0, 1, 2, 3, 4].map((i) => `<div id="l${i}"></div>`).join('')}</div>`;
   const iv = setInterval(() => {
     if (n < 5) { const l = document.getElementById(`l${n}`); if (l) { l.style.background = '#ff1a1a'; l.style.boxShadow = '0 0 20px #f00'; } sfx.beep(); n++; R.r3d?.setStartLights(n, false); }
-    else { clearInterval(iv); setTimeout(() => { document.querySelectorAll('#lights > div').forEach((l) => { l.style.background = '#1b1d21'; l.style.boxShadow = 'inset 0 0 8px #000'; }); sfx.go(); R.r3d?.setStartLights(0, true); setTimeout(() => { const L = document.getElementById('lights'); if (L) L.remove(); }, 600); done(); }, 300 + Math.random() * 900); }
+    else { clearInterval(iv); setTimeout(() => { document.querySelectorAll('#lights > div').forEach((l) => { l.style.background = '#1b1d21'; l.style.boxShadow = 'inset 0 0 8px #000'; }); sfx.go(); sfx.announce?.(); R.r3d?.setStartLights(0, true); setTimeout(() => { const L = document.getElementById('lights'); if (L) L.remove(); }, 600); done(); }, 300 + Math.random() * 900); }
   }, 520);
 }
 
@@ -681,6 +681,7 @@ function updateFeed(force) {
     else if (e.type === 'pit' && e.important) sfx.pit();
     else if (e.type === 'sc') sfx.notify();
     else if (e.type === 'overtake' && e.important) sfx.overtake();
+    else if (e.type === 'overtake') crowdCheer(0.4);
     if (e.type === 'radio') sfx.radio?.();
     if (e.type === 'sc' && !R.lessonSC) { R.lessonSC = true; App.toast('Lezione: safety car', 'Ai box si perde circa metà del tempo: spesso conviene fermarsi ora.', ''); }
   }
@@ -721,8 +722,11 @@ function updateSpeedUI() {
   const p = document.getElementById('btn-pause'); if (p) p.innerHTML = icon(R.paused ? 'play' : 'pause');
 }
 
+// engine sound filter per camera: the on-car cameras hear the car, everything else is a TV mic
+function audioView(m) { return m === 'onboard' || m === 'cockpit' ? 'onboard' : m === 'chase' ? 'chase' : 'tv'; }
 function onRaceFinished() {
   engineStop();
+  sfx.announce?.();
   const st = S();
   const res = R.sim.results();
   const mine = res.classification.filter((r) => r.teamId === st.playerTeam);
