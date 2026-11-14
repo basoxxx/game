@@ -12,7 +12,7 @@ import { loadTex } from '../ui/gfx.js';
 // racing-surface colour map (the ground shader also reads its relief from it) and the tint that
 // suits it; null = keep the shared gravel / asphalt set
 export function surfaceTex(v) {
-  if (v.surface === 'mud') return { map: loadTex('derby/mud_diff.webp'), tint: '0.6,0.48,0.36' };
+  if (v.surface === 'mud') return { map: loadTex('derby/mud_diff.webp'), tint: '0.7,0.53,0.32' };
   if (v.surface === 'dirt') return { map: loadTex('derby/dirt_diff.webp'), tint: v.stadium ? '0.98,0.86,0.74' : '1.06,0.98,0.88' };
   return null;
 }
