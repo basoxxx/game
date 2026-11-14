@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { pbr } from '../ui/gfx.js';
+import { pbr, loadTex } from '../ui/gfx.js';
 import { makeForest, makeTreeShadows, vegOfKind } from '../ui/vegetation.js';
 import { mergeStatic } from './merge.js';
 import { surfaceTex } from './assets.js';
@@ -102,10 +102,12 @@ export function buildGround(game) {
   const rockGround = v.ground === 'rock';
   const mat = v.port ? pbr('concrete_floor_worn_001', { color: 0x9a968e, roughness: 1 }) : pbr('aerial_grass_rock', { color: rockGround ? 0xcdbd9b : 0xa9c48a, roughness: 1 });
   const surfId = v.surface === 'asphalt' ? 'asphalt_02' : 'gravel_floor';
-  const surf = pbr(surfId, { color: 0xffffff, roughness: 1 });
-  const rock = pbr('rocky_trail', { color: 0xbfae94, roughness: 1 });
   // scanned dirt / mud colour maps (v6) replace the tinted gravel on those venues
   const sTex = surfaceTex(v);
+  // the ground shader samples only the colour maps of the track surface and of the rock faces:
+  // their normal / roughness maps (~4 MB) are never downloaded
+  const surf = { map: sTex ? null : loadTex(`tex/${surfId}_diff_1k.jpg`) };
+  const rock = { map: loadTex('tex/rocky_trail_diff_1k.jpg') };
   const tint = sTex ? sTex.tint : v.surface === 'asphalt' ? '0.6,0.6,0.62' : v.surface === 'mud' ? '0.42,0.31,0.21' : v.stadium ? '0.85,0.66,0.48' : '0.95,0.82,0.62';
   const mud = v.surface === 'mud' ? 1 : 0;
   mat.onBeforeCompile = (sh) => {

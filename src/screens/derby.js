@@ -10,6 +10,7 @@ import { CHAMPIONSHIP, champGet, champStart, champNext, champReset } from '../de
 import { CHALLENGES, checkChallenges, prog, saveProg, PRICES, CAR_STARS, DIFFICULTY, MODES, MEDALS, MEDAL_COLORS, CUPS, eventById, starsOf, cupUnlocked, cupStars, venueUnlocked, VENUE_STARS, carBuyable, upgradePrice, tuneOf, lookOf } from '../derby/career.js';
 import { FILTER_PRESETS, applyFilterSettings } from '../ui/gfx.js';
 import { getSettings, setSettings } from '../engine/state.js';
+import { pixelRatio } from '../ui/quality.js';
 import { WEATHERS } from '../derby/atmos.js';
 import '../derby/menu.css';
 import '../derby/v5.css';
@@ -89,7 +90,7 @@ async function mountPreview(el, P) {
   if (!el.isConnected) return;
   if (!PV.r) {
     const r = PV.r = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05; r.outputColorSpace = THREE.SRGBColorSpace;
+    r.setPixelRatio(pixelRatio(2)); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05; r.outputColorSpace = THREE.SRGBColorSpace;
     const s = PV.scene = new THREE.Scene(); PV.cam = new THREE.PerspectiveCamera(30, 16 / 9, 0.1, 100);
     s.fog = new THREE.Fog(0x0b0807, 14, 30);
     s.add(new THREE.HemisphereLight(0xffeedd, 0x2a1a10, 0.35));

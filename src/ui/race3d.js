@@ -5,10 +5,11 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { trackGeometry, speedProfile, sampleAtTimeFrac } from '../engine/trackphys.js';
 import { genStage, STAGE_STYLE } from './trackview.js';
 import { getSettings } from '../engine/state.js';
-import { gfxTier } from './quality.js';
+import { gfxTier, pixelRatio } from './quality.js';
 import { passBy } from './audio.js';
 import { buildCar, setTyreColor, setCarLOD, MAT } from './cars3d.js';
-import { pbr, applyHDRI, makeComposer, detailPatch, hdriSun, hdriHorizon, WET, RAIN, FXT, updateSunFlare, updateGodRays, HeightFog, stabilizeShadow, triMat, loadTex, addLensRain, addXFade } from './gfx.js';
+import { FrameGuard } from './perfguard.js';
+import { pbr, applyHDRI, makeComposer, releaseGL, detailPatch, hdriSun, hdriHorizon, WET, RAIN, FXT, updateSunFlare, updateGodRays, HeightFog, stabilizeShadow, triMat, loadTex, addLensRain, addXFade } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { biomeOf } from './env/biomes.js';
 import { buildCoast, buildMidTerrain, buildDecals, buildLife, buildGridSlots } from './env/scenery.js';
@@ -176,8 +177,11 @@ export function personGeo(kind = 'staff') {
   return g;
 }
 
+let _webgl = null;
 export function webglAvailable() {
-  try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; }
+  // probed once: every probe is a WebGL context of its own (released straight away)
+  if (_webgl == null) { try { const c = document.createElement('canvas'); const gl = c.getContext('webgl2') || c.getContext('webgl'); _webgl = !!gl; gl?.getExtension('WEBGL_lose_context')?.loseContext(); } catch { _webgl = false; } }
+  return _webgl;
 }
 
 export class Race3D {
@@ -204,7 +208,7 @@ export class Race3D {
     this.focusKey = null;
     this.low = getSettings().gfx === 'low';
     this.renderer = new THREE.WebGLRenderer({ antialias: !this.low, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
-    this.renderer.setPixelRatio(this.low ? 1 : Math.min(1.5, window.devicePixelRatio || 1));
+    this.renderer.setPixelRatio(this.low ? 1 : pixelRatio(1.5));
     this.renderer.shadowMap.enabled = !this.low;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.AgXToneMapping;
@@ -213,7 +217,7 @@ export class Race3D {
     container.appendChild(this.renderer.domElement);
     Object.assign(this.renderer.domElement.style, { position: 'absolute', inset: '0', width: '100%', height: '100%' });
     this.scene = new THREE.Scene();
-    try { const pm = new THREE.PMREMGenerator(this.renderer); this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; this.scene.environmentIntensity = 0.45; } catch {}
+    try { const pm = new THREE.PMREMGenerator(this.renderer); this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; this.scene.environmentIntensity = 0.45; pm.dispose(); } catch {}
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.3, 6000);
     // teams in entry order (first = nearest the pit exit): garages, stands and boxes
     this.teamList = []; this._boxes = new Map();
@@ -295,13 +299,19 @@ export class Race3D {
 
   destroy() {
     this._ro?.disconnect();
-    this.renderer.dispose();
+    this._xfTex?.dispose();
+    releaseGL(this.renderer, this.composer);
+    this.scene.traverse((o) => { o.geometry?.dispose?.(); });
+    if (typeof window !== 'undefined' && window.__r3d === this) window.__r3d = null;
     this.renderer.domElement.remove();
     this.labels.remove();
-    this.scene.traverse((o) => { o.geometry?.dispose?.(); });
     MAT.light('#ff2020', 3).emissiveIntensity = 3;
     // livery materials are shared with the garage / menus: wash the race dirt off
     for (const c of this.cars.values()) if (c.dirtMat) c.dirtMat.userData.dirtU.value = 0;
+  }
+
+  setPixelRatio(pr) {
+    this.renderer.setPixelRatio(pr); this.composer?.setPixelRatio(pr); this.resize();
   }
 
   resize() {
@@ -2888,16 +2898,21 @@ export class Race3D {
     const N = this.geo.N;
     if (this._ready === false && this.introT > 0) this.introStart = performance.now(); // the intro waits for the shaders
     TIME.value = (performance.now() / 1000) % 1000;
-    // adaptive quality: drop resolution/shadows when the framerate is low
-    this._fpsT = (this._fpsT || 0) + dt; this._fpsN = (this._fpsN || 0) + 1;
-    if (this._fpsT > 4) {
-      const fps = this._fpsN / this._fpsT; this._fpsT = 0; this._fpsN = 0;
-      if (fps < 26 && !this._degraded) {
-        this._degraded = true; this._fxOff = true; this.renderer.setPixelRatio(1); this.renderer.shadowMap.enabled = false; if (this.composer?.ao) this.composer.ao.enabled = false;
+    // adaptive quality: below ~40 fps for a few seconds the resolution drops to 1x, then the
+    // ambient occlusion goes; below ~27 (a 30 Hz cap is left alone) the shadows and the camera effects go, then the resolution
+    // drops under 1x (scaled up by the browser)
+    this._guard ||= new FrameGuard([
+      { fps: 40, run: () => { if (this.renderer.getPixelRatio() <= 1) return false; this.setPixelRatio(1); } },
+      { fps: 40, run: () => { if (!this.composer?.ao?.enabled) return false; this.composer.ao.enabled = false; } },
+      { fps: 27, run: () => {
+        if (this._degraded) return false;
+        this._degraded = true; this._fxOff = true; this.renderer.shadowMap.enabled = false; if (this.composer?.ao) this.composer.ao.enabled = false;
         this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
         this.resize();
-      }
-    }
+      } },
+      { fps: 27, run: () => this.setPixelRatio(Math.min(this.renderer.getPixelRatio(), 0.8)) },
+    ]);
+    if (this._ready !== false) this._guard.tick();
     let focus = null;
     const ds = this.geo.ds, open = this.open;
     const dS = (a, b) => { let d = a - b; if (!open) { if (d > N / 2) d -= N; if (d < -N / 2) d += N; } return d; };

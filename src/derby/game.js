@@ -5,9 +5,11 @@
 // the best crash, AI with personalities that races and rams, and a last-car-standing derby arena.
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { applyHDRI, makeComposer, hdriSun, hdriHorizon, applyFilterSettings, FILTER_PRESETS, updateSunFlare, updateGodRays } from '../ui/gfx.js';
+import { applyHDRI, makeComposer, releaseGL, hdriSun, hdriHorizon, applyFilterSettings, FILTER_PRESETS, updateSunFlare, updateGodRays } from '../ui/gfx.js';
 import { engineStart, engineSet, engineStop, sfx } from '../ui/audio.js';
 import { getSettings, setSettings } from '../engine/state.js';
+import { pixelRatio } from '../ui/quality.js';
+import { FrameGuard } from '../ui/perfguard.js';
 import { buildTrack, buildTerrain, buildRacingLine, buildWater, SURFACES } from './tracks.js';
 import { buildBanger, dent, crackGlass, updateParts, scrape, BANGERS, AI_COLORS, LIVERIES, tuneSpec } from './cars.js';
 import { DIFFICULTY, medalFor, payout, recordCareer, prog, saveProg, checkChallenges } from './career.js';
@@ -107,7 +109,15 @@ export class DerbyGame {
     this.state = 'countdown'; this.countdown = 3.6; this._lastCount = 4;
     try { engineStart(this.player.spec.engine || 'endurance'); } catch {}
     this.last = performance.now();
-    const loop = (t) => { if (this.dead) return; this.raf = requestAnimationFrame(loop); const dt = Math.min(0.05, (t - this.last) / 1000); if (dt > 0) { this.frame(dt); this.last = t; } };
+    // adaptive quality: below ~40 fps for a few seconds the resolution drops to 1x, then the ambient
+    // occlusion goes; below ~27 the resolution drops under 1x (scaled up by the browser)
+    const setPR = (pr) => { this.renderer.setPixelRatio(pr); this.composer?.setPixelRatio(pr); this.resize(); };
+    this.guard = new FrameGuard([
+      { fps: 40, run: () => { if (this.renderer.getPixelRatio() <= 1) return false; setPR(1); } },
+      { fps: 40, run: () => { if (!this.composer?.ao?.enabled) return false; this.composer.ao.enabled = false; } },
+      { fps: 27, run: () => setPR(Math.min(this.renderer.getPixelRatio(), 0.8)) },
+    ]);
+    const loop = (t) => { if (this.dead) return; this.raf = requestAnimationFrame(loop); const dt = Math.min(0.05, (t - this.last) / 1000); if (dt > 0) { this.frame(dt); this.last = t; this.guard.tick(); } };
     this.raf = requestAnimationFrame(loop);
   }
 
@@ -135,7 +145,7 @@ export class DerbyGame {
   destroy() {
     this.dead = true; cancelAnimationFrame(this.raf); try { engineStop(); } catch {} try { this.snd?.stop(); } catch {}
     window.removeEventListener('keydown', this._kd); window.removeEventListener('keyup', this._ku); window.removeEventListener('resize', this._rs);
-    this.renderer?.dispose(); this.world?.free?.();
+    releaseGL(this.renderer, this.composer); this.world?.free?.();
     this.c.innerHTML = '';
   }
 
@@ -143,7 +153,7 @@ export class DerbyGame {
   setupRenderer() {
     const look = this.look, night = this.night;
     const r = this.renderer = new THREE.WebGLRenderer({ antialias: !this.low, powerPreference: 'high-performance', preserveDrawingBuffer: !!this.o.thumb });
-    r.setPixelRatio(this.low ? 1 : Math.min(1.5, window.devicePixelRatio || 1));
+    r.setPixelRatio(this.low ? 1 : pixelRatio(1.5));
     r.shadowMap.enabled = true; r.shadowMap.type = this.low ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = look.exposure; r.outputColorSpace = THREE.SRGBColorSpace;
     this.c.appendChild(r.domElement); Object.assign(r.domElement.style, { position: 'absolute', inset: '0', width: '100%', height: '100%' });
