@@ -154,7 +154,7 @@ function step2() {
 function step3() {
   const opt = (k, v, label, desc) => `<div class="card click opt-card ${W[k] === v ? 'sel' : ''}" data-a="opt" data-k="${k}" data-v="${v}"><b>${label}</b>${desc ? `<div class="small muted mt8">${desc}</div>` : ''}</div>`;
   const saves = listSaves();
-  return `<div class="grid2 anim-in" style="max-width:1240px;gap:24px">
+  return `<div class="grid2 anim-in ng-cfg" style="max-width:1240px;gap:24px">
     <div class="panel"><div class="panel-head"><h3>Il tuo profilo</h3></div>
       <label class="lbl">Nome del Team Principal</label><input type="text" id="pname" value="${esc(W.name)}" maxlength="24" style="width:100%;margin-top:8px;font-size:24px;font-family:var(--display);font-weight:700;text-transform:uppercase;letter-spacing:.03em">
       <div class="panel-head" style="margin-top:28px"><h3>Difficoltà</h3></div>
