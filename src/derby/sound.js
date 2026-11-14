@@ -97,6 +97,8 @@ export class DerbySound {
   }
   // the nitro bottle opening: a low thump in the chest and a rising whoosh
   boostOpen() { if (!this.on) return; const t = this.c.currentTime + 0.005; this.tone(t, 0.32, 0.22, 95, 42); this.noise(t, 0.55, 0.16, 'bandpass', 380, 2600, 1.2); this.noise(t + 0.05, 0.4, 0.07, 'highpass', 2500, 6000, 0.6); }
+  // slow motion kicks in: a deep sub drop and a muffled whoosh (deeper for the heaviest hits)
+  slowHit(big) { if (!this.on) return; const t = this.c.currentTime + 0.005; this.tone(t, big ? 1.1 : 0.7, big ? 0.3 : 0.2, big ? 70 : 85, 28); this.noise(t, big ? 1.0 : 0.6, 0.12, 'lowpass', 1600, 180, 0.8); }
   horn() { if (!this.on) return; const t = this.c.currentTime + 0.01; for (const [f, d] of [[311, 0], [233, 0.42]]) { this.tone(t + d, 0.38, 0.12, f, 0, 'square'); this.tone(t + d, 0.38, 0.06, f * 1.5, 0, 'sawtooth'); } }
   crowd(x) { this.crowdV = Math.min(1.3, this.crowdV + x * 0.8); }
   scrape(x) { this.scrapeV = Math.min(1, this.scrapeV + x); }

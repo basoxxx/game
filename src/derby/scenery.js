@@ -7,6 +7,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { pbr } from '../ui/gfx.js';
 import { makeForest, makeTreeShadows, vegOfKind } from '../ui/vegetation.js';
 import { mergeStatic } from './merge.js';
+import { surfaceTex } from './assets.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
@@ -103,10 +104,12 @@ export function buildGround(game) {
   const surfId = v.surface === 'asphalt' ? 'asphalt_02' : 'gravel_floor';
   const surf = pbr(surfId, { color: 0xffffff, roughness: 1 });
   const rock = pbr('rocky_trail', { color: 0xbfae94, roughness: 1 });
-  const tint = v.surface === 'asphalt' ? '0.6,0.6,0.62' : v.surface === 'mud' ? '0.42,0.31,0.21' : v.stadium ? '0.85,0.66,0.48' : '0.95,0.82,0.62';
+  // scanned dirt / mud colour maps (v6) replace the tinted gravel on those venues
+  const sTex = surfaceTex(v);
+  const tint = sTex ? sTex.tint : v.surface === 'asphalt' ? '0.6,0.6,0.62' : v.surface === 'mud' ? '0.42,0.31,0.21' : v.stadium ? '0.85,0.66,0.48' : '0.95,0.82,0.62';
   const mud = v.surface === 'mud' ? 1 : 0;
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.mapB = { value: surf.map }; sh.uniforms.mapR = { value: rock.map }; sh.uniforms.hw = { value: (tr.width || 10) / 2 }; sh.uniforms.uWetG = { value: game.wet || 0 };
+    sh.uniforms.mapB = { value: sTex ? sTex.map : surf.map }; sh.uniforms.mapR = { value: rock.map }; sh.uniforms.hw = { value: (tr.width || 10) / 2 }; sh.uniforms.uWetG = { value: game.wet || 0 };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float blend; attribute float lat; attribute float wet; varying float vBlend; varying float vLat; varying float vWet; varying vec3 vWP; varying vec3 vWN;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBlend = blend; vLat = lat; vWet = wet; vWP = position; vWN = normal;');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>

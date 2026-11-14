@@ -9,3 +9,7 @@ quiver_tree_02, othonna_cerarioides (https://polyhaven.com/models) - CC0 1.0 Pub
 
 Facade textures (tex/facade001_*, tex/facade006_*): ambientCG Facade001, Facade006
 (https://ambientcg.com) - CC0 1.0 Public Domain (re-compressed).
+
+Scontro Totale (derby/): Poly Haven (https://polyhaven.com) - CC0 1.0 Public Domain, re-compressed to webp.
+dirt (derby/dirt_diff.webp), muddy_tracks (derby/mud_diff.webp), models Barrel_01 (derby/barrel.*)
+and old_tyre (derby/tyre.*), HDRI overcast_soil_puresky (derby/overcast_soil_puresky_1k.hdr).
