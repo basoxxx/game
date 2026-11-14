@@ -169,7 +169,7 @@ registerScreen({
     auto(el) { const c = R.sim.cars.find((x) => x.key === el.dataset.key); c.auto = !c.auto; updateControls(true); },
     speed(el) { R.speed = +el.dataset.v; R.paused = false; R.last = performance.now(); updateSpeedUI(); },
     pause() { R.paused = !R.paused; R.last = performance.now(); updateSpeedUI(); },
-    'sim-end'() { App.confirm('Simulare fino alla fine?', 'La strategia dei tuoi piloti passerà all’ingegnere.', () => { R.sim.cars.forEach((c) => { if (c.isPlayer) c.auto = true; }); R.sim.momentsOn = false; R.sim.moments = []; R.hub?.reset(); R.sim.runToEnd(); }); },
+    'sim-end'() { if (!R.sim || R.sim.finished) return; App.confirm('Simulare fino alla fine?', 'La strategia dei tuoi piloti passerà all’ingegnere.', () => { R.sim.cars.forEach((c) => { if (c.isPlayer) c.auto = true; }); R.sim.momentsOn = false; R.sim.moments = []; R.hub?.reset(); R.sim.runToEnd(); }); },
     'finish-race'() { finishRace(); },
     'an-open'() { openAnalysis(); },
     'an-close'() { closeAnalysis(); },
@@ -302,7 +302,7 @@ function mountRace() {
     if (R.r3d && !R.replay) draw();
     R.uiT += dt;
     if (R.uiT > 0.25) { R.uiT = 0; const t0 = performance.now(); updateAll(); const ms = performance.now() - t0; R.uiMs = R.uiMs == null ? ms : R.uiMs * 0.9 + ms * 0.1; R.uiMax = Math.max(R.uiMax || 0, ms); } // cost of a UI refresh (devtools: __race.uiMs)
-    if (R.sim.finished && !R.done) { R.done = true; updateAll(true); onRaceFinished(); }
+    if (R.sim.finished && !R.done) { R.done = true; updateAll(true); onRaceFinished(); document.querySelectorAll('[data-a="sim-end"]').forEach((b) => { b.disabled = true; }); }
     engineSet(R.paused || R.sim.finished ? 0 : R.r3d && R.focusSpeed != null ? R.focusSpeed / 345 : 0.55 + Math.sin(t / 900) * 0.35, { rain: R.sim.rain, crowd: 0.5, view: audioView(R.r3d?.camMode) });
     R.raf = requestAnimationFrame(loop);
   };

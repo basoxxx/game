@@ -173,6 +173,10 @@
   .race-view.mode3d #rally-cv { width: 170px; height: 124px; }
   .race-view.mode3d .rx-ticker { top: auto; left: auto; right: 12px; bottom: 76px; max-width: calc(100% - 200px); justify-content: flex-end; }
   .race-view.mode3d .rx-ticker .rx-note:not(.cur) { display: none; }
+  /* compact speed HUD: the full one (name + speed + km) ran over the minimap in a 400px view */
+  .race-view.mode3d #rally-cv ~ .hud3d { padding: 4px 10px; gap: 8px; }
+  .race-view.mode3d #rally-cv ~ .hud3d .tiny:first-child { display: none; }
+  .race-view.mode3d #rally-cv ~ .hud3d .spd { font-size: 26px; min-width: 50px; }
 }
 @media (max-width: 760px) {
   .rx-notes-scroll { grid-template-columns: 1fr; max-height: 260px; }

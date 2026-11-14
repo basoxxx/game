@@ -552,7 +552,7 @@ export class RallyEvent {
     c.done = true;
     c.stageResult = c.stageT;
     { const others = this.crews.filter((x) => x !== c && x.stageResult != null && x.plan); const best = !others.length || others.every((x) => x.stageResult > c.stageT);
-      if (best || c.isPlayer) this.hlMark({ type: 'stage', keys: [c.key], t, title: `${this.driver(c).name} al traguardo`, text: `PS${this.stageIdx + 1} in ${Math.floor(c.stageT / 60)}:${(c.stageT % 60).toFixed(1).padStart(4, '0')}${best && others.length ? ' · miglior tempo' : ''}`, score: c.isPlayer ? 3.5 : 2.5, pre: 7, post: 3 }); }
+      if (best || c.isPlayer) this.hlMark({ type: 'stage', keys: [c.key], t, title: `${this.driver(c).name} al traguardo`, text: `PS${this.stageIdx + 1} in ${Math.floor(Math.round(c.stageT * 10) / 600)}:${(Math.round(c.stageT * 10) / 10 % 60).toFixed(1).padStart(4, '0')}${best && others.length ? ' · miglior tempo' : ''}`, score: c.isPlayer ? 3.5 : 2.5, pre: 7, post: 3 }); }
     (c.splitTimes ||= {})[1] = c.stageT;
     this.onSplit(c, 1);
   }

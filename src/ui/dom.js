@@ -4,6 +4,7 @@ export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 export const fmtTime = (s) => {
   if (s == null || !isFinite(s)) return '--';
+  s = Math.round(s * 1000) / 1000; // 59.9996 must read 1:00.000, not 0:60.000
   const m = Math.floor(s / 60), sec = s - m * 60;
   return m > 0 ? `${m}:${sec.toFixed(3).padStart(6, '0')}` : sec.toFixed(3);
 };
@@ -11,11 +12,12 @@ export const fmtGap = (g) => {
   if (g == null) return '';
   if (typeof g === 'object') return `+${g.laps} ${g.laps === 1 ? 'giro' : 'giri'}`;
   if (g === 0) return 'Leader';
-  if (g >= 60) { const m = Math.floor(g / 60); return `+${m}:${(g - m * 60).toFixed(1).padStart(4, '0')}`; }
+  if (g >= 59.95) { g = Math.round(g * 10) / 10; const m = Math.floor(g / 60); return `+${m}:${(g - m * 60).toFixed(1).padStart(4, '0')}`; }
   return `+${g.toFixed(g < 10 ? 3 : 1)}`;
 };
 export const fmtLong = (s) => {
   if (s == null) return '--';
+  s = Math.round(s * 10) / 10;
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec.toFixed(1).padStart(4, '0')}` : `${m}:${sec.toFixed(1).padStart(4, '0')}`;
 };

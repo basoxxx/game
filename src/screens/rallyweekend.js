@@ -22,7 +22,7 @@ import { DecisionHub, hubLogHTML } from './decisions.js';
 import { load3D } from './loader3d.js';
 import { Race3D, webglAvailable, stageGeometry, stageSampleAt } from '../ui/race3d.js';
 import { saveReel, incidentPose, kfAt } from '../engine/highlights.js';
-import { openHighlights } from './highlights.js';
+import { openHighlights, highlightsOpen } from './highlights.js';
 
 const RP = [
   { id: 'susp', name: 'Escursione Sospensioni', lo: 'Troppo rigida: rimbalza sulle buche', hi: 'Troppo morbida: imprecisa nei cambi di direzione' },
@@ -357,6 +357,7 @@ function mountRun() {
   music.setMood('race');
   engineStart('rally');
   const loop = (t) => {
+    if (highlightsOpen()) { X.last = t; X.raf = requestAnimationFrame(loop); return; } // the reel owns the GPU and the engine sound while it plays
     const dt = Math.min(0.1, (t - X.last) / 1000); X.last = t;
     if (!X.paused && !X.finished && !(X.load && !X.load.done)) {
       let rem = dt * X.speed;
