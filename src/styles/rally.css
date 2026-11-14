@@ -167,8 +167,18 @@
 .rx-ps > div.me { outline: 1px solid var(--accent); }
 .rx-ps b { font-family: var(--display); font-size: 17px; width: 28px; }
 .rx-wx { display: flex; flex-direction: column; gap: 6px; border-left: 3px solid #4aa8ff; }
+.rx-notes-sec .rx-note { white-space: normal; }
+/* narrower race views (tablet, small laptops): smaller minimap, the notes ride above the speed HUD */
+@media (max-width: 1280px) {
+  .race-view.mode3d #rally-cv { width: 170px; height: 124px; }
+  .race-view.mode3d .rx-ticker { top: auto; left: auto; right: 12px; bottom: 76px; max-width: calc(100% - 200px); justify-content: flex-end; }
+  .race-view.mode3d .rx-ticker .rx-note:not(.cur) { display: none; }
+}
 @media (max-width: 760px) {
   .rx-notes-scroll { grid-template-columns: 1fr; max-height: 260px; }
   .rx-ticker { max-width: calc(100% - 20px); left: 10px; }
+  .race-view.mode3d #rally-cv { width: 116px; height: 86px; }
+  .race-view.mode3d .rx-ticker { right: 6px; bottom: 46px; max-width: calc(100% - 140px); }
+  .rx-ticker .rx-note.cur b { font-size: 15px; }
   .rx-ticker .rx-note:not(.cur) { display: none; }
 }
