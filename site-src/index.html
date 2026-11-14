@@ -3,251 +3,446 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Apex Dynasty — Motorsport Manager</title>
-<meta name="description" content="Apex Dynasty: il gestionale motorsport multi-categoria. Guida la tua scuderia in Formula, Rally ed Endurance. Gratis per macOS (Apple Silicon e Intel), Windows e browser.">
-<meta property="og:title" content="Apex Dynasty — Motorsport Manager">
-<meta property="og:description" content="Formula · F2 · Rally · Endurance. Progetta l'auto, gestisci piloti e strategie, vinci il titolo.">
-<meta property="og:image" content="shots/race.jpg">
+<title>Baso Hub — Apex Dynasty · Scontro Totale · Voragine</title>
+<meta name="description" content="Baso Hub: tre giochi originali in una sola raccolta. Apex Dynasty (manager motorsport), Scontro Totale (corse a contatto) e Voragine (arcade). Gratis nel browser, su macOS, Windows e Linux.">
+<meta name="theme-color" content="#07090d">
+<meta property="og:title" content="Baso Hub — tre giochi, una raccolta">
+<meta property="og:description" content="Manager motorsport, demolition derby e una voragine che divora la città. Versione __VERSION__, gratis.">
+<meta property="og:image" content="shots/cover-derby.webp">
+<meta property="og:type" content="website">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preload" as="image" href="shots/cover-derby.webp" type="image/webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,400;0,600;0,800;1,800;1,900&family=Titillium+Web:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;1,700;1,800;1,900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root { --bg:#06080b; --panel:#10141b; --line:rgba(255,255,255,.09); --text:#eef2f8; --muted:#8b95a7; --red:#e10600; --red2:#ff5a4a; --gold:#ffcc33; --rally:#ffb400; --end:#00c2ff; }
-* { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body { margin:0; background:var(--bg); color:var(--text); font-family:'Titillium Web',system-ui,sans-serif; font-size:17px; line-height:1.6; overflow-x:hidden; }
-a { color:inherit; }
-.wrap { max-width:1180px; margin:0 auto; padding:0 24px; }
-h1,h2,h3 { font-family:'Exo 2',sans-serif; margin:0; }
-nav { position:sticky; top:0; z-index:10; backdrop-filter:blur(14px); background:rgba(6,8,11,.75); border-bottom:1px solid var(--line); }
-nav .wrap { display:flex; align-items:center; gap:24px; height:64px; }
-.brand { display:flex; align-items:center; gap:10px; font-family:'Exo 2'; font-weight:900; font-style:italic; text-transform:uppercase; font-size:20px; text-decoration:none; }
-.brand img { width:32px; height:32px; }
-nav .links { margin-left:auto; display:flex; gap:22px; font-weight:600; font-size:15px; }
-nav .links a { text-decoration:none; color:var(--muted); } nav .links a:hover { color:#fff; }
-.btn { display:inline-flex; align-items:center; gap:10px; padding:14px 26px; border-radius:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; text-decoration:none; font-size:14px; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.05); transition:transform .15s, box-shadow .2s, background .2s; }
-.btn:hover { transform:translateY(-2px); background:rgba(255,255,255,.1); }
-.btn.red { background:linear-gradient(135deg,var(--red),#8a0400); border-color:transparent; box-shadow:0 10px 30px rgba(225,6,0,.35); }
-.btn.red:hover { box-shadow:0 14px 40px rgba(225,6,0,.55); }
-.hero { position:relative; padding:90px 0 70px; overflow:hidden; }
-.hero::before { content:''; position:absolute; inset:0; background:radial-gradient(900px 500px at 80% 0%, rgba(225,6,0,.3), transparent 60%), radial-gradient(700px 400px at 0% 100%, rgba(0,194,255,.12), transparent 60%); }
-.hero::after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(115deg, transparent 0 60px, rgba(255,255,255,.02) 60px 120px); pointer-events:none; }
-.hero .wrap { position:relative; display:grid; grid-template-columns:1fr 1.15fr; gap:40px; align-items:center; }
-.kicker { letter-spacing:.4em; text-transform:uppercase; color:var(--muted); font-size:13px; font-weight:600; }
-.title { font-weight:900; font-style:italic; text-transform:uppercase; font-size:clamp(56px,8vw,104px); line-height:.86; margin:14px 0 18px; }
-.title span { display:block; background:linear-gradient(90deg,#fff,var(--red2) 60%,var(--red)); -webkit-background-clip:text; background-clip:text; color:transparent; }
-.lead { color:#c9d1dc; font-size:19px; max-width:520px; }
-.cta { display:flex; gap:14px; flex-wrap:wrap; margin-top:28px; }
-.hero-shot { border-radius:18px; overflow:hidden; border:1px solid rgba(255,255,255,.14); box-shadow:0 40px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(225,6,0,.2); transform:perspective(1400px) rotateY(-8deg) rotateX(3deg); transition:transform .5s; }
-.hero-shot:hover { transform:perspective(1400px) rotateY(0) rotateX(0); }
-.hero-shot img { display:block; width:100%; }
-.badges { display:flex; gap:10px; flex-wrap:wrap; margin-top:22px; }
-.badge { padding:5px 12px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,.04); font-size:13px; font-weight:600; color:#c9d1dc; }
-section { padding:80px 0; }
-.sec-title { font-weight:900; font-style:italic; text-transform:uppercase; font-size:clamp(34px,4.6vw,52px); line-height:1; }
-.sec-sub { color:var(--muted); margin-top:10px; max-width:700px; }
-.cats { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:40px; }
-.cat { border-radius:18px; padding:26px; background:linear-gradient(160deg, color-mix(in srgb, var(--c) 22%, #10141b), #0c0f14 70%); border:1px solid color-mix(in srgb, var(--c) 35%, transparent); position:relative; overflow:hidden; }
-.cat h3 { font-style:italic; font-weight:900; font-size:28px; text-transform:uppercase; color:var(--c); }
-.cat ul { padding-left:18px; color:#c9d1dc; margin:14px 0 0; }
-.cat .tag { font-size:12px; letter-spacing:.25em; text-transform:uppercase; color:var(--muted); font-weight:700; }
-.features { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:40px; }
-.feat { padding:22px; border-radius:16px; background:var(--panel); border:1px solid var(--line); }
-.feat b { font-family:'Exo 2'; font-size:18px; display:block; margin-bottom:6px; }
-.feat p { margin:0; color:var(--muted); font-size:15.5px; }
-.feat .ic { width:42px; height:42px; border-radius:12px; background:rgba(225,6,0,.15); color:var(--red2); display:flex; align-items:center; justify-content:center; font-size:22px; margin-bottom:12px; }
-.gallery { display:grid; grid-template-columns:repeat(2,1fr); gap:18px; margin-top:40px; }
-.gallery figure { margin:0; border-radius:14px; overflow:hidden; border:1px solid var(--line); background:#000; }
-.gallery img { display:block; width:100%; transition:transform .4s; } .gallery figure:hover img { transform:scale(1.03); }
-.gallery figcaption { padding:10px 14px; font-size:14px; color:var(--muted); background:var(--panel); }
-.dl { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:40px; }
-.os { padding:24px; border-radius:18px; background:var(--panel); border:1px solid var(--line); display:flex; flex-direction:column; gap:12px; }
-.os h3 { font-size:22px; } .os .muted { color:var(--muted); font-size:14.5px; }
-.os .btn { justify-content:center; }
-.os.main { border-color:rgba(225,6,0,.5); box-shadow:0 0 0 1px rgba(225,6,0,.25), 0 20px 50px rgba(225,6,0,.12); }
-.note { margin-top:26px; padding:18px 22px; border-radius:14px; background:rgba(255,180,0,.07); border:1px solid rgba(255,180,0,.25); color:#e9dcc0; font-size:15px; }
-.note code { background:rgba(0,0,0,.4); padding:2px 8px; border-radius:6px; color:#fff; }
-footer { border-top:1px solid var(--line); padding:40px 0; color:var(--muted); font-size:14px; }
-.play-band { position:relative; border-radius:22px; padding:40px; overflow:hidden; background:linear-gradient(120deg, rgba(225,6,0,.35), #10141b 60%); border:1px solid rgba(225,6,0,.35); display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }
-@media (max-width: 900px) {
-  .hero .wrap, .cats, .features, .gallery, .dl { grid-template-columns:1fr; }
-  nav .links { display:none; }
-  .hero-shot { transform:none; }
+:root{
+  --bg:#07090d; --bg2:#0c1017; --panel:#111620; --panel2:#161c28; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.16);
+  --text:#eef2f8; --muted:#97a1b3; --dim:#6b7486;
+  --apex:#ff2a1f; --derby:#ff8a1e; --vor:#a86bff; --gold:#ffcc33;
+  --disp:'Barlow Condensed','Arial Narrow',system-ui,sans-serif; --body:'Barlow',system-ui,sans-serif;
+  --r:14px; --pad:clamp(16px,4vw,32px);
 }
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--body);font-size:17px;line-height:1.6;overflow-x:hidden}
+img{max-width:100%;display:block}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--gold);outline-offset:3px;border-radius:4px}
+.skip{position:absolute;left:-999px;top:8px;z-index:100;background:var(--gold);color:#000;padding:8px 14px;border-radius:6px;font-weight:700}
+.skip:focus{left:8px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 var(--pad)}
+.disp,h1,h2,h3{font-family:var(--disp);font-style:italic;font-weight:800;text-transform:uppercase;letter-spacing:.01em;line-height:.95;margin:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* nav */
+.nav{position:fixed;inset:0 0 auto 0;z-index:50;background:linear-gradient(180deg,rgba(7,9,13,.92),rgba(7,9,13,.6));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:20px;height:62px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-family:var(--disp);font-style:italic;font-weight:900;font-size:24px;text-transform:uppercase;letter-spacing:.02em}
+.brand img{width:30px;height:30px}
+.brand b{color:var(--gold);font-weight:900}
+.nav nav{margin-left:auto}
+.nav ul{display:flex;gap:4px;list-style:none;margin:0;padding:0}
+.nav ul a{display:block;padding:8px 12px;text-decoration:none;color:var(--muted);font-weight:600;font-size:15px;border-radius:8px}
+.nav ul a:hover{color:var(--text);background:rgba(255,255,255,.05)}
+@media (max-width:900px){.nav ul{display:none}.nav .btn{margin-left:auto}}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:12px 24px;border-radius:10px;border:1px solid var(--line2);background:rgba(255,255,255,.04);color:var(--text);text-decoration:none;font-family:var(--disp);font-style:italic;font-weight:800;font-size:20px;text-transform:uppercase;letter-spacing:.03em;transition:transform .15s,background .15s,border-color .15s;white-space:nowrap;position:relative}
+.btn:hover{transform:translateY(-2px);background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.3)}
+.btn.prim{background:linear-gradient(180deg,#ffd84d,#ffb81f);color:#14100a;border-color:transparent;box-shadow:0 10px 30px -10px rgba(255,200,40,.6)}
+.btn.prim:hover{background:linear-gradient(180deg,#ffe170,#ffc23d)}
+.btn.sm{min-height:40px;padding:8px 16px;font-size:17px}
+.btn svg{width:18px;height:18px;flex:none}
+.btn.g{--c:var(--gold)}
+.btn.play{background:var(--c);border-color:transparent;color:#0b0d12;box-shadow:0 10px 30px -12px var(--c)}
+.btn.play:hover{filter:brightness(1.12);background:var(--c)}
+
+/* hero */
+.hero{position:relative;min-height:min(100svh,920px);display:flex;align-items:flex-end;padding:110px 0 56px;isolation:isolate;overflow:hidden}
+.tri{position:absolute;inset:0;z-index:-2;display:grid;grid-template-columns:1fr 1.25fr 1fr;gap:0}
+.tri figure{margin:0;position:relative;overflow:hidden}
+.tri img{width:100%;height:100%;object-fit:cover}
+.tri figure:nth-child(1){clip-path:polygon(0 0,100% 0,88% 100%,0 100%);margin-right:-7%}
+.tri figure:nth-child(2){clip-path:polygon(9% 0,100% 0,91% 100%,0 100%);margin-right:-6%}
+.tri figure:nth-child(3){clip-path:polygon(12% 0,100% 0,100% 100%,0 100%)}
+.tri figure:nth-child(1) img{object-position:72% 50%}
+.tri figure::after{content:"";position:absolute;inset:0;box-shadow:inset 0 -6px 0 var(--c)}
+.hero::before{content:"";position:absolute;inset:0;z-index:-1;background:
+  linear-gradient(180deg,rgba(7,9,13,.55) 0%,rgba(7,9,13,.05) 30%,rgba(7,9,13,.35) 55%,rgba(7,9,13,.96) 88%,var(--bg) 100%),
+  linear-gradient(90deg,rgba(7,9,13,.88) 0%,rgba(7,9,13,.6) 40%,rgba(7,9,13,.1) 75%)}
+.hero .wrap{width:100%}
+.kicker{display:inline-flex;align-items:center;gap:10px;font-family:var(--disp);font-style:italic;font-weight:700;text-transform:uppercase;letter-spacing:.14em;font-size:16px;color:var(--gold)}
+.kicker::before{content:"";width:28px;height:3px;background:var(--gold);transform:skewX(-20deg)}
+.hero h1{font-size:clamp(68px,13vw,184px);font-weight:900;margin:10px 0 0;text-shadow:0 6px 40px rgba(0,0,0,.6);line-height:.82}
+.hero h1 span{display:block;font-size:.32em;letter-spacing:.06em;color:#cfd6e2;margin-top:.35em;font-weight:800}
+.hero .lead{max-width:640px;font-size:clamp(17px,1.6vw,20px);color:#d4dae5;margin:22px 0 28px;text-shadow:0 2px 12px rgba(0,0,0,.8)}
+.cta{display:flex;flex-wrap:wrap;gap:12px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:26px;padding:0;list-style:none}
+.chips li{font-size:14px;font-weight:600;color:#c2c9d6;border:1px solid var(--line2);background:rgba(7,9,13,.55);padding:5px 12px;border-radius:999px}
+@media (max-width:760px){
+  .hero{min-height:auto;padding-top:62px;flex-direction:column;align-items:stretch}
+  .tri{position:relative;inset:auto;height:62vw;max-height:420px;grid-template-columns:1fr 1.2fr 1fr}
+  .hero::before{background:linear-gradient(180deg,rgba(7,9,13,0) 0%,rgba(7,9,13,0) 35%,var(--bg) calc(62vw + 62px))}
+  .hero .wrap{margin-top:-64px}
+  .tri figure:nth-child(1) img{object-position:80% 50%}
+}
+
+/* sections */
+section{padding:clamp(64px,9vw,120px) 0;position:relative}
+.sec-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px 40px;margin-bottom:clamp(28px,4vw,48px)}
+.sec-head h2{font-size:clamp(44px,6vw,76px)}
+.sec-head p{margin:0;max-width:520px;color:var(--muted)}
+.eyebrow{font-family:var(--disp);font-style:italic;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-size:15px;margin-bottom:10px}
+
+/* games */
+.games{background:linear-gradient(180deg,var(--bg),var(--bg2) 30%,var(--bg))}
+.game{display:grid;grid-template-columns:1.25fr 1fr;gap:clamp(24px,4vw,56px);align-items:center;padding:clamp(28px,4vw,48px) 0;border-top:1px solid var(--line)}
+.game:first-of-type{border-top:0}
+.game:nth-of-type(even) .shot{order:2}
+.shot{position:relative;border-radius:var(--r);overflow:hidden;aspect-ratio:16/9;background:var(--panel);box-shadow:0 30px 70px -30px rgba(0,0,0,.9),0 0 0 1px var(--line)}
+.shot img{width:100%;height:100%;object-fit:cover;transition:transform .6s}
+.game:hover .shot img{transform:scale(1.03)}
+.shot::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--c)}
+.shot .tag{position:absolute;top:14px;left:14px;font-family:var(--disp);font-style:italic;font-weight:800;text-transform:uppercase;letter-spacing:.08em;font-size:15px;background:var(--c);color:#0b0d12;padding:4px 12px;transform:skewX(-12deg)}
+.game .num{font-family:var(--disp);font-style:italic;font-weight:900;font-size:18px;letter-spacing:.14em;color:var(--c);text-transform:uppercase}
+.game h3{font-size:clamp(46px,5.4vw,72px);margin:6px 0 10px}
+.game .pitch{color:#cbd2de;margin:0 0 18px}
+.feats{list-style:none;margin:0 0 26px;padding:0;display:grid;gap:9px}
+.feats li{position:relative;padding-left:24px;color:#d6dce6}
+.feats li::before{content:"";position:absolute;left:2px;top:.62em;width:11px;height:4px;background:var(--c);transform:skewX(-25deg)}
+.feats b{color:#fff;font-weight:600}
+.game .acts{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.game .acts small{color:var(--dim);font-size:14px}
+@media (max-width:900px){.game{grid-template-columns:1fr}.game:nth-of-type(even) .shot{order:0}}
+
+/* news */
+.news{background:radial-gradient(80% 60% at 85% 0%,rgba(255,204,51,.07),transparent 60%),var(--bg)}
+.ver{display:inline-block;font-family:var(--disp);font-style:italic;font-weight:900;color:#14100a;background:var(--gold);padding:2px 12px;transform:skewX(-10deg);margin-left:6px}
+.newsgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.ncol{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-top:4px solid var(--c);border-radius:var(--r);padding:24px 24px 18px}
+.ncol h3{font-size:32px;margin-bottom:4px}
+.ncol .sub{color:var(--c);font-family:var(--disp);font-style:italic;font-weight:700;text-transform:uppercase;letter-spacing:.1em;font-size:14px;margin-bottom:12px}
+.ncol ul{margin:0;padding-left:18px;color:#cfd6e1;font-size:16px}
+.ncol li{margin:6px 0}
+.ncol li::marker{color:var(--c)}
+.allround{margin-top:18px;display:flex;flex-wrap:wrap;gap:10px 28px;padding:18px 24px;border:1px dashed var(--line2);border-radius:var(--r);color:var(--muted);font-size:16px}
+.allround b{color:var(--text)}
+@media (max-width:1000px){.newsgrid{grid-template-columns:1fr 1fr}.ncol:last-child{grid-column:1/-1}}
+@media (max-width:640px){.newsgrid{grid-template-columns:1fr}}
+
+/* gallery */
+.gal{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+.gal figure{margin:0;grid-column:span 4;position:relative;border-radius:10px;overflow:hidden;background:var(--panel);aspect-ratio:16/10}
+.gal figure.wide{grid-column:span 6;aspect-ratio:16/9}
+.gal img{width:100%;height:100%;object-fit:cover;transition:transform .5s}
+.gal figure:hover img{transform:scale(1.04)}
+.gal figcaption{position:absolute;left:0;right:0;bottom:0;padding:26px 12px 9px;font-size:14px;font-weight:600;background:linear-gradient(180deg,transparent,rgba(0,0,0,.85))}
+.gal figcaption i{font-style:normal;color:var(--c);font-family:var(--disp);font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-right:6px}
+@media (max-width:900px){.gal figure,.gal figure.wide{grid-column:span 6}}
+@media (max-width:560px){.gal{grid-template-columns:1fr}.gal figure,.gal figure.wide{grid-column:auto}}
+
+/* download */
+.dl{background:linear-gradient(180deg,var(--bg),var(--bg2))}
+.dlgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.os{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:22px;display:flex;flex-direction:column;gap:6px}
+.os.main{border-color:rgba(255,204,51,.35);background:linear-gradient(180deg,rgba(255,204,51,.06),var(--panel) 60%)}
+.os h3{font-size:30px}
+.os .muted{color:var(--muted);font-size:15px;margin-bottom:12px}
+.os .row{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto}
+.os .ic{width:30px;height:30px;color:var(--gold);margin-bottom:6px}
+@media (max-width:900px){.dlgrid{grid-template-columns:1fr 1fr}}
+@media (max-width:560px){.dlgrid{grid-template-columns:1fr}}
+.dlnote{margin-top:16px;color:var(--muted);font-size:15px}
+
+/* faq */
+.faq{max-width:880px}
+.faq details{border-bottom:1px solid var(--line)}
+.faq summary{cursor:pointer;list-style:none;padding:20px 40px 20px 0;position:relative;font-family:var(--disp);font-style:italic;font-weight:700;font-size:24px;text-transform:uppercase;letter-spacing:.02em}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";position:absolute;right:6px;top:14px;font-size:32px;color:var(--gold);font-style:normal;transition:transform .2s}
+.faq details[open] summary::after{transform:rotate(45deg)}
+.faq .a{padding:0 0 22px;color:#c9d0dc}
+.faq .a p{margin:0 0 10px}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em;background:#1a2130;border:1px solid var(--line2);padding:2px 7px;border-radius:6px;word-break:break-all}
+
+/* final band */
+.band{position:relative;overflow:hidden;border-radius:20px;padding:clamp(28px,5vw,56px);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:24px;isolation:isolate;border:1px solid var(--line2)}
+.band img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2}
+.band::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(7,9,13,.95) 20%,rgba(7,9,13,.55))}
+.band h2{font-size:clamp(40px,5.5vw,68px)}
+.band p{margin:8px 0 0;color:#cfd6e1}
+
+footer{border-top:1px solid var(--line);padding:36px 0 48px;color:var(--dim);font-size:14px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:16px 40px;justify-content:space-between}
+footer p{margin:0;max-width:760px}
+footer nav{display:flex;flex-wrap:wrap;gap:16px}
+footer a{color:var(--muted)}
 </style>
 </head>
 <body>
-<nav><div class="wrap"><a class="brand" href="#"><img src="icon.svg" alt="">Apex Dynasty</a><div class="links"><a href="#novita">Novità</a><a href="#categorie">Categorie</a><a href="#caratteristiche">Caratteristiche</a><a href="#galleria">Galleria</a><a href="#download">Download</a></div><a class="btn red" href="#download" style="padding:10px 18px">Scarica</a></div></nav>
+<a class="skip" href="#giochi">Salta al contenuto</a>
 
-<header class="hero"><div class="wrap">
-  <div>
-    <div class="kicker">Motorsport Manager · v__VERSION__</div>
-    <h1 class="title">Apex<span>Dynasty</span></h1>
-    <p class="lead">Diventa Team Principal e ingegnere di pista. <b>Circuiti reali</b>, fisica del giro, degrado gomme realistico e gare in <b>3D</b> o sulla mappa 2D. Costruisci una dinastia in <b>Formula</b>, <b>Rally</b> ed <b>Endurance</b>.</p>
-    <div class="cta"><a class="btn red" href="#download">⬇ Scarica gratis</a><a class="btn" href="play/">▶ Gioca nel browser</a></div>
-    <div class="badges"><span class="badge">macOS Apple Silicon</span><span class="badge">macOS Intel</span><span class="badge">Windows 10/11</span><span class="badge">Linux</span><span class="badge">Browser</span><span class="badge">v5.0: circuiti originali · nuove modalità · grafica e auto rifinite · avvio rapido · Scontro Totale più profondo</span></div>
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Baso Hub, inizio pagina"><img src="icon.svg" alt="" width="30" height="30">Baso<b>Hub</b></a>
+    <nav aria-label="Sezioni">
+      <ul>
+        <li><a href="#giochi">Giochi</a></li>
+        <li><a href="#novita">Novità 6.0</a></li>
+        <li><a href="#galleria">Galleria</a></li>
+        <li><a href="#download">Download</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </nav>
+    <a class="btn prim sm" href="./play/">Gioca ora</a>
   </div>
-  <div class="hero-shot"><img src="shots/race.jpg" alt="Gara in diretta"></div>
-</div></header>
+</header>
 
-<section id="novita" style="padding-top:40px"><div class="wrap">
-  <h2 class="sec-title">Versione 3.7</h2>
-  <p class="sec-sub">Il weekend di gara giocato davvero, dal venerdì alla bandiera a scacchi.</p>
-  <div class="features">
-    <div class="feat"><div class="ic">⏱</div><b>Prove e qualifiche live</b><p>Scegli gomme, benzina e programma, poi premi "Esci dal box" quando vuoi. Q1, Q2 e Q3 con eliminazioni.</p></div>
-    <div class="feat"><div class="ic">🧠</div><b>Strategia</b><p>Pianifica soste, mescole e benzina prima della gara e cambiale in corsa con i consigli dell'ingegnere.</p></div>
-    <div class="feat"><div class="ic">🔧</div><b>Pit lane viva</b><p>Garage illuminati con meccanici, muretto box, soste animate e telecamera nel garage.</p></div>
+<main id="top">
+  <div class="hero">
+    <div class="tri" aria-hidden="true">
+      <figure style="--c:var(--apex)"><img src="shots/cover-apex.webp" alt="" width="1600" height="900" fetchpriority="high"></figure>
+      <figure style="--c:var(--derby)"><img src="shots/cover-derby.webp" alt="" width="1600" height="900" fetchpriority="high"></figure>
+      <figure style="--c:var(--vor)"><img src="shots/cover-voragine.webp" alt="" width="1600" height="900" fetchpriority="high"></figure>
+    </div>
+    <div class="wrap">
+      <div class="kicker">Versione __VERSION__ · gratis</div>
+      <h1>Baso Hub<span>Tre giochi. Una raccolta.</span></h1>
+      <p class="lead">Guida una scuderia dalla Formula al Rally, sfascia lamiere in arena o apri una voragine che si mangia la città. Tre giochi originali, un solo launcher: nel browser o sul desktop.</p>
+      <div class="cta">
+        <a class="btn prim" href="./play/"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg>Gioca nel browser</a>
+        <a class="btn" href="#download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 20h16"/></svg>Scarica</a>
+      </div>
+      <ul class="chips" aria-label="Piattaforme">
+        <li>Browser</li><li>macOS Apple Silicon</li><li>macOS Intel</li><li>Windows 10/11</li><li>Linux</li><li>Tastiera · Controller · Touch</li>
+      </ul>
+    </div>
   </div>
-  <div class="gallery" style="margin-top:20px"><figure><img src="shots/practice.png" alt="" loading="lazy"><figcaption>Prove libere in diretta</figcaption></figure><figure><img src="shots/planner.png" alt="" loading="lazy"><figcaption>Strategia pre-gara</figcaption></figure><figure><img src="shots/strategy-live.png" alt="" loading="lazy"><figcaption>Strategia in gara</figcaption></figure><figure><img src="shots/garage.jpg" alt="" loading="lazy"><figcaption>Uscita dal box</figcaption></figure></div>
-  <h2 class="sec-title" style="margin-top:50px">Versione 3.6</h2>
-  <p class="sec-sub">Un'interfaccia da gioco vero, Scontro Totale più profondo e circuiti ancora più vivi.</p>
-  <div class="features">
-    <div class="feat"><div class="ic">🎮</div><b>Interfaccia nuova</b><p>Menu in stile console, hub con l'evento in primo piano, colori della squadra, torre dei tempi da diretta TV.</p></div>
-    <div class="feat"><div class="ic">🏁</div><b>Campionato Rottami</b><p>Sei prove di Scontro Totale con punti per posizione, demolizioni e giro veloce, più due nuovi eventi.</p></div>
-    <div class="feat"><div class="ic">⚙</div><b>Guida e IA</b><p>Cambio con marce, trazione diversa per ogni auto, IA con personalità che sorpassa e sperona di proposito.</p></div>
-    <div class="feat"><div class="ic">🏟</div><b>Circuiti vivi</b><p>Asfalto gommato, cartelloni, paddock, folla che fa la ola, freni incandescenti e scintille.</p></div>
-  </div>
-  <h2 class="sec-title" style="margin-top:50px">Versione 3.5 · Scontro Totale</h2>
-  <p class="sec-sub">Non solo manager: prendi il volante e distruggi tutto.</p>
-  <div class="features">
-    <div class="feat"><div class="ic">💥</div><b>Corse a contatto</b><p>Fisica vera, salti, derapate, lamiere che si piegano, paraurti e cofani che volano via, fumo e fuoco.</p></div>
-    <div class="feat"><div class="ic">🛢</div><b>Scenario distruttibile</b><p>Barili, pile di gomme, casse, balle di fieno e transenne da travolgere.</p></div>
-    <div class="feat"><div class="ic">🔥</div><b>Nitro dagli scontri</b><p>Fai volare l'auto e sperona gli avversari per ricaricare il nitro.</p></div>
-    <div class="feat"><div class="ic">🏟</div><b>Arena derby</b><p>Ultima auto che si muove vince. Più una cava con salti, una figura a otto e una pineta.</p></div>
-    <div class="feat"><div class="ic">🎮</div><b>Tastiera e gamepad</b><p>Tre telecamere, filtri immagine e una freccia per non perdere mai la tua auto.</p></div>
-  </div>
-  <div class="gallery" style="margin-top:20px"><figure><img src="shots/derby.jpg" alt="" loading="lazy"><figcaption>Fattoria Pantano</figcaption></figure><figure><img src="shots/derby-otto.jpg" alt="" loading="lazy"><figcaption>Otto Volante</figcaption></figure><figure><img src="shots/derby-arena.jpg" alt="" loading="lazy"><figcaption>Arena Rottami</figcaption></figure><figure><img src="shots/derby-menu.jpg" alt="" loading="lazy"><figcaption>Scelta di evento e auto</figcaption></figure></div>
-  <h2 class="sec-title" style="margin-top:50px">Versione 3.4</h2>
-  <p class="sec-sub">Più realismo in pista, più profondità nella gestione, un'interfaccia da gioco premium.</p>
-  <div class="features">
-    <div class="feat"><div class="ic">⛰</div><b>Circuiti vivi</b><p>Colline all'orizzonte, cordoli 3D, vie di fuga verniciate, gomma e segni di frenata, cartelli, commissari, torri TV, pozzanghere riflettenti e notte illuminata dai fari.</p></div>
-    <div class="feat"><div class="ic">🤝</div><b>Mercato piloti vivo</b><p>Personalità e procuratori, controfferte, offerte dei rivali per i tuoi piloti, precontratti e crescita o declino con l'età.</p></div>
-    <div class="feat"><div class="ic">⚖</div><b>Commissari e regolamento</b><p>Track limits, collisioni, unsafe release, punti patente, power unit contingentate con penalità in griglia, parco chiuso e gomme assegnate.</p></div>
-    <div class="feat"><div class="ic">🏛</div><b>Eredità della dinastia</b><p>Diciannove traguardi di carriera, da "Esordiente" a "Immortale", che ti seguono tra squadre e categorie.</p></div>
-    <div class="feat"><div class="ic">⌨</div><b>Interfaccia premium</b><p>Torre dei tempi con intervalli e colori dei settori, grafici dei distacchi, tooltip, scorciatoie da tastiera e supporto 1440p.</p></div>
-  </div>
-  <h2 class="sec-title" style="margin-top:50px">Versione 3.3</h2>
-  <p class="sec-sub">Vetture ricostruite sulle proporzioni delle auto vere.</p>
-  <div class="features">
-    <div class="feat"><div class="ic">🏎</div><b>Monoposto a effetto suolo</b><p>Ala anteriore a quattro elementi, pance con undercut, fondo con diffusore, beam wing, coprimozzi da 18", halo e volante con display.</p></div>
-    <div class="feat"><div class="ic">🚙</div><b>Rally1 e Hypercar</b><p>Berlina da rally con alettone e paraspruzzi; prototipo Hypercar con parafanghi alti, abitacolo a goccia e pinna; GT nel traffico.</p></div>
-    <div class="feat"><div class="ic">🌧</div><b>Fisica visiva</b><p>Ruote che sterzano, rollio e beccheggio, spruzzi d'acqua dietro le auto sul bagnato.</p></div>
-    <div class="feat"><div class="ic">📺</div><b>Grafica TV</b><p>Banner dei duelli con distacco, gomme e DRS, come in una diretta.</p></div>
-  </div>
-  <h2 class="sec-title" style="margin-top:50px">Versione 3.2</h2>
-  <p class="sec-sub">Circuiti senza zone rotte e un ambiente molto più realistico.</p>
-  <div class="features">
-    <div class="feat"><div class="ic">🛣</div><b>Tracciati corretti</b><p>Niente più auto che girano su se stesse o si teletrasportano: geometrie ripulite, tratti vicini separati e un ponte vero sull'incrocio di Suzuka.</p></div>
-    <div class="feat"><div class="ic">🌲</div><b>Vegetazione fotorealistica</b><p>Migliaia di alberi e cespugli ricavati da modelli 3D fotogrammetrici Poly Haven (CC0), con ombre e otto angolazioni ciascuno.</p></div>
-    <div class="feat"><div class="ic">🚧</div><b>Barriere vere</b><p>Guard-rail in acciaio, blocchi Tecpro nelle frenate, muri in cemento nei cittadini e reti di protezione su tutto il tracciato.</p></div>
-    <div class="feat"><div class="ic">🪖</div><b>Camera Pilota</b><p>Guarda la gara dagli occhi del pilota: halo, volante con display, specchietti.</p></div>
-    <div class="feat"><div class="ic">🤬</div><b>Radio furiosi</b><p>Dopo un contatto i piloti si insultano via radio, l'altro risponde, il telecronista si scalda.</p></div>
-  </div>
-  <h2 class="sec-title" style="margin-top:50px">Versione 3.1</h2>
-  <p class="sec-sub">Più tensione in pista e più decisioni sulla vettura.</p>
-  <div class="features">
-    <div class="feat"><div class="ic">🔥</div><b>Rivalità tra piloti</b><p>Ogni coppia di piloti ha un livello di tensione: duelli, contatti e ordini di scuderia lo fanno salire. Le faide rendono i duelli più aggressivi, abbassano il morale e scatenano drammi nel paddock.</p></div>
-    <div class="feat"><div class="ic">🎙</div><b>Telecronaca e radio</b><p>Sottotitoli in diretta sulla gara: sorpassi, battaglie, cambi al vertice, giri veloci. I piloti si lamentano via radio dei rivali: «mi ha buttato fuori!».</p></div>
-    <div class="feat"><div class="ic">⏱</div><b>Tempo reale 1x</b><p>Guarda la gara alla velocità vera, oppure accelera fino a 32x.</p></div>
-    <div class="feat"><div class="ic">📐</div><b>Scelte tecniche stagionali</b><p>Interpreta il nuovo regolamento, scegli il pacchetto di metà stagione e decidi se puntare sull'anno in corso o sulla vettura del prossimo.</p></div>
-    <div class="feat"><div class="ic">🚧</div><b>Niente più compenetrazioni</b><p>In 3D le auto non si attraversano più: si affiancano o si accodano, la pit lane ha la sua corsia e i box, gli edifici stanno fuori dalla pista.</p></div>
-    <div class="feat"><div class="ic">🏟</div><b>Circuiti più belli</b><p>Tribune a gradoni con il pubblico, prato e vie di fuga in ghiaia, palazzi colorati nei cittadini, box con vetrate.</p></div>
-  </div>
-  <h2 class="sec-title" style="margin-top:50px">Versione 3.0</h2>
-  <p class="sec-sub">Grafica rifatta da zero e un gioco molto più profondo e difficile.</p>
-  <div class="features">
-    <div class="feat"><div class="ic">✨</div><b>Grafica rifatta</b><p>Cielo fotografico HDRI, asfalto, erba e sterrato con texture reali, riflessi, bloom e antialiasing. Monoposto, hypercar e auto da rally rimodellate con livree dipinte, numeri e sponsor.</p></div>
-    <div class="feat"><div class="ic">⏸</div><b>Momenti chiave</b><p>Safety car, pioggia, undercut del rivale, duelli: la gara si ferma e tocca a te decidere. Ogni scelta cambia davvero il risultato.</p></div>
-    <div class="feat"><div class="ic">💶</div><b>Budget cap e galleria del vento</b><p>Tetto di spesa sullo sviluppo, ore di galleria in base alla classifica e la scelta tra la vettura di quest'anno e quella del prossimo.</p></div>
-    <div class="feat"><div class="ic">🎓</div><b>Formula Apex 2</b><p>Nuova categoria junior con 10 team e giovani talenti. Inizia dalla gavetta: vinci il titolo per salire in Formula Apex.</p></div>
-    <div class="feat"><div class="ic">🗺</div><b>24 circuiti reali</b><p>Geometria reale di Monza, Spa, Suzuka, Silverstone, Monaco, Interlagos, Las Vegas, Madrid… più la Sarthe e il Fuji per l'Endurance. Lunghezze e tempi sul giro reali.</p></div>
-    <div class="feat"><div class="ic">⚙️</div><b>Fisica del giro</b><p>Velocità in curva dal raggio, carico aerodinamico, grip meccanico, potenza e resistenza. Monza premia il motore, Monaco il carico: la sensibilità di ogni pista è calcolata.</p></div>
-    <div class="feat"><div class="ic">🎥</div><b>Gare in 3D e 2D</b><p>Telecamere TV, camera car, onboard ed elicottero. Pioggia, notte dinamica, cordoli e vie di fuga. Oppure la mappa 2D con telemetria.</p></div>
-    <div class="feat"><div class="ic">🛞</div><b>Gomme realistiche</b><p>Vita, degrado, "cliff", finestra di temperatura, carburante, evoluzione della pista, scia sporca e DRS. Safety car e VSC.</p></div>
-    <div class="feat"><div class="ic">🎧</div><b>Ingegnere di pista</b><p>Pianificatore strategico con curve di degrado, telemetria, analisi del giro voce per voce e un'accademia di lezioni su undercut, overcut e gestione gomme.</p></div>
-    <div class="feat"><div class="ic">🎵</div><b>Musica e suoni</b><p>Colonna sonora generativa (menu, gestione, gara, vittoria) e motori sintetizzati con cambio marce: V6 ibrido, V8 hypercar, 4 cilindri turbo da rally.</p></div>
-    <div class="feat"><div class="ic">⭐</div><b>Progressione</b><p>Livelli manager, albero di 15 abilità (Strategia, Tecnica, Commerciale), obiettivi stagionali con premi, 15 trofei sbloccabili.</p></div>
-    <div class="feat"><div class="ic">⚡</div><b>Gara Rapida</b><p>Scegli categoria, circuito, squadra, durata (fino al 100% dei giri reali) e meteo: in pista in 10 secondi.</p></div>
-    <div class="feat"><div class="ic">🏎</div><b>Garage 3D</b><p>Ammira la tua vettura con la livrea personalizzata, numero e sponsor su una piattaforma girevole con luci da studio.</p></div>
-    <div class="feat"><div class="ic">🔋</div><b>ERS e Override</b><p>Gestisci la batteria ibrida: ricarica, bilancia o scatena l'Override per attaccare e difenderti nei duelli.</p></div>
-    <div class="feat"><div class="ic">📻</div><b>Radio e ordini di scuderia</b><p>I piloti ti chiamano: "le gomme sono finite", "fammi passare", "inizia a piovere". Decidi tu. Libera lotta, mantenere o scambio di posizioni.</p></div>
-    <div class="feat"><div class="ic">🎬</div><b>Regia televisiva</b><p>Intro cinematografica sul circuito durante il semaforo e regia automatica che segue i duelli più accesi.</p></div>
-    <div class="feat"><div class="ic">🎤</div><b>Stampa e paddock</b><p>Conferenze stampa dopo ogni gara ed eventi con scelte e conseguenze: pezzi sperimentali, indagini della Federazione, sponsor, staff.</p></div>
-    <div class="feat"><div class="ic">🏆</div><b>Gala e Albo d'oro</b><p>Premi di fine stagione, campioni di ogni anno, leggende del paddock e record della pista.</p></div>
-    <div class="feat"><div class="ic">🏅</div><b>Sfide con medaglie</b><p>8 scenari in 3 categorie: Monaco sotto il diluvio, la notte della Sarthe, i salti di Finlandia... Conquista l'oro.</p></div>
-    <div class="feat"><div class="ic">⚡</div><b>Weekend Sprint</b><p>Sei GP con la gara Sprint del sabato: punti dall'1° all'8°, poi il Gran Premio.</p></div>
-    <div class="feat"><div class="ic">🚦</div><b>Traffico GT</b><p>Nell'Endurance le hypercar doppiano la classe GT: ogni doppiaggio costa tempo, di notte e sotto la pioggia di più.</p></div>
-    <div class="feat"><div class="ic">⟲</div><b>Replay 3D</b><p>Rivedi sorpassi e incidenti con un clic (o tasto R): camera car, TV, elicottero e onboard.</p></div>
-    <div class="feat"><div class="ic">⛰</div><b>Rally con dislivelli e salti</b><p>Prove speciali 3D con colline e dossi: ad alta velocità la macchina decolla.</p></div>
-    <div class="feat"><div class="ic">🔬</div><b>Long run in prova</b><p>Senza dati misurati le previsioni sul degrado sono stimate: fai i long run per una strategia precisa, come un vero ingegnere.</p></div>
-    <div class="feat"><div class="ic">📊</div><b>Analisi ingegneri</b><p>Prima di ogni GP la simulazione fisica ti dice dove sarai forte e quale componente sviluppare. L'assetto ideale dipende davvero dal tracciato.</p></div>
-    <div class="feat"><div class="ic">🗺</div><b>Mappa 2D pro</b><p>Zone DRS, settori colorati e posizioni di tutte le vetture: la base perfetta per gestire la gara.</p></div>
-  </div>
-</div></section>
 
-<section id="categorie"><div class="wrap">
-  <h2 class="sec-title">Tre mondi, una carriera</h2>
-  <p class="sec-sub">Inizia in una categoria e, stagione dopo stagione, ricevi offerte anche dalle altre. 26 squadre e oltre 70 piloti ispirati al paddock reale (con nomi... leggermente diversi).</p>
-  <div class="cats">
-    <div class="cat" style="--c:#e10600"><div class="tag">Monoposto</div><h3>Formula Apex</h3><ul><li>11 team, 22 piloti, calendario 2026 da 24 GP</li><li>Q1 · Q2 · Q3 ad eliminazione</li><li>5 mescole, regola delle due gomme</li><li>Safety car, pioggia, DRS e duelli</li><li>Fornitori di power unit</li></ul></div>
-    <div class="cat" style="--c:#ffb400"><div class="tag">Prove speciali</div><h3>Rally Apex</h3><ul><li>7 team ufficiali, 12 rally mondiali</li><li>Sterrato, asfalto, neve e sterrato duro</li><li>Decisioni live del copilota in prova</li><li>Parco assistenza a tempo (45 min)</li><li>Super Rally e Power Stage</li></ul></div>
-    <div class="cat" style="--c:#00c2ff"><div class="tag">Gare di durata</div><h3>Endurance Apex</h3><ul><li>8 costruttori hypercar, 2 auto per team</li><li>6 ore, 8 ore e la 24 Ore della Sarthe</li><li>Carburante, doppi stint, cambi pilota</li><li>Notte e fatica dei piloti</li><li>Punti doppi alla 24 Ore della Sarthe</li></ul></div>
-  </div>
-</div></section>
+  <section class="games" id="giochi" aria-labelledby="giochi-t">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><div class="eyebrow">La raccolta</div><h2 id="giochi-t">Scegli il tuo gioco</h2></div>
+        <p>Dal launcher passi da un gioco all'altro con mouse, frecce, tasti 1-3 o controller. Ogni gioco ha anche un link diretto.</p>
+      </div>
 
-<section id="caratteristiche" style="background:linear-gradient(180deg,transparent,#0a0d12 30%,#0a0d12 70%,transparent)"><div class="wrap">
-  <h2 class="sec-title">Gestione a 360°</h2>
-  <div class="features">
-    <div class="feat"><div class="ic">🛠</div><b>Progetta l'auto</b><p>Scegli il concetto tecnico, avvia progetti R&D con rischio e rendimenti decrescenti, disegna la livrea.</p></div>
-    <div class="feat"><div class="ic">🏁</div><b>Gare in tempo reale</b><p>Mappa live, classifica, usura gomme, meteo radar. Ritmo, pit stop e mescole in ogni momento.</p></div>
-    <div class="feat"><div class="ic">🔧</div><b>Prove e assetto</b><p>Minigioco di setup basato sul feedback dei piloti: un buon assetto vale mezzo secondo al giro.</p></div>
-    <div class="feat"><div class="ic">💼</div><b>Mercato e contratti</b><p>Stipendi, durata, clausole rescissorie. Scopri i giovani talenti con l'Accademia.</p></div>
-    <div class="feat"><div class="ic">💰</div><b>Sponsor e finanze</b><p>Firma sponsor con bonus obiettivo, gestisci budget, stipendi e montepremi.</p></div>
-    <div class="feat"><div class="ic">🏆</div><b>Carriera</b><p>Obiettivi del consiglio, rischio licenziamento, cambi di regolamento, trofei e obiettivi sbloccabili.</p></div>
-  </div>
-</div></section>
+      <article class="game" style="--c:var(--apex)" aria-labelledby="g-apex">
+        <a class="shot" href="./play/?game=apex" tabindex="-1" aria-hidden="true"><img src="shots/cover-apex.webp" alt="" width="1600" height="900" loading="lazy" decoding="async"><span class="tag">Manager</span></a>
+        <div>
+          <div class="num">01 · Motorsport manager</div>
+          <h3 id="g-apex">Apex Dynasty</h3>
+          <p class="pitch">Diventa Team Principal e ingegnere di pista. Progetta l'auto, gestisci piloti e strategie, guarda la gara in 3D e costruisci una dinastia.</p>
+          <ul class="feats">
+            <li><b>Quattro mondi</b>: Formula Apex, Formula Apex 2, Endurance con la 24 Ore e Rally su sterrato, asfalto, neve e ghiaccio</li>
+            <li><b>Gare in 3D</b> con regia TV, onboard, elicottero e <b>highlights</b> a fine gara</li>
+            <li><b>Incidenti veri</b>: testacoda, botti in frenata, carambole al primo giro, bandiere gialle e danni</li>
+            <li><b>Pioggia</b> che cade e si asciuga lungo la traiettoria ideale, gomme e strategia che cambiano giro dopo giro</li>
+            <li>Mercato piloti, sviluppo, sponsor, obiettivi stagionali e premi</li>
+          </ul>
+          <div class="acts"><a class="btn play" href="./play/?game=apex">Gioca ora<span class="sr"> ad Apex Dynasty</span></a></div>
+        </div>
+      </article>
 
-<section id="galleria"><div class="wrap">
-  <h2 class="sec-title">Galleria</h2>
-  <div class="gallery">
-    <figure><img src="shots/intro.jpg" alt="" loading="lazy"><figcaption>Intro cinematografica sul circuito reale</figcaption></figure>
-    <figure><img src="shots/map2d.jpg" alt="" loading="lazy"><figcaption>Mappa 2D con zone DRS, settori ed ERS</figcaption></figure>
-    <figure><img src="shots/race.jpg" alt="" loading="lazy"><figcaption>Gara in 3D – telecamera TV a Silverstone</figcaption></figure>
-    <figure><img src="shots/chase.jpg" alt="" loading="lazy"><figcaption>Camera car</figcaption></figure>
-    <figure><img src="shots/onboard.jpg" alt="" loading="lazy"><figcaption>Onboard</figcaption></figure>
-    <figure><img src="shots/cockpit.jpg" alt="" loading="lazy"><figcaption>Camera Pilota</figcaption></figure>
-    <figure><img src="shots/endurance.jpg" alt="" loading="lazy"><figcaption>Endurance: vista elicottero</figcaption></figure>
-    <figure><img src="shots/strategy.jpg" alt="" loading="lazy"><figcaption>Pianificatore strategico con curve di degrado</figcaption></figure>
-    <figure><img src="shots/telemetry.jpg" alt="" loading="lazy"><figcaption>Mappa 2D reale e telemetria</figcaption></figure>
-    <figure><img src="shots/rally.jpg" alt="" loading="lazy"><figcaption>Rally 3D in Finlandia: sterrato, colline e salti</figcaption></figure>
-    <figure><img src="shots/car.jpg" alt="" loading="lazy"><figcaption>Centro Tecnico e garage 3D</figcaption></figure>
-    <figure><img src="shots/hub.jpg" alt="" loading="lazy"><figcaption>Quartier generale</figcaption></figure>
-    <figure><img src="shots/career.jpg" alt="" loading="lazy"><figcaption>Carriera: livelli e albero delle abilità</figcaption></figure>
-    <figure><img src="shots/practice.jpg" alt="" loading="lazy"><figcaption>Prove libere: lavoro sull'assetto</figcaption></figure>
-    <figure><img src="shots/quick.jpg" alt="" loading="lazy"><figcaption>Gara Rapida</figcaption></figure>
-    <figure><img src="shots/challenges.jpg" alt="" loading="lazy"><figcaption>Sfide con medaglie</figcaption></figure>
-    <figure><img src="shots/press.jpg" alt="" loading="lazy"><figcaption>Conferenza stampa</figcaption></figure>
-    <figure><img src="shots/event.jpg" alt="" loading="lazy"><figcaption>Decisioni dal paddock</figcaption></figure>
-    <figure><img src="shots/halloffame.jpg" alt="" loading="lazy"><figcaption>Albo d'oro e leggende</figcaption></figure>
-  </div>
-</div></section>
+      <article class="game" style="--c:var(--derby)" aria-labelledby="g-derby">
+        <a class="shot" href="./play/?game=derby" tabindex="-1" aria-hidden="true"><img src="shots/cover-derby.webp" alt="" width="1600" height="900" loading="lazy" decoding="async"><span class="tag">Flatout</span></a>
+        <div>
+          <div class="num">02 · Corse a contatto</div>
+          <h3 id="g-derby">Scontro Totale</h3>
+          <p class="pitch">Prendi il volante e distruggi tutto. Fisica vera, lamiere che si piegano e piloti che volano dal parabrezza.</p>
+          <ul class="feats">
+            <li><b>Fisica reale</b>: salti, derapate, ammaccature, ruggine, scintille e pezzi che volano via</li>
+            <li><b>Piloti sbalzati</b> fuori dall'abitacolo negli schianti più violenti, con replay dell'impatto</li>
+            <li>Ritmo più veloce: fino a <b>230 km/h</b> con effetti di velocità</li>
+            <li><b>Evento del giorno</b>, campionati, arene derby e podio a fine gara</li>
+            <li>Tastiera, controller e <b>comandi touch</b> su telefono e tablet</li>
+          </ul>
+          <div class="acts"><a class="btn play" href="./play/?game=derby">Gioca ora<span class="sr"> a Scontro Totale</span></a></div>
+        </div>
+      </article>
 
-<section id="download"><div class="wrap">
-  <h2 class="sec-title">Download</h2>
-  <p class="sec-sub">Gratis. Nessun account. I salvataggi restano sul tuo computer.</p>
-  <div class="dl">
-    <div class="os main"><h3>🍎 macOS · Apple Silicon</h3><div class="muted">Mac con chip M1, M2, M3, M4 · macOS 11+</div><a class="btn red" href="https://github.com/__REPO__/releases/latest/download/ApexDynasty-__VERSION__-mac-arm64.dmg">Scarica .dmg</a></div>
-    <div class="os main"><h3>🍏 macOS · Intel</h3><div class="muted">Mac con processore Intel · macOS 10.15+</div><a class="btn red" href="https://github.com/__REPO__/releases/latest/download/ApexDynasty-__VERSION__-mac-x64.dmg">Scarica .dmg</a></div>
-    <div class="os main"><h3>🪟 Windows</h3><div class="muted">Windows 10 e 11 · 64 bit</div><a class="btn red" href="https://github.com/__REPO__/releases/latest/download/ApexDynasty-__VERSION__-Setup.exe">Installer .exe</a><a class="btn" href="https://github.com/__REPO__/releases/latest/download/ApexDynasty-__VERSION__-Portable.exe">Versione portable</a></div>
-    <div class="os"><h3>🐧 Linux</h3><div class="muted">AppImage x64</div><a class="btn" href="https://github.com/__REPO__/releases/latest">Vai alle release</a></div>
-    <div class="os"><h3>🌐 Browser</h3><div class="muted">Chrome, Edge, Firefox, Safari — nessuna installazione</div><a class="btn" href="play/">Gioca ora</a></div>
-    <div class="os"><h3>📦 Tutte le versioni</h3><div class="muted">Archivi .zip per macOS e note di rilascio</div><a class="btn" href="https://github.com/__REPO__/releases">Release su GitHub</a></div>
-  </div>
-  <div class="note"><b>Primo avvio su macOS:</b> l'app non è firmata con un certificato Apple Developer. Apri il .dmg, trascina <i>Apex Dynasty</i> in Applicazioni, poi <b>clic destro → Apri</b>. Se macOS dice che l'app è "danneggiata", apri il Terminale ed esegui <code>xattr -cr "/Applications/Apex Dynasty.app"</code>.<br><b>Windows:</b> se SmartScreen avvisa, scegli <i>Ulteriori informazioni → Esegui comunque</i>.</div>
-  <div class="play-band" style="margin-top:40px"><div><h2 class="sec-title" style="font-size:36px">Pronto al semaforo verde?</h2><div class="sec-sub" style="margin-top:6px">Prova subito la versione browser: è lo stesso gioco dell'app desktop.</div></div><a class="btn red" href="play/">▶ Gioca nel browser</a></div>
-</div></section>
+      <article class="game" style="--c:var(--vor)" aria-labelledby="g-vor">
+        <a class="shot" href="./play/?game=voragine" tabindex="-1" aria-hidden="true"><img src="shots/cover-voragine.webp" alt="" width="1600" height="900" loading="lazy" decoding="async"><span class="tag">Arcade</span></a>
+        <div>
+          <div class="num">03 · Arcade</div>
+          <h3 id="g-vor">Voragine</h3>
+          <p class="pitch">Sei una voragine che si apre in città. Inghiotti pedoni, auto, case e grattacieli, cresci e divora le voragini rivali.</p>
+          <ul class="feats">
+            <li><b>5 città</b>: Centro, Giardino, Notte, Porto e Neve, con facciate e luci notturne</li>
+            <li><b>Missioni</b> e percorso di progressione con skin e scie da sbloccare</li>
+            <li><b>Power-up</b> e combo per divorare sempre più in fretta</li>
+            <li><b>Sfida del giorno</b> uguale per tutti</li>
+            <li>Mouse, tastiera, controller e stick virtuale su touch</li>
+          </ul>
+          <div class="acts"><a class="btn play" href="./play/?game=voragine">Gioca ora<span class="sr"> a Voragine</span></a></div>
+        </div>
+      </article>
+    </div>
+  </section>
 
-<footer><div class="wrap">Apex Dynasty v__VERSION__ · Geometria dei circuiti da <a href="https://github.com/bacinger/f1-circuits">bacinger/f1-circuits</a> (MIT). Gioco gestionale di fantasia. Tutti i nomi di squadre, piloti, sponsor e marchi sono parodie inventate e non sono affiliati né approvati da persone, team o aziende reali. · <a href="https://github.com/__REPO__">Codice sorgente</a></div></footer>
+  <section class="news" id="novita" aria-labelledby="news-t">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><div class="eyebrow">Aggiornamento</div><h2 id="news-t">Novità della versione <span class="ver">6.0</span></h2></div>
+        <p>Il più grande aggiornamento di sempre: nasce Baso Hub, e tutti e tre i giochi cambiano marcia.</p>
+      </div>
+      <div class="newsgrid">
+        <div class="ncol" style="--c:var(--apex)">
+          <h3>Apex Dynasty</h3><div class="sub">Manager</div>
+          <ul>
+            <li>Highlights a fine gara e replay durante la corsa</li>
+            <li>Incidenti: testacoda, botti in frenata, carambole al primo giro, bandiere gialle e danni</li>
+            <li>Traiettorie ideali, pioggia e linea che si asciuga</li>
+            <li>Nuovi asfalto, erba ed effetti; F2 distinte dalle F1; nuove telecamere TV</li>
+            <li>Rally più realistico: ghiaccio misto, velocità vere, meteo che cambia, note del copilota, intermedi e Power Stage</li>
+            <li>Rally più bello: texture CC0, biomi, polvere, neve e fango</li>
+            <li>Audio nuovo: motori per categoria, folla, pioggia, speaker e musica</li>
+            <li>Obiettivi stagionali, riepilogo del weekend, festeggiamenti; layout per tablet e telefono</li>
+          </ul>
+        </div>
+        <div class="ncol" style="--c:var(--derby)">
+          <h3>Scontro Totale</h3><div class="sub">Flatout</div>
+          <ul>
+            <li>Ritmo più veloce: velocità massima intorno ai 230 km/h</li>
+            <li>Effetti di velocità e comandi touch</li>
+            <li>Nuovi modelli e materiali CC0</li>
+            <li>Lamiere che si accartocciano, scintille, ammaccature e ruggine</li>
+            <li>Piloti sbalzati fuori negli schianti più violenti</li>
+            <li>Highlights degli scontri</li>
+            <li>Evento del giorno e podio nei risultati</li>
+          </ul>
+        </div>
+        <div class="ncol" style="--c:var(--vor)">
+          <h3>Voragine</h3><div class="sub">Arcade</div>
+          <ul>
+            <li>Voragine più veloce e reattiva</li>
+            <li>5 città: Centro, Giardino, Notte, Porto e Neve</li>
+            <li>Facciate con texture e illuminazione notturna</li>
+            <li>Missioni e percorso di progressione con skin e scie</li>
+            <li>Power-up, combo e bloom</li>
+            <li>Sfida del giorno</li>
+          </ul>
+        </div>
+      </div>
+      <div class="allround"><span><b>Baso Hub</b>: launcher con copertine e accesso diretto alle modalità</span><span><b>Prestazioni</b>: caricamenti più rapidi e gioco più fluido</span></div>
+    </div>
+  </section>
+
+  <section id="galleria" aria-labelledby="gal-t">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><div class="eyebrow">Immagini dal gioco</div><h2 id="gal-t">Galleria</h2></div>
+        <p>Catturate direttamente dal gioco, senza ritocchi.</p>
+      </div>
+      <div class="gal">
+        <figure class="wide" style="--c:var(--derby)"><img src="shots/cover-derby.webp" alt="Scontro Totale: due auto si scontrano in arena mentre una terza vola in aria" width="1600" height="900" loading="lazy" decoding="async"><figcaption><i>Scontro Totale</i>T-bone nell'arena</figcaption></figure>
+        <figure class="wide" style="--c:var(--vor)"><img src="shots/cover-voragine.webp" alt="Voragine: un grattacielo illuminato sprofonda nella voragine di notte" width="1600" height="900" loading="lazy" decoding="async"><figcaption><i>Voragine</i>Città di Notte</figcaption></figure>
+        <figure style="--c:var(--apex)"><img src="shots/g-race.webp" alt="Gara in 3D vista dalla telecamera TV" width="1280" height="720" loading="lazy" decoding="async"><figcaption><i>Apex</i>Gara in 3D, telecamera TV</figcaption></figure>
+        <figure style="--c:var(--apex)"><img src="shots/g-rally.webp" alt="Auto da rally su una prova speciale sterrata in Finlandia" width="1280" height="720" loading="lazy" decoding="async"><figcaption><i>Apex</i>Rally su sterrato</figcaption></figure>
+        <figure style="--c:var(--apex)"><img src="shots/g-endurance.webp" alt="Hypercar in gara endurance vista dall'elicottero" width="1280" height="720" loading="lazy" decoding="async"><figcaption><i>Apex</i>Endurance, vista elicottero</figcaption></figure>
+        <figure style="--c:var(--apex)"><img src="shots/g-onboard.webp" alt="Visuale onboard da una monoposto" width="1280" height="720" loading="lazy" decoding="async"><figcaption><i>Apex</i>Onboard</figcaption></figure>
+        <figure style="--c:var(--apex)"><img src="shots/g-strategy-live.webp" alt="Schermata della strategia durante la gara" width="1280" height="720" loading="lazy" decoding="async"><figcaption><i>Apex</i>Strategia in gara</figcaption></figure>
+        <figure style="--c:var(--apex)"><img src="shots/g-car.webp" alt="Centro tecnico con la vettura nel garage 3D" width="1280" height="720" loading="lazy" decoding="async"><figcaption><i>Apex</i>Centro Tecnico</figcaption></figure>
+        <figure style="--c:var(--derby)"><img src="shots/g-derby-arena.webp" alt="Auto da demolition derby nell'Arena Rottami" width="1280" height="720" loading="lazy" decoding="async"><figcaption><i>Scontro Totale</i>Arena Rottami</figcaption></figure>
+        <figure style="--c:var(--derby)"><img src="shots/g-derby-otto.webp" alt="Auto sul circuito a otto con incrocio centrale" width="1280" height="720" loading="lazy" decoding="async"><figcaption><i>Scontro Totale</i>Otto Volante</figcaption></figure>
+        <figure style="--c:var(--derby)"><img src="shots/g-derby.webp" alt="Corsa nel fango della Fattoria Pantano" width="1280" height="720" loading="lazy" decoding="async"><figcaption><i>Scontro Totale</i>Fattoria Pantano</figcaption></figure>
+        <figure class="wide" style="--c:var(--apex)"><img src="shots/g-cockpit.webp" alt="Camera pilota con halo e volante" width="1280" height="720" loading="lazy" decoding="async"><figcaption><i>Apex</i>Camera Pilota</figcaption></figure>
+        <figure class="wide" style="--c:var(--apex)"><img src="shots/g-telemetry.webp" alt="Mappa 2D del circuito con telemetria" width="1280" height="720" loading="lazy" decoding="async"><figcaption><i>Apex</i>Mappa 2D e telemetria</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="dl" id="download" aria-labelledby="dl-t">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><div class="eyebrow">Versione __VERSION__</div><h2 id="dl-t">Download</h2></div>
+        <p>Gratis. Nessun account. I salvataggi restano sul tuo computer. L'app desktop contiene tutti e tre i giochi.</p>
+      </div>
+      <div class="dlgrid">
+        <div class="os main">
+          <svg class="ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.7-4.1zM13.9 5c.7-.9 1.2-2 1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.2.1 2.3-.6 3.1-1.5z"/></svg>
+          <h3>macOS · Apple Silicon</h3><div class="muted">Mac con chip M1, M2, M3, M4 · macOS 11+</div>
+          <div class="row"><a class="btn prim sm" href="https://github.com/__REPO__/releases/latest/download/ApexDynasty-__VERSION__-mac-arm64.dmg">Scarica .dmg</a></div>
+        </div>
+        <div class="os main">
+          <svg class="ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.7-4.1zM13.9 5c.7-.9 1.2-2 1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.2.1 2.3-.6 3.1-1.5z"/></svg>
+          <h3>macOS · Intel</h3><div class="muted">Mac con processore Intel · macOS 10.15+</div>
+          <div class="row"><a class="btn prim sm" href="https://github.com/__REPO__/releases/latest/download/ApexDynasty-__VERSION__-mac-x64.dmg">Scarica .dmg</a></div>
+        </div>
+        <div class="os main">
+          <svg class="ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10 4.5v7H3zm8-1.2L21 3v8.5H11zM3 12.5h7v7l-7-1zm8 0h10V21l-10-1.4z"/></svg>
+          <h3>Windows</h3><div class="muted">Windows 10 e 11 · 64 bit</div>
+          <div class="row"><a class="btn prim sm" href="https://github.com/__REPO__/releases/latest/download/ApexDynasty-__VERSION__-Setup.exe">Installer .exe</a><a class="btn sm" href="https://github.com/__REPO__/releases/latest/download/ApexDynasty-__VERSION__-Portable.exe">Portable</a></div>
+        </div>
+        <div class="os">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          <h3>Linux</h3><div class="muted">AppImage x64</div>
+          <div class="row"><a class="btn sm" href="https://github.com/__REPO__/releases/latest">Vai alle release</a></div>
+        </div>
+        <div class="os">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>
+          <h3>Browser</h3><div class="muted">Chrome, Edge, Firefox, Safari: nessuna installazione</div>
+          <div class="row"><a class="btn sm" href="./play/">Gioca ora</a></div>
+        </div>
+        <div class="os">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></svg>
+          <h3>Tutte le versioni</h3><div class="muted">Archivi .zip per macOS e note di rilascio</div>
+          <div class="row"><a class="btn sm" href="https://github.com/__REPO__/releases">Release su GitHub</a></div>
+        </div>
+      </div>
+      <p class="dlnote">Primo avvio su macOS o avviso di SmartScreen su Windows? Trovi la soluzione nelle <a href="#faq">domande frequenti</a>.</p>
+    </div>
+  </section>
+
+  <section id="faq" aria-labelledby="faq-t">
+    <div class="wrap">
+      <div class="sec-head"><div><div class="eyebrow">Domande frequenti</div><h2 id="faq-t">FAQ</h2></div></div>
+      <div class="faq">
+        <details open>
+          <summary>Browser o app desktop?</summary>
+          <div class="a"><p>È lo stesso gioco. La versione browser parte subito su Chrome, Edge, Firefox e Safari, senza installare nulla. L'app desktop per macOS, Windows e Linux funziona offline, va a schermo intero e tiene i salvataggi sul tuo computer.</p></div>
+        </details>
+        <details>
+          <summary>macOS dice che l'app non si può aprire o è "danneggiata"</summary>
+          <div class="a"><p>L'app non è firmata con un certificato Apple Developer. Apri il .dmg, trascina <i>Apex Dynasty</i> in Applicazioni, poi <b>clic destro → Apri</b>.</p><p>Se macOS dice che l'app è "danneggiata", apri il Terminale ed esegui <code>xattr -cr "/Applications/Apex Dynasty.app"</code>.</p></div>
+        </details>
+        <details>
+          <summary>Windows mostra un avviso di SmartScreen</summary>
+          <div class="a"><p>Se SmartScreen avvisa, scegli <i>Ulteriori informazioni → Esegui comunque</i>. La versione portable non richiede installazione.</p></div>
+        </details>
+        <details>
+          <summary>Come apro direttamente un gioco?</summary>
+          <div class="a"><p>Usa i link diretti: <a href="./play/?game=apex">Apex Dynasty</a>, <a href="./play/?game=derby">Scontro Totale</a>, <a href="./play/?game=voragine">Voragine</a>. Il launcher ricorda anche l'ultimo gioco aperto.</p></div>
+        </details>
+        <details>
+          <summary>Serve un account? Dove finiscono i salvataggi?</summary>
+          <div class="a"><p>Nessun account. I salvataggi restano sul tuo dispositivo: nel browser che usi o nell'app desktop.</p></div>
+        </details>
+        <details>
+          <summary>Funziona su telefono e tablet?</summary>
+          <div class="a"><p>Sì, nel browser: Apex Dynasty ha layout per tablet e telefono, Scontro Totale e Voragine hanno comandi touch.</p></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top:0" aria-labelledby="band-t">
+    <div class="wrap">
+      <div class="band">
+        <img src="shots/cover-apex.webp" alt="" width="1600" height="900" loading="lazy" decoding="async">
+        <div><h2 id="band-t">Pronto al via?</h2><p>Apri Baso Hub nel browser: è lo stesso gioco dell'app desktop.</p></div>
+        <a class="btn prim" href="./play/"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg>Gioca ora</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Baso Hub v__VERSION__ · Apex Dynasty, Scontro Totale e Voragine sono giochi di fantasia. Tutti i nomi di squadre, piloti, sponsor e marchi sono parodie inventate e non sono affiliati né approvati da persone, team o aziende reali. Alcune texture e modelli sono risorse CC0.</p>
+    <nav aria-label="Link a piè di pagina"><a href="./play/">Gioca</a><a href="https://github.com/__REPO__/releases">Release</a><a href="https://github.com/__REPO__">Codice sorgente</a></nav>
+  </div>
+</footer>
 </body>
 </html>
