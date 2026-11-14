@@ -44,7 +44,7 @@ const DerbyShader = {
         float id = floor(a), fa = fract(a), rnd = h21(vec2(id, 3.1)), on = step(0.62, rnd);
         float seg = fract(r * 1.6 - uTime * (2.2 + rnd * 2.5) + rnd * 7.0);
         float line = on * smoothstep(0.5, 0.0, abs(fa - 0.5) * (3.0 + rnd * 3.0)) * smoothstep(0.0, 0.25, seg) * smoothstep(0.75, 0.3, seg);
-        c += line * smoothstep(0.32, 0.85, r) * uLines * 0.22 * (0.6 + luma(c));
+        c += line * smoothstep(0.38, 0.9, r) * uLines * 0.16 * (0.5 + luma(c));
       }
       float l = luma(c);
       c *= mix(uTintLo, uTintHi, smoothstep(0.0, 0.75, l));

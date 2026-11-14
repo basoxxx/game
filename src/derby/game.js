@@ -1549,10 +1549,10 @@ export class DerbyGame {
     this.hurt = Math.max(0, (this.hurt || 0) - dt * 1.6);
     const sp = P.dyn?.speed || 0, chase = driving && this.state !== 'finished';
     if (pu) {
-      const blurT = chase ? Math.max(0, Math.min(1, (sp - 26) / 38)) * 0.03 * (this.camMode >= 2 ? 1.6 : 1) + (P.boost ? 0.035 : 0) : 0;
+      const blurT = chase ? Math.max(0, Math.min(1, (sp - 28) / 40)) * 0.022 * (this.camMode >= 2 ? 1.5 : 1) + (P.boost ? 0.018 : 0) : 0;
       pu.uBlur.value += (blurT - pu.uBlur.value) * Math.min(1, dt * 5);
-      pu.uCA.value += (((chase && P.boost) ? 0.45 : 0) + Math.min(1, this.shake || 0) * 0.35 + (1 - this.timeScale) * 0.9 - pu.uCA.value) * Math.min(1, dt * 6);
-      const linesT = chase && this.camMode !== 1 ? Math.max(0, Math.min(1, (sp - 42) / 22)) * 0.6 + (P.boost ? 0.7 : 0) : 0;
+      pu.uCA.value += (((chase && P.boost) ? 0.22 : 0) + Math.min(1, this.shake || 0) * 0.25 + (1 - this.timeScale) * 0.7 - pu.uCA.value) * Math.min(1, dt * 6);
+      const linesT = chase && this.camMode !== 1 ? Math.max(0, Math.min(1, (sp - 45) / 22)) * 0.5 + (P.boost ? 0.5 : 0) : 0;
       if (pu.uLines) pu.uLines.value += (linesT - pu.uLines.value) * Math.min(1, dt * 5);
       pu.uTime.value = (performance.now() / 1000) % 600; pu.uAspect.value = cam.aspect; pu.uHurt.value = Math.min(0.6, this.hurt || 0);
       // heat haze behind the nitro flames

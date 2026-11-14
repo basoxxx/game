@@ -130,7 +130,7 @@ export const CHALLENGES = [
   { id: 'primo', name: 'Prima vittoria', desc: 'Vinci un evento qualsiasi', prize: 2000, icon: 'trophy', check: (r) => r.pos === 1 && !['time', 'stunt'].includes(r.mode) },
   { id: 'tris', name: 'Tris di lamiere', desc: 'Demolisci 3 avversari nello stesso evento', prize: 5000, icon: 'burst', check: (r) => r.kills >= 3 },
   { id: 'macellaio', name: 'Il macellaio', desc: 'Demolisci 25 avversari in carriera', prize: 9000, icon: 'burst', check: (r, p) => (p.stats.wrecks || 0) >= 25 },
-  { id: 'cento', name: 'Oltre i cento', desc: 'Salta più di 100 metri dalla Rampa del Diavolo', prize: 6000, icon: 'speed', check: (r) => r.mode === 'stunt' && r.distance >= 100 },
+  { id: 'cento', name: 'Oltre i centotrenta', desc: 'Salta più di 130 metri dalla Rampa del Diavolo', prize: 6000, icon: 'speed', check: (r) => r.mode === 'stunt' && r.distance >= 130 }, // v6: the run-up is faster (was 100 m)
   { id: 'lepre', name: 'Lepre in salmì', desc: 'Demolisci la Lepre dorata', prize: 6000, icon: 'target', check: (r) => r.mode === 'caccia' && r.huntWreck },
   { id: 'ultimo', name: 'Ultimo uomo in piedi', desc: 'Vinci un’eliminazione', prize: 5000, icon: 'alert', check: (r) => r.mode === 'elim' && r.pos === 1 },
   { id: 'gladiatore', name: 'Gladiatore', desc: 'Vinci un demolition derby', prize: 5000, icon: 'shield', check: (r) => r.mode === 'derby' && r.pos === 1 },
