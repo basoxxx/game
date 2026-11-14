@@ -3968,25 +3968,36 @@ export class Race3D {
         let ks = 0; for (let q = 0; q < 30; q++) ks += this.geo.k[(i + q) % N];
         this._rail = { side: ks > 0 ? -1 : 1, ph: Math.random() * 6 };
       }
-      const sd = this._rail.side, q = (s + 1.4 + N) % N, iq = Math.floor(q) % N;
-      let off = this.TW / 2 + 5;
-      if (this.wallOff && this.street > 0.7) off = Math.min(off, this.wallOff(iq, sd) - 0.6);
+      const sd = this._rail.side, q = (s + 0.5 + N) % N, iq = Math.floor(q) % N;
+      let off = this.TW / 2 + 9;
+      if (this.wallOff) off = Math.max(this.TW / 2 + 1, Math.min(off, this.wallOff(iq, sd) - 0.8));
       const p0 = this.pose(q, sd * off);
       pos = new THREE.Vector3(p0.x, (p0.y || 0) + 1.25 + 0.08 * Math.sin(this._shT * 0.7 + this._rail.ph), p0.z);
-      look = target.clone().add(new THREE.Vector3(0, 0.55, 0));
-      fov = 30;
+      look = target.clone().add(new THREE.Vector3(0, 0.55, 0)).addScaledVector(fwd, 1.2);
+      fov = Math.max(18, Math.min(50, 2 * Math.atan(5.5 / Math.max(1, pos.distanceTo(target))) * 180 / Math.PI));
     } else if (this.camMode === 'low') {
       // low trackside camera at the inside of the next corner: the car comes at the lens and
       // sweeps past the apex, shallow depth of field
       const s = focus.state?.s || 0, N = this.geo.N;
       const rel = (i) => { let d = i - s; if (d < -N / 2) d += N; if (d > N / 2) d -= N; return d; };
       if (!this._low || this._cut || rel(this._low.i) < -9) {
-        let best = null, bd = 1e9;
-        for (const c of this.geo.corners || []) { const d = ((c.i - s) % N + N) % N; if (d > 18 && d < bd && c.r < 300) { bd = d; best = c; } }
-        const ci = best ? best.i : Math.round(s + 40) % N, side = best ? (Math.sign(this.geo.k[ci]) || 1) : 1;
-        const p0 = this.pose(ci, side * (this.TW / 2 + 2.4));
-        this._low = { i: ci, pos: new THREE.Vector3(p0.x, (p0.y || 0) + 0.5, p0.z) };
-        if (!this._cut && bd < 1e9) this._cut = true;
+        // the next corner 40-200 m ahead, the camera at its inside kerb (else the outside) where
+        // it sees the run-up to the apex; no such spot: a plain spot 80 m up the road
+        const tp = (this._lowT ||= new THREE.Vector3()), seesRun = (p, ci) => [0, -6, -12].every((d) => { const j = (ci + d + N) % N; const q = this.pose(j, this.line ? this.line[j] : 0); tp.set(q.x, (q.y || 0) + 0.8, q.z); return this.losClear(p, tp); });
+        let pick = null;
+        const cand = (this.geo.corners || []).map((c) => [((c.i - s) % N + N) % N, c]).filter(([d, c]) => d > 8 && d < 40 && c.r < 300).sort((a, b) => a[0] - b[0]);
+        for (const [, c] of cand) {
+          const side = Math.sign(this.geo.k[c.i]) || 1;
+          for (const [sd, off] of [[side, this.TW / 2 + 2.4], [-side, this.TW / 2 + 5]]) {
+            const o2 = this.wallOff ? Math.max(this.TW / 2 + 1, Math.min(off, this.wallOff(c.i, sd) - 0.8)) : off;
+            const p0 = this.pose(c.i, sd * o2), p = new THREE.Vector3(p0.x, (p0.y || 0) + 0.55, p0.z);
+            if (seesRun(p, c.i)) { pick = { i: c.i, pos: p }; break; }
+          }
+          if (pick) break;
+        }
+        if (!pick) { const ci = Math.round(s + 16) % N, p0 = this.pose(ci, (this.TW / 2 + 3) * (this.geo.k[ci] >= 0 ? 1 : -1)); pick = { i: ci, pos: new THREE.Vector3(p0.x, (p0.y || 0) + 0.6, p0.z) }; }
+        this._low = pick;
+        if (!this._cut) this._cut = true;
       }
       pos = this._low.pos.clone();
       look = target.clone().add(new THREE.Vector3(0, 0.45, 0)).addScaledVector(fwd, Math.min(3, spd * 0.03));
@@ -4070,7 +4081,7 @@ export class Race3D {
     if (this.camera.near !== (ck ? 0.05 : 0.3)) { this.camera.near = ck ? 0.05 : 0.3; }
     const cutNow = this._cut || wasCut || this._snap; this._snap = false;
     if (cutNow || this.camMode === 'onboard' || ck || !Number.isFinite(this.camLook.x + this.camLook.y + this.camLook.z)) { this.camPos.copy(pos); this.camLook.copy(look); this._cut = false; }
-    else { this.camPos.lerp(pos, k); this.camLook.lerp(look, this.camMode === 'chase' ? 1 : this.camMode === 'heli' ? ease(3) : ease(7)); }
+    else { this.camPos.lerp(pos, k); this.camLook.lerp(look, this.camMode === 'chase' || this.camMode === 'rail' ? 1 : this.camMode === 'heli' ? ease(3) : this.camMode === 'low' ? ease(14) : ease(7)); }
     this.camera.position.copy(this.camPos);
     // a cut lands on its framing at once; within a shot the zoom eases
     if (cutNow || !Number.isFinite(this.camera.fov)) this.camera.fov = fov; else this.camera.fov += (fov - this.camera.fov) * ease(4);
