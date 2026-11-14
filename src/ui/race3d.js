@@ -2956,6 +2956,8 @@ export class Race3D {
       let s = st.s, spd = st.speed || 0, lane, pit = false, yaw = 0;
       const i0 = open ? Math.min(N - 2, Math.max(0, Math.floor(s))) : Math.floor(s) % N;
       const race = (this.line ? this.line[i0] * (st.close ? 0.45 : 1) : 0) + (st.close && st.pos ? (st.pos % 2 ? 2.6 : -2.6) : car.lane * 0.3);
+      // [highlights] incident pose from the replay views: explicit lateral offset / yaw, off the racing line
+      if (st.fx) { car.pc = null; items.push({ st, car, s: wrap(s), spd, lane: st.fx.lat || 0, pit: false, yaw: st.fx.yaw || 0, fx: st.fx }); continue; }
       if (this.pitOff && !open) { const r = this.pitStep(car, st, dt, race); if (r) { items.push({ st, car, ...r, s: wrap(r.s) }); continue; } }
       lane = Math.max(-maxLane, Math.min(maxLane, race));
       items.push({ st, car, s: wrap(s), spd, lane, pit, yaw });
@@ -2974,14 +2976,14 @@ export class Race3D {
     for (const it of items) {
       const car = it.car;
       car.latOff = (car.latOff || 0) * Math.max(0, 1 - dt * 0.7);
-      const tgt = it.pit ? it.lane : Math.max(-maxLane, Math.min(maxLane, it.lane + car.latOff));
-      car.laneCur = car.laneCur == null || it.exact ? tgt : car.laneCur + (tgt - car.laneCur) * Math.min(1, dt * (it.pit ? 3 : 4));
-      if (!it.pit) car.laneCur = Math.max(-maxLane, Math.min(maxLane, car.laneCur));
+      const tgt = it.pit || it.fx ? it.lane : Math.max(-maxLane, Math.min(maxLane, it.lane + car.latOff));
+      car.laneCur = car.laneCur == null || it.exact || it.fx ? tgt : car.laneCur + (tgt - car.laneCur) * Math.min(1, dt * (it.pit ? 3 : 4));
+      if (!it.pit && !it.fx) car.laneCur = Math.max(-maxLane, Math.min(maxLane, car.laneCur));
       // visual longitudinal back-off memory so a yielding car does not snap
       let s = wrap(it.s - (car.sBack || 0));
       let back = 0;
       const hitAt = (ss, lane) => { const q = this.pose(ss, lane); for (const o of placed) { const dx = o.x - q.x, dz = o.z - q.z; if (dx * dx + dz * dz > 64 || Math.abs((o.y || 0) - (q.y || 0)) > 2) continue; const c = Math.cos(q.h), sn = Math.sin(q.h); const lon = dx * c + dz * sn, lat = -dx * sn + dz * c; if (Math.abs(lon) < 5.5 && Math.abs(lat) < 2.25) return o; } return null; };
-      for (let iter = 0; iter < 24; iter++) {
+      for (let iter = 0; iter < 24 && !it.fx; iter++) {
         const hit = hitAt(s, car.laneCur);
         if (!hit) break;
         if (!it.pit && !hit.pit && iter < 3) {
@@ -3001,6 +3003,7 @@ export class Race3D {
       s = wrap(s);
       placed.push({ ...this.pose(s, car.laneCur), s, lane: car.laneCur, pit: it.pit });
       this.placeCar(car, it.st, s, car.laneCur, it.spd, dt, it.yaw || 0);
+      if (it.fx) this.applyFxPose(car, it.fx); else if (car.mesh.rotation.order !== 'XYZ') car.mesh.rotation.order = 'XYZ';
       if (it.st.key === this.focusKey) focus = car;
     }
     if (!focus) focus = [...this.cars.values()].find((c) => c.mesh.visible);
@@ -3599,6 +3602,21 @@ export class Race3D {
   }
 
   startIntro(sec = 5) { this.introT = sec; this.introDur = sec; this.introStart = performance.now(); }
+
+  // ---- [highlights] public hooks used by the replay / highlights views (src/screens/highlights.js) ----
+  // rollover / lift on top of the pose placeCar computed (roll about the car's own long axis)
+  applyFxPose(car, fx) {
+    const m = car.mesh;
+    if (fx.roll) { m.rotation.order = 'YXZ'; m.rotation.x += fx.roll; } else if (m.rotation.order !== 'XYZ') m.rotation.order = 'XYZ';
+    if (fx.lift) m.position.y += fx.lift;
+  }
+  // forget per-car motion memory (pit-lane state, lane smoothing): call after a time jump in a replay
+  resetMotion() {
+    for (const c of this.cars.values()) { c.pc = null; c.sBack = 0; c.laneCur = null; c.latOff = 0; c._pl = null; c._v = null; c._acc = 0; c._yaw = 0; }
+    this._cut = true; this._mvPrev = 0; this._simK = 1;
+  }
+  // world position of a car (null when hidden)
+  carWorld(key) { const c = this.cars.get(key); return c && c.mesh.visible ? c.mesh.position : null; }
 
   pickBattle() {
     // auto director: find the closest fight among running cars, prefer player cars
