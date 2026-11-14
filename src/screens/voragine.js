@@ -94,7 +94,8 @@ registerScreen({
   render(params) {
     if (params?.from) V.from = params.from; else if (params?.to === 'voragine') V.from = 'launcher';
     // the Baso Hub can preselect a mode/city, or start straight away
-    if (params?.mode || params?.city) { const p = vgLoad(); if (params.mode) p.mode = params.mode; if (params.city) p.city = params.city; vgSave(p); }
+    // (once: App.refresh() renders with the same params, and must not undo the player's own pick)
+    if (params?.mode || params?.city) { const p = vgLoad(); if (MODES[params.mode]) p.mode = params.mode; if (CITIES[params.city]) p.city = params.city; vgSave(p); delete params.mode; delete params.city; }
     if (params?.quick && !V.playing && !V.quickDone) { V.quickDone = true; V.playing = true; V.daily = null; }
     if (V.playing) return `<div class="vg-stage"><div class="vg-root" id="vg-root"><div class="vg-loading">Si apre la terra…</div></div><div class="vg-over" id="vg-over"></div></div>`;
     return setup(vgLoad());
