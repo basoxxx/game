@@ -20,6 +20,7 @@ export const PRESETS = {
   normale: { name: 'Normale', desc: 'Il giusto mezzo: controsterzo assistito, peso e trazione si sentono.', assistKb: 0.7, assistPad: 0.45, latGrip: 1.1, yawMax: 2.4, antiRoll: 1.0, airCtl: 1.0, land: 0.6, hbYaw: 1.0, stab: 1.0, brake: 8.6, drift: 0.55 },
   simulazione: { name: 'Simulazione', desc: 'Aiuti ridotti: trasferimenti di carico, sovrasterzo di potenza e fondo contano davvero.', assistKb: 0.25, assistPad: 0.08, latGrip: 0.45, yawMax: 3.4, antiRoll: 0.62, airCtl: 0.45, land: 0.3, hbYaw: 0.75, stab: 0.55, brake: 7.8, drift: 0.2 },
 };
+export { PACE } from './pace.js';
 export const DEF_OPTS = { preset: 'normale', sens: 1, dead: 0.08, kbSmooth: true, drift: null, rumble: true, rubber: true, pit: true };
 
 export function driveOpts(p = prog()) { return { ...DEF_OPTS, ...(p.opts || {}) }; }
