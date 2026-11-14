@@ -116,7 +116,7 @@ registerScreen({
       <div class="lg-bg" aria-hidden="true"><i></i><i></i><i></i></div>
       <header class="lg-head bh-head">
         <div class="bh-logo"><span class="bh-mark">B</span><div><div class="bh-word">Baso<span>Hub</span></div><div class="lg-eyebrow">Manager · Flatout · Voragine</div></div></div>
-        <nav class="bh-tabs" role="tablist" aria-label="Giochi">${GAMES.map((x, i) => `<div class="bh-tab ${x.id === g.id ? 'on' : ''}" role="tab" aria-selected="${x.id === g.id}" data-a="bh-game" data-id="${x.id}" style="--acc:${x.accent}${COVERS[x.id] ? `;--thumb:url(./${COVERS[x.id]})` : ''}" tabindex="0"><span class="kbd">${i + 1}</span><b>${esc(x.section)}</b><small>${esc(x.title)}</small></div>`).join('')}</nav>
+        <nav class="bh-tabs" role="tablist" aria-label="Giochi">${GAMES.map((x, i) => `<div class="bh-tab ${x.id === g.id ? 'on' : ''}" role="tab" aria-selected="${x.id === g.id}" data-a="bh-game" data-id="${x.id}" style="--acc:${x.accent}${COVERS[x.id] ? `;--thumb:url(${new URL(COVERS[x.id], document.baseURI).href})` : ''}" tabindex="0"><span class="kbd">${i + 1}</span><b>${esc(x.section)}</b><small>${esc(x.title)}</small></div>`).join('')}</nav>
       </header>
       ${panel(g)}
       <footer class="lg-foot">
