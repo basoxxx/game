@@ -66,7 +66,7 @@ export const MISSION_POOL = [
   M('pupazzi', 'Inghiotti {n} pupazzi di neve', ['snowman'], [5, 10, 16], [12, 18, 25]),
   M('negozi', 'Inghiotti {n} negozi', ['shop', 'kiosk'], [3, 6, 10], [15, 22, 30]),
   { id: 'rivale', type: 'rival', text: 'Divora {n} voragini rivali', text1: 'Divora una voragine rivale', ns: [1, 2, 3], coins: [20, 32, 45], vs: true },
-  { id: 'combo', type: 'combo', text: 'Fai una combo x{n}', ns: [30, 60, 90], coins: [12, 20, 30] },
+  { id: 'combo', type: 'combo', text: 'Fai una combo x{n}', ns: [12, 20, 30], coins: [12, 20, 30] },
   { id: 'livello', type: 'level', text: 'Raggiungi il livello {n}', ns: [7, 8, 9], coins: [15, 22, 32] },
   { id: 'potere', type: 'power', text: 'Raccogli {n} potenziamenti', text1: 'Raccogli un potenziamento', ns: [1, 2, 3], coins: [10, 18, 26] },
   { id: 'citta', type: 'pct', text: 'Divora il {n}% della città', ns: [35, 50, 65], coins: [15, 25, 40], solo: true },

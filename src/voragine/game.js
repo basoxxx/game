@@ -898,7 +898,8 @@ export class VoragineGame {
     this.wobbling.delete(ob); ob.lean = 0;
     // combo: a quick string of gulps is worth a little more
     const now = this.mode.time - this.time;
-    if (h.player) { this.combo = now - (this.lastEat ?? -9) < 0.9 ? (this.combo || 0) + 1 : 1; this.lastEat = now; }
+    // combo: a quick string of real bites (pedestrians and props keep it alive but don't count)
+    if (h.player) { const alive = now - (this.lastEat ?? -9) < 1.1; if (ob.pts >= 1) this.combo = alive ? (this.combo || 0) + 1 : 1; else if (!alive) this.combo = 0; this.lastEat = now; }
     const bonus = h.player ? 1 + Math.min(25, (this.combo || 1) - 1) * 0.01 : 1;
     h.pts += ob.pts * bonus; h.eaten++;
     this.eatenPts += ob.pts;
