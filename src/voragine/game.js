@@ -226,10 +226,10 @@ export class VoragineGame {
     const o = this.o, root = this.root;
     root.innerHTML = `<canvas class="vg-cv"></canvas><div class="vg-hud">
       <div class="vg-slow" id="vg-slow"><b id="vg-slow-t"></b></div><div class="vg-flash" id="vg-flash"></div>
-      <div class="vg-top" id="vg-topbox"><div class="vg-timer" id="vg-timer">2:00</div><div class="vg-mode">${o.daily ? 'Sfida del giorno · ' : ''}${this.mode.name} · ${CITIES[o.city]?.name || ''}</div><div class="vg-pw" id="vg-pw"></div></div>
+      <div class="vg-top" id="vg-topbox"><div class="vg-timer" id="vg-timer">2:00</div><div class="vg-mode">${o.daily ? 'Sfida del giorno · ' : ''}${this.mode.name} · ${CITIES[o.city]?.name || ''}</div></div><div class="vg-pw" id="vg-pw"></div>
       <div class="vg-left" id="vg-left"><ol class="vg-board" id="vg-board"></ol><ul class="vg-miss" id="vg-miss"></ul></div>
       <div class="vg-score" id="vg-sc"><div class="vg-score-k">Punti</div><div class="vg-score-v" id="vg-score">0</div><div class="vg-eat" id="vg-eat"></div></div>
-      <div class="vg-level"><div class="vg-level-row"><span id="vg-lvl">Livello 1</span><span id="vg-next"></span></div><div class="vg-bar"><i id="vg-bar"></i></div></div>
+      <div class="vg-level" id="vg-levelbox"><div class="vg-level-row"><span id="vg-lvl">Livello 1</span><span id="vg-next"></span></div><div class="vg-bar"><i id="vg-bar"></i></div></div>
       <canvas class="vg-mini" id="vg-mini" width="160" height="160"></canvas>
       <button class="vg-pausebtn" id="vg-pausebtn" aria-label="Pausa">II</button>
       <div class="vg-labels" id="vg-labels"></div><div class="vg-pops" id="vg-pops"></div>
@@ -447,7 +447,7 @@ export class VoragineGame {
     for (let i = 0; i < n; i++) {
       const u = this.rand() * 2 - 1, t = this.rand() * Math.PI * 2, s = Math.sqrt(1 - u * u), v = sp * (0.75 + this.rand() * 0.3);
       TC.copy(c).lerp(new THREE.Color('#ffffff'), this.rand() * 0.4);
-      this.glow.emit(x, y, z, s * Math.cos(t) * v, u * v, s * Math.sin(t) * v, TC, 0.9 + sp * 0.04, 1 + this.rand() * 0.6, 6, 1.4, -1e9);
+      this.glow.emit(x, y, z, s * Math.cos(t) * v, u * v, s * Math.sin(t) * v, TC, 0.45 + sp * 0.025, 1 + this.rand() * 0.6, 6, 1.4, -1e9);
     }
   }
   shockwave(x, z, r, color) {
@@ -483,8 +483,9 @@ export class VoragineGame {
     const p = this.snow.geometry.attributes.position, a = p.array, cx = this.camT?.x || 0, cz = this.camT?.z || 0, t = this.clock;
     for (let i = 0; i < p.count; i++) {
       const j = i * 3;
+      const top = Math.max(12, (this.camH || 40) * 0.65);
       a[j + 1] -= dt * (3.2 + (i % 7) * 0.25);
-      if (a[j + 1] < 0) a[j + 1] += 70;
+      if (a[j + 1] < 0) a[j + 1] += top; else if (a[j + 1] > top) a[j + 1] -= top;
       let x = this.snowSeed[j] + Math.sin(t * 0.7 + i) * 1.4, z = this.snowSeed[j + 2] + Math.cos(t * 0.5 + i * 1.3) * 1.4;
       x = ((x - cx + 80) % 160 + 160) % 160 - 80 + cx; z = ((z - cz + 80) % 160 + 160) % 160 - 80 + cz;
       a[j] = x; a[j + 2] = z;
@@ -1025,7 +1026,7 @@ export class VoragineGame {
   updateLabels() {
     const w = this.root.clientWidth, hgt = this.root.clientHeight, m = 34;
     const root = this.root.getBoundingClientRect();
-    if (!this._rects || (this._rectT = (this._rectT || 0) - 1) <= 0) { this._rectT = 30; this._rects = ['vg-mini', 'vg-left', 'vg-sc', 'vg-topbox'].map((id) => this.$(id)?.getBoundingClientRect()).filter((r) => r && r.width).map((r) => ({ l: r.left - root.left - 50, r: r.right - root.left + 50, t: r.top - root.top - 14, b: r.bottom - root.top + 14 })); }
+    if (!this._rects || (this._rectT = (this._rectT || 0) - 1) <= 0) { this._rectT = 30; this._rects = ['vg-mini', 'vg-left', 'vg-sc', 'vg-topbox', 'vg-pw', 'vg-pausebtn', 'vg-levelbox'].map((id) => this.$(id)?.getBoundingClientRect()).filter((r) => r && r.width).map((r) => ({ l: r.left - root.left - 50, r: r.right - root.left + 50, t: r.top - root.top - 14, b: r.bottom - root.top + 14 })); }
     for (const h of this.h) {
       if (!h.alive || h.out) { h.lab.style.opacity = 0; continue; }
       tmpV.set(h.x, 0, h.z + h.r * 1.05).project(this.cam);
