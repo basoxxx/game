@@ -44,3 +44,5 @@
   .dzx-moment b { font-size: 16px; }
   .dzx-goal { grid-template-columns: minmax(0, 1fr) 50px auto; }
 }
+.dz-daily .dd-k svg, .dz-goals7 .dg svg, .dz-daily .btn svg { width: 15px; height: 15px; flex: none; vertical-align: -2px; }
+.dz-daily .dd-k { display: flex; align-items: center; gap: 6px; }

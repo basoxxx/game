@@ -156,7 +156,7 @@ export function juiceSync(game, car, dt) {
     car.sqV = (car.sqV || 0) + (-(car.sqY || 0) * 160 - (car.sqV || 0) * 11) * dt;
     car.sqY = Math.max(-0.2, Math.min(0.08, (car.sqY || 0) + car.sqV * dt));
     // rust spreads as the car is beaten up
-    if (ud.rust && ud.rust.base > 0) ud.rust.value = ud.rust.base + Math.max(0, 1 - car.hp / 100) * 0.35;
+    if (ud.rust && ud.rust.base > 0) ud.rust.value = ud.rust.base + Math.max(0, 1 - car.hp / 100) * 0.22;
     // rain: the tyres throw a fine spray behind the car on the wet surface
     if (game.wet > 0.3 && car.dyn && car.dyn.grounded >= 2 && car.dyn.speed > 11 && game.splash && Math.random() < 0.55 * (game.low ? 0.4 : 1)) {
       const sp = car.dyn.speed, lv = car.body.linvel(), q = car.mesh.quaternion;

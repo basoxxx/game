@@ -73,7 +73,7 @@ function paintPatch(mat, uni, rust = { value: 0 }) {
         // rust: blooms along the sills, wheel arches and panel edges, and creeps out of the scraped metal
         float rN = dn(vOP * 5.3) * 0.55 + dn(vOP * 17.0) * 0.3 + dn(vOP * 41.0) * 0.15;
         float rLow = smoothstep(0.62, 0.2, vOP.y) * 0.55 + sM * 0.9 + sP * 0.25;
-        float rAmt = smoothstep(1.02 - uRust * 0.75, 1.2 - uRust * 0.75, rN + rLow * 0.45) * step(0.01, uRust);
+        float rAmt = smoothstep(1.04 - uRust * 0.55, 1.16 - uRust * 0.55, rN + rLow * 0.42) * step(0.01, uRust);
         vec3 rustC = mix(vec3(0.33, 0.13, 0.05), vec3(0.55, 0.27, 0.1), dn(vOP * 29.0)) * (0.7 + rN * 0.5);
         diffuseColor.rgb = mix(diffuseColor.rgb, rustC, clamp(rAmt, 0.0, 0.95));
         float dN = dn(vOP * 3.1) * 0.6 + dn(vOP * 9.0) * 0.4;
@@ -373,7 +373,7 @@ export function buildBanger(type, color, number = 7, seed = 1, look = {}) {
   const R = rand(seed * 131 + 7);
   const dirt = { value: 0 };
   // rust: old bangers carry it from the start (clean looks none), it spreads with the damage (see juice.js)
-  const rust = { value: look.clean ? 0 : look.rust ?? 0.25 + R() * 0.45, base: 0 }; rust.base = rust.value;
+  const rust = { value: look.clean ? 0 : look.rust ?? 0.1 + R() * 0.38, base: 0 }; rust.base = rust.value;
   const S = SHAPE_OF(type), L = S.L, Wd = S.W, roofY = S.roof, beltY = S.belt;
   const paintTex = bangerPaint(S, color, number, seed, look);
   const paint = paintPatch(new THREE.MeshPhysicalMaterial({ map: paintTex, roughness: look.clean ? 0.36 : 0.55, metalness: 0.3, clearcoat: look.clean ? 0.8 : 0.35, clearcoatRoughness: look.clean ? 0.18 : 0.42, side: THREE.DoubleSide }), dirt, rust);

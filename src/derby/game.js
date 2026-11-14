@@ -357,7 +357,7 @@ export class DerbyGame {
   }
 
   makeCar({ spec, color, num, name, isPlayer, pos, skill, look = {} }) {
-    const mesh = buildBanger(spec.id, color, num, num * 31 + 7, look); this.scene.add(mesh);
+    const mesh = buildBanger(spec.id, color, num, num * 31 + 7, isPlayer ? { rust: 0.12, ...look } : look); this.scene.add(mesh); // v7: your own car is kept up better than the field (less rust)
     mesh.userData.shell.position.y = -0.12;
     if (this.night) {
       const ud = mesh.userData; ud.lights.head.emissiveIntensity = 3.2; ud.shell.add(headBeams(ud.dims.L, 0.66));
