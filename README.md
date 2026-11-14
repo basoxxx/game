@@ -1,11 +1,40 @@
-# 🏁 Apex Dynasty — Motorsport Manager
+# 🎮 Baso Hub
 
-**Apex Dynasty** è un gioco gestionale motorsport multi-categoria: guida la tua scuderia in **Formula**, **Rally** ed **Endurance**, progetta la vettura, gestisci piloti, sponsor e strategie, e costruisci una dinastia.
+**Baso Hub** è una raccolta di tre giochi originali, con un unico launcher:
 
-🌐 **Sito e versione browser:** https://basoxxx.github.io/game/
+- **Apex Dynasty** (Manager): gestionale motorsport multi-categoria. Guida la tua scuderia in **Formula Apex**, **Formula Apex 2**, **Endurance** e **Rally**, progetta la vettura, gestisci piloti, sponsor e strategie, e guarda le gare in 3D.
+- **Scontro Totale** (Flatout): corse a contatto e demolition derby con fisica vera, lamiere che si accartocciano e piloti sbalzati fuori.
+- **Voragine** (Arcade): una voragine che si apre in città e inghiotte tutto, con missioni, power-up, 5 città e sfida del giorno.
+
+🌐 **Sito e versione browser:** https://basoxxx.github.io/game/ (link diretti: `?game=apex`, `?game=derby`, `?game=voragine`)
 ⬇️ **Download:** [Release](https://github.com/basoxxx/game/releases/latest) — macOS Apple Silicon, macOS Intel, Windows (installer e portable), Linux.
 
-![Gara](site-src/shots/race.jpg)
+![Scontro Totale](site-src/shots/cover-derby.webp)
+
+## Novità della versione 6.0
+- **Baso Hub**: il launcher diventa Baso Hub, con copertine per ogni gioco e accesso diretto alle modalità.
+- **Apex Dynasty (Manager)**
+  - **Highlights** a fine gara e **replay** durante la corsa.
+  - **Motore degli incidenti**: testacoda, botti nelle staccate, carambole al primo giro, bandiere gialle e danni.
+  - **Traiettorie ideali** visibili in pista; **pioggia** con la linea che si asciuga giro dopo giro.
+  - Nuovi asfalto, erba ed effetti; vetture **F2 distinte dalle F1**; nuove **telecamere TV**.
+  - **Rally più realistico**: fondo misto con ghiaccio, velocità realistiche, meteo che evolve, note del copilota, intermedi e Power Stage.
+  - **Rally più bello**: texture CC0, biomi diversi, polvere, neve e fango.
+  - **Audio nuovo**: motori per categoria, folla, pioggia, speaker del circuito e musica.
+  - **Obiettivi e premi del manager**: pannello degli obiettivi stagionali, riepilogo del weekend, festeggiamenti.
+  - Layout per **tablet e telefono**.
+- **Scontro Totale (Flatout)**
+  - Ritmo più veloce: velocità massima intorno ai **230 km/h**, con effetti di velocità.
+  - **Comandi touch** su telefono e tablet.
+  - Modelli e materiali **CC0**; lamiere che si accartocciano, scintille, ammaccature e ruggine.
+  - **Piloti sbalzati** fuori dall'abitacolo negli schianti più violenti, con highlights degli scontri.
+  - **Evento del giorno** e **podio** nei risultati.
+- **Voragine (Arcade)**
+  - Voragine più veloce.
+  - **5 città**: Centro, Giardino, Notte, Porto e Neve; facciate con texture e illuminazione notturna.
+  - **Missioni** e percorso di progressione con **skin e scie** da sbloccare.
+  - **Power-up**, **combo**, bloom e **sfida del giorno**.
+- **Prestazioni**: caricamenti più rapidi e gioco più fluido.
 
 ## Novità della versione 2.0
 
