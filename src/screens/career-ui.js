@@ -7,7 +7,7 @@ import { esc } from '../ui/dom.js';
 import { getTrack } from '../engine/world.js';
 import { genStage, circuitPath, STAGE_STYLE } from '../ui/trackview.js';
 import { STATUS, TP_PERSONAS, statusInfo, relLabel, relColor, statusIdx } from '../engine/dynasty.js';
-import { playerTeam, standings } from '../engine/season.js';
+import { playerTeam, standings, fmtM } from '../engine/season.js';
 
 const h32 = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; return h; };
 const vis = (c) => (/^#f[0-9a-f]{5}$/i.test(c) || /^#e[0-9a-f]{5}$/i.test(c) ? null : c);
@@ -141,4 +141,22 @@ export function boardTable(st) {
     ['Area sportiva', 'squalo', c + (started ? (st.board.target - pos) * 7 : 0)],
   ];
   return `<div class="board-table">${seats.map(([n, per, m], i) => { const mood = m >= 70 ? ['Entusiasta', 'happy'] : m >= 45 ? ['Fiducioso', ''] : m >= 25 ? ['Perplesso', 'meh'] : ['Furioso', 'angry']; return `<div class="board-seat ${mood[1]}">${portraitSVG({ name: `${n}${pt.id}${i}`, persona: per }, { id: pt.id, colors: ['#2a2f37', pt.colors[1] || '#fff', '#111'] }, 52)}<b>${n}</b><span class="mood">${mood[0]}</span></div>`; }).join('')}</div>`;
+}
+
+// ---------- season objectives: progress towards each target (mirrors the checks in engine/progress.js) ----------
+const OBJ_GOAL = { win: ['wins', 1], podiums3: ['podiums', 3], podium: ['podiums', 1], points10: ['pointsRaces', 10], points5: ['pointsRaces', 5], pole: ['poles', 1], double: ['doublePoints', 1], nodnf5: ['bestNoDnfStreak', 5], onetwo: ['oneTwos', 1] };
+export function objectiveProgress(o, stats) {
+  const g = OBJ_GOAL[o.id]; if (!g) return { v: o.done ? 1 : 0, n: 1, pct: o.done ? 100 : 0 };
+  const n = g[1]; const v = o.done ? n : Math.min(n, stats?.[g[0]] || 0);
+  return { v, n, pct: Math.round((v / n) * 100) };
+}
+// one objective with its progress bar: hub, career screen, season review
+export function objectiveRow(o, stats, { money = true } = {}) {
+  const p = objectiveProgress(o, stats);
+  return `<div class="objp ${o.done ? 'done' : ''}"><span class="objp-ic">${icon(o.done ? 'check' : 'target')}</span><div class="objp-b"><div class="objp-t"><b>${esc(o.text)}</b><span class="objp-n mono">${o.done ? 'Fatto' : `${p.v}/${p.n}`}</span></div><div class="objp-bar"><i style="width:${p.pct}%"></i></div></div><span class="objp-r">+${o.xp} XP${money && o.money ? `<small>+${fmtM(o.money)}</small>` : ''}</span></div>`;
+}
+// circular progress ring (SVG): v in 0..1 with a big centred label
+export function ring(v, { size = 76, stroke = 7, color = 'var(--team)', label = '', sub = '' } = {}) {
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r, f = Math.max(0, Math.min(1, v)), m = size / 2;
+  return `<div class="ring" style="width:${size}px;height:${size}px"><svg viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle cx="${m}" cy="${m}" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="${stroke}"/><circle class="ring-v" cx="${m}" cy="${m}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="butt" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - f)).toFixed(1)}" style="--c:${c.toFixed(1)}" transform="rotate(-90 ${m} ${m})"/></svg><div class="ring-l"><b>${label}</b>${sub ? `<span>${sub}</span>` : ''}</div></div>`;
 }
