@@ -487,3 +487,17 @@ html.reduce-motion .ring-v, html.reduce-motion .objp-bar i, html.reduce-motion .
   .mw-xp { grid-column: 1 / -1; }
   .mw-n { font-size: 30px; }
 }
+
+/* v6: new career, step 3 — never clip the options or the start button on tablets */
+.ng-cfg > * { min-width: 0; }
+.ng-cfg .grid3 > *, .ng-cfg .grid4 > * { min-width: 0; }
+@media (max-width: 900px) { .ng-cfg { grid-template-columns: minmax(0, 1fr) !important; } }
+@media (max-width: 1300px) { .ng-cfg .grid4 { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)) !important; } }
+
+/* v6: quick race on tablets — list above, settings below, the go bar across the full width */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .qr-grid { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .qr-list { max-height: 300px; }
+  .qr-go .qg-sum { min-width: 0; }
+}
+.stat-strip > div { min-width: 0; overflow: hidden; }
