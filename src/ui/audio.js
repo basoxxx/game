@@ -15,6 +15,11 @@
 //   applyVolumes()
 // Additions: setAudioScene(screenId), crowdCheer(amount), audioUnlocked(),
 //   AUDIO_BUSES (mixer metadata), audioDebug() (levels for tests).
+//   duck(depth, hold, buses) — dip music/ambience/engines under an important sound
+//   vsfx.* — Voragine sound kit (gulp(size, kind), level, rival, rivalGone, lost, beep, tick, end)
+// Mixing / performance: master → limiter → soft safety clipper (ceiling ≈ -0.6 dBFS);
+//   one-shot effect voices are counted and capped (background ones first), every
+//   finished one-shot disconnects its nodes, ambience beds tear down when silent.
 //   engineSet opts: { rain, crowd, rpm (0..1, overrides the gearbox),
 //                     throttle (0..1), slip (0..1 tyre squeal),
 //                     view ('onboard'|'cockpit'|'chase'|'tv'|'heli'), surface ('gravel'|'tarmac') }
@@ -67,6 +72,11 @@ function makeIR(c, secs = 2.6, decay = 3.2) {
   }
   return b;
 }
+function safetyCurve() {
+  const n = 4096, cv = new Float32Array(n), k = 0.79, top = 0.966;   // knee at -2 dBFS, ceiling -0.3 dBFS
+  for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1, a = Math.abs(x); cv[i] = Math.sign(x) * (a <= k ? a : k + (top - k) * Math.tanh((a - k) / (top - k))); }
+  return cv;
+}
 function ac() {
   if (!unlocked) return null;   // never create the context before a user gesture
   if (!ctx) {
@@ -77,11 +87,13 @@ function ac() {
       // safety limiter: keeps sums of many voices from clipping
       const lim = ctx.createDynamicsCompressor();
       lim.threshold.value = -9; lim.knee.value = 8; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.22;
-      lim.connect(ctx.destination);
+      // final safety: a soft clipper that is transparent below -2 dBFS and never lets a peak reach 0 dBFS
+      const clip = ctx.createWaveShaper(); clip.curve = safetyCurve(); clip.oversample = 'none';   // no resampling overshoot
+      lim.connect(clip); clip.connect(ctx.destination);
       // make-up gain: voices are mixed with headroom, this brings the sum to a healthy level
       const makeup = ctx.createGain(); makeup.gain.value = 4; makeup.connect(lim);
       B.master = ctx.createGain(); B.master.connect(makeup);
-      B.analyser = ctx.createAnalyser(); B.analyser.fftSize = 2048; lim.connect(B.analyser);
+      B.analyser = ctx.createAnalyser(); B.analyser.fftSize = 2048; clip.connect(B.analyser);
       // reverb (pre-delay → convolver → return)
       B.rev = ctx.createDelay(0.2); B.rev.delayTime.value = 0.022;
       const conv = ctx.createConvolver(); conv.buffer = makeIR(ctx);
@@ -136,17 +148,23 @@ export const AUDIO_BUSES = [
   { key: 'ambVol', label: 'Ambiente e pubblico', def: 0.7 },
 ];
 
-// Browsers only allow audio after a user gesture: unlock on the first one
+// Browsers only allow audio after a user gesture: unlock on the first one.
+// iOS Safari only counts touchend / click (not touchstart) as activation, and may leave the
+// context 'suspended' or 'interrupted' (calls, Siri, lock screen): keep a cheap listener that
+// resumes it on the next gesture, and prime the output with a silent buffer.
 let unlocked = false;
 export function audioUnlocked() { return unlocked; }
 if (typeof window !== 'undefined') {
-  const unlock = () => {
+  const GESTURES = ['pointerdown', 'pointerup', 'keydown', 'touchstart', 'touchend', 'click'];
+  const prime = (c) => { try { const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, c.sampleRate); s.connect(c.destination); s.start(0); s.onended = () => s.disconnect(); } catch { /* */ } };
+  const onGesture = () => {
+    const first = !unlocked;
     unlocked = true;
-    const c = ac(); if (c && c.state === 'suspended') c.resume().catch(() => {});
-    music.kick(); ambience.update();
-    for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.removeEventListener(ev, unlock, true);
+    const c = ac(); if (!c) return;
+    if (c.state !== 'running') { prime(c); c.resume().then(() => music.resync()).catch(() => {}); }
+    if (first) { prime(c); music.kick(); ambience.update(); }
   };
-  for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(ev, unlock, true);
+  for (const ev of GESTURES) window.addEventListener(ev, onGesture, { capture: true, passive: true });
   document.addEventListener('visibilitychange', () => {
     if (!ctx) return;
     if (document.hidden) ctx.suspend().catch(() => {});
@@ -163,11 +181,23 @@ export function setAudioScene(id) {
 // ---------------------------------------------------------------------------
 function src(buf, loop = true) { const s = ctx.createBufferSource(); s.buffer = buf; s.loop = loop; return s; }
 function panNode(p, dest) { if (!p) return dest; const n = ctx.createStereoPanner(); n.pan.value = clamp(p, -1, 1); n.connect(dest); return n; }
-function sendTo(node, dest, amt) { if (!amt || !dest) return; const g = ctx.createGain(); g.gain.value = amt; node.connect(g); g.connect(dest); }
+function sendTo(node, dest, amt) { if (!amt || !dest) return null; const g = ctx.createGain(); g.gain.value = amt; node.connect(g); g.connect(dest); return g; }
+// Voice limiting: one-shots count as voices until their source ends. Background voices
+// (opts.voice set: engine pops, ambience, debris) give way first; nothing past the hard cap plays.
+const VOICE_MAX = 72, VOICE_BG = 44;
+let voices = 0;
+// effects / engine / ambience voices are counted; the music scheduler has its own budget
+const isFx = (d) => d === B.sfx || d === B.eng || d === B.amb || d === B.engRev;
+const voiceFree = (o) => !isFx(o?.dest || B.sfx) || voices < (o && o.voice ? VOICE_BG : VOICE_MAX);
+// count a voice and disconnect its nodes when the source finishes
+function voiceEnd(srcNode, nodes, counted = true) {
+  if (counted) voices++;
+  srcNode.onended = () => { if (counted) voices = Math.max(0, voices - 1); for (const n of nodes) { if (n) try { n.disconnect(); } catch { /* */ } } nodes.length = 0; };
+}
 
 // One-shot oscillator with envelope (UI + race sfx)
 function osc(type, f, t, dur, peak, o = {}) {
-  const c = ac(); if (!c) return null;
+  const c = ac(); if (!c || !voiceFree(o)) return null;
   const a = o.a ?? 0.004, dest = o.dest || B.sfx;
   const n = c.createOscillator(); n.type = type; n.frequency.setValueAtTime(f, t);
   if (o.slide) n.frequency.exponentialRampToValueAtTime(Math.max(20, f * o.slide), t + (o.slideT ?? dur));
@@ -175,17 +205,18 @@ function osc(type, f, t, dur, peak, o = {}) {
   const g = c.createGain();
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + a);
   g.gain.exponentialRampToValueAtTime(0.0001, t + a + dur);
-  let head = n;
-  if (o.cut) { const f2 = c.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = o.cut; f2.Q.value = o.q ?? 0.7; n.connect(f2); head = f2; }
+  let head = n, f2 = null;
+  if (o.cut) { f2 = c.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = o.cut; f2.Q.value = o.q ?? 0.7; n.connect(f2); head = f2; }
   head.connect(g);
-  g.connect(panNode(o.pan, dest));
-  if (o.rev) sendTo(g, dest === B.music ? B.musicRev : B.sfxRev, o.rev);
+  const pn = panNode(o.pan, dest); g.connect(pn);
+  const sg = o.rev ? sendTo(g, dest === B.music ? B.musicRev : B.sfxRev, o.rev) : null;
   n.start(t); n.stop(t + a + dur + 0.05);
+  voiceEnd(n, [n, f2, g, pn !== dest ? pn : null, sg], isFx(dest));
   return n;
 }
 // Filtered noise burst
 function nz(dur, peak, o = {}) {
-  const c = ac(); if (!c) return;
+  const c = ac(); if (!c || !voiceFree(o)) return;
   const t = o.t ?? c.currentTime, a = o.a ?? 0.003, dest = o.dest || B.sfx;
   const s = src(o.buf || noiseBuf);
   const f = c.createBiquadFilter(); f.type = o.type || 'bandpass'; f.frequency.setValueAtTime(o.f ?? 1000, t); f.Q.value = o.q ?? 1;
@@ -195,21 +226,23 @@ function nz(dur, peak, o = {}) {
   let out = dest;
   if (o.pan != null || o.panTo != null) { const p = c.createStereoPanner(); p.pan.setValueAtTime(o.pan || 0, t); if (o.panTo != null) p.pan.linearRampToValueAtTime(o.panTo, t + dur); p.connect(dest); out = p; }
   g.connect(out);
-  if (o.rev) sendTo(g, dest === B.music ? B.musicRev : B.sfxRev, o.rev);
+  const sg = o.rev ? sendTo(g, dest === B.music ? B.musicRev : B.sfxRev, o.rev) : null;
   s.start(t, Math.random() * 1.5); s.stop(t + a + dur + 0.05);
+  voiceEnd(s, [s, f, g, out !== dest ? out : null, sg], isFx(dest));
 }
 // FM bell / glassy chime
 function bell(f, t, dur, peak, o = {}) {
-  const c = ac(); if (!c) return;
+  const c = ac(); if (!c || !voiceFree(o)) return;
   const car = c.createOscillator(), mod = c.createOscillator(), mg = c.createGain(), g = c.createGain();
   car.frequency.value = f; mod.frequency.value = f * (o.ratio ?? 3.5);
   mg.gain.setValueAtTime(f * (o.index ?? 2.2), t); mg.gain.exponentialRampToValueAtTime(f * 0.05, t + dur * 0.6);
   mod.connect(mg); mg.connect(car.frequency); car.connect(g);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   const dest = o.dest || B.sfx;
-  g.connect(panNode(o.pan, dest));
-  if (o.rev) sendTo(g, dest === B.music ? B.musicRev : B.sfxRev, o.rev);
+  const pn = panNode(o.pan, dest); g.connect(pn);
+  const sg = o.rev ? sendTo(g, dest === B.music ? B.musicRev : B.sfxRev, o.rev) : null;
   car.start(t); mod.start(t); car.stop(t + dur + 0.05); mod.stop(t + dur + 0.05);
+  voiceEnd(car, [car, mod, mg, g, pn !== dest ? pn : null, sg], isFx(dest));
 }
 
 // ---------------------------------------------------------------------------
@@ -316,23 +349,35 @@ export const sfx = {
   },
 };
 // every sound is a no-op until audio is unlocked, and can never throw into game code
-for (const k of Object.keys(sfx)) { const f = sfx[k]; sfx[k] = (...a) => { if (!ac()) return; try { f(...a); } catch (e) { console.warn('sfx', k, e); } }; }
+const sfxLast = {};
+for (const k of Object.keys(sfx)) {
+  const f = sfx[k];
+  sfx[k] = (...a) => {
+    const c = ac(); if (!c) return;
+    if (c.currentTime - (sfxLast[k] ?? -1) < 0.03) return; sfxLast[k] = c.currentTime;
+    try { f(...a); } catch (e) { console.warn('sfx', k, e); }
+  };
+}
 // brass-like stab (saw + filter envelope)
 function brass(f, t, dur, peak, pan = 0, dest = null) {
-  const c = ac(); if (!c) return;
+  const c = ac(); if (!c || (!dest && !voiceFree())) return;
   const g = c.createGain(), fl = c.createBiquadFilter();
   fl.type = 'lowpass'; fl.Q.value = 2; fl.frequency.setValueAtTime(500, t); fl.frequency.linearRampToValueAtTime(3800, t + 0.06); fl.frequency.setTargetAtTime(1500, t + 0.08, 0.2);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + 0.03); g.gain.setTargetAtTime(peak * 0.6, t + 0.05, 0.2); g.gain.setTargetAtTime(0.0001, t + dur, 0.12);
-  for (const d of [-7, 7]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = d; o.connect(fl); o.start(t); o.stop(t + dur + 0.6); }
-  fl.connect(g); const out = dest || B.sfx; g.connect(panNode(pan, out)); sendTo(g, out === B.music ? B.musicRev : B.sfxRev, 0.25);
+  const N = [fl, g];
+  for (const d of [-7, 7]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = d; o.connect(fl); o.start(t); o.stop(t + dur + 0.6); N.push(o); }
+  fl.connect(g); const out = dest || B.sfx, pn = panNode(pan, out); g.connect(pn); N.push(pn !== out ? pn : null, sendTo(g, out === B.music ? B.musicRev : B.sfxRev, 0.25));
+  voiceEnd(N[2], N, isFx(out));
 }
 function pluck(f, t, dur, peak, pan, dest, cut = 4500) {
   const c = ctx; const o = c.createOscillator(), fl = c.createBiquadFilter(), g = c.createGain();
   o.type = 'square'; o.frequency.value = f;
   fl.type = 'lowpass'; fl.Q.value = 3; fl.frequency.setValueAtTime(cut, t); fl.frequency.exponentialRampToValueAtTime(Math.max(200, f * 1.2), t + 0.18);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(fl); fl.connect(g); g.connect(panNode(pan, dest));
+  const pn = panNode(pan, dest);
+  o.connect(fl); fl.connect(g); g.connect(pn);
   o.start(t); o.stop(t + dur + 0.05);
+  voiceEnd(o, [o, fl, g, pn !== dest ? pn : null], isFx(dest));
   return g;
 }
 
@@ -781,15 +826,17 @@ function epiano(f, t, dur, out, vol, pan = 0) {
   mod.connect(mg); mg.connect(car.frequency); car.connect(g);
   const tine = c.createOscillator(); tine.frequency.value = f * 4.02; const tg = c.createGain(); tg.gain.setValueAtTime(vol * 0.25, t); tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.12); tine.connect(tg); tg.connect(g);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.006); g.gain.setTargetAtTime(vol * 0.45, t + 0.01, 0.35); g.gain.setTargetAtTime(0.0001, t + dur, 0.15);
-  g.connect(panNode(pan, out));
+  const pn = panNode(pan, out); g.connect(pn);
   car.start(t); mod.start(t); tine.start(t); const end = t + dur + 0.8; car.stop(end); mod.stop(end); tine.stop(t + 0.15);
+  voiceEnd(car, [car, mod, mg, tine, tg, g, pn !== out ? pn : null], false);
 }
 function stab(f, t, dur, out, vol) {
   const c = ctx, fl = c.createBiquadFilter(), g = c.createGain();
   fl.type = 'lowpass'; fl.Q.value = 5; fl.frequency.setValueAtTime(3500, t); fl.frequency.exponentialRampToValueAtTime(500, t + dur);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  for (const d of [-12, 12]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = d; o.connect(fl); o.start(t); o.stop(t + dur + 0.05); }
-  fl.connect(g); g.connect(out);
+  const N = [fl, g];
+  for (const d of [-12, 12]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = d; o.connect(fl); o.start(t); o.stop(t + dur + 0.05); N.push(o); }
+  fl.connect(g); g.connect(out); voiceEnd(N[2], N, false);
 }
 function bassNote(f, t, dur, out, vol, dirty = false) {
   const c = ctx, o = c.createOscillator(), sub = c.createOscillator(), fl = c.createBiquadFilter(), g = c.createGain();
@@ -800,6 +847,7 @@ function bassNote(f, t, dur, out, vol, dirty = false) {
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.006); g.gain.setTargetAtTime(vol * 0.7, t + 0.02, 0.1); g.gain.setTargetAtTime(0.0001, t + dur * 0.9, 0.03);
   g.connect(out);
   o.start(t); sub.start(t); o.stop(t + dur + 0.2); sub.stop(t + dur + 0.2);
+  voiceEnd(o, [o, sub, sg, fl, g], false);
 }
 function leadNote(f, t, dur, out, dly, vol, wave = 'saw') {
   const c = ctx;
@@ -813,13 +861,15 @@ function leadNote(f, t, dur, out, dly, vol, wave = 'saw') {
   fl.type = 'lowpass'; fl.Q.value = wave === 'soft' ? 0.5 : 2.5; fl.frequency.setValueAtTime(wave === 'soft' ? 1600 : 1200, t); fl.frequency.linearRampToValueAtTime(wave === 'soft' ? 1800 : 3400, t + 0.05); fl.frequency.setTargetAtTime(wave === 'soft' ? 1400 : 2200, t + 0.06, 0.25);
   const vib = c.createOscillator(), vg = c.createGain(); vib.frequency.value = 5.4; vg.gain.setValueAtTime(0, t); vg.gain.linearRampToValueAtTime(f * 0.006, t + Math.min(0.5, dur)); vib.connect(vg);
   const types = wave === 'soft' ? ['triangle', 'sine'] : wave === 'dist' ? ['sawtooth', 'square'] : ['sawtooth', 'square'];
-  types.forEach((ty, i) => { const o = c.createOscillator(); o.type = ty; o.frequency.setValueAtTime(f * (i ? 0.5 : 1) * (wave === 'dist' && i ? 2 : 1), t); o.detune.value = i ? -6 : 5; vg.connect(o.frequency); o.connect(fl); o.start(t); o.stop(t + dur + 0.4); });
+  const N = [vib, vg, fl, g];
+  types.forEach((ty, i) => { const o = c.createOscillator(); o.type = ty; o.frequency.setValueAtTime(f * (i ? 0.5 : 1) * (wave === 'dist' && i ? 2 : 1), t); o.detune.value = i ? -6 : 5; vg.connect(o.frequency); o.connect(fl); o.start(t); o.stop(t + dur + 0.4); N.push(o); });
   let head = fl;
-  if (wave === 'dist') { const sh = c.createWaveShaper(); sh.curve = distCurve || (distCurve = curve(6)); const pf = c.createBiquadFilter(); pf.type = 'lowpass'; pf.frequency.value = 3000; fl.connect(sh); sh.connect(pf); head = pf; vol *= 0.6; }
+  if (wave === 'dist') { const sh = c.createWaveShaper(); sh.curve = distCurve || (distCurve = curve(6)); const pf = c.createBiquadFilter(); pf.type = 'lowpass'; pf.frequency.value = 3000; fl.connect(sh); sh.connect(pf); head = pf; vol *= 0.6; N.push(sh, pf); }
   head.connect(g);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.02); g.gain.setTargetAtTime(vol * 0.75, t + 0.03, 0.2); g.gain.setTargetAtTime(0.0001, t + dur * 0.95, 0.06);
   g.connect(out); g.connect(dly);
   vib.start(t); vib.stop(t + dur + 0.4);
+  voiceEnd(vib, N, false);
 }
 function guitar(notes, t, dur, out, mute, vel) {
   const c = ctx, fl = c.createBiquadFilter(), sh = c.createWaveShaper(), cab = c.createBiquadFilter(), g = c.createGain(), pre = c.createGain();
@@ -827,7 +877,9 @@ function guitar(notes, t, dur, out, mute, vel) {
   sh.curve = distCurve || (distCurve = curve(6));
   fl.type = 'lowpass'; fl.frequency.value = mute < 1 ? 900 : 2600; fl.Q.value = 0.8;
   cab.type = 'peaking'; cab.frequency.value = 1600; cab.Q.value = 1; cab.gain.value = 4;
-  notes.forEach((n, i) => { for (const d of [-8, 8]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = mtof(n + 12); o.detune.value = d + i; o.connect(pre); o.start(t); o.stop(t + dur + 0.1); } });
+  const N = [fl, sh, cab, g, pre];
+  notes.forEach((n, i) => { for (const d of [-8, 8]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = mtof(n + 12); o.detune.value = d + i; o.connect(pre); o.start(t); o.stop(t + dur + 0.1); N.push(o); } });
+  voiceEnd(N[5], N, false);
   pre.connect(sh); sh.connect(fl); fl.connect(cab); cab.connect(g);
   const v = 0.045 * vel;
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.004); g.gain.setTargetAtTime(v * (mute < 1 ? 0.2 : 0.7), t + 0.01, mute < 1 ? 0.04 : 0.3); g.gain.setTargetAtTime(0.0001, t + dur, 0.03);
@@ -872,12 +924,13 @@ function buildKit(c) {
   return { kick, snare, clap, hat, ohat, crash, shaker, rim, tom };
 }
 function drum(name, t, out, vol, pan = 0, rate = 1) {
-  const c = ctx; if (!KIT) KIT = buildKit(c);
+  const c = ctx; if (isFx(out) && !voiceFree()) return;
+  if (!KIT) KIT = buildKit(c);
   const s = c.createBufferSource(), g = c.createGain(); s.buffer = KIT[name]; s.playbackRate.value = rate;
   g.gain.value = vol * 0.32; s.connect(g);
   const nodes = [s, g];
   if (pan) { const p = c.createStereoPanner(); p.pan.value = clamp(pan, -1, 1); g.connect(p); p.connect(out); nodes.push(p); } else g.connect(out);
-  s.start(t); releaseOnEnd(s, nodes);
+  s.start(t); voiceEnd(s, nodes, isFx(out));
 }
 
 export const music = {
@@ -976,15 +1029,17 @@ const ambience = {
       lfo.frequency.value = rnd(0.07, 0.2); lg.gain.value = base * 0.35; lfo.connect(lg);
       const amp = c.createGain(); amp.gain.value = 1; lg.connect(amp.gain);
       s.connect(fl); fl.connect(amp); amp.connect(g); g.connect(B.amb); s.start(0, Math.random()); lfo.start();
+      this.loops.push(s, lfo); this.outs.push(g);
       return { g, base };
     };
+    this.loops = []; this.outs = []; this.lastCheer = c.currentTime;
     this.crowd = [mk(700, 0.7, 1), mk(1900, 1.6, 0.6), mk(350, 0.8, 0.5)];
     // cheer layers: a vowel-shaped roar ("ohhh → aaah") and applause, silent until a swell
     const rs0 = src(pinkBuf), f1 = c.createBiquadFilter(), f2 = c.createBiquadFilter(), roar = c.createGain();
     f1.type = 'bandpass'; f1.frequency.value = 500; f1.Q.value = 2.2; f2.type = 'bandpass'; f2.frequency.value = 1100; f2.Q.value = 3;
-    roar.gain.value = 0; rs0.connect(f1); rs0.connect(f2); f1.connect(roar); f2.connect(roar); roar.connect(B.amb); sendTo(roar, B.rev, 0.25); rs0.start(0, Math.random());
+    roar.gain.value = 0; rs0.connect(f1); rs0.connect(f2); f1.connect(roar); f2.connect(roar); roar.connect(B.amb); const rsend = sendTo(roar, B.rev, 0.25); rs0.start(0, Math.random());
     const ap = src(applauseBuf), apf = c.createBiquadFilter(), apg = c.createGain();
-    apf.type = 'highpass'; apf.frequency.value = 700; apg.gain.value = 0; ap.connect(apf); apf.connect(apg); apg.connect(B.amb); sendTo(apg, B.rev, 0.2); ap.start();
+    apf.type = 'highpass'; apf.frequency.value = 700; apg.gain.value = 0; ap.connect(apf); apf.connect(apg); apg.connect(B.amb); const asend = sendTo(apg, B.rev, 0.2); ap.start();
     this.cheer = { f1, f2, roar, apg };
     // rain: hiss on the ground, drops on the bodywork, a low wash for heavy rain
     const rs = src(noiseBuf), rf = c.createBiquadFilter(), rf2 = c.createBiquadFilter(), rg = c.createGain();
@@ -1001,10 +1056,25 @@ const ambience = {
     gust.frequency.value = 0.09; gg.gain.value = 0.3; gf.gain.value = 160; gust.connect(gg); gg.connect(wamp.gain); gust.connect(gf); gf.connect(wf.frequency);
     ws.connect(wf); wf.connect(wamp); wamp.connect(wg); wg.connect(B.amb); ws.start(0, Math.random()); gust.start();
     this.wind = wg;
+    this.loops.push(rs0, ap, rs, dr, rw, ws, gust); this.outs.push(roar, rsend, apg, asend, rg, drg, rwg, wg);
+    // when everything has been silent for a while, tear the beds down (no idle DSP on phones)
+    clearInterval(this.idleTimer);
+    this.idleTimer = setInterval(() => this.idleCheck(), 3000);
   },
-  setCrowd(v) { if (this.crowd && Math.abs(v - this.crowdLvl) < 0.01) return; this.ensure(); if (!this.crowd) return; this.crowdLvl = v; for (const L of this.crowd) L.g.gain.setTargetAtTime(v * 0.05 * L.base, ctx.currentTime, 0.8); },
-  setWind(v) { if (this.wind && Math.abs(v - this.windLvl) < 0.02) return; this.ensure(); if (!this.wind) return; this.windLvl = v; this.wind.gain.setTargetAtTime(v * 0.014, ctx.currentTime, 1.2); },
+  idleCheck() {
+    if (!this.crowd || !ctx) return;
+    const t = ctx.currentTime;
+    if (engine || this.paddock || this.crowdLvl > 0.005 || this.rainLvl > 0.005 || this.windLvl > 0.005 || t - this.lastCheer < 9) return;
+    clearInterval(this.idleTimer); this.idleTimer = null;
+    for (const s of this.loops) { try { s.stop(); } catch { /* */ } }
+    for (const g of this.outs) { if (g) try { g.disconnect(); } catch { /* */ } }
+    this.loops = []; this.outs = []; this.crowd = this.rain = this.wind = this.cheer = null;
+    this.crowdLvl = this.rainLvl = this.windLvl = 0;
+  },
+  setCrowd(v) { if (!this.crowd && v < 0.005) return; if (this.crowd && Math.abs(v - this.crowdLvl) < 0.01) return; this.ensure(); if (!this.crowd) return; this.crowdLvl = v; for (const L of this.crowd) L.g.gain.setTargetAtTime(v * 0.05 * L.base, ctx.currentTime, 0.8); },
+  setWind(v) { if (!this.wind && v < 0.005) return; if (this.wind && Math.abs(v - this.windLvl) < 0.02) return; this.ensure(); if (!this.wind) return; this.windLvl = v; this.wind.gain.setTargetAtTime(v * 0.014, ctx.currentTime, 1.2); },
   setRain(v) {
+    if (!this.rain && v < 0.005) return;
     if (this.rain && Math.abs(v - this.rainLvl) < 0.01) return; this.ensure(); if (!this.rain) return;
     this.rainLvl = v; const t = ctx.currentTime, onCar = engine ? engine.V.rain : 0.3;
     this.rain.rg.gain.setTargetAtTime(v * 0.05, t, 0.8);
@@ -1102,6 +1172,7 @@ export function crowdCheer(amount = 1) {
   if (!ctx || !unlocked) return;
   ambience.ensure(); if (!ambience.crowd) return;
   const t = ctx.currentTime, base = Math.max(ambience.crowdLvl, 0.15), hold = 0.9 + amount * 1.6;
+  ambience.lastCheer = t + hold;
   for (const L of ambience.crowd) {
     const g = L.g.gain; g.cancelScheduledValues(t); g.setTargetAtTime(Math.min(1.5, base + amount) * 0.07 * L.base, t, 0.25); g.setTargetAtTime(ambience.crowdLvl * 0.05 * L.base, t + hold, 0.9);
   }
@@ -1430,6 +1501,6 @@ export function audioDebug() {
   let rms = 0, peak = 0; for (const v of d) { rms += v * v; peak = Math.max(peak, Math.abs(v)); }
   const fd = new Float32Array(a.frequencyBinCount); a.getFloatFrequencyData(fd);
   let bi = 0; for (let i = 3; i < fd.length; i++) if (fd[i] > fd[bi]) bi = i;
-  return { state: ctx.state, rms: Math.sqrt(rms / d.length), peak, peakHz: (bi * ctx.sampleRate) / a.fftSize, mood: music.mood, song: music.cur?.name, section: music.cur?.section?.name, songs: music.songs.length, engine: engine ? { key: engine.key, gear: engine.gear, thr: +engine.thr.toFixed(2), boost: +engine.boost.toFixed(2) } : null, paddock: !!ambience.paddock, scene };
+  return { state: ctx.state, rms: Math.sqrt(rms / d.length), peak, peakHz: (bi * ctx.sampleRate) / a.fftSize, mood: music.mood, song: music.cur?.name, section: music.cur?.section?.name, songs: music.songs.length, voices, passLive, engine: engine ? { key: engine.key, gear: engine.gear, thr: +engine.thr.toFixed(2), boost: +engine.boost.toFixed(2) } : null, paddock: !!ambience.paddock, scene };
 }
 export function audioSpectrum(out) { if (!ctx) return null; const a = B.analyser; const fd = out || new Uint8Array(a.frequencyBinCount); a.getByteFrequencyData(fd); return fd; }
