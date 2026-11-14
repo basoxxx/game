@@ -272,7 +272,7 @@ function mountRace() {
     extraCfg: 'Gli ordini permanenti di ogni pilota (battaglie, safety car, guasti, radio, ritmo automatico) sono nella scheda «Ordini» del suo pannello.',
   });
   applyDecCfg();
-  R.flag = null; R.finalShown = false; R.lbPos = {}; R.lbChg = {};
+  R.flag = null; R.finalShown = false; R.lbPos = {}; R.lbChg = {}; R.uiMs = null; R.uiMax = 0;
   R.ctab = {}; R.tvN = 0; R.tvQ = []; R.tvCur = null; R.ivh = {}; R.an = null; R.moment = null;
   R.speed = getSettings().raceSpeed || 8; R.paused = true; R.feedN = 0; R.done = false; R.swap = {}; R.gh = {};
   R.view = new TrackView(document.getElementById('race-cv'), circuitPath(tr.cid), { ...viewPads(false, circuitPath(tr.cid).aspect), glow: 'rgba(255,255,255,0.12)', sectors: true, drs: st.category === 'formula' || st.category === 'junior' ? drsZones('formula', tr) : [] });
@@ -301,7 +301,7 @@ function mountRace() {
     if (R.replay) playReplay(dt); else if (R.r3d) update3D(dt); else draw();
     if (R.r3d && !R.replay) draw();
     R.uiT += dt;
-    if (R.uiT > 0.25) { R.uiT = 0; updateAll(); }
+    if (R.uiT > 0.25) { R.uiT = 0; const t0 = performance.now(); updateAll(); const ms = performance.now() - t0; R.uiMs = R.uiMs == null ? ms : R.uiMs * 0.9 + ms * 0.1; R.uiMax = Math.max(R.uiMax || 0, ms); } // cost of a UI refresh (devtools: __race.uiMs)
     if (R.sim.finished && !R.done) { R.done = true; updateAll(true); onRaceFinished(); }
     engineSet(R.paused || R.sim.finished ? 0 : R.r3d && R.focusSpeed != null ? R.focusSpeed / 345 : 0.55 + Math.sin(t / 900) * 0.35, { rain: R.sim.rain, crowd: 0.5, view: audioView(R.r3d?.camMode) });
     R.raf = requestAnimationFrame(loop);
@@ -648,7 +648,7 @@ function updateControls(force) {
   }).join('');
   const plan = R.sim.weather.plan;
   const curLap = Math.floor(R.sim.progress * R.sim.laps);
-  const wxHtml = `<div class="panel tight"><div class="row between tiny upper muted mb8"><span>Radar meteo</span><span>${R.sim.weather.isRain ? 'Pioggia prevista' : 'Asciutto'}</span></div><div class="weather-strip">${plan.slice(0, R.sim.laps).map((r, i) => `<i style="height:${Math.max(2, r * 20)}px;opacity:${i < curLap ? 0.25 : r > 0.05 ? 0.95 : 0.15};${i === curLap ? 'background:#fff' : ''}"></i>`).join('')}</div></div>`;
+  const wxHtml = radarHTML(R.sim, plan, curLap);
   const radio = (sim.radioQ || []).map((r) => { const c = sim.cars.find((x) => x.key === r.key); return `<div class="ctrl-card radio-card"><div class="rc-h">${icon('radio')} Radio · ${esc(sim.driver(c).name)}</div><div class="mt8" style="font-weight:600;font-size:15px">${esc(r.text.replace(/^[^:]+: /, ''))}</div><div class="row gap6 mt8"><button class="btn sm good grow" data-a="radio" data-id="${r.id}" data-y="1">${{ pit: 'Box, box!', pass: 'Ok, scambio', push: 'Vai, attacca!', rain: 'Box per intermedie', ers: 'Sì, ricarica' }[r.type]}</button><button class="btn sm grow" data-a="radio" data-id="${r.id}" data-y="0">${{ pit: 'Resta fuori', pass: 'Negativo', push: 'Gestisci', rain: 'Resta fuori', ers: 'No' }[r.type]}</button></div><div class="wear mt8" style="height:3px"><i style="width:${Math.max(0, (r.until - sim.time) / 40) * 100}%;background:var(--warn)"></i></div></div>`; }).join('');
   const myTeam = mine[0]?.teamId;
   const orders = mine.length > 1 && mine.every((c) => c.status === 'running') ? `<div class="panel tight"><div class="tiny upper muted mb8">Ordini di scuderia</div><div class="seg">${[['free', 'Libera lotta'], ['hold', 'Mantenere'], ['swap', 'Scambio']].map(([k, n]) => `<div class="${(sim.teamOrders[myTeam] || 'free') === k ? 'on' : ''}" data-a="orders" data-o="${k}">${n}</div>`).join('')}</div></div>` : '';
@@ -662,6 +662,15 @@ function updateControls(force) {
   }
 }
 
+// weather radar: rain per lap coloured by intensity, "now" marker, a one-line forecast
+const wxCol = (r) => (r < 0.05 ? 'rgba(255,255,255,.14)' : r < 0.3 ? '#5ec8ff' : r < 0.6 ? '#2f7bff' : '#8a4dff');
+function radarHTML(sim, plan, curLap) {
+  const L = sim.laps; const now = sim.rain;
+  const nextRain = plan.findIndex((r, i) => i > curLap && i < L && r > 0.25);
+  const dryAt = now > 0.25 ? plan.findIndex((r, i) => i > curLap && i < L && r < 0.1) : -1;
+  const head = now > 0.25 ? (dryAt > 0 ? `Pioggia ora · asciuga dal giro ${dryAt + 1}` : 'Pioggia fino alla fine') : nextRain > 0 ? `<b class="info">Pioggia tra ${nextRain - curLap} ${nextRain - curLap === 1 ? 'giro' : 'giri'}</b>` : now > 0.05 ? 'Pioviggine' : 'Asciutto fino alla bandiera';
+  return `<div class="panel tight wx-radar"><div class="row between tiny upper muted mb8"><span>${icon('rain', 'ico', 'style="width:13px;vertical-align:-2px"')} Radar meteo</span><span class="wx-head">${head}</span></div><div class="weather-strip">${plan.slice(0, L).map((r, i) => `<i style="height:${Math.max(2, r * 22)}px;background:${wxCol(r)};opacity:${i < curLap ? 0.3 : 1}"${i === curLap ? ' class="now"' : ''}></i>`).join('')}</div><div class="row between tiny muted wx-ax"><span>Giro 1</span><span>Ora · G${Math.min(L, curLap + 1)}</span><span>G${L}</span></div></div>`;
+}
 const lastN = (n) => { const p = String(n).split(' '); return p.slice(1).join(' ') || n; };
 // pit call: this lap / next lap, with the pit-entry check and the predicted rejoin
 function pitButtons(sim, c, advice) {

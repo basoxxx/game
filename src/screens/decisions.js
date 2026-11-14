@@ -172,23 +172,36 @@ export class DecisionHub {
     const real = c.paused ? null : left / Math.max(1, c.speed);
     return `<div class="dec-time"><span data-dec-left="${it.id}">${c.paused && modal ? `${icon('pause')} In pausa · ` : ''}${mmss(left)} ${unit}${real != null ? ` · ~${Math.ceil(real)}s` : ''}</span><span class="muted">poi decide ${this.o.advisor === 'copilota' ? 'il copilota' : 'l’ingegnere'}: <b>${esc(it.options[it.def ?? 0]?.label || '')}</b></span></div><div class="dec-bar"><i data-dec-bar="${it.id}" style="width:${(f * 100).toFixed(1)}%"></i></div>`;
   }
+  // seconds of REAL time left (the number the player cares about), or a pause sign
+  cdLeft(it) {
+    const c = this.clock; if (it.until == null) return null;
+    const left = Math.max(0, it.until - c.now());
+    return c.paused ? null : Math.ceil(left / Math.max(1, c.speed));
+  }
+  cdHTML(it) {
+    if (it.until == null) return '';
+    const s = this.cdLeft(it);
+    return `<div class="dec-cd${s != null && s <= 5 ? ' hurry' : ''}" data-dec-cd="${it.id}" title="Secondi reali per decidere">${s == null ? icon('pause', 'ico') : `<b>${s}</b><small>s</small>`}</div>`;
+  }
   modalHTML(it) {
     const col = it.color || 'var(--team)';
     const mode = this.cfg.mode;
-    return `<div id="dec-modal" class="decision dec-modal p${it.prio}" style="border-top-color:${col};--dc:${col}" role="dialog" aria-label="${esc(it.title)}">
-      <div class="m-eyebrow" style="color:${col}">${esc(it.eyebrow || 'Decisione')} · ${mode === 'slow' ? 'gioco rallentato a 1x' : 'gioco in pausa'}${this.items.length > 1 ? ` · altre ${this.items.length - 1} in coda` : ''}</div>
-      <div class="m-title">${esc(it.title)}</div>
+    const live = mode === 'slow' && !this.clock.paused;
+    return `<div id="dec-modal" class="decision dec-modal p${it.prio}${live ? ' dock' : ''}" style="border-top-color:${col};--dc:${col}" role="dialog" aria-label="${esc(it.title)}">
+      <div class="dec-head"><div class="grow"><div class="m-eyebrow" style="color:${col}">${esc(it.eyebrow || 'Decisione')} · ${live ? 'gioco rallentato a 1x' : 'gioco in pausa'}${this.items.length > 1 ? ` · altre ${this.items.length - 1} in coda` : ''}</div>
+      <div class="m-title">${esc(it.title)}</div></div>${this.cdHTML(it)}</div>
       <div class="dec-text">${esc(it.text || '')}</div>
-      <div class="col gap6 mt16">${it.options.map((o, i) => `<div class="opt ${i === (it.def ?? 0) ? 'rec' : ''}" tabindex="0" role="button" data-a="dec" data-id="${it.id}" data-i="${i}"><div class="row between"><b>${esc(o.label)}</b><span class="row gap6">${i === (it.def ?? 0) ? `<span class="chip tiny dec-rec">Consiglio ${this.o.advisor || 'ingegnere'}</span>` : ''}<span class="kbd">${i + 1}</span></span></div>${o.desc ? `<div class="small muted mt8">${esc(o.desc)}</div>` : ''}</div>`).join('')}</div>
+      <div class="dec-opts n${it.options.length}">${it.options.map((o, i) => `<div class="opt ${i === (it.def ?? 0) ? 'rec' : ''}" tabindex="0" role="button" data-a="dec" data-id="${it.id}" data-i="${i}"><div class="row between gap6"><b>${esc(o.label)}</b><span class="kbd">${i + 1}</span></div>${o.desc ? `<div class="dec-cons">${esc(o.desc)}</div>` : ''}${i === (it.def ?? 0) ? `<span class="chip tiny dec-rec">${icon('check', 'ico')} Consiglio ${this.o.advisor || 'ingegnere'}</span>` : ''}</div>`).join('')}</div>
       ${this.timerHTML(it, true)}
       <div class="row between mt8 dec-foot"><span class="tiny muted">Tasti 1-${it.options.length} · Invio = consiglio · Spazio riprende/ferma il gioco</span><button class="btn sm ghost" data-a="dec-cfg">${icon('settings')} Opzioni decisioni</button></div></div>`;
   }
   cardHTML(it, top) {
     const col = it.color || 'var(--team)';
     const keys = ['Z', 'X', 'C'];
-    return `<div class="dec-card p${it.prio}" style="--dc:${col}" data-dec="${it.id}"><div class="dec-card-h"><span class="dec-dot"></span><b>${esc(it.title)}</b></div>
+    const long = it.options.some((o) => o.desc) && top;
+    return `<div class="dec-card p${it.prio}${top ? ' top' : ''}" style="--dc:${col}" data-dec="${it.id}"><div class="dec-card-h"><span class="dec-dot"></span><b class="grow">${esc(it.title)}</b>${this.cdHTML(it)}</div>
       <div class="dec-card-t">${esc(it.text || '')}</div>
-      <div class="row gap6 mt8 wrap">${it.options.map((o, i) => `<button class="btn sm ${i === (it.def ?? 0) ? 'team' : ''} grow" data-a="dec" data-id="${it.id}" data-i="${i}" data-tip="${esc(o.desc || '')}${i === (it.def ?? 0) ? ' · consiglio dell’ingegnere' : ''}">${esc(o.label)}${top ? ` <span class="kbd">${keys[i] || ''}</span>` : ''}</button>`).join('')}</div>
+      <div class="dec-card-o${long ? ' long' : ''}">${it.options.map((o, i) => `<button class="btn sm ${i === (it.def ?? 0) ? 'team' : ''}" data-a="dec" data-id="${it.id}" data-i="${i}" data-tip="${esc(o.desc || '')}${i === (it.def ?? 0) ? ' · consiglio dell’ingegnere' : ''}"><span class="dco-l">${esc(o.label)}${top ? ` <span class="kbd">${keys[i] || ''}</span>` : ''}</span>${long && o.desc ? `<small>${esc(o.desc)}</small>` : ''}</button>`).join('')}</div>
       ${this.timerHTML(it, false)}</div>`;
   }
   cfgHTML() {
@@ -222,6 +235,7 @@ export class DecisionHub {
       const bar = document.querySelector(`[data-dec-bar="${it.id}"]`); if (bar) bar.style.width = `${(Math.max(0, Math.min(1, left / (it.span || 1))) * 100).toFixed(1)}%`;
       const lab = document.querySelector(`[data-dec-left="${it.id}"]`);
       if (lab) { const real = c.paused ? null : left / Math.max(1, c.speed); const t = `${mmss(left)} ${unit}${real != null ? ` · ~${Math.ceil(real)}s` : ''}`; if (lab.dataset.v !== t) { lab.dataset.v = t; lab.textContent = t; } }
+      for (const cd of document.querySelectorAll(`[data-dec-cd="${it.id}"]`)) { const n = this.cdLeft(it); const v = String(n); if (cd.dataset.v !== v) { cd.dataset.v = v; cd.classList.toggle('hurry', n != null && n <= 5); cd.innerHTML = n == null ? icon('pause', 'ico') : `<b>${n}</b><small>s</small>`; } }
     }
   }
   toggleCfg() { this.cfgOpen = !this.cfgOpen; this.render(true); }
