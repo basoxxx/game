@@ -46,3 +46,14 @@
 }
 .dz-daily .dd-k svg, .dz-goals7 .dg svg, .dz-daily .btn svg { width: 15px; height: 15px; flex: none; vertical-align: -2px; }
 .dz-daily .dd-k { display: flex; align-items: center; gap: 6px; }
+
+/* v7 phone portrait: the touch shortcuts move to the top-right corner (clear of the timer), the dash
+   sits under them (clear of the pedals), the bonus objectives shrink to a strip under the position */
+@media (max-width: 560px) and (orientation: portrait) {
+  .dz-touch.dz-touch .dzt-s { left: auto; margin-left: 0; width: 40px; height: 40px; top: 8px; }
+  .dz-touch.dz-touch .dzt-cam { right: 8px; } .dz-touch.dz-touch .dzt-pause { right: 54px; } .dz-touch.dz-touch .dzt-rst { right: 100px; }
+  .dz-touch.dz-touch .dzx-dash { left: auto; right: 4px; top: 54px; bottom: auto; transform: scale(.56); transform-origin: top right; }
+  .dz-touch.dz-touch .dzx-obj { top: 150px; transform: none; left: 10px; max-width: 62vw; }
+  .dz-touch.dz-touch .dzx-obj.on { transform: none; }
+  .dz-touch.dz-touch .dzx-obj span { font-size: 11px; }
+}
