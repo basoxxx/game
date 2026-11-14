@@ -71,8 +71,11 @@ function run(cat, speed, mode, bot, seedRound = 0, laps = 10) {
     if (d.by === 'engineer' && mode !== 'engineer' && bot === 'ignore' && sr != null && sr < MIN_REAL * 0.9 && !d.why) bad.push(`${tag}: ${d.type} scaduta dopo ${sr.toFixed(1)}s reali`);
   }
   if (me.status === 'dnf') pits.length = 0;
+  const asked = pits.length;
+  // a lapped car takes the flag before the lap it was promised: that stop simply never comes
+  for (let i = pits.length - 1; i >= 0; i--) if (me.lap <= pits[i].exp && !sim.stopsLog.slice(pits[i].n0).some((x) => x.key === me.key)) pits.splice(i, 1);
   for (const p of pits) { const stp = sim.stopsLog.slice(p.n0).find((x) => x.key === me.key); if (p.exp !== p.want) bad.push(`${tag}: requestPit(${p.when}) promette il giro ${p.exp} invece di ${p.want}`); if (!stp) { bad.push(`${tag}: box (${p.when}) mai eseguito`); if (process.env.DBG) console.log(me.key, sim.stopsLog.length, JSON.stringify(sim.stopsLog.slice(-5)), JSON.stringify(pits), JSON.stringify(sim.stopsLog.filter((x) => x.key === me.key)), sim.laps, sim.events.filter((e) => e.key === me.key).map((e) => e.lap + ' ' + e.text).join('\n')); } else if (stp.lap !== p.exp && !(stp.lap < p.exp && sim.events.some((e) => e.key === me.key && /anticipiamo/.test(e.text)))) { bad.push(`${tag}: box (${p.when}) al giro ${stp.lap} invece di ${p.exp}`); if (process.env.DBG) console.log(sim.events.filter((e) => e.key === me.key).map((e) => e.lap + ' ' + e.text).join('\n'), JSON.stringify(sim.decisions.map((d) => [d.lap, d.type, d.choice, d.by]))); } }
-  if (bot === 'pit' && pits.length < 3 && me.status !== 'dnf') bad.push(`${tag}: test box incompleto (${pits.length})`);
+  if (bot === 'pit' && asked < 3 && me.status !== 'dnf') bad.push(`${tag}: test box incompleto (${pits.length})`);
   if (bot !== 'pit' && me.status === 'running' && !sim.decisions.some((d) => d.type === 'nurse') && mode !== 'engineer') bad.push(`${tag}: chiamata affidabilità mai arrivata`);
   for (const k of Object.keys(forced)) if (!done[k]) bad.push(`${tag}: evento ${k} non forzato`);
   stat[tag] = { dec: sim.decisions.length, types, real: Math.round(real), by: sim.decisions.reduce((a, d) => ((a[d.by] = (a[d.by] || 0) + 1), a), {}) };
