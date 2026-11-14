@@ -59,6 +59,7 @@ export const GAMES = [
       { id: 'champ', icon: 'trophy', name: 'Campionato personalizzato', desc: 'Piste, punteggi, sprint, meteo e griglia a tua scelta.', go: () => App.go('mode-champ') },
       { id: 'daily', icon: 'calendar', name: 'Sfida del giorno', desc: 'Una sfida nuova ogni giorno, uguale per tutti.', go: () => App.go('mode-daily') },
       { id: 'tp', icon: 'hourglass', name: 'Team Principal a tempo', desc: 'Mini-stagione di 3 gare con gettoni sviluppo.', go: () => App.go('mode-tp') },
+      { id: 'pitwall', icon: 'display', name: 'Collega muretto box', desc: 'Usa questo dispositivo come secondo schermo della gara: tempi, strategia, diretta.', go: () => App.go('pitwall', { code: null }) },
     ],
   },
   {
@@ -166,6 +167,7 @@ registerScreen({
 
 // Deep links: ?game=apex|derby|voragine skips the hub (handy for shortcuts and tests)
 export function launchTarget() {
+  if (new URLSearchParams(location.search).has('pitwall')) return 'pitwall'; // ?pitwall=CODE|local: the pit wall second screen
   const g = new URLSearchParams(location.search).get('game');
   if (g === 'apex') return 'menu';
   if (g === 'derby' || g === 'voragine') return g;

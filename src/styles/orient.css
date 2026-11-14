@@ -1,0 +1,163 @@
+/* =====================================================================
+   Orientation & device fit — loaded last.
+   Every screen works in portrait and landscape on phones and tablets, and
+   rotating mid-game reflows live (nothing locks the orientation).
+   · safe areas (notch, home indicator) once viewport-fit=cover is on
+   · dynamic viewport units where a height used 100vh
+   · phone landscape (short height): compact shell, menus and page heads
+   Desktop (fine pointer, tall window) is untouched: every rule below is behind
+   a touch / short-height / safe-area media query or resolves to the old value.
+   ===================================================================== */
+
+/* ---------- safe areas: #app is the containing block of the fixed screens,
+   so insetting it keeps every full-screen page, HUD and touch control clear of
+   the notch and the home indicator. Touch devices only (env() is 0 elsewhere). ---------- */
+@media (hover: none), (pointer: coarse) {
+  #app {
+    top: env(safe-area-inset-top, 0px); right: env(safe-area-inset-right, 0px);
+    bottom: env(safe-area-inset-bottom, 0px); left: env(safe-area-inset-left, 0px);
+    transform: translateZ(0);
+  }
+  /* overlays that live on <body>, outside #app */
+  .modal-wrap, .hl-wrap, .tour-mask {
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  .toasts { margin-bottom: env(safe-area-inset-bottom, 0px); margin-right: env(safe-area-inset-right, 0px); }
+  /* no rubber-band / pull-to-refresh while dragging a stick or a slider */
+  html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  body { -webkit-tap-highlight-color: transparent; }
+}
+
+/* ---------- dynamic viewport: heights that were 100vh follow the visible area
+   (mobile toolbars, rotation) where the browser supports dvh ---------- */
+@supports (height: 100dvh) {
+  .modal { max-height: 88dvh; }
+  .notes-panel { max-height: min(620px, calc(100dvh - var(--topbar-h) - 30px)); }
+  .confetti-cv { height: 100dvh; width: 100dvw; }
+}
+
+/* ---------- phone landscape and other short windows (height ≤ 500px) ---------- */
+@media (orientation: landscape) and (max-height: 500px) {
+  /* -- management shell: icon rail on the left, one slim top bar, the page gets the height.
+        Overrides the stacked phone layout (≤ 760px wide) and trims the tablet one. -- */
+  .shell { grid-template-columns: 60px minmax(0, 1fr); grid-template-rows: 48px minmax(0, 1fr); }
+  .shell .topbar { grid-column: 1 / 3; flex-wrap: nowrap; height: 48px; padding: 0 6px 0 0; }
+  .shell .tb-livery { height: 2px; background: var(--team); }
+  .shell .brand { display: none; }
+  .shell .tb-team { flex: 0 1 auto; min-width: 0; padding: 0 10px 0 8px; gap: 8px; }
+  .shell .tb-team::after { display: none; }
+  .shell .tb-team b { max-width: 150px; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .shell .tb-team .tb-sub { display: none; }
+  .shell .tb-team img, .shell .tb-team svg { max-height: 30px; width: auto; }
+  .shell .tb-stats { order: 0; flex: 1 1 auto; width: auto; min-width: 0; border-top: 0; overflow-x: auto; scrollbar-width: none; }
+  .shell .tb-stat { padding: 0 8px; }
+  .shell .tb-stat > span { font-size: 10px; letter-spacing: .1em; }
+  .shell .tb-stat b { font-size: 15px; }
+  .shell .tb-stat .tb-meter { display: none; }
+  .shell .tb-stat + .tb-stat::before { top: 12px; bottom: 12px; }
+  .shell .tb-actions { flex: none; padding: 0 4px; gap: 2px; }
+  .shell .tb-actions [data-a="shortcuts"], .shell .tb-actions [data-a="mixer"], .shell .tb-actions [data-to="howto"] { display: none; }
+  .shell .tb-actions .icon-btn { width: 36px; height: 36px; min-height: 36px; }
+  .shell .topbar .continue-btn { order: 0; flex: none; align-self: center; margin: 0 2px 0 4px; min-height: 36px; padding: 6px 12px; font-size: 13px; white-space: nowrap; }
+  .shell .sidebar { grid-column: 1; grid-row: 2; flex-direction: column; overflow-x: hidden; overflow-y: auto; padding: 4px 0; border-right: 1px solid var(--line); border-bottom: 0; }
+  .shell .nav-group { flex-direction: column; }
+  .shell .nav-group + .nav-group { margin-top: 4px; padding-top: 4px; border-left: 0; border-top: 1px solid var(--line); }
+  .shell .nav-gh, .shell .sidebar > .nav-sep, .shell .sidebar > .grow, .shell .nav-event, .shell .sidebar .nav-key { display: none; }
+  .shell .nav { justify-content: center; padding: 0; height: 44px; gap: 0; }
+  .shell .nav > span:not(.badge) { display: none; }
+  .shell .nav .ico { width: 21px; height: 21px; }
+  .shell .nav .badge { position: absolute; top: 4px; right: 6px; margin: 0 !important; min-width: 16px; height: 16px; font-size: 10.5px; padding: 0 3px; }
+  .shell .nav.active::before { left: 0; top: 0; bottom: 0; right: auto; width: 3px; height: auto; }
+  .shell .main { grid-column: 2; grid-row: 2; padding: 10px 16px 28px; }
+  .shell .crumbs { margin: 0 0 8px; }
+  .shell .crumb-search { display: none; }
+  .shell .screen-title { flex-wrap: wrap; gap: 8px 16px; margin-bottom: 14px; padding-bottom: 10px; }
+  .shell .screen-title h1 { font-size: 30px; }
+  .shell .screen-title .sub { font-size: 12px; }
+  .shell .main .mail-layout { height: auto; min-height: 0; }
+
+  /* -- full-screen pages (new career, settings, quick race, modes, results) -- */
+  .full-screen { padding: 0 20px 22px; }
+  .page-head { padding: 10px 0 10px; margin-bottom: 14px; gap: 10px 16px; flex-wrap: wrap; }
+  .page-head .ph-left { gap: 12px; align-items: center; }
+  .page-head .ph-back { width: 40px; height: 40px; min-height: 40px; margin: 0; }
+  .page-head .ph-eyebrow { font-size: 11.5px; margin-bottom: 2px; }
+  .page-head h1 { font-size: 30px; }
+  .page-head .ph-sub { font-size: 13px; margin-top: 4px; }
+  .cat-card { min-height: 0; }
+  .cat-card .art, .cat-card .art.art3d { min-height: 0; max-height: 120px; }
+  .qr-list { max-height: calc(100dvh - 120px); }
+
+  /* -- Apex main menu: the left column scrolls, the car and the ticker step back -- */
+  .menu-screen .menu-left { width: min(470px, 58vw); padding: 14px 0 66px 28px; gap: 12px; justify-content: flex-start; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+  .menu-screen .menu-logo .mark { width: 36px; height: 36px; }
+  .menu-screen .menu-logo .logo-big { font-size: 40px; }
+  .menu-screen .menu-logo .logo-sub { font-size: 10.5px; margin-top: 4px; }
+  .menu-screen .menu-list { width: 100%; }
+  .menu-screen .menu-item { height: 38px; font-size: 22px; padding: 0 16px; }
+  .menu-screen .menu-item.sm { height: 32px; font-size: 17px; }
+  .menu-screen .menu-sep { margin: 4px 0 4px 16px; }
+  .menu-screen .menu-desc { display: none; }
+  .menu-screen .menu-ticker, .menu-screen .menu-feature { display: none; }
+  .menu-screen .menu-foot { height: 48px; padding: 0 16px 0 28px; }
+  .menu-screen .menu-foot .menu-hint > span { display: none; }
+  .menu-screen .menu-continue { top: 12px; right: 14px; width: min(300px, 38vw); padding: 8px 12px 10px; }
+
+  /* -- Baso Hub: cover beside the text instead of above it -- */
+  html body .lg-screen { padding: 14px 20px; gap: 12px; }
+  html body .bh-head { gap: 10px; flex-wrap: nowrap; align-items: center; }
+  html body .bh-mark { width: 40px; height: 40px; font-size: 28px; }
+  html body .bh-word { font-size: 30px; }
+  html body .bh-logo small, html body .bh-logo .lg-eyebrow { display: none; }
+  html body .bh-tabs { width: auto; flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
+  html body .bh-tab { flex: 0 1 170px; min-width: 0; padding: 6px 10px; min-height: 48px; }
+  html body .bh-tab b { font-size: 17px; }
+  html body .bh-tab small { font-size: 11px; }
+  html body .bh-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 0; }
+  html body .bh-hero .lg-art { position: relative; inset: auto; width: auto; min-height: 170px; aspect-ratio: auto; }
+  html body .bh-hero-body { max-width: none; min-height: 0; padding: 14px 18px; gap: 6px; justify-content: center; }
+  html body .bh-hero-body h2 { font-size: 30px; }
+  html body .bh-hero-body p { font-size: 13.5px; }
+  html body .bh-play { margin-top: 6px; padding: 10px 20px; font-size: 16px; }
+  html body .bh-modes { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  html body .bh-mode { padding: 10px 12px; min-height: 48px; }
+
+  /* -- race weekend pre-session pages -- */
+  .wk-body .grid2:not(.keep) { gap: 12px; }
+}
+
+/* very short and narrow (small Android landscape, 360px tall): squeeze the last bits */
+@media (orientation: landscape) and (max-height: 380px) {
+  .shell .tb-stat:nth-child(n+3) { display: none; }
+  .shell .tb-team b { max-width: 110px; }
+  .menu-screen .menu-continue { display: none; }
+}
+
+/* ---------- tablets in portrait (iPad 768–1024 wide, tall): keep the two-column dashboards
+   readable and the race tower beside the track ---------- */
+@media (min-width: 761px) and (max-width: 1100px) and (orientation: portrait) {
+  .bh-hero .lg-art { min-height: 260px; }
+  /* the live top bar wraps on two lines: fixed-height items (they were 100% of the row,
+     which left the speed buttons and "Simula" spilling under the track view) */
+  .race-top { align-content: center; }
+  .race-top .rt-event, .race-top .tb-stat { height: 50px; }
+}
+
+/* ---------- optional rotate hint (live 3D race on a phone held upright): small, dismissible ---------- */
+.rot-hint { position: absolute; left: 50%; bottom: 100px; z-index: 12; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; width: max-content; max-width: calc(100% - 20px); padding: 6px 6px 6px 12px; background: rgba(8,9,11,.86); border: 1px solid var(--line2); color: var(--text2); font-size: 12.5px; line-height: 1.25; pointer-events: auto; animation: fade .3s ease both; }
+.rot-hint svg { width: 18px; height: 18px; flex: none; color: var(--text); }
+.rot-hint button { flex: none; width: 32px; height: 32px; min-height: 32px; border: 0; background: transparent; color: var(--text2); font-size: 18px; cursor: pointer; }
+@media not all and (orientation: portrait) { .rot-hint { display: none; } }
+
+/* ---------- highlights viewer, phone sideways: the caption takes the left part only, the map gets the height ---------- */
+@media (orientation: landscape) and (max-height: 520px) and (min-width: 600px) {
+  html .hl-lower { left: 10px; transform: none; width: min(46%, 420px); }
+}
+
+/* ---------- live race / stage end card on phones: above the side column, scrolls when taller than the screen ---------- */
+@media (max-width: 760px), (orientation: landscape) and (max-height: 500px) and (max-width: 1000px) {
+  .race-screen > .race-view, .rally-screen > .race-view { z-index: 20; }
+  html .race-view .ss-end { overflow-y: auto; overscroll-behavior: contain; align-items: flex-start; padding: 8px; }
+  html .race-view .ss-end > * { margin: auto; max-width: 100%; }
+  html .race-view .ss-end .finish-card { overflow: visible; }
+}
