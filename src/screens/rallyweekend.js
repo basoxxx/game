@@ -379,9 +379,11 @@ function rallyEnable3D(cam) {
     const div = document.createElement('div'); div.className = 'r3d'; rv.prepend(div);
     X.geo.rally = { id: st.weekend.trackId, ice: iceOf(stg), wet: !!stg.wet };
     try {
-      X.r3d = new Race3D(div, { geo: X.geo, category: 'rally', surface: stg.surface === 'mixed' ? 'tarmac' : stg.surface, ice: iceOf(stg), night: !!stg.night, wet: stg.wet, cars: X.ev.crews.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: X.ev.driver(c).helmet.c1, tyreColor: '#888', isPlayer: c.isPlayer, number: X.ev.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })) });
+      X.r3d = new Race3D(div, { geo: X.geo, category: 'rally', surface: stg.surface === 'mixed' ? 'tarmac' : stg.surface, ice: iceOf(stg), wet: stg.wet, cars: X.ev.crews.map((c) => ({ key: c.key, livery: c.team.car.livery, helmet: X.ev.driver(c).helmet.c1, tyreColor: '#888', isPlayer: c.isPlayer, number: X.ev.driver(c).number, sponsor: c.team.sponsors?.[0]?.name || c.team.short })) });
     } catch (e) { console.warn(e); div.remove(); X.view3d = null; rallyViewBtns(); return; }
   }
+  // night stage: moonlight instead of the circuits' floodlights, headlights and light pods do the work
+  if (stg.night) { X.r3d.nightable = true; X.r3d.floodlit = false; }
   X.r3d.camMode = cam; X.r3d._cut = true; rv.classList.add('mode3d');
   document.getElementById('hud3d')?.classList.remove('hidden');
   X.view?.resize();
@@ -407,6 +409,8 @@ function rallyUpdate3D(dt) {
     const any = X.ev.crews.filter(onStage).sort((a, b) => (b.progress || 0) - (a.progress || 0))[0];
     if (mine || any) X.focus = (mine || any).key;
   }
+  // (re-applied once the sky HDRI has loaded, which resets the day sky)
+  if (X.ev.stage.night) r.setNight(r.hdr ? 1 : 0.98);
   r.focusKey = X.focus; r.setRain(X.ev.stage.wet ? 0.6 : 0); r.update(states, dt);
   const fc = X.ev.crews.find((c) => c.key === X.focus); const hud = document.getElementById('hud3d');
   if (hud && fc) { const stt = states.find((x) => x.key === fc.key); const kmh = Math.round((stt?.speed || 0) * 3.6); X.focusSpeed = kmh; hud.innerHTML = `<span class="tiny muted upper">${esc(X.ev.driver(fc).name)}</span><span class="spd">${kmh}</span><span class="tiny muted">km/h</span><span class="tiny muted">${((fc.progress || 0) * X.ev.stage.km).toFixed(1)} / ${X.ev.stage.km} km</span>`; }

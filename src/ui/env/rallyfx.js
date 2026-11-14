@@ -66,7 +66,7 @@ export function installRallyFx(r3, { surface = 'gravel', ice = 0, wet = false } 
     const cam = r3.camera.position, inCar = r3.camMode === 'onboard' || r3.camMode === 'cockpit';
     mat.uniforms.uPx.value = (r3.H || 720) / (2 * Math.tan(r3.camera.fov * Math.PI / 360));
     // dust follows the light: darker at night (headlights only), a little greyer in the rain
-    mat.uniforms.uLight.value = r3.night ? 0.22 : 1 - 0.25 * (r3.wet || 0);
+    mat.uniforms.uLight.value = (1 - 0.8 * (r3.night ? 1 : r3._night || 0)) * (1 - 0.25 * (r3.wet || 0));
     const fog = r3.scene.fog; if (fog) { mat.uniforms.uFogC.value.copy(fog.color); mat.uniforms.uFogD.value = fog.density ?? 0; }
     // spawn behind every moving car near the camera
     for (const car of r3.cars.values()) {
