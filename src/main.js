@@ -8,6 +8,7 @@ import { S, saveGame } from './engine/state.js';
 import { ensureQuality } from './ui/quality.js';
 import { loadStage } from './ui/stage3d.js';
 import { gfxTier } from './ui/quality.js';
+import { initOrientation } from './ui/orient.js';
 const audioDebug = Audio.audioDebug;
 
 // Everything else is code-split and arrives on demand (and on idle, right after the menu is up).
@@ -32,6 +33,7 @@ lazyScreens({
 });
 
 App.init();
+initOrientation();
 // the Baso Hub comes first; ?game=… opens a game directly, ?intro forces the Apex title screen
 App.go(launchTarget() || (new URLSearchParams(location.search).has('intro') ? 'intro' : 'launcher'));
 window.addEventListener('beforeunload', () => { if (S()) saveGame(); });
