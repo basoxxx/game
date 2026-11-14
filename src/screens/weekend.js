@@ -171,6 +171,7 @@ registerScreen({
     pause() { R.paused = !R.paused; R.last = performance.now(); updateSpeedUI(); },
     'sim-end'() { if (!R.sim || R.sim.finished) return; App.confirm('Simulare fino alla fine?', 'La strategia dei tuoi piloti passerà all’ingegnere.', () => { R.sim.cars.forEach((c) => { if (c.isPlayer) c.auto = true; }); R.sim.momentsOn = false; R.sim.moments = []; R.hub?.reset(); R.sim.runToEnd(); }); },
     'finish-race'() { finishRace(); },
+    pitwall() { import('../pitwall/panel.js').then((m) => m.openPitwallPanel()).catch((e) => console.warn('pitwall', e)); }, // second screen (practice, qualifying, race)
     'an-open'() { openAnalysis(); },
     'an-close'() { closeAnalysis(); },
     'an-tab'(el) { if (!R.an) return; R.an.tab = el.dataset.t; renderAnalysis(); },
@@ -222,6 +223,7 @@ function raceScreen(st) {
       <div class="grow"></div>
       <div class="speed-btns" id="speedbtns">${[1, 2, 4, 8, 16, 32].map((v, i) => `<button class="btn sm" data-a="speed" data-v="${v}" data-tip="${v === 1 ? 'Tempo reale' : `Velocità ${v}x`} · tasto ${i + 1}">${v === 1 ? '1x LIVE' : v + 'x'}</button>`).join('')}</div>
       <button class="btn sm dec-open" data-a="dec-cfg" data-tip="Decisioni a gioco accelerato: pausa automatica, rallenta a 1x o decide l’ingegnere">${icon('settings')}<span class="bl">Decisioni</span></button>
+      <button class="btn sm pw-open" data-a="pitwall" data-tip="Muretto box: tempi, strategia e diretta su un secondo schermo (monitor, tablet o telefono)">${icon('display')}<span class="bl">Muretto box</span></button>
       <button class="btn sm an-open" data-a="an-open" data-tip="Lap chart, distacchi, strategie, bilancio dei tempi e registro decisioni (A)">${icon('chart')}<span class="bl">Analisi</span></button>
       <button class="btn sm" data-a="sim-end" data-tip="Simula il resto della gara: le decisioni passano all’ingegnere">${icon('ff')}<span class="bl">Fine gara</span></button>
       <span class="kbd-help" data-a="shortcuts" data-tip="Scorciatoie: Spazio pausa · 1-6 velocità (+/−) · R replay · A analisi · decisioni: 1-3 e Invio, card rapide Z/X/C">?</span>
