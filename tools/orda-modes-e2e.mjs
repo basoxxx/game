@@ -47,6 +47,10 @@ await page.evaluate(() => { localStorage.removeItem('sala_orda_modes_v1'); local
 await page.goto(BASE + '?game=orda');
 await page.waitForSelector('.or-mode[data-id="sfida"]');
 await shot('01-orda-menu-modes-1440');
+await click('.or-tabs [data-id="missioni"]');
+await page.waitForSelector('.om-in-orda .om-miss');
+await shot('01b-orda-menu-missions-tab-1440');
+await click('.or-tabs [data-id="gioca"]');
 
 // ---- Sfida del giorno
 await click('.or-mode[data-id="sfida"]');

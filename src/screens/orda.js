@@ -25,6 +25,8 @@ const unlocked = (p, l) => l.id <= p.next;
 // playOrda({ level, mode, onEnd }) or navigates to its own tab
 export const ORDA_MODES = [];
 export function addOrdaMode(m) { if (!ORDA_MODES.some((x) => x.id === m.id)) ORDA_MODES.push(m); }
+// called after every match played from this screen: fn(result, run) — e.g. missions bookkeeping
+export const ORDA_END_HOOKS = [];
 // a menu tab: { id, name, icon, render(p) → html, mount?(p) }; `before` puts it ahead of another tab
 export const ORDA_TABS = [];
 export function addOrdaTab(t, before = 'opzioni') { if (ORDA_TABS.some((x) => x.id === t.id)) return; const i = ORDA_TABS.findIndex((x) => x.id === before); if (i < 0) ORDA_TABS.push(t); else ORDA_TABS.splice(i, 0, t); }
@@ -226,6 +228,7 @@ registerScreen({
         const ret = run.onEnd ? run.onEnd(r, ordaLoad()) : undefined;
         if (ret === false) st = ordaLoad(); else { st = record(r, run); if (typeof ret === 'string') extra = ret; }
         V.result = r;
+        for (const f of ORDA_END_HOOKS) { try { f(r, run); } catch (e) { console.warn(e); } }
         const ov = document.getElementById('or-over'); if (!ov || !V.playing) return;
         ov.innerHTML = results(r, st, extra);
         try { r.win ? sfx.win() : sfx.bad?.(); if (r.unlock) setTimeout(() => sfx.levelup?.(), 700); } catch {}
@@ -289,4 +292,4 @@ window.__orda = Object.assign(window.__orda || {}, {
 Object.defineProperty(window.__orda, 'result', { get: () => V.result, configurable: true });
 
 // extra modes — Sfida del giorno, Infinita, Missioni (src/orda/modes-entries.js, screen orda-modes)
-registerOrdaModes({ App, addOrdaMode, addOrdaTab, actions: ORDA_ACTIONS(), refresh: () => App.refresh() });
+registerOrdaModes({ App, addOrdaMode, addOrdaTab, endHooks: ORDA_END_HOOKS, actions: ORDA_ACTIONS(), refresh: () => App.refresh() });

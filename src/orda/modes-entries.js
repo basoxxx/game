@@ -3,7 +3,7 @@
 // only read the saved progress.
 import { icon } from '../ui/icons.js';
 import { esc } from '../ui/dom.js';
-import { dailyInfo, liveStreak, omLoad, omSave, achState, ACHIEVEMENTS } from './modes.js';
+import { dailyInfo, liveStreak, omLoad, omSave, achState, ACHIEVEMENTS, normResult, recordMatch } from './modes.js';
 import { wallet } from './modes-bridge.js';
 import './modes.css';
 
@@ -49,7 +49,9 @@ export const ORDA_EXTRA_MODES = [
 ];
 
 // Hook everything into the Orda menu (src/screens/orda.js calls this with its registries)
-export function registerOrdaModes({ App, addOrdaMode, addOrdaTab, actions, refresh }) {
+export function registerOrdaModes({ App, addOrdaMode, addOrdaTab, endHooks, actions, refresh }) {
+  // campaign (and any other) matches played from the Orda menu count for the missions too
+  endHooks?.push((r, run) => { const s = omLoad(); recordMatch(s, normResult(r, run?.level || {}), run?.level || {}); omSave(s); });
   for (const m of ORDA_EXTRA_MODES) {
     addOrdaMode?.({ id: m.id, name: m.name, icon: m.icon, get tag() { return m.tag?.() || ''; }, desc: () => esc(m.desc()), go: () => m.go(App, 'orda') });
   }
