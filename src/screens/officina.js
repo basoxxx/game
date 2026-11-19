@@ -360,7 +360,7 @@ function endRace(ev, grade, car, res) {
     ${ev.type === 'drag' && res.shifts.length ? `<p class="of-shifts">Cambi: ${res.shifts.map((q) => `<i class="${q}">${{ perfect: 'perfetto', good: 'buono', early: 'presto', auto: 'automatico' }[q]}</i>`).join('')}</p>` : ''}
     <div class="of-rew">${out.trophy ? `<span>${icon('trophy')} +1 trofeo</span>` : ''}<span>${coin(out.coins)}</span>${out.rp ? `<span>${rp(out.rp)}</span>` : ''}${out.tokens ? `<span>${tok(out.tokens)}</span>` : ''}</div>
     ${res.win ? '' : `<p class="of-note">${res.gap > 0 && res.gap < 0.6 ? 'Per un soffio! ' : ''}Migliora l’auto: unisci per salire di livello o monta ricambi migliori${ev.type === 'drag' ? ', e cambia marcia nel verde' : ', e usa il boost nei rettilinei'}.</p>`}
-    <div class="of-cbtn"><button class="btn primary" data-a="of-race-again">${icon('replay')} ${res.win && grade < 3 && C.eventGrade(s, ev.id) >= grade ? 'Prossima medaglia' : 'Riprova'}</button><button class="btn" data-a="of-race-close">${icon('left')} Officina</button></div></div>`;
+    <div class="of-cbtn"><button class="btn primary" data-a="of-race-again">${icon('replay')} ${res.win ? (grade < 3 ? 'Prossima medaglia' : 'Rigioca') : 'Riprova'}</button><button class="btn" data-a="of-race-close">${icon('left')} Officina</button></div></div>`;
   if (V.race) { V.race.destroy(); V.race = null; }
   hud.innerHTML = res2;
   requestAnimationFrame(() => hud.querySelector('.btn.primary')?.focus({ preventScroll: true }));
