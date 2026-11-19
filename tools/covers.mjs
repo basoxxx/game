@@ -101,6 +101,34 @@ if (!ONLY || ONLY === 'derby') {
   await shot(page, 'derby');
   await page.close();
 }
+// ---- Orda: a huge blue crowd pouring through a ×3 gate toward the red fortress. The simulation is
+// stepped without drawing, then frozen (paused clock = figures caught mid-stride) and framed low.
+if (!ONLY || ONLY === 'orda') {
+  const page = await browser.newPage({ viewport: { width: W, height: H } });
+  await page.addInitScript((s) => { localStorage.setItem('apexdynasty_settings', s); localStorage.setItem('sala_orda_v1', JSON.stringify({ next: 31, up: { rate: 10, shot: 6, hp: 8, speed: 2, charge: 8, armor: 6 }, champs: ['colosso'], champ: 'colosso', opt: { autofire: true, shake: false, numbers: true } })); }, settings);
+  await page.goto(BASE + '?game=orda'); await page.waitForSelector('.or-menu');
+  await page.evaluate(() => window.__orda.playLevel({
+    id: 0, name: 'Copertina', world: 0, len: 56, time: 200, stars: { par: 60, crowd: 10 }, cannon: { hp: 999 }, charge: 999,
+    gates: [{ x: -1.5, y: 14, w: 7, type: 'mul', value: 2 }, { x: 0, y: 27, w: 8.5, type: 'mul', value: 3 }, { x: -5.6, y: 27, w: 3.4, type: 'sub', value: 40 }, { x: 5.6, y: 27, w: 3.4, type: 'div', value: 2 }],
+    obstacles: [{ type: 'spin', x: 5.2, y: 40, len: 2.4, speed: 1.4 }],
+    base: { hp: 1e6, w: 11, boss: true, name: 'Fortezza', spawners: [{ x: -3.5, rate: 1.3, count: 7 }, { x: 3.5, rate: 1.3, count: 7 }], towers: [{ x: -5.5, y: 48, hp: 9999, rate: 0.4, count: 3 }] },
+  }, 'cover'));
+  await page.waitForFunction(() => window.__orda?.game?.sim && window.__orda.game.cam, null, { timeout: 60000 });
+  const info = await page.evaluate(() => {
+    const o = window.__orda, g = o.game, S = g.sim;
+    S.count = 0; S.state = 'play';
+    // aim the stream into the ×3, sweeping a little so the crowd fans out
+    g.readInput = () => { S.input.x = Math.sin(S.t * 1.1) * 2.6; S.input.fire = true; };
+    for (let i = 0; i < 60 * 13; i++) g.step(1 / 60);
+    g.paused = true; document.querySelector('.or-hud').style.display = 'none';
+    g.camOverride = (cam) => { cam.fov = 44; cam.updateProjectionMatrix(); cam.position.set(-7.5, 10.5, 9); cam.lookAt(1.2, 0, 36); };
+    return { blue: S.blueUnits(), bodies: S.blue.n, red: S.red.n };
+  });
+  console.log('orda stage', JSON.stringify(info));
+  await page.waitForTimeout(4000);
+  await shot(page, 'orda');
+  await page.close();
+}
 // ---- Manager (Apex Dynasty): a TV shot from the highlights of a simulated Grand Prix
 if (!ONLY || ONLY === 'apex') {
   const page = await browser.newPage({ viewport: { width: W, height: H } });
