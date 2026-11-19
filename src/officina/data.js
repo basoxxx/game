@@ -51,10 +51,10 @@ export const classOf = (t) => CLASSES.find((c) => c.id === carDef(t).cls);
 
 // ───────── parts: four chains, merged like the cars, installed on a car (one per kind)
 export const PART_KINDS = [
-  { id: 'motore', name: 'Motore', short: 'MOT', icon: 'engine', desc: 'Accelerazione e velocità massima, un po’ di incasso.' },
+  { id: 'motore', name: 'Motore', short: 'MOT', icon: 'flame', desc: 'Accelerazione e velocità massima, un po’ di incasso.' },
   { id: 'aero', name: 'Aerodinamica', short: 'AER', icon: 'wind', desc: 'Velocità in curva e in rettilineo.' },
   { id: 'gomme', name: 'Gomme', short: 'GOM', icon: 'tyre', desc: 'Aderenza: partenza, frenata e curve.' },
-  { id: 'telaio', name: 'Telaio', short: 'TEL', icon: 'chassis', desc: 'Meno peso: migliora un po’ tutto.' },
+  { id: 'telaio', name: 'Telaio', short: 'TEL', icon: 'shield', desc: 'Meno peso: migliora un po’ tutto.' },
 ];
 export const PART_IDS = PART_KINDS.map((k) => k.id);
 export const PART_MAX = 12;
@@ -79,7 +79,7 @@ export const REGIONS = [
 // ───────── races: 6 events per garage, 3 grades each (Bronzo / Argento / Oro): first win of a grade = 1 trophy
 export const RACE_TYPES = {
   drag: { name: 'Accelerazione', icon: 'speed', desc: 'Rettilineo da fermo, uno contro uno. Cambia marcia nella zona verde (Spazio / tocca).' },
-  time: { name: 'Giro secco', icon: 'clock', desc: 'Un giro lanciato contro il tempo del rivale. Usa il boost ibrido nei rettilinei.' },
+  time: { name: 'Giro secco', icon: 'hourglass', desc: 'Un giro lanciato contro il tempo del rivale. Usa il boost ibrido nei rettilinei.' },
   h2h: { name: 'Testa a testa', icon: 'flag', desc: 'Un giro ruota a ruota con partenza da fermo. Due cariche di boost.' },
 };
 export const GRADES = [{ id: 1, name: 'Bronzo', color: '#d08a4a' }, { id: 2, name: 'Argento', color: '#c9d3df' }, { id: 3, name: 'Oro', color: '#ffd23f' }];
@@ -148,8 +148,8 @@ export const perkById = (id) => PERKS.find((p) => p.id === id);
 // ───────── boosts: tokens (gettoni) earned with missions, gold medals and new models. No ads, no purchases.
 export const BOOSTS = [
   { id: 'turbo', name: 'Turbo officina', desc: 'Incasso ×2 per 10 minuti.', cost: 5, icon: 'speed' },
-  { id: 'espressa', name: 'Consegna espressa', desc: '4 casse con auto del livello più alto del negozio.', cost: 3, icon: 'box' },
-  { id: 'straordinario', name: 'Straordinario', desc: 'Incassi subito 1 ora di guadagni.', cost: 8, icon: 'clock' },
+  { id: 'espressa', name: 'Consegna espressa', desc: '4 casse con auto del livello più alto del negozio.', cost: 3, icon: 'factory' },
+  { id: 'straordinario', name: 'Straordinario', desc: 'Incassi subito 1 ora di guadagni.', cost: 8, icon: 'hourglass' },
   { id: 'ricambi', name: 'Pacco ricambi', desc: '3 pezzi di ricambio del livello migliore del magazzino.', cost: 4, icon: 'wrench' },
 ];
 
