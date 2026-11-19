@@ -160,3 +160,4 @@ html.portrait .fz-panels.tall.n2 { grid-template-columns: 1fr 1fr; }
 .fz-card.final { position: absolute; right: calc(env(safe-area-inset-right) + 18px); top: 50%; transform: translateY(-50%); width: min(440px, 44vw); animation: none; }
 html.portrait .fz-card.final { right: auto; top: auto; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 12px); transform: translateX(-50%); width: min(560px, 94vw); max-height: 52vh; }
 @media (max-height: 480px) { .fz-card.final { max-height: 94vh; } .fz-card.final .fz-awards { font-size: 12px; } .fz-card.final .fz-rank li { padding: 4px 10px; } }
+.fz-root.end .fz-touch, .fz-root.end .fz-pause { display: none; }

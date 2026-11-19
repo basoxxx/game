@@ -37,7 +37,7 @@ export class PartyInput {
     this.prevA = devs.map(() => false); this.prevStart = devs.map(() => false);
     this.virt = devs.map(() => ({ x: 0, y: 0, a: false })); // touch zones and tests write here
     this.kd = (e) => {
-      if (e.target?.closest?.('input, textarea, select')) return;
+      if (!e.isTrusted || e.target?.closest?.('input, textarea, select')) return; // the menu pad bridge sends synthetic keys
       if ((e.code === 'Escape' || e.code === 'KeyP') && e.isTrusted) { if (!e.repeat) this.onPause?.(); e.preventDefault(); e.stopPropagation(); return; }
       if (GAME_KEYS.has(e.code)) { this.keys.add(e.code); e.preventDefault(); e.stopPropagation(); }
     };

@@ -106,6 +106,10 @@ for (const C of CASES) {
         await page.click(`[data-a=fz-train][data-id=${id}]`);
         await page.waitForFunction(() => window.__festa?.stage, null, { timeout: 30000 });
         await page.evaluate(() => { window.__festa.hold = true; window.__festa.run(3.4); });
+        if (id === 'porte') { // the real keyboard path: G1 holds D (WASD zone) and its crowd moves right
+          await page.keyboard.down('d'); await page.evaluate(() => window.__festa.run(0.6)); await page.keyboard.up('d');
+          const x = await page.evaluate(() => window.__festa.sim.x[0]); if (!(x > 1)) issues.push(`${C.name}: keyboard D did not steer (x=${x})`);
+        }
         await page.evaluate((t) => { const f = window.__festa; const v = f.input.virt[0]; for (let k = 0; k < 120; k++) { v.x = Math.sin(k * 0.1); v.y = Math.cos(k * 0.07); v.a = k % 9 < 3; f.step(1 / 30, false); } v.x = v.y = 0; v.a = false; }, 0);
         await shot(page, `${C.name}-mini-${id}`);
         const s = await playUntil(page, C, (q) => q.ph === 'result', 200);

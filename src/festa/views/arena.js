@@ -52,11 +52,11 @@ export function serpenti(stage, sim, ctx) {
   const floor = mesh(new THREE.CircleGeometry(sim.RA, 64), lambert('#5fc04a'), 0, 0.02, 0, false); floor.rotation.x = -Math.PI / 2; scene.add(floor);
   const rim = mesh(new THREE.TorusGeometry(sim.RA, 0.5, 8, 72), lambert('#ffd23f'), 0, 0.3, 0); rim.rotation.x = Math.PI / 2; scene.add(rim);
   const CAP = 4 * 160;
-  const body = new THREE.InstancedMesh(new THREE.SphereGeometry(0.42, 10, 8), new THREE.MeshPhongMaterial({ color: '#ffffff', shininess: 60 }), CAP);
+  const body = new THREE.InstancedMesh(new THREE.SphereGeometry(0.6, 10, 8), new THREE.MeshPhongMaterial({ color: '#ffffff', shininess: 60 }), CAP);
   body.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3); body.castShadow = true; scene.add(body);
   const food = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.28, 1), new THREE.MeshBasicMaterial({ color: '#ffffff' }), sim.food.length);
   food.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(sim.food.length * 3), 3); scene.add(food);
-  const heads = ctx.players.map((p) => { const h = buildHead(p.sc, p.hat, p.accent); h.g.scale.setScalar(0.55); scene.add(h.g); return h; });
+  const heads = ctx.players.map((p) => { const h = buildHead(p.sc, p.hat, p.accent); h.g.scale.setScalar(0.8); scene.add(h.g); return h; });
   const pal = ['#ff4d6d', '#ffd23f', '#2ec4ff', '#9b5cff', '#ff9a1c', '#ffffff'].map(C);
   const dm = new THREE.Object3D(), fx = new Confetti(scene);
   return {
@@ -110,11 +110,11 @@ export function territorio(stage, sim, ctx) {
 // ───────── Bastione unito
 export function bastione(stage, sim, ctx) {
   const scene = partyScene(stage, { sky: '#a6dcff', ground: '#7dbb55', size: 30 });
-  const keep = keepModel(); keep.scale.setScalar(0.8); scene.add(keep);
+  const keep = keepModel(); keep.scale.setScalar(1.1); scene.add(keep);
   for (const [x, z] of sim.gates) { const g = gateModel(); g.position.set(x * 1.08, 0, z * 1.08); g.rotation.y = faceRot(-x, -z); scene.add(g); }
   const towers = sim.pads.map((q) => { const p = padModel(); p.position.set(q.x, 0, q.y); scene.add(p); return null; });
   const roads = mesh(new THREE.BoxGeometry(36, 0.04, 2.4), lambert('#d9c49a'), 0, 0.02, 0, false); scene.add(roads); const r2 = roads.clone(); r2.rotation.y = Math.PI / 2; scene.add(r2);
-  const ECAP = 90, figs = new Figures(stage, scene, ctx.players, { extras: ECAP, scale: 2.1 });
+  const ECAP = 90, figs = new Figures(stage, scene, ctx.players, { extras: ECAP, scale: 2.6 });
   const red = C('#e0303f'), dark = C('#8a1020');
   const tr = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: '#fff27a' })); tr.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(200 * 6), 3)); scene.add(tr);
   const fx = new Confetti(scene); const last = ctx.players.map(() => [0, 0, 0]);

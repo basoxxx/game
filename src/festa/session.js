@@ -263,7 +263,7 @@ export class FestaSession {
 
   // ───────────────────────── final: awards + podium
   finale() {
-    this.ph = 'end'; this.paused = false;
+    this.ph = 'end'; this.paused = false; this.root.classList.add('end');
     let podium, title, awards = [];
     if (this.mode === 'board') { podium = this.B.podium; awards = this.B.awards; title = 'Re della festa'; }
     else { const T = this.T, pl = this.players.map((p, i) => 1 + T.wins.filter((w) => w > T.wins[i]).length); podium = this.players.map((p, i) => ({ i, place: pl[i], wins: T.wins[i] })).sort((a, b) => a.place - b.place); title = 'Campione del torneo'; }

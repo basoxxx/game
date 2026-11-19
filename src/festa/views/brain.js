@@ -152,7 +152,7 @@ export function officina(stage, sim, ctx) {
 // ───────── Semaforo (3D gantry, five red lights)
 export function riflessi(stage, sim, ctx) {
   const R = room(stage, ctx, '#cfe8ff');
-  const gantry = new THREE.Group(); gantry.position.set(0, 6.2, -2.5); R.scene.add(gantry);
+  const gantry = new THREE.Group(); gantry.position.set(0, 4.4, -2.5); R.scene.add(gantry);
   gantry.add(mesh(new THREE.BoxGeometry(9, 1.6, 0.6), lambert('#1b1e26')));
   const on = new THREE.MeshBasicMaterial({ color: '#ff2020' }), off = lambert('#3a0c0c'), go = new THREE.MeshBasicMaterial({ color: '#2fff6a' });
   const lights = [0, 1, 2, 3, 4].map((k) => { const m = mesh(new THREE.SphereGeometry(0.55, 16, 12), off, -3.4 + k * 1.7, 0, 0.35, false); gantry.add(m); return m; });

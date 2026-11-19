@@ -113,7 +113,7 @@ export function kart(stage, sim, ctx) {
   scene.add(trackRibbon(sim, sim.TW + 1.2, 0.03, '#ffffff'), trackRibbon(sim, sim.TW + 0.6, 0.04, '#ff3b3b'), trackRibbon(sim, sim.TW, 0.05, '#5d6270'));
   const start = sim.at(0); const sl = mesh(new THREE.BoxGeometry(0.8, 0.02, sim.TW), new THREE.MeshLambertMaterial({ map: textTex('', '#fff') }), start.x, 0.07, start.y, false); sl.material.color = C('#ffffff'); scene.add(sl);
   for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2; const tr = mesh(new THREE.ConeGeometry(1.2, 3, 7), lambert('#2f8a3a'), Math.cos(a) * 46, 1.5, Math.sin(a) * 26); scene.add(tr); }
-  const ks = karts(scene, ctx, 1);
+  const ks = karts(scene, ctx, 1.7);
   const fx = new Confetti(scene);
   return {
     scene,
@@ -133,7 +133,7 @@ export function palloncini(stage, sim, ctx) {
   const floor = mesh(new THREE.CircleGeometry(sim.RA, 48), lambert('#5d6270'), 0, 0.03, 0, false); floor.rotation.x = -Math.PI / 2; scene.add(floor);
   const wall = mesh(new THREE.TorusGeometry(sim.RA, 0.45, 8, 64), lambert('#ff3b6b'), 0, 0.3, 0); wall.rotation.x = Math.PI / 2; scene.add(wall);
   for (let k = 0; k < 4; k++) { const r = mesh(new THREE.TorusGeometry(4 + k * 4, 0.06, 4, 48), lambert('#ffffff'), 0, 0.04, 0, false); r.rotation.x = Math.PI / 2; scene.add(r); }
-  const ks = karts(scene, ctx, 1);
+  const ks = karts(scene, ctx, 1.4);
   const balloons = ctx.players.map((p, i) => [0, 1, 2].map((b) => { const m = makeBalloon(p.sc); m.scale.setScalar(1.1); scene.add(m); return m; }));
   const pool = []; const fx = new Confetti(scene);
   return {
@@ -162,7 +162,7 @@ export function autoscontro(stage, sim, ctx) {
   const plat = mesh(new THREE.CylinderGeometry(1, 1, 1.2, 64), lambert('#7d8590'), 0, -0.6, 0); scene.add(plat);
   const rim = mesh(new THREE.TorusGeometry(1, 0.012, 6, 64), lambert('#ffd23f'), 0, 0.01, 0, false); rim.rotation.x = Math.PI / 2; scene.add(rim);
   const types = ['berlina', 'muscle', 'utilitaria', 'rally'];
-  const cars = ctx.players.map((p, i) => { const c = buildBanger(types[i % 4], p.sc, i + 1, 3 + i, { clean: true }); const g = new THREE.Group(); g.add(c); c.scale.setScalar(0.52); c.traverse((o) => { if (o.isMesh) o.castShadow = true; }); scene.add(g); return g; });
+  const cars = ctx.players.map((p, i) => { const c = buildBanger(types[i % 4], p.sc, i + 1, 3 + i, { clean: true }); const g = new THREE.Group(); g.add(c); c.scale.setScalar(0.62); c.traverse((o) => { if (o.isMesh) o.castShadow = true; }); scene.add(g); return g; });
   const fx = new Confetti(scene);
   return {
     scene,
@@ -175,7 +175,7 @@ export function autoscontro(stage, sim, ctx) {
       });
       for (const e of sim.events.splice(0)) { if (e.type === 'bump') fx.burst(e.x, 1, e.y, '#ffd23f', 10 + e.power * 20, 4 + e.power * 4); if (e.type === 'fall') fx.burst(e.x, 0, e.y, '#ff8a3a', 30, 6); }
       fx.update(dt);
-      stage.frame(0, 0, sim.R0 + 1, sim.R0 + 1, 0.95);
+      stage.frame(0, 0, sim.R0 - 1, sim.R0 - 1, 0.9);
     },
     tags: () => sim.c.map((c) => [c.x, 2.6, c.y]),
   };
