@@ -23,7 +23,7 @@ function toonGradient() {
 
 export class BaseView {
   constructor(container, opts = {}) {
-    this.el = container; this.o = opts; this.theme = TEAM[opts.theme || 'blue']; this.tier = opts.tier || 'high';
+    this.el = container; this.o = opts; this.themeName = opts.theme || 'blue'; this.theme = TEAM[this.themeName]; this.tier = opts.tier || 'high';
     this.mats = new Map(); this.geos = new Map(); this.objs = new Map(); this.disposed = false;
     this.layout = { b: [] }; this.armed = null; this.sel = null; this.drag = null; this.t = 0;
     const r = this.renderer = new THREE.WebGLRenderer({ antialias: this.tier !== 'low', alpha: true, powerPreference: 'high-performance' });
@@ -82,7 +82,7 @@ export class BaseView {
     const shape = new THREE.Shape(); const R = HALF + 1.4, rr = 1.2;
     shape.moveTo(-R + rr, -R); shape.lineTo(R - rr, -R); shape.quadraticCurveTo(R, -R, R, -R + rr); shape.lineTo(R, R - rr); shape.quadraticCurveTo(R, R, R - rr, R); shape.lineTo(-R + rr, R); shape.quadraticCurveTo(-R, R, -R, R - rr); shape.lineTo(-R, -R + rr); shape.quadraticCurveTo(-R, -R, -R + rr, -R);
     const slab = new THREE.ExtrudeGeometry(shape, { depth: 1.2, bevelEnabled: true, bevelSize: 0.25, bevelThickness: 0.2, bevelSegments: 2, curveSegments: 10 });
-    slab.rotateX(Math.PI / 2); slab.translate(0, -0.02, 0);
+    slab.rotateX(Math.PI / 2); slab.translate(0, -0.24, 0);
     const dirt = new THREE.Mesh(slab, this.mat('#9a6b43')); dirt.receiveShadow = true; g.add(dirt);
     const topG = new THREE.ShapeGeometry(shape, 10); topG.rotateX(-Math.PI / 2);
     const top = new THREE.Mesh(topG, this.mat('#7cc95a')); top.position.y = 0.005; top.receiveShadow = true; g.add(top);
@@ -265,6 +265,15 @@ export class BaseView {
     for (let i = 0; i < 5 * s; i++) g.add(this.mesh(this.geo('rub', () => new THREE.DodecahedronGeometry(0.12, 0)), this.mat('#8a8379'), (Math.sin(i * 3.1) * 0.35) * s, 0.06, (Math.cos(i * 2.3) * 0.35) * s));
     return g;
   }
+  // blue = the player's base, red = a rival's: models are rebuilt in the new colours
+  setTheme(name) {
+    if (this.themeName === name || !TEAM[name]) return;
+    this.themeName = name; this.theme = TEAM[name];
+    for (const o of this.objs.values()) this.bGroup.remove(o);
+    this.objs.clear(); this.ready = false; this._ghostKey = null;
+    if (this.figs) this.figs.material = this.mat(this.theme.main);
+    if (this.arrow) this.arrow.material = this.mat(name === 'blue' ? '#ef4444' : '#2f7cf6');
+  }
   select(id) { this.sel = id; this.updateSel(); }
   updateSel() {
     const b = this.layout.b.find((q) => q.id === this.sel);
@@ -384,8 +393,10 @@ export class BaseView {
     this.renderer.setSize(w, h, false);
     const a = w / h;
     // fit the island: the diagonal of the grid is ~GRID·√2 wide on screen
-    const need = GRID * 1.55 + 1.5;
-    this.viewH = a >= 1.25 ? need * 0.72 : need / a * 0.78 + (a < 0.8 ? 0.6 : 0);
+    // landscape: the whole island fits; portrait: the grid fits (the rim decor may be cropped)
+    const small = w < 640 || h < 420;
+    const needW = small ? 13 : a >= 1 ? 17.5 : 14.2, needH = small ? 9 : a >= 1 ? 12.2 : 10.5;
+    this.viewH = Math.max(needH, needW / a);
     const vh = this.viewH / this.zoom, vw = vh * a;
     Object.assign(this.cam, { left: -vw / 2, right: vw / 2, top: vh / 2, bottom: -vh / 2 });
     this.cam.updateProjectionMatrix();
