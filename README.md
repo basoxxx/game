@@ -323,6 +323,27 @@ Semaforo (riflessi), Ritmo Baso e Memoria a colori.
   `node tools/festa-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/festa-cover.mjs <url>` (copertina),
   `node tools/festa-bank.mjs` (rigenera gli ingorghi del minigioco con il generatore di Ingorgo).
 
+## Arcade Baso (Baso Hub · Arcade)
+
+Raccolta di **4 giochi arcade originali** in stile neon 2.5D/3D (three.js), una sola voce nel Baso Hub con una
+casella per gioco più la **Sfida del giorno** (un gioco a rotazione, seme e variante uguali per tutti, bonus monete).
+- **Astro Baso** — sparatutto verticale: 3 settori × 8 ondate generate dal seme, 6 tipi di nemici, 3 boss con fasi
+  (Granchio Quasar, Medusa Ionica, Occhio del Vuoto), 5 potenziamenti, bombe, cristalli, moltiplicatore combo fino a x8.
+  2 giocatori in cooperativa (due navi).
+- **Rimbalzo** — spaccamattoni: 48 quadri (12 disegnati a mano + 36 dal generatore, tutti verificati risolvibili),
+  modalità infinita, mattoni duri/metallo/esplosivi/oro, 8 capsule (multipalla, laser, colla, fuoco…).
+- **Corri Baso** — corsa infinita a 3 corsie: salto, scivolata, tram, monete, 4 potenziamenti, velocità crescente,
+  3 missioni a rotazione che alzano il moltiplicatore.
+- **Labirinto Goloso** — Gnam e le quattro vespe (impronte, pattuglia, guardia, specchio) in labirinti simmetrici
+  generati senza vicoli ciechi, peperoncino, dolci bonus, allarme «Sciame!».
+- Record (migliori 10 per gioco), monete, colori e scie in comune ai 4 giochi (niente pubblicità).
+- Comandi: tastiera, 2 controller, mouse, touch (trascina, scorri, tocca, tasti virtuali) in verticale e orizzontale;
+  2 giocatori a turno sullo stesso seme (o in cooperativa in Astro Baso). Qualità a livelli + FrameGuard.
+- Codice: `src/arcade/` (simulazioni pure `astro.js`, `rimbalzo.js`, `corri.js`, `labirinto.js`; viste `*-view.js`;
+  `host.js` input/loop/HUD; `stage.js`), schermata `src/screens/arcade.js`, voce `src/hub/games/arcade.js`.
+- `node tools/arcade-test.mjs` (collisioni, punteggi, livelli risolvibili e completabili), `node tools/arcade-e2e.mjs <url> [cartella]`
+  (Playwright, 4 risoluzioni), `node tools/arcade-cover.mjs <url>` (copertina `public/covers/arcade.webp`).
+
 ## Rompicapo (Baso Hub · Puzzle)
 
 Una scatola di quattro rompicapo veloci, in verticale e in orizzontale, su telefono, tablet e PC. Ognuno ha il suo
@@ -344,6 +365,28 @@ Le monete sbloccano **8 temi** che ricolorano tutti i giochi. Niente pubblicità
 - `node tools/rompicapo-test.mjs` (500 sudoku unici, 300 smazzate risolvibili, rotazioni/kick/linee, regole di Unisci),
   `node tools/rompicapo-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni, si gioca dalla UI),
   `node tools/rompicapo-cover.mjs <url>` (copertina `public/covers/rompicapo.webp`).
+
+## Quiz e Parole (Baso Hub · Quiz)
+
+Raccolta di quattro giochi in italiano in un'unica tessera del Baso Hub (modalità: Quiz, Quiz del giorno, Parolina,
+Impiccato, Anagrammi). Mouse, touch, tastiera e controller; verticale e orizzontale su telefono, tablet e PC.
+- **Quiz**: 1.311 domande originali a scelta multipla con spiegazione, in 9 categorie (Motori e Formula, Cultura
+  generale, Geografia, Storia, Scienza, Sport, Cinema e musica, Lingua italiana, Tecnologia) e 3 livelli. Modalità
+  Partita (10 domande a tempo, bonus velocità e serie), Sopravvivenza (3 vite, livello crescente), Sfida 2-4 giocatori
+  sullo stesso schermo (prenotazione con Q/P/Z/M, un controller a testa o pulsanti touch, anche «tablet sul tavolo»)
+  e Quiz del giorno (uguale per tutti, risultato in emoji da condividere). Aiuti: 50:50, Salta, +10 secondi. Nessuna
+  domanda si ripete finché la categoria non è esaurita; le domande sono JSON per categoria caricati a richiesta.
+- **Parolina**: la parola di 5 lettere in 6 tentativi; parola del giorno e partite libere, modalità difficile,
+  statistiche e serie, griglia emoji da condividere, tastiera italiana a schermo (le lettere accentate valgono come
+  semplici). 1.838 soluzioni comuni scelte a mano + ~6.700 tentativi validi.
+- **Impiccato** con la mongolfiera (niente forca: ogni errore fa cadere un sacchetto di sabbia), 8 categorie con indizi.
+- **Anagrammi a tempo**: 7 lettere, 90 secondi (+2 per parola), parolone da 7 lettere, sfida del giorno.
+- Monete guadagnate giocando (niente pubblicità) e 7 temi grafici da sbloccare.
+- Codice: `src/quiz/` (domande sorgente in `questions/*.txt`, dati generati in `data/`, viste in `views/`, logica
+  deterministica in `daily.js`), schermata `src/screens/quiz.js`, voce del hub `src/hub/games/quiz.js`.
+- `node tools/quiz-build.mjs` (testi → JSON), `node tools/quiz-words.mjs <cartella sorgenti>` (liste di parole, vedi
+  CREDITS), `node tools/quiz-test.mjs` (schema, duplicati, bilanciamento, parole, determinismo del giorno),
+  `node tools/quiz-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/quiz-cover.mjs <url>` (copertina).
 
 ## Carte Baso (Baso Hub · Carte)
 
