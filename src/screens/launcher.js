@@ -1,4 +1,4 @@
-// Baso Hub — the first screen: pick a game (Manager, Flatout, Voragine) and jump straight into any of
+// Baso Hub — the first screen: pick a game (Manager, Flatout, Voragine, Orda) and jump straight into any of
 // its modes. Kept small: it is part of the first paint, every game behind it is code-split.
 import { App, registerScreen } from '../app.js';
 import { icon } from '../ui/icons.js';
@@ -7,6 +7,10 @@ import { sfx } from '../ui/audio.js';
 import { listSaves } from '../engine/state.js';
 import { introSeen } from './intro-flag.js';
 import { vgLoad, vgBestOverall } from '../voragine/store.js';
+import { ordaLoad, ordaStars } from '../orda/store.js';
+import { launcherModes } from '../orda/modes-entries.js';
+import { baseDesc, baseSummary } from '../orda/base/badge.js';
+import { HUB_GAMES } from '../hub/registry.js';
 import '../styles/launcher.css';
 
 const LAST = 'sala_last_game';
@@ -23,7 +27,7 @@ function continueCareer() {
 }
 
 // Key art rendered from the games themselves (tools/covers.mjs → public/covers). SVG art is the fallback.
-export const COVERS = { apex: 'covers/apex.webp', voragine: 'covers/voragine.webp', derby: 'covers/derby.webp' };
+export const COVERS = { apex: 'covers/apex.webp', voragine: 'covers/voragine.webp', derby: 'covers/derby.webp', orda: 'covers/orda.webp' };
 const coverOf = (id) => (COVERS[id] ? `<img class="bh-cover-img" src="./${COVERS[id]}" alt="" decoding="async" onerror="this.remove()">` : '');
 const ART = {
   apex: () => `<svg viewBox="0 0 320 180" aria-hidden="true"><defs><linearGradient id="lg-a" x1="0" x2="1"><stop offset="0" stop-color="#e5141b"/><stop offset="1" stop-color="#ff8a3d"/></linearGradient><filter id="lg-g"><feGaussianBlur stdDeviation="4"/></filter></defs>
@@ -41,13 +45,17 @@ const ART = {
     <ellipse cx="160" cy="112" rx="78" ry="34" fill="url(#lg-h)"/><ellipse cx="160" cy="112" rx="78" ry="34" fill="none" stroke="#b79bff" stroke-width="2.5"/>
     <g class="lg-fall"><rect x="128" y="62" width="22" height="34" fill="#ffcf5a" transform="rotate(-18 139 79)"/><rect x="170" y="70" width="16" height="16" fill="#38d39f" transform="rotate(24 178 78)"/><circle cx="196" cy="96" r="7" fill="#ff6b8b"/></g>
     <rect x="40" y="40" width="34" height="58" fill="#2a2f45"/><rect x="246" y="30" width="40" height="70" fill="#232842"/>${[0, 1, 2, 3].map((r) => `<rect x="46" y="${48 + r * 12}" width="8" height="6" fill="#ffd36a" opacity=".7"/><rect x="254" y="${38 + r * 14}" width="9" height="6" fill="#9fd1ff" opacity=".6"/>`).join('')}</svg>`,
+  orda: () => `<svg viewBox="0 0 320 180" aria-hidden="true"><rect width="320" height="180" fill="#9fe3ff"/><path d="M0 70 H320 V180 H0Z" fill="#7fd36b"/><path d="M120 70 H200 L250 180 H70Z" fill="#a8e398"/>
+    <g fill="#ff4058"><rect x="128" y="24" width="64" height="40" rx="4"/><rect x="118" y="14" width="16" height="50" rx="4"/><rect x="186" y="14" width="16" height="50" rx="4"/></g><rect x="150" y="44" width="20" height="20" fill="#3a1420"/>
+    <rect x="122" y="96" width="76" height="34" rx="9" fill="#3a8bff" stroke="#fff" stroke-width="3"/><text x="160" y="122" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="26" fill="#fff">×3</text>
+    ${Array.from({ length: 16 }, (_, i) => `<ellipse class="lg-spark" cx="${112 + (i * 37) % 96}" cy="${140 + (i * 11) % 34}" rx="6" ry="8" fill="#2f80ff"/>`).join('')}${Array.from({ length: 6 }, (_, i) => `<ellipse cx="${132 + i * 11}" cy="${80 + (i % 2) * 6}" rx="4" ry="5" fill="#ff3b4e"/>`).join('')}</svg>`,
 };
 
 // Games in the hub, each with its modes. Add one: append an entry and a screen.
 //   mode: { id, icon, name, desc, go(), when?(), tag? }
 export const GAMES = [
   {
-    id: 'apex', section: 'Manager', title: 'Apex Dynasty', genre: 'Gestionale motorsport', accent: '#e5141b',
+    id: 'apex', category: 'Gestionali', section: 'Manager', title: 'Apex Dynasty', genre: 'Gestionale motorsport', accent: '#e5141b',
     desc: 'Guida la tua scuderia in Formula, Formula Apex 2, Rally ed Endurance: vettura, piloti, sponsor e strategia di gara.',
     stat: () => { const s = lastSave(); return s ? `${esc(s.team || 'Carriera')} · Stagione ${s.season}` : 'Nessuna carriera ancora: inizia la tua dinastia'; },
     play: () => App.go(introSeen() ? 'menu' : 'intro'),
@@ -63,7 +71,7 @@ export const GAMES = [
     ],
   },
   {
-    id: 'derby', section: 'Flatout', title: 'Scontro Totale', genre: 'Guida · corse a contatto', accent: '#ffb000',
+    id: 'derby', category: 'Corse', section: 'Flatout', title: 'Scontro Totale', genre: 'Guida · corse a contatto', accent: '#ffb000',
     desc: 'Prendi il volante: corse a contatto, salti, lamiere che volano e il derby della distruzione.',
     stat: () => { const p = derbyProg(); return p?.races ? `${p.wins || 0} vittorie su ${p.races} eventi` : 'Fisica vera, auto che si ammaccano'; },
     play: () => App.go('derby', { from: 'launcher' }),
@@ -75,7 +83,7 @@ export const GAMES = [
     ],
   },
   {
-    id: 'voragine', section: 'Voragine', title: 'Voragine', genre: 'Arcade · città', accent: '#8b5cff',
+    id: 'voragine', category: 'Arcade', section: 'Voragine', title: 'Voragine', genre: 'Arcade · città', accent: '#8b5cff',
     desc: 'Sei una voragine che si apre in città: inghiotti tutto ciò che è più piccolo di te, cresci e divora le voragini rivali.',
     stat: () => { const p = vgLoad(); const b = vgBestOverall(p); return b ? `Record ${b.toLocaleString('it-IT')} punti · ${p.games} partite` : '2 minuti, una città intera da divorare'; },
     play: () => App.go('voragine', { from: 'launcher' }),
@@ -86,7 +94,30 @@ export const GAMES = [
       { id: 'solitaria', icon: 'target', name: 'Solitaria', desc: 'Divora la città da sola: percentuale e stelle.', go: () => App.go('voragine', { from: 'launcher', mode: 'solitaria' }) },
     ],
   },
+  {
+    id: 'orda', category: 'Arcade', section: 'Orda', title: 'Orda', genre: 'Arcade · assalto', accent: '#2f80ff',
+    desc: 'Spara un’orda di fagiolini blu, moltiplicala nelle porte, schiva le trappole e travolgi la fortezza rossa.',
+    stat: () => { const p = ordaLoad(); return p.games ? `Livello ${Math.min(p.next, 30)} · ★ ${ordaStars(p)} · ${p.wins} vittorie` : '30 livelli, 6 fortezze, 4 campioni'; },
+    play: () => App.go('orda', { from: 'launcher' }),
+    modes: [
+      { id: 'gioca', icon: 'play', name: 'Gioca', desc: () => { const p = ordaLoad(); return p.next > 30 ? 'Campagna completata: rigioca per le stelle.' : `Livello ${p.next}: continua la campagna.`; }, go: () => App.go('orda', { from: 'launcher', quick: 1 }), tag: 'Via!' },
+      { id: 'livelli', icon: 'map', name: 'Livelli', desc: '6 mondi, 30 livelli e una fortezza ogni cinque.', go: () => App.go('orda', { from: 'launcher', tab: 'livelli' }) },
+      { id: 'potenziamenti', icon: 'wrench', name: 'Potenziamenti', desc: 'Cadenza, raffica, campioni e colori dell’orda.', go: () => App.go('orda', { from: 'launcher', tab: 'potenziamenti' }) },
+      ...launcherModes(App), // Sfida del giorno, Infinita
+      { id: 'base', icon: 'home', name: 'Base e razzie', desc: () => baseDesc(), get tag() { return baseSummary().unread ? 'Attaccata!' : ''; }, go: () => App.go('orda-base', { from: 'launcher' }) },
+      { id: 'versus', icon: 'users', name: '2 giocatori', desc: 'Sfida o cooperativa sullo stesso schermo, anche su tablet.', go: () => App.go('orda-versus', { from: 'launcher' }) },
+    ],
+  },
 ];
+
+// Plug-in games (src/hub/games/*.js): same shape as above, App is passed to their actions
+const genericArt = (g) => () => `<svg viewBox="0 0 320 180" aria-hidden="true"><defs><radialGradient id="ga-${g.id}" cx=".5" cy=".5"><stop offset="0" stop-color="${g.accent}" stop-opacity=".55"/><stop offset="1" stop-color="${g.accent}" stop-opacity="0"/></radialGradient></defs><circle cx="210" cy="90" r="110" fill="url(#ga-${g.id})"/><text x="210" y="122" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-style="italic" font-weight="800" font-size="96" fill="#fff" opacity=".9">${esc(g.title.slice(0, 1))}</text></svg>`;
+for (const h of HUB_GAMES) {
+  if (GAMES.some((x) => x.id === h.id)) continue;
+  if (h.cover) COVERS[h.id] = h.cover;
+  ART[h.id] = h.art || genericArt(h);
+  GAMES.push({ ...h, plug: true, stat: h.stat || (() => ''), play: () => h.play(App), modes: (h.modes || []).map((m) => Object.defineProperties({ ...m, go: () => m.go(App) }, Object.getOwnPropertyDescriptor(m, 'tag')?.get ? { tag: Object.getOwnPropertyDescriptor(m, 'tag') } : {})) });
+}
 
 let keyH = null, sel = null;
 const cur = () => GAMES.find((g) => g.id === sel) || GAMES.find((g) => g.id === lastGame()) || GAMES[0];
@@ -116,15 +147,15 @@ registerScreen({
     return `<div class="lg-screen bh">
       <div class="lg-bg" aria-hidden="true"><i></i><i></i><i></i></div>
       <header class="lg-head bh-head">
-        <div class="bh-logo"><span class="bh-mark">B</span><div><div class="bh-word">Baso<span>Hub</span></div><div class="lg-eyebrow">Manager · Flatout · Voragine</div></div></div>
-        <nav class="bh-tabs" role="tablist" aria-label="Giochi">${GAMES.map((x, i) => `<div class="bh-tab ${x.id === g.id ? 'on' : ''}" role="tab" aria-selected="${x.id === g.id}" data-a="bh-game" data-id="${x.id}" style="--acc:${x.accent}${COVERS[x.id] ? `;--thumb:url(${new URL(COVERS[x.id], document.baseURI).href})` : ''}" tabindex="0"><span class="kbd">${i + 1}</span><b>${esc(x.section)}</b><small>${esc(x.title)}</small></div>`).join('')}</nav>
+        <div class="bh-logo"><span class="bh-mark">B</span><div><div class="bh-word">Baso<span>Hub</span></div><div class="lg-eyebrow">${GAMES.length} giochi · ${[...new Set(GAMES.map((x) => x.category || x.section))].slice(0, 5).map(esc).join(' · ')}</div></div></div>
+        <nav class="bh-tabs ${GAMES.length > 4 ? 'many' : ''}" role="tablist" aria-label="Giochi">${GAMES.map((x, i) => `<div class="bh-tab ${x.id === g.id ? 'on' : ''}" role="tab" aria-selected="${x.id === g.id}" data-a="bh-game" data-id="${x.id}" style="--acc:${x.accent}${COVERS[x.id] ? `;--thumb:url(${new URL(COVERS[x.id], document.baseURI).href})` : ''}" tabindex="0">${i < 9 ? `<span class="kbd">${i + 1}</span>` : ''}<b>${esc(x.section)}</b><small>${esc(x.title)}</small></div>`).join('')}</nav>
       </header>
       ${panel(g)}
       <footer class="lg-foot">
         <span class="ver-badge">v${__APP_VERSION__}</span>
         <button class="btn ghost sm" data-a="nav" data-to="settings" data-back="launcher">${icon('settings')} Impostazioni</button>
         ${window.apex?.quit ? `<button class="btn ghost sm" data-a="lg-quit">${icon('logout')} Esci</button>` : ''}
-        <span class="lg-note">1-3 o Q/E per cambiare gioco · Invio per giocare · Giochi di fantasia: nomi e marchi sono inventati</span>
+        <span class="lg-note">1-9 o Q/E per cambiare gioco · Invio per giocare · Giochi di fantasia: nomi e marchi sono inventati</span>
       </footer>
     </div>`;
   },
@@ -165,11 +196,13 @@ registerScreen({
   },
 });
 
-// Deep links: ?game=apex|derby|voragine skips the hub (handy for shortcuts and tests)
+// Deep links: ?game=apex|derby|voragine|orda skips the hub (handy for shortcuts and tests)
 export function launchTarget() {
   if (new URLSearchParams(location.search).has('pitwall')) return 'pitwall'; // ?pitwall=CODE|local: the pit wall second screen
   const g = new URLSearchParams(location.search).get('game');
   if (g === 'apex') return 'menu';
-  if (g === 'derby' || g === 'voragine') return g;
+  if (g === 'derby' || g === 'voragine' || g === 'orda') return g;
+  const h = g && HUB_GAMES.find((x) => x.id === g);
+  if (h) return h.deepLink || Object.keys(h.screens || {})[0] || null;
   return null;
 }

@@ -1,15 +1,22 @@
 # 🎮 Baso Hub
 
-**Baso Hub** è una raccolta di tre giochi originali, con un unico launcher:
+**Baso Hub** è una raccolta di quattro giochi originali, con un unico launcher:
 
 - **Apex Dynasty** (Manager): gestionale motorsport multi-categoria. Guida la tua scuderia in **Formula Apex**, **Formula Apex 2**, **Endurance** e **Rally**, progetta la vettura, gestisci piloti, sponsor e strategie, e guarda le gare in 3D.
 - **Scontro Totale** (Flatout): corse a contatto e demolition derby con fisica vera, lamiere che si accartocciano e piloti sbalzati fuori.
 - **Voragine** (Arcade): una voragine che si apre in città e inghiotte tutto, con missioni, power-up, 5 città e sfida del giorno.
+- **Orda** (Arcade): spara un'orda di fagiolini blu, moltiplicala nelle porte (×2, ×3, +N), evita lame, pale e fosse e travolgi la fortezza rossa. 30 livelli in 6 mondi, una fortezza a fasi ogni cinque, 4 campioni, potenziamenti e colori: niente pubblicità, niente acquisti.
 
-🌐 **Sito e versione browser:** https://basoxxx.github.io/game/ (link diretti: `?game=apex`, `?game=derby`, `?game=voragine`)
+🌐 **Sito e versione browser:** https://basoxxx.github.io/game/ (link diretti: `?game=apex`, `?game=derby`, `?game=voragine`, `?game=orda`)
 ⬇️ **Download:** [Release](https://github.com/basoxxx/game/releases/latest) — macOS Apple Silicon, macOS Intel, Windows (installer e portable), Linux.
 
 ![Scontro Totale](site-src/shots/cover-derby.webp)
+
+## Novità della versione 6.2
+- **Orda (nuovo gioco)**: spara la tua orda di omini blu attraverso porte ×, +, −, ÷ fino alla base rossa. 30 livelli in 6 mondi con boss ogni 5, 4 campioni (Colosso, Grillo, Matrioska, Testuggine), potenziamenti e skin con monete, niente pubblicità.
+- **Base e razzie**: costruisci la tua base 3D (mura, torri, caserme, trappole, miniere, scudi), razzia basi rivali per monete e mattoni, rapporti degli attacchi subiti mentre sei via e Vendetta.
+- **2 giocatori**: sfida o cooperativa sullo stesso schermo con tastiera, due controller o touch diviso (tablet anche in piano).
+- **Sfida del giorno, Infinita e Missioni**: un livello al giorno uguale per tutti con serie e risultato da condividere, ondate infinite con potenziamenti a scelta e classifica, 18 missioni.
 
 ## Novità della versione 6.1
 - **Dinamiche di gara (Formula, Formula Apex 2, Endurance)**: niente più auto che si "teletrasportano" dietro a quella che le ha superate: le posizioni sono sempre continue, il tempo perso si traduce in rallentamenti veri. I sorpassi nascono in scia e in staccata (zone DRS e frenate forti ricavate da ogni pista): l'attaccante si affianca all'interno, il difensore copre, il sorpasso riesce o fallisce. Meno sorpassi casuali (es. da ~185 a ~15 a Monaco), nessuno a metà curva. Incidenti fisici: uscita per la tangente, via di fuga, impatto con le barriere con detriti, testacoda con fumo e rientro.

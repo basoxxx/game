@@ -1,5 +1,6 @@
 import './styles/main.css';
 import { App, lazyScreens, preloadScreens } from './app.js';
+import { hubScreens } from './hub/registry.js';
 // first paint needs only the shell + the Baso Hub launcher; the Apex menu, the title screen and the
 // game engine are code-split (the menu chunk is warmed first, on idle)
 import { launchTarget } from './screens/launcher.js';
@@ -26,9 +27,14 @@ lazyScreens({
   ...Object.fromEntries(['mode-champ', 'mode-champ-new', 'mode-tp', 'mode-daily', 'mode-debrief'].map((id) => [id, () => import('./screens/challenges.js')])),
   derby: () => import('./screens/derby.js'),
   voragine: () => import('./screens/voragine.js'),
+  orda: () => import('./screens/orda.js'),
+  'orda-modes': () => import('./screens/orda-modes.js'),
+  'orda-base': () => import('./orda/base/screen.js'),
+  'orda-versus': () => import('./screens/orda-versus.js'), // Orda · 2 giocatori
   weekend: () => import('./screens/weekend.js'),
   rally: () => import('./screens/rallyweekend.js'),
   pitwall: () => import('./screens/pitwall.js'),
+  ...hubScreens, // plug-in games of the Baso Hub (src/hub/games/*.js)
   ...Object.fromEntries(['hub', 'inbox', 'standings', 'calendar', 'career', 'halloffame', 'car', 'drivers', 'market', 'staff', 'finance', 'paddock', 'results', 'seasonend'].map((id) => [id, career])),
 });
 
