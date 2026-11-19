@@ -16,6 +16,7 @@ const DEF = {
   chestN: 0, chests: 0,  // new levels cleared towards the next chest (every CHEST_EVERY), chests waiting
   bonusN: 0, bonus: 0,   // new levels cleared towards the next bonus level, bonus levels waiting
   login: { last: '', day: -1 }, // daily login calendar: last claim (YYYY-MM-DD), index of that day (0-6)
+  fails: {},          // levelId -> losses in a row (the catch-up "spinta", meta.js catchUp)
   ext: {},
 };
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -25,7 +26,7 @@ export function ordaLoad() {
     if (d && typeof d === 'object') {
       const p = { ...clone(DEF), ...d };
       p.up = { ...UPS, ...(d.up || {}) }; p.opt = { ...DEF.opt, ...(d.opt || {}) };
-      p.login = { ...DEF.login, ...(d.login || {}) }; p.stars = { ...(d.stars || {}) }; p.best = { ...(d.best || {}) }; p.clv = { ...(d.clv || {}) }; p.ext = { ...(d.ext || {}) };
+      p.login = { ...DEF.login, ...(d.login || {}) }; p.stars = { ...(d.stars || {}) }; p.best = { ...(d.best || {}) }; p.clv = { ...(d.clv || {}) }; p.ext = { ...(d.ext || {}) }; p.fails = { ...(d.fails || {}) };
       for (const k of ['champs', 'skins', 'cannons']) if (!Array.isArray(p[k]) || !p[k].length) p[k] = clone(DEF[k]);
       if (!p.champs.includes(p.champ)) p.champ = p.champs[0];
       if (!p.skins.includes(p.skin)) p.skin = p.skins[0];
