@@ -184,15 +184,8 @@
 
 @media (max-width: 980px) {
   .om-daily { grid-template-columns: 1fr; }
-  .om-endless-art { position: absolute; right: 22px; bottom: 16px; width: min(34%, 300px); height: auto; opacity: .95; pointer-events: none; }
-.om-endless-art rect { fill: #ff4d6d; stroke: #fff; stroke-width: 1.5; }
-.om-endless-art .f3 rect { fill: #c8102e; }
-.om-endless-art text { font: 700 14px/1 var(--display, sans-serif); fill: #fff; text-anchor: middle; }
-.om-endless-art .road { stroke: rgba(255,255,255,.18); stroke-width: 2; stroke-dasharray: 6 6; }
-.om-endless-art .bean { fill: #2f80ff; stroke: #fff; stroke-width: 1.2; }
-.om-endless-hero > :not(svg) { position: relative; max-width: 62%; }
-.om-endless-hero > .om-runbar { max-width: none; }
-.om-endless-cols { grid-template-columns: 1fr; }
+  .om-endless-cols { grid-template-columns: 1fr; }
+  .om-endless-hero > :not(svg) { max-width: 66%; }
 }
 @media (max-width: 640px) {
   .om-endless-art { position: static; display: block; width: 100%; max-width: 280px; margin: 0 auto 6px; }

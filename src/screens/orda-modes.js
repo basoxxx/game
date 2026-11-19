@@ -125,7 +125,7 @@ function tabEndless(s) {
       <p>Abbatti la base rossa: ne arriva subito una più forte, con le porte rimescolate. Tra un’ondata e l’altra scegli <b>1 potenziamento su 3</b>. Il cannone non si ripara da solo: la corsa finisce quando i rossi lo travolgono.</p>
       <div class="om-tags"><span>${icon('trophy')} Record ${fmt(s.endless[0]?.score || 0)} punti</span><span>${icon('flag')} Ondata massima ${s.bestWave}</span><span>Punti = ondate × 1.000 + omini</span></div>
       <div class="om-btns">
-        ${run ? `<button class="btn primary big" data-a="om-endless" data-resume="1">${icon('play')} Riprendi · ondata ${run.wave}</button><button class="btn" data-a="om-endless">${icon('replay')} Nuova corsa</button>`
+        ${run ? `<button class="btn primary big" data-a="om-endless" data-resume="1">${icon('play')} Riprendi · ${run.offer?.length ? `ondata ${run.wave} superata` : `ondata ${run.wave}`}</button><button class="btn" data-a="om-endless">${icon('replay')} Nuova corsa</button>`
           : `<button class="btn primary big" data-a="om-endless">${icon('play')} Nuova corsa</button>`}
       </div>
       ${run ? `<div class="om-runbar"><span>${icon('shield')} Cannone ${fmt(run.line)}/${fmt(run.lineMax)}</span><span>${run.perks.length} potenziament${run.perks.length === 1 ? 'o' : 'i'}</span>${perkChips(run.perks)}</div>` : ''}
@@ -304,7 +304,11 @@ registerScreen({
       if (pick && /^Digit[1-3]$/.test(e.code)) { const b = pick.querySelectorAll('.om-perk')[+e.code.slice(5) - 1]; if (b) { e.preventDefault(); e.stopPropagation(); b.click(); } }
     };
     window.addEventListener('keydown', keyH, true);
-    if (V.play) { startMatch(); return; }
+    if (V.play) {
+      // a run saved on the perk cards resumes on the perk cards
+      if (V.play.kind === 'endless' && V.play.run.offer?.length) { const root = document.getElementById('om-root'); if (root) root.innerHTML = ''; setOver(perkPick(V.play.run)); return; }
+      startMatch(); return;
+    }
     // today's level is generated on demand (a few headless matches): build it after the first paint
     if (V.tab === 'sfida' && !dailyReady()) setTimeout(() => { try { dailySpec(); } catch (e) { console.error(e); } if (App.cur === 'orda-modes' && !V.play) App.refresh(); }, 60);
     requestAnimationFrame(() => document.querySelector('.om-body .btn.primary:not([disabled])')?.focus({ preventScroll: true }));
@@ -323,7 +327,7 @@ registerScreen({
       const resume = el.dataset.resume && s.run;
       if (!resume && s.run) { s.run = null; omSave(s); }
       stopGame();
-      V.play = { kind: 'endless', run: resume ? { ...s.run, offer: null } : newRun(undefined, wallet.profile().up) };
+      V.play = { kind: 'endless', run: resume ? { ...s.run } : newRun(undefined, wallet.profile().up) };
       App.refresh();
     },
     'om-perk'(el) {

@@ -39,7 +39,7 @@ export const ORDA_EXTRA_MODES = [
   },
   {
     id: 'infinita', icon: 'hourglass', name: 'Infinita', go: open('infinita'),
-    desc: () => { const s = omLoad(); return s.run ? `Corsa in pausa: ondata ${s.run.wave}` : s.endless[0] ? `Record ${fmt(s.endless[0].score)} · ondata ${s.bestWave}` : 'Ondate senza fine, 1 potenziamento su 3'; },
+    desc: () => { const s = omLoad(); return s.run ? `Corsa in pausa: ondata ${s.run.wave}${s.run.offer?.length ? ' superata' : ''}` : s.endless[0] ? `Record ${fmt(s.endless[0].score)} · ondata ${s.bestWave}` : 'Ondate senza fine, 1 potenziamento su 3'; },
   },
   {
     id: 'missioni', icon: 'medal', name: 'Missioni', go: open('missioni'),
