@@ -32,3 +32,5 @@ canvas, inline SVG, Web Audio); the bean figures reuse Orda's procedural geometr
 Kart Baso (src/kart): no third-party assets. Karts, drivers, items, tracks, props and textures are built
 procedurally in code (three.js primitives and canvas textures); sounds come from the hub's procedural
 audio engine (src/ui/audio.js). Characters, tracks and items are original creations.
+Ingorgo (src/ingorgo): no external assets. Vehicles, city, textures (windows, water, chequers) and
+all sounds (horns, engines) are generated in code; levels come from the seeded generator + solver.

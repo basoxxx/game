@@ -264,3 +264,8 @@ Corse arcade di kart cartoon nel Baso Hub (`?game=kart`, categoria Corse): derap
 - **8 piste in 4 coppe** (ogni coppa: due piste e le loro versioni al rovescio) con salti, scorciatoie, mucche, palloni, casse, presse, geyser, lava e una strada sospesa tra le stelle; 2 arene per la **Battaglia** a palloncini.
 - **Gran Premio** (3 cilindrate, trofei che sbloccano coppe e piloti), **Gara singola**, **Prova a tempo** con fantasma del record e medaglie, **Battaglia**, **Multigiocatore** a schermo diviso da 2 a 4 (tastiera WASD + frecce e controller); touch con comandi a schermo su telefono e tablet, in verticale e in orizzontale.
 - Codice in `src/kart/` (simulazione deterministica in `sim.js`, testabile senza browser), schermata `src/screens/kart.js`. Prove: `node tools/kart-tracks.mjs`, `node tools/kart-sim.mjs`, `node tools/kart-e2e.mjs <url>`; copertina: `node tools/kart-cover.mjs <url>`.
+### Ingorgo (Baso Hub · Puzzle)
+Puzzle di traffico in 3D cartoon: sposta auto, furgoni e autobus per liberare l’uscita. 60 livelli in 6 mondi (parcheggio classico, «tutti fuori», sensi unici, semafori, traghetto, ora di punta a tempo), 400 sfide generate, puzzle del giorno condivisibile e modalità Zen. Un generatore con seme e un risolutore A*/BFS garantiscono che ogni livello sia risolvibile e ne misurano la difficoltà (mosse minime).
+- `src/ingorgo/` – regole e risolutore (`core.js`), generatore (`gen.js`), gioco 3D (`game.js`), suoni, progressi
+- `node tools/ingorgo-gen-test.mjs` – 1000 semi: validità, ottimo del risolutore verificato da BFS, determinismo
+- `node tools/ingorgo-levels.mjs` – rigenera i 60 livelli della campagna · `node tools/ingorgo-e2e.mjs` – risolve livelli dalla UI con Playwright · `node tools/ingorgo-cover.mjs` – copertina
