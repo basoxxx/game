@@ -9,7 +9,7 @@ import { VIEWS, boardView, podiumView } from './views/index.js';
 import { MINI, cpuSkill } from './mini/index.js';
 import { SLOT_COLORS } from './mini/base.js';
 import { PartyInput, TouchZones, devById } from './input.js';
-import { newBoard, boardRoll, boardMove, boardAfterMini, boardFinal, BOARD, MINI_COINS, newTourney, tourneyAfter } from './party.js';
+import { newBoard, boardRoll, boardMove, boardAfterMini, boardFinal, MINI_COINS, newTourney, tourneyAfter } from './party.js';
 import { blankInput } from './util.js';
 import { charById } from './roster.js';
 import { feLoad, feSave, noteMini } from './store.js';
@@ -46,6 +46,7 @@ export class FestaSession {
     this.onClick = (e) => { const b = e.target.closest('[data-fz]'); if (!b) return; e.preventDefault(); const a = b.dataset.fz; S(() => sfx.click()); this.action(a, b); };
     root.addEventListener('click', this.onClick);
     window.__festa = this;
+    root.classList.add('dz-root'); // the controllers belong to the party, not to the menu focus bridge (src/ui/gamepad.js)
     if (this.mode === 'board') { this.B = newBoard({ n: this.n, rounds: c.rounds, seed: this.seed, names: this.players.map((p) => p.name), minis: c.minis }); this.enterBoard(); }
     else if (this.mode === 'torneo') { this.T = newTourney({ n: this.n, target: c.target, seed: this.seed, minis: c.minis }); this.announce(this.T.next, () => this.startMini(this.T.next)); }
     else this.startMini(c.mini);
@@ -91,7 +92,7 @@ export class FestaSession {
   }
   togglePause(on = !this.paused) {
     if (this.ph === 'end') return;
-    this.paused = on;
+    this.paused = on; this.root.classList.toggle('dz-root', !on);
     let el = this.root.querySelector('.fz-pausecard');
     if (on && !el) { el = document.createElement('div'); el.className = 'fz-card fz-pausecard'; el.innerHTML = `<h2>Pausa</h2><p>La festa ti aspetta.</p><div class="fz-btns"><button class="btn primary" data-fz="resume">Riprendi</button><button class="btn" data-fz="quit">Esci dalla festa</button></div>`; this.root.appendChild(el); requestAnimationFrame(() => el.querySelector('.btn')?.focus()); }
     if (!on) el?.remove();
@@ -263,7 +264,7 @@ export class FestaSession {
 
   // ───────────────────────── final: awards + podium
   finale() {
-    this.ph = 'end'; this.paused = false; this.root.classList.add('end');
+    this.ph = 'end'; this.paused = false; this.root.classList.add('end'); this.root.classList.remove('dz-root');
     let podium, title, awards = [];
     if (this.mode === 'board') { podium = this.B.podium; awards = this.B.awards; title = 'Re della festa'; }
     else { const T = this.T, pl = this.players.map((p, i) => 1 + T.wins.filter((w) => w > T.wins[i]).length); podium = this.players.map((p, i) => ({ i, place: pl[i], wins: T.wins[i] })).sort((a, b) => a.place - b.place); title = 'Campione del torneo'; }
@@ -284,6 +285,7 @@ export class FestaSession {
       ${this.earned ? `<div class="fz-gain">Monete festa guadagnate: +${this.earned}</div>` : ''}
       <div class="fz-btns"><button class="btn primary big" data-fz="again">Un’altra festa!</button><button class="btn" data-fz="quit">Menu della festa</button></div>`, 'final');
     S(() => sfx.win());
+    requestAnimationFrame(() => this.ui.querySelector('.btn.primary')?.focus({ preventScroll: true }));
   }
 
   state() {
