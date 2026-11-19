@@ -93,7 +93,7 @@ await shot('05-daily-done-1440');
 // ---- Infinita: three waves with perk picks
 await click('[data-a="om-tab"][data-id="infinita"]');
 await shot('06-endless-tab-1440');
-await click('[data-a="om-endless"]');
+await click('[data-a="om-endless"]:not([data-resume])');
 for (let w = 1; w <= 3; w++) {
   r = await autoplay(600);
   log(`  wave ${w}:`, JSON.stringify(r));
@@ -137,7 +137,7 @@ for (const [w, h] of SIZES) {
     await shot(`20-${tab}-${w}x${h}`);
   }
   await click('[data-a="om-tab"][data-id="infinita"]');
-  await click('[data-a="om-endless"]');
+  await click('[data-a="om-endless"]:not([data-resume])');
   await page.waitForFunction(() => window.__ordaModes?.game?.sim, null, { timeout: 90000 });
   await stepSome(30 * 12);
   await shot(`21-ingame-${w}x${h}`);
