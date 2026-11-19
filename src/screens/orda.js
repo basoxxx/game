@@ -371,6 +371,8 @@ function ORDA_ACTIONS() {
 function buyCosmetic(id, list, ownKey, selKey) {
   const p = ordaLoad(), s = list.find((x) => x.id === id); if (!s) return;
   if (p[ownKey].includes(s.id)) { p[selKey] = s.id; ordaSave(p); sfx.ok?.(); App.refresh(); return; }
+  // star prizes are granted after a match; one already earned (an older save, stars from elsewhere) is taken here
+  if (s.stars && ordaStars(p) >= s.stars) { p[ownKey].push(s.id); p[selKey] = s.id; ordaSave(p); sfx.ok?.(); App.refresh(); return; }
   if (s.stars) { sfx.bad?.(); App.toast('Premio a stelle', `«${s.name}» si sblocca raccogliendo ${s.stars} stelle (ne hai ${ordaStars(p)}).`, 'bad'); return; }
   if (p.coins < s.cost) { sfx.bad?.(); App.toast('Monete insufficienti', `Ti servono ancora ${fmt(s.cost - p.coins)} monete per «${s.name}».`, 'bad'); return; }
   App.confirm(`Sbloccare «${s.name}»?`, `Costa ${fmt(s.cost)} monete (ne hai ${fmt(p.coins)}).`, () => { const q = ordaLoad(); q.coins -= s.cost; q[ownKey].push(s.id); q[selKey] = s.id; ordaSave(q); sfx.coin?.(); App.refresh(); });
