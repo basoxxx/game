@@ -3,7 +3,7 @@
 // src/carte/README.md). Pure functions over JSON state; the Difficile AI counts the cards and runs
 // Monte Carlo playouts of the rest of the hand over the cards it cannot see.
 import meta from './scopa.meta.js';
-import { makeDeck, shuffle, rank, suit, clone, nextPlayer, cardName, cardShort } from '../core/cards.js';
+import { makeDeck, shuffle, rank, suit, clone, nextPlayer, cardName } from '../core/cards.js';
 
 // primiera values
 const PRIM = { 7: 21, 6: 18, 1: 16, 5: 15, 4: 14, 3: 13, 2: 12, 8: 10, 9: 10, 10: 10 };
@@ -66,8 +66,8 @@ function legalMoves(s, p) {
   const out = [];
   for (const c of s.hands[p]) {
     const caps = captures(c, s.table, s.variant);
-    if (!caps.length) out.push({ card: c, take: [], label: `Cala ${cardShort(c)}` });
-    else for (const t of caps) out.push({ card: c, take: t.slice().sort(), label: `Prendi ${t.map(cardShort).join(' + ')}`, show: t });
+    if (!caps.length) out.push({ card: c, take: [], label: `Cala ${cardName(c)}` });
+    else for (const t of caps) out.push({ card: c, take: t.slice().sort(), label: `Prendi ${t.map(cardName).join(' + ')}`, show: t });
   }
   return out;
 }

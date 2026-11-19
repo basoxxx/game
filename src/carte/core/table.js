@@ -29,6 +29,10 @@ export class CardTable {
     this._mv = (e) => this.moveDrag(e); this._up = (e) => this.up(e);
     window.addEventListener('pointermove', this._mv); window.addEventListener('pointerup', this._up); window.addEventListener('pointercancel', this._up);
     this.layer.addEventListener('click', (e) => this.click(e));
+    // hovering / focusing a playable card previews what it would take (moves with `show`)
+    const hint = (e) => { if (this.sel || this.drag?.on) return; const c = e.target.closest?.('.ct-card.ok'); const ms = c ? this.movesFor(c.dataset.card) : []; this.preview(ms.length === 1 ? ms[0].show : null); };
+    this.layer.addEventListener('pointerover', hint); this.layer.addEventListener('focusin', hint);
+    this.layer.addEventListener('pointerleave', () => { if (!this.sel) this.preview(null); });
     this.acts.addEventListener('click', (e) => { const b = e.target.closest('[data-mi]'); if (b) this.fire(this.legal[+b.dataset.mi]); });
   }
   destroy() {

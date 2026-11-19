@@ -15,7 +15,7 @@ const issues = [];
 const CASES = [
   { name: 'desktop', vp: [1440, 900], scopa: { variant: 'classica', n: 2 }, briscola: { variant: 'due', n: 2 } },
   { name: 'tablet', vp: [1024, 768], touch: true, scopa: { variant: 'scopone', n: 4 }, briscola: { variant: 'coppie', n: 4 } },
-  { name: 'phone-portrait', vp: [390, 844], touch: true, mobile: true, scopa: { variant: 'classica', n: 3 }, briscola: { variant: 'due', n: 2 } },
+  { name: 'phone-portrait', vp: [390, 844], touch: true, mobile: true, scopa: { variant: 'classica', n: 3, kinds: ['human', 'human', 'cpu'] }, briscola: { variant: 'due', n: 2 } },
   { name: 'phone-landscape', vp: [844, 390], touch: true, mobile: true, scopa: { variant: 'assi', n: 2 }, briscola: { variant: 'coppie', n: 4 } },
 ];
 const browser = await pw.chromium.launch();
@@ -23,7 +23,7 @@ const only = process.env.ONLY;
 
 async function playMatch(page, C, game, tag) {
   const cfg = C[game];
-  await page.evaluate(([g, c]) => { const p = JSON.parse(localStorage.getItem('baso_carte_v1') || '{}'); p.lobby = { ...(p.lobby || {}), [g]: { variant: c.variant, n: c.n, level: 'normale', target: g === 'briscola' ? 2 : 11 } }; localStorage.setItem('baso_carte_v1', JSON.stringify(p)); }, [game, cfg]);
+  await page.evaluate(([g, c]) => { const p = JSON.parse(localStorage.getItem('baso_carte_v1') || '{}'); p.lobby = { ...(p.lobby || {}), [g]: { variant: c.variant, n: c.n, kinds: c.kinds, level: 'normale', target: g === 'briscola' ? 2 : 11 } }; localStorage.setItem('baso_carte_v1', JSON.stringify(p)); }, [game, cfg]);
   await page.click(`[data-a=cb-open][data-id=${game}]`);
   await page.waitForSelector('[data-a=cb-start]');
   await page.waitForTimeout(150);
@@ -32,7 +32,7 @@ async function playMatch(page, C, game, tag) {
   if (ov > 2) issues.push(`${C.name} ${game} lobby overflows by ${ov}px`);
   await page.click('[data-a=cb-start]');
   await page.waitForSelector('.ct-card', { timeout: 10000 });
-  let moves = 0, rounds = 0, shot = 0, kinds = { tap: 0, drag: 0, key: 0, choose: 0 };
+  let moves = 0, rounds = 0, shot = 0, kinds = { tap: 0, drag: 0, key: 0, choose: 0, pass: 0 };
   const t0 = Date.now();
   for (let guard = 0; guard < 2000; guard++) {
     if (Date.now() - t0 > 240000) { issues.push(`${C.name} ${game}: match timeout`); break; }
@@ -50,7 +50,7 @@ async function playMatch(page, C, game, tag) {
       if (rounds === 1) { await page.waitForTimeout(400); await page.screenshot({ path: `${OUT}/${C.name}-${game}-round.png` }); }
       await page.click('[data-a=cb-next]'); await page.waitForTimeout(60); continue;
     }
-    if (st.pass) { await page.click('[data-a=cb-ready]'); continue; }
+    if (st.pass) { if (!kinds.pass++) await page.screenshot({ path: `${OUT}/${C.name}-${game}-pass.png` }); await page.click('[data-a=cb-ready]'); await page.waitForTimeout(40); continue; }
     if (st.choose) {
       if (!kinds.choose++) await page.screenshot({ path: `${OUT}/${C.name}-${game}-choose.png` });
       await page.click('[data-a=cb-pick][data-i="0"]'); await page.waitForTimeout(40); continue;
@@ -59,21 +59,30 @@ async function playMatch(page, C, game, tag) {
     // pick a playable card: rotate between tap, drag and keyboard
     const before = await page.evaluate(() => window.__carte.M.moves);
     const how = moves % 5 === 3 && !C.touch ? 'drag' : moves % 5 === 1 ? 'key' : 'tap';
-    const card = await page.$('.ct-card.ok');
-    const box = await card.boundingBox();
-    if (how === 'tap') { await card.click({ position: { x: Math.min(8, box.width / 4), y: Math.min(30, box.height / 3) }, force: true }); kinds.tap++; }
-    else if (how === 'key') { await card.focus(); await page.keyboard.press('Enter'); kinds.key++; }
+    await page.waitForFunction(() => !document.querySelector('.ct-card.fly'), null, { timeout: 2000 }).catch(() => {});
+    // a point where the card is really on top (fans overlap, cards are rotated)
+    const pt = await page.evaluate((i) => {
+      const cards = [...document.querySelectorAll('.ct-card.ok')]; const el = cards[i % cards.length];
+      const r = el.getBoundingClientRect();
+      for (let fy = 0.5; fy > 0.05; fy -= 0.1) for (let fx = 0.15; fx < 0.95; fx += 0.1) {
+        const x = r.left + r.width * fx, y = r.top + r.height * fy;
+        if (document.elementFromPoint(x, y)?.closest('.ct-card') === el) return { x, y, id: el.dataset.card };
+      }
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, id: el.dataset.card };
+    }, moves);
+    if (how === 'tap') { if (C.touch) await page.touchscreen.tap(pt.x, pt.y); else await page.mouse.click(pt.x, pt.y); kinds.tap++; }
+    else if (how === 'key') { await page.focus(`.ct-card[data-card="${pt.id}"]`); await page.keyboard.press('Enter'); kinds.key++; }
     else {
-      const x = box.x + 8, y = box.y + 30, tx = C.vp[0] / 2, ty = C.vp[1] * 0.42;
-      await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move((x + tx) / 2, (y + ty) / 2, { steps: 4 }); await page.mouse.move(tx, ty, { steps: 4 }); await page.mouse.up(); kinds.drag++;
+      const tx = C.vp[0] / 2, ty = C.vp[1] * 0.42;
+      await page.mouse.move(pt.x, pt.y); await page.mouse.down(); await page.mouse.move((pt.x + tx) / 2, (pt.y + ty) / 2, { steps: 4 }); await page.mouse.move(tx, ty, { steps: 4 }); await page.mouse.up(); kinds.drag++;
     }
-    await page.waitForFunction((b) => window.__carte.M.moves > b || document.querySelector('.cb-choose, .cb-result, .cb-pass'), before, { timeout: 15000 }).catch(() => issues.push(`${C.name} ${game}: move ${how} did not register`));
+    await page.waitForFunction((b) => window.__carte.M.moves > b || document.querySelector('.cb-choose, .cb-result, .cb-pass'), before, { timeout: 15000 }).catch(() => issues.push(`${C.name} ${game}: move ${how} on ${pt.id} did not register`));
     moves++;
     if (moves === 4 && !shot++) { await page.waitForTimeout(450); await page.screenshot({ path: `${OUT}/${C.name}-${game}-play.png` }); }
   }
   const info = await page.evaluate(() => ({ over: window.__carte.M?.over, winner: window.__carte.M?.winner, totals: window.__carte.M?.totals, rounds: window.__carte.M?.rounds.length }));
   if (!info.over) issues.push(`${C.name} ${game}: match not finished`);
-  console.log(`${C.name} ${game} ${cfg.variant}/${cfg.n}: ${moves} mosse (tap ${kinds.tap}, drag ${kinds.drag}, tastiera ${kinds.key}, scelte ${kinds.choose}), ${info.rounds} smazzate, totali ${info.totals}, vince ${info.winner}`);
+  console.log(`${C.name} ${game} ${cfg.variant}/${cfg.n}: ${moves} mosse (tap ${kinds.tap}, drag ${kinds.drag}, tastiera ${kinds.key}, scelte ${kinds.choose}, passaggi ${kinds.pass}), ${info.rounds} smazzate, totali ${info.totals}, vince ${info.winner}`);
   await page.click('[data-a=cb-tolobby]');
   await page.waitForSelector('[data-a=cb-start]');
   await page.click('[data-a=cb-home]');
