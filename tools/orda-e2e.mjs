@@ -107,7 +107,7 @@ for (const [w, h, mob] of [[1440, 900, false], [1024, 768, false], [390, 844, tr
   ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0, `${w}x${h}: map has no horizontal overflow`);
   await page.click('.or-node.cur');
   await page.waitForFunction(() => window.__orda?.game?.sim && window.__orda.game.cam, null, { timeout: 60000 });
-  const info = await page.evaluate(() => { const o = window.__orda; o.game.autoplay = true; return o.step(1 / 30, 30 * 24); });
+  const info = await page.evaluate(() => { const o = window.__orda; o.game.autoplay = true; return o.step(1 / 30, 30 * 12); }); // levels last ~25 s now: catch the middle of the fight
   await page.waitForTimeout(2600);
   await shot(page, `${w}x${h}-play`);
   ok(info.state === 'play' && info.bodies > 100, `${w}x${h}: level 13 in play, ${info.blue} blue units in ${info.bodies} bodies, ${info.red} red`);

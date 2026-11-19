@@ -423,7 +423,8 @@ export class Sim {
       R.z[i] -= this.spdR * (kind === 2 ? 0.4 : brute ? 0.5 : 1) * dt;
       R.vx[i] *= Math.exp(-4 * dt);
       R.x[i] += R.vx[i] * dt + Math.sin(this.t * 2.6 + R.ph[i] * 6.28) * 0.2 * dt;
-      if (R.z[i] < 16) R.x[i] += clamp(c.x - R.x[i], -1, 1) * 1.6 * dt;
+      // reds drift towards the cannon's lane all the way down, so they crash into the blue river
+      R.x[i] += clamp(c.x - R.x[i], -1, 1) * (R.z[i] < 16 ? 1.8 : 0.9) * dt;
       R.x[i] = clamp(R.x[i], -lim, lim);
       if (!brute && this.obstacle(R, i, r, -1)) { R.h[i] = 0; continue; }
       if (R.z[i] <= CANNON_Z + 0.3) {

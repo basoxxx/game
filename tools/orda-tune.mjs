@@ -35,7 +35,10 @@ for (const R of RAW_LEVELS) {
   if (!only.length || only.includes(R.id)) {
     const target = R.target || 30, travel = R.len / upEffects(up).speed + 1;
     const P = probe(applyTune(R, { k: 1, hp: 1e9, time: 999, par: 1, crowd: 1 }), up, champ);
-    let k = ((R.press ?? 0.22) * P) / Math.max(0.1, redRate(R.base)), kh = P / 40;
+    // reds: a share of the multiplied flow, capped by a share of the raw fire rate (a worse aim
+    // multiplies far less and must not be swamped by reds sized on the autopilot)
+    const E = upEffects(up), raw = E.rate * E.shot, capK = 0.45 + 0.65 * Math.min(1, (R.id - 1) / 29);
+    let k = Math.min((R.press ?? 0.22) * P, raw * capK) / Math.max(0.1, redRate(R.base)), kh = P / 40;
     let hp = Math.max(50, Math.round(P * (target - travel) * 0.75));
     let res = [];
     const weakUp = Object.fromEntries(Object.entries(up).map(([k2, v]) => [k2, Math.floor(v / 2)]));
@@ -44,7 +47,7 @@ for (const R of RAW_LEVELS) {
     for (let it = 0; it < 12; it++) {
       const t = go(), free = travel + hp / (P * 0.85);
       // and a weaker player (half the upgrades) must still win before the clock runs out
-      const weak = run(applyTune(R, { k, kh, hp, time: Math.max(target * 2.2, target + 30), par: 1, crowd: 1 }), weakUp, champ, 7);
+      const weak = run(applyTune(R, { k, kh, hp, time: Math.max(target * 2.6, target + 35), par: 1, crowd: 1 }), weakUp, champ, 7);
       if (res.some((r) => !r.win && r.why === 'overrun') || t > free * 1.25 || !weak.win) { k *= 0.8; kh *= 0.92; } else break;
     }
     // 2) base hit points for the target duration
@@ -57,7 +60,7 @@ for (const R of RAW_LEVELS) {
     const ts = res.map((r) => r.time), tAvg = ts.reduce((a, b) => a + b, 0) / ts.length;
     TUNE[R.id] = {
       hp: round5(hp), k: +k.toFixed(3), kh: +kh.toFixed(3),
-      time: round5(Math.max(target * 2.2, target + 30)), par: Math.round(tAvg * 1.15 + 1),
+      time: round5(Math.max(target * 2.6, target + 35)), par: Math.round(tAvg * 1.15 + 1),
       crowd: Math.max(10, round5(Math.min(...res.map((r) => r.left)) * 0.7)),
     };
     console.log(`${String(R.id).padStart(2)} ${R.name.padEnd(24)} P=${P.toFixed(0).padStart(5)} k=${k.toFixed(2).padStart(5)} hp=${String(TUNE[R.id].hp).padStart(6)} t=${ts.map((x) => x.toFixed(1)).join('/')} (target ${target}) left=${res.map((r) => r.left).join('/')} ${res.map((r) => (r.win ? 'W' : r.why)).join('')} [${UPGRADES.map((u) => `${u.id[0]}${up[u.id] || 0}`).join(' ')}] ${champ}`);

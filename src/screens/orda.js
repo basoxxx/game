@@ -171,11 +171,13 @@ function menu(p) {
   const tab = ORDA_TABS.find((t) => t.id === V.tab) || ORDA_TABS[0];
   return `<div class="full-screen or-menu">
     ${pageHead({ back: V.from, eyebrow: 'Baso Hub · Arcade', title: 'Orda', sub: 'Spara la tua orda di fagiolini blu, moltiplicala nelle porte e travolgi la fortezza rossa.', right: `<div class="or-wallet"><div class="w-k">Monete</div><b>${icon('coin')} ${fmt(p.coins)}</b><div class="w-s">★ ${ordaStars(p)} · ${p.wins} vittorie · ${fmt(p.sent)} figure sparate</div></div>` })}
-    <nav class="or-tabs" role="tablist">${ORDA_TABS.map((t) => `<button role="tab" aria-selected="${t.id === tab.id}" class="${t.id === tab.id ? 'on' : ''}" data-a="or-tab" data-id="${t.id}">${icon(t.icon)}<span>${esc(t.name)}</span></button>`).join('')}</nav>
+    <nav class="or-tabs" role="tablist">${ORDA_TABS.map((t) => `<button role="tab" aria-selected="${t.id === tab.id}" class="${t.id === tab.id ? 'on' : ''}" data-a="or-tab" data-id="${t.id}">${icon(t.icon)}<span>${esc(t.name)}</span>${t.id === 'potenziamenti' && canBuy(p) ? `<em class="or-badge" title="Potenziamenti alla tua portata">${canBuy(p)}</em>` : ''}</button>`).join('')}</nav>
     <div class="or-body">${tab.render(p)}</div>
   </div>`;
 }
 
+// how many upgrades the wallet can pay for right now (badge on the tab, hint after a defeat)
+const canBuy = (p) => UPGRADES.filter((u) => (p.up[u.id] || 0) < u.max && upCost(u, p.up[u.id] || 0) <= p.coins).length;
 function results(r, p, extra = '') {
   const L = V.run?.level, campaign = V.run?.mode === 'level';
   let nx = campaign && r.win ? levelById((L?.id || 0) + 1) : null;
@@ -186,7 +188,7 @@ function results(r, p, extra = '') {
       <div class="or-k">${campaign ? `Livello ${L.id} · ${esc(L.name)}` : esc(V.run?.label || L?.name || '')}</div>
       <h2>${title}</h2>
       ${r.bonus ? `<p class="or-res-why">La tua orda ha portato <b>${fmt(r.baseDmg)}</b> figure nel caveau.</p>` : r.win ? `<div class="or-res-stars">${[1, 2, 3].map((i) => `<i class="${i <= r.stars ? 'on' : ''}" style="--d:${i * 0.25}s">★</i>`).join('')}</div>` : `<p class="or-res-why">${r.why === 'time' ? 'La base ha resistito: prova una porta diversa o potenzia la cadenza.' : 'Troppi rossi hanno raggiunto il cannone: spostati per intercettarli.'}</p>`}
-      ${r.win && L?.stars ? `<ul class="or-res-goals"><li class="on">★ Base distrutta</li><li class="${r.timeMs / 1000 <= L.stars.par ? 'on' : ''}">★ Entro ${L.stars.par}s <em>${(r.timeMs / 1000).toFixed(0)}s</em></li><li class="${r.left >= L.stars.crowd ? 'on' : ''}">★ Orda finale ≥ ${L.stars.crowd} <em>${fmt(r.left)}</em></li></ul>` : ''}
+      ${r.win && L?.stars && !r.bonus ? `<ul class="or-res-goals"><li class="on">★ Base distrutta</li><li class="${r.timeMs / 1000 <= L.stars.par ? 'on' : ''}">★ Entro ${L.stars.par}s <em>${(r.timeMs / 1000).toFixed(0)}s</em></li><li class="${r.left >= L.stars.crowd ? 'on' : ''}">★ Orda finale ≥ ${L.stars.crowd} <em>${fmt(r.left)}</em></li></ul>` : ''}
       <div class="or-res-stats">
         <div><b>${fmt(r.figuresSent)}</b><span>sparate</span></div>
         <div><b>${fmt(r.cloned || 0)}</b><span>dalle porte</span></div>
@@ -203,9 +205,9 @@ function results(r, p, extra = '') {
       ${extra}
       <div class="or-res-btns">
         ${nx ? `<button class="btn primary or-next" data-a="or-play" data-id="${nx.id}">${icon('play')} Livello ${nx.id} <em class="or-auto"></em></button>` : ''}
-        <button class="btn ${nx ? '' : 'primary'}" data-a="or-again">${icon('replay')} ${r.win ? 'Rigioca' : 'Riprova'}</button>
-        ${!r.win ? `<button class="btn" data-a="or-shop">${icon('wrench')} Potenziamenti</button>` : ''}
-        <button class="btn ghost" data-a="or-back">${icon('map')} Menu Orda</button>
+        ${r.bonus ? "" : `<button class="btn ${nx ? "" : "primary"}" data-a="or-again">${icon("replay")} ${r.win ? "Rigioca" : "Riprova"}</button>`}
+        ${!r.win || canBuy(p) ? `<button class="btn" data-a="or-shop">${icon('wrench')} Potenziamenti${canBuy(p) ? ` <em class="or-badge">${canBuy(p)}</em>` : ''}</button>` : ''}
+        <button class="btn ${r.bonus ? "primary" : "ghost"}" data-a="or-back">${icon("map")} Menu Orda</button>
       </div>
     </div>
   </div>`;
@@ -373,7 +375,7 @@ export const ordaActions = ORDA_ACTIONS;
 // test hook: deterministic stepping from the outside (headless WebGL is far too slow to play live)
 window.__orda = Object.assign(window.__orda || {}, {
   step(dt = 1 / 60, n = 1) { const g = V.game; if (!g?.sim) return null; for (let i = 0; i < n; i++) g.step(dt); return g.debugInfo(); },
-  play: (id) => startLevel(id), playLevel: (level, mode = 'level') => playOrda({ level, mode }), state: () => V.game?.debugInfo() || null, store: ordaLoad, save: ordaSave, levels: LEVELS,
+  play: (id) => startLevel(id), playLevel: (level, mode = 'level') => playOrda({ level, mode }), bonus: (n = 1) => playOrda({ level: bonusLevel(n), mode: 'bonus', label: 'Livello bonus' }), state: () => V.game?.debugInfo() || null, store: ordaLoad, save: ordaSave, levels: LEVELS,
 });
 Object.defineProperty(window.__orda, 'result', { get: () => V.result, configurable: true });
 

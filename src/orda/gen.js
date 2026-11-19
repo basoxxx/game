@@ -46,8 +46,8 @@ export function knobs(d) {
     waves: e > 0.35,
     towers: e < 0.3 ? 0 : Math.round(lerp(0, 2.4, e)) + (x > 0.6 ? 1 : 0),
     phases: e < 0.5 ? 0 : e < 0.8 ? 1 : 2,
-    targetRatio: lerp(0.4, 0.68, e) + Math.min(0.1, x * 0.05), // clock share a decent player needs
-    time: Math.round(lerp(50, 75, e) / 5) * 5,
+    targetRatio: lerp(0.27, 0.55, e) + Math.min(0.1, x * 0.05), // clock share a decent player needs
+    time: Math.round(lerp(75, 85, e) / 5) * 5, // generous: a wobbly aim multiplies far less
     rainbow: lerp(0.15, 0.35, e), giants: e > 0.6,
     cannonHp: Math.round(lerp(26, 44, e) + Math.min(10, x * 8)),
   };
@@ -262,7 +262,10 @@ export function generateLevel(seed, difficulty = 0.5, { endless = false, why = n
     // throughput of a decent player → red pressure, towers, base
     const P = probe(L, { seed: s, ...LO });
     if (!(P > 2)) { no('no-flow'); continue; }
-    let redPs = Math.max(0.6, P * k.redFrac);
+    // reds are a share of the multiplied flow, but never more than a share of the raw fire rate: a
+    // wobbly aim multiplies far less, and must not be overrun by reds sized on a sharp one
+    const raw = (8 + 0.7 * (LO.up.rate || 0)) * (1 + 0.2 * (LO.up.shot || 0));
+    let redPs = Math.max(0.6, Math.min(P * k.redFrac, raw * lerp(0.45, 1.1, k.e)));
     const setReds = () => {
       const share = L.base.waves ? 0.7 : 1, perSp = (redPs * share) / L.base.spawners.length;
       L.base.spawners.forEach((sp) => { sp.count = Math.max(1, Math.round(perSp / 1.3)); sp.rate = r2(perSp / sp.count); });
