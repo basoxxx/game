@@ -215,7 +215,7 @@ export const App = {
     if (screens[id]?.full) this.history.length = 0;
     prev?.unmount?.();
     // the live race views own a WebGL context of their own: hand ours back before they start
-    if (id === 'weekend' || id === 'rally' || id === 'derby' || id === 'voragine') disposeStage();
+    if (id === 'weekend' || id === 'rally' || id === 'derby' || id === 'voragine' || id === 'orda-versus') disposeStage();
     this.cur = id; this.params = params;
     this.closeModal();
     document.querySelector('.coach')?.remove();
