@@ -208,7 +208,7 @@ export class OrdaGame {
     const o = this.o, root = this.root, L = this.level;
     const tier = this.tier = o.tier || 'high';
     const cap = Math.round(CAPS[tier] || 900);
-    this.sim = new Sim(L, { up: o.upgrades, champ: o.champion, champLvl: o.champLvl, seed: o.seed, cap, autofire: o.autofire, hooks: o.hooks });
+    this.sim = new Sim(L, { up: o.upgrades, champ: o.champion, champLvl: o.champLvl, seed: o.seed, cap, autofire: o.autofire, hooks: { onWave: o.hooks?.onWave, onBaseHit: o.hooks?.onBaseHit } });
     const C = champById(o.champion);
     root.innerHTML = `<canvas class="or-cv"></canvas><div class="or-hud">
       <div class="or-top">
@@ -331,7 +331,7 @@ export class OrdaGame {
       const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128;
       drawGate(cv, g);
       const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-      const panel = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+      const panel = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false }));
       panel.scale.set(g.w, g.w * 0.5, 1); panel.position.y = 1.15 + g.w * 0.25; panel.rotation.set(0.22, Math.PI, 0, 'YXZ'); panel.renderOrder = 4;
       const postM = new THREE.MeshLambertMaterial({ color: '#ffffff' });
       const posts = [-1, 1].map((s) => { const pst = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 1.3 + g.w * 0.5, 10), postM); pst.position.set(s * g.w / 2, (1.3 + g.w * 0.5) / 2, 0); pst.castShadow = true; return pst; });
@@ -588,6 +588,7 @@ export class OrdaGame {
   placeCamera(dt) {
     const B = this.camBase; if (!B) return;
     const cam = this.cam;
+    if (this.camOverride) { this.camOverride(cam); return; } // photo mode for tools (covers)
     const sx = (this.sim.cannon.x || 0) * 0.08;
     let ox = 0, oy = 0;
     if (this.shakeT > 0 && this.o.shake !== false) { this.shakeT = Math.max(0, this.shakeT - dt); const k = this.shakeT * this.shakeAmp; ox = (Math.random() - 0.5) * k; oy = (Math.random() - 0.5) * k; }
@@ -609,7 +610,7 @@ export class OrdaGame {
     if (this.paused) return;
     this.clock += dt; this.uTime.value = this.clock;
     if (this.freeze > 0) { this.freeze -= dt; dt = 0; } // hit-stop
-    if (!live) { this.acc += dt; } else this.acc += dt;
+    this.acc += dt;
     let n = 0;
     while (this.acc >= STEP && n < (live ? 6 : 1e9)) {
       this.acc -= STEP; n++;

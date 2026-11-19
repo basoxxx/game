@@ -26,8 +26,8 @@
 @keyframes orgate { 50% { transform: translate(-50%, -50%) rotate(3deg) scale(1.06); } }
 .or-bean { --b: #2f80ff; position: absolute; width: 22px; height: 30px; border-radius: 50% 50% 46% 46% / 60% 60% 40% 40%; background: var(--b); box-shadow: inset -4px -5px 0 rgba(0,0,0,.18); }
 .or-bean::before { content: ''; position: absolute; left: 4px; right: 4px; top: 7px; height: 7px; background: radial-gradient(circle at 25% 50%, #111 2px, #fff 2.5px 4px, transparent 4.5px), radial-gradient(circle at 75% 50%, #111 2px, #fff 2.5px 4px, transparent 4.5px); }
-.or-hero-art .or-bean { left: calc(38% + (var(--i) * 37 % 24) * 1%); bottom: calc(6% + (var(--i) * 13 % 34) * 1%); animation: orrun .5s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -70ms); }
-.or-hero-art .or-bean.r { --b: #ff3b4e; bottom: auto; top: calc(42% + (var(--i) % 3) * 4%); }
+.or-hero-art .or-bean { animation: orrun .5s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -70ms); }
+.or-hero-art .or-bean.r { --b: #ff3b4e; transform: scale(.8); }
 @keyframes orrun { to { transform: translateY(-5px) scaleY(1.05); } }
 .or-bean.big { position: relative; display: inline-block; width: 34px; height: 46px; }
 .or-hero-body { padding: 22px 24px; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
@@ -43,7 +43,7 @@
 .or-card span { font-size: 13px; color: var(--text2); }
 .or-champ-now { flex-direction: row; align-items: center; gap: 12px; }
 .or-champ-now > div:last-child { display: flex; flex-direction: column; gap: 2px; }
-.or-cface { --c: #2f80ff; flex: none; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 60%, #fff), var(--c)); box-shadow: inset 0 -5px 0 rgba(0,0,0,.2), 0 6px 16px -6px var(--c); }
+.or-cface { flex: none; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c, #2f80ff) 60%, #fff), var(--c, #2f80ff)); box-shadow: inset 0 -5px 0 rgba(0,0,0,.2), 0 6px 16px -6px var(--c, #2f80ff); }
 .or-cface.big { width: 86px; height: 86px; font-size: 44px; margin: 0 auto 6px; }
 .or-modes { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
 .or-mode { display: flex; gap: 12px; align-items: flex-start; padding: 14px; background: var(--s1); border: 1px solid var(--line2); border-radius: 14px; cursor: pointer; }
@@ -68,13 +68,13 @@
 .or-path { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding: 18px 16px 16px; }
 .or-path::before { content: ''; position: absolute; left: 10%; right: 10%; top: 50px; border-top: 4px dashed color-mix(in srgb, var(--rim) 60%, transparent); }
 .or-node { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; color: var(--text); cursor: pointer; padding: 0; font-family: inherit; transform: translateY(calc(sin(var(--i) * 1.4rad) * 10px)); }
-.or-node i { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; font-style: normal; font-family: var(--display); font-weight: 900; font-size: 24px; color: #fff; background: radial-gradient(circle at 35% 30%, #6fb1ff, #2f6bff); border: 3px solid #fff; box-shadow: 0 6px 0 #1b48b8, 0 10px 18px -6px rgba(0,0,0,.5); transition: transform .15s; }
-.or-node.boss i { width: 72px; height: 72px; font-size: 30px; background: radial-gradient(circle at 35% 30%, #ff8a9a, #e0243d); box-shadow: 0 6px 0 #8f1022, 0 10px 18px -6px rgba(0,0,0,.5); }
-.or-node.done i { background: radial-gradient(circle at 35% 30%, #7df0c8, #18b98a); box-shadow: 0 6px 0 #0d7a5a, 0 10px 18px -6px rgba(0,0,0,.5); }
-.or-node.cur i { animation: ornode 1s ease-in-out infinite; outline: 3px solid var(--gold); outline-offset: 3px; }
+.or-node > i { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; font-style: normal; font-family: var(--display); font-weight: 900; font-size: 24px; color: #fff; background: radial-gradient(circle at 35% 30%, #6fb1ff, #2f6bff); border: 3px solid #fff; box-shadow: 0 6px 0 #1b48b8, 0 10px 18px -6px rgba(0,0,0,.5); transition: transform .15s; }
+.or-node.boss > i { width: 72px; height: 72px; font-size: 30px; background: radial-gradient(circle at 35% 30%, #ff8a9a, #e0243d); box-shadow: 0 6px 0 #8f1022, 0 10px 18px -6px rgba(0,0,0,.5); }
+.or-node.done > i { background: radial-gradient(circle at 35% 30%, #7df0c8, #18b98a); box-shadow: 0 6px 0 #0d7a5a, 0 10px 18px -6px rgba(0,0,0,.5); }
+.or-node.cur > i { animation: ornode 1s ease-in-out infinite; outline: 3px solid var(--gold); outline-offset: 3px; }
 @keyframes ornode { 50% { transform: translateY(-5px) scale(1.06); } }
-.or-node.locked i { background: #3a3f4d; box-shadow: 0 6px 0 #22252e; font-size: 20px; }
-.or-node:hover i, .or-node:focus-visible i { transform: translateY(-3px) scale(1.05); }
+.or-node.locked > i { background: #3a3f4d; box-shadow: 0 6px 0 #22252e; font-size: 20px; }
+.or-node:hover > i, .or-node:focus-visible > i { transform: translateY(-3px) scale(1.05); }
 .or-node small { font-size: 12px; color: var(--text2); text-align: center; line-height: 1.15; max-width: 110px; }
 .or-node .or-stars { font-size: 14px; }
 /* shop */
@@ -191,7 +191,7 @@
 .or-hurt { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at 50% 100%, rgba(255,40,60,.55), transparent 55%); }
 .or-tip { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); width: min(460px, 86vw); padding: 10px 16px; border-radius: 14px; background: rgba(20,40,90,.7); border: 2px solid rgba(255,255,255,.8); text-align: center; font-family: var(--body, inherit); font-size: 15px; font-weight: 600; line-height: 1.35; text-shadow: none; transition: opacity .6s; }
 .or-tip.off, .or-help.off { opacity: 0; }
-.or-help { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%); font-size: 13px; padding: 4px 12px; border-radius: 999px; background: rgba(20,40,90,.5); white-space: nowrap; transition: opacity .6s; text-shadow: none; }
+.or-help { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); font-size: 13px; padding: 4px 12px; border-radius: 999px; background: rgba(20,40,90,.5); white-space: nowrap; transition: opacity .6s; text-shadow: none; }
 .or-help .kbd { color: #fff; background: rgba(255,255,255,.22); border-color: rgba(255,255,255,.5); }
 .or-over { position: absolute; inset: 0; pointer-events: none; }
 .or-over > * { pointer-events: auto; }
@@ -230,8 +230,8 @@
   .or-hero-art { min-height: 180px; }
   .or-home-row { grid-template-columns: 1fr; }
   .or-path { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; padding: 14px 6px; }
-  .or-node i { width: 46px; height: 46px; font-size: 18px; }
-  .or-node.boss i { width: 54px; height: 54px; font-size: 22px; }
+  .or-node > i { width: 46px; height: 46px; font-size: 18px; }
+  .or-node.boss > i { width: 54px; height: 54px; font-size: 22px; }
   .or-node small { font-size: 10.5px; }
   .or-path::before { top: 38px; }
   .or-menu .page-head { flex-wrap: wrap; align-items: flex-start; }
@@ -256,7 +256,7 @@
   .or-count { font-size: 84px; }
 }
 @media (max-height: 500px) {
-  .or-goals { top: auto; bottom: 10px; left: 50%; }
+  .or-root .or-goals, .or-root.or-wide .or-goals { top: calc(max(10px, env(safe-area-inset-top)) + 50px); bottom: auto; left: 66px; transform: none; }
   .or-can { left: auto; right: 124px; transform: none; width: 160px; bottom: 12px; }
   .or-goals .or-lv { display: none; }
   .or-champ { width: 86px; height: 86px; }
@@ -265,4 +265,4 @@
   .or-help { display: none; }
   .or-crowd b { font-size: 24px; }
 }
-.reduce-motion .or-hero-gate, .reduce-motion .or-bean, .reduce-motion .or-node.cur i, .reduce-motion .or-champ.ready { animation: none; }
+.reduce-motion .or-hero-gate, .reduce-motion .or-bean, .reduce-motion .or-node.cur > i, .reduce-motion .or-champ.ready { animation: none; }
