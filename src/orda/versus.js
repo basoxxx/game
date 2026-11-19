@@ -13,8 +13,9 @@
 import * as THREE from 'three';
 import { pixelRatio } from '../ui/quality.js';
 import { FrameGuard } from '../ui/perfguard.js';
-import { sfx } from '../ui/audio.js';
+import { osfx } from '../ui/audio.js';
 import { VersusInput } from './versus-input.js';
+import { OrdaGame, figureGeometry, figureMaterial, Crowd } from './game.js';
 
 import { VS_CHAMPIONS, VS_CHAMP_IDS, VS_ARENAS, VS_COOP, expandLevel } from './versus-data.js';
 export { VS_CHAMPIONS, VS_CHAMP_IDS, VS_ARENAS, VS_COOP, expandLevel };
@@ -278,19 +279,13 @@ export class OrdaVersus {
       m.position.set(ob.x, 0.7, ob.z); m.castShadow = m.receiveShadow = true; scene.add(m);
       const cap = new THREE.Mesh(new THREE.CylinderGeometry(ob.r * 0.7, ob.r, 0.4, 20), new THREE.MeshLambertMaterial({ color: lv.arena.water ? '#7c7266' : '#ff6a3d' })); cap.position.set(ob.x, 1.6, ob.z); scene.add(cap);
     }
-    // the crowd: instanced bodies + heads + champions' crowns
-    const bodyG = new THREE.CapsuleGeometry(0.3, 0.42, 4, 10); bodyG.translate(0, 0.52, 0);
-    const headG = new THREE.SphereGeometry(0.26, 12, 10); headG.translate(0, 1.18, 0);
-    this.bodies = new THREE.InstancedMesh(bodyG, new THREE.MeshLambertMaterial({ color: '#ffffff' }), N);
-    this.heads = new THREE.InstancedMesh(headG, new THREE.MeshLambertMaterial({ color: '#ffffff' }), N);
-    for (const m of [this.bodies, this.heads]) { m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.count = 0; m.castShadow = true; m.frustumCulled = false; scene.add(m); }
-    // instance colours set once per owner slot (re-set when a slot is reused)
-    const white = new THREE.Color('#ffffff');
-    for (let i = 0; i < N; i++) { this.bodies.setColorAt(i, white); this.heads.setColorAt(i, white); }
-    this.cols = [0, 1, 2].map((p) => { const c = new THREE.Color(p === 2 ? TEAM.ai : this.pcol[p]); return { body: c, head: c.clone().lerp(new THREE.Color('#ffe0c2'), 0.65), champ: c.clone().lerp(new THREE.Color('#ffd23a'), 0.45) }; });
+    // the crowd: the core's bean figure (one instanced mesh, run cycle in the vertex shader) and
+    // the core's champion models, recoloured in the player's colour
+    this.uTime = { value: 0 };
+    this.crowd = new Crowd(scene, figureGeometry(), figureMaterial(this.uTime), N, this.tier === 'high');
+    this.cols = [0, 1, 2].map((p) => { const c = new THREE.Color(p === 2 ? TEAM.ai : this.pcol[p]); return { body: c }; });
+    this.champG = new Map(); // figure slot -> { id, g }
     this.fx = new Puffs(scene);
-    const domeG = new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2);
-    this.domes = Array.from({ length: 6 }, () => { const d = new THREE.Mesh(domeG, new THREE.MeshBasicMaterial({ color: '#b79bff', transparent: true, opacity: 0.28, depthWrite: false })); d.visible = false; scene.add(d); return d; });
     this.tm = new THREE.Matrix4(); this.tq = new THREE.Quaternion(); this.tv = new THREE.Vector3(); this.ts = new THREE.Vector3(); this.te = new THREE.Euler();
   }
 
@@ -400,7 +395,7 @@ export class OrdaVersus {
     ban.style.setProperty('--wc', winner >= 0 ? this.pcol[winner] : '#fff');
     ban.innerHTML = winner >= 0 ? `<small>Round ${this.round}</small><b>${this.names[winner]} vince il round!</b><span>${whyT}</span>` : `<small>Round ${this.round}</small><b>Pareggio</b><span>si rigioca</span>`;
     ban.className = 'ovs-banner on';
-    try { if (this.o.volume > 0) (winner >= 0 ? sfx.ok : sfx.bad)(); } catch {}
+    this.snd(winner >= 0 ? 'collapse' : 'alarm');
     const bw = winner >= 0 ? this.bases[1 - winner] : null;
     if (bw) for (let k = 0; k < 6; k++) this.fx.burst((this.rand() - 0.5) * this.W, 3, bw.z0, ['#ffd23a', '#ff6a3d', '#ffffff'][k % 3], 30, 8, 0.45, 1, this.rand);
     if (this.wins[0] >= this.needWins || this.wins[1] >= this.needWins || this.round >= (this.o.rounds || 3) + 2) this.matchDone = true; // draws replay the round, up to two extra
@@ -415,7 +410,7 @@ export class OrdaVersus {
       names: this.names, colors: this.pcol, champions: [this.champOf(0), this.champOf(1)], handicap: [this.hc(0), this.hc(1)],
       stats: this.total.map((s) => ({ ...s })), time: this.results.reduce((a, r) => a + r.time, 0),
     };
-    try { if (this.o.volume > 0) sfx.win(); } catch {}
+    this.snd(this.coop && outcome !== 'win' ? 'lose' : 'win');
     this.later = 1.4; this.result = res;
   }
 
@@ -427,9 +422,6 @@ export class OrdaVersus {
     const C = champ >= 0 ? VS_CHAMPIONS[VS_CHAMP_IDS[champ]] : null;
     f.hp[i] = C ? C.hp : 1; f.aux[i] = C?.split || 0; f.t[i] = 0; f.sp[i] = SPEED * (C ? C.speed : 1) * (0.92 + this.rand() * 0.16); f.sc[i] = C ? C.scale : 1;
     this.count[side]++;
-    const c = this.cols[p];
-    this.bodies.setColorAt(i, C ? c.champ : c.body); this.heads.setColorAt(i, c.head);
-    this.colorDirty = true;
     return i;
   }
   kill(i, by = -1) {
@@ -442,13 +434,13 @@ export class OrdaVersus {
     if (f.ch[i] >= 0 && f.aux[i] > 0) {
       const x = f.x[i], z = f.z[i], mask = f.mask[i], n = Math.min(80, Math.round(f.aux[i]));
       for (let k = 0; k < n; k++) { const a = (k / n) * Math.PI * 2, r = 0.6 + (k % 3) * 0.5; if (this.spawn(p, s, x + Math.cos(a) * r, z + Math.sin(a) * r, -1, mask) >= 0) this.stats[p].sent++; }
-      this.fx.burst(x, 1.2, z, '#ff8a1f', 24, 6, 0.4, 0.6, this.rand);
+      this.fx.burst(x, 1.2, z, '#ff8a1f', 24, 6, 0.4, 0.6, this.rand); this.snd('burst');
     }
   }
   // champion powers: the Grillo's landing shockwave, the Testuggine's dome
   champTick(i, dt) {
     const f = this.f, C = VS_CHAMPIONS[VS_CHAMP_IDS[f.ch[i]]];
-    if (C.slam) { f.t[i] += dt; if (f.t[i] >= 0.8) { f.t[i] -= 0.8; if (this.area(i, C.slam, 3)) this.shake = Math.max(this.shake || 0, 0.15); this.fx.burst(f.x[i], 0.3, f.z[i], '#21c7a8', 14, 5, 0.35, 0.4, this.rand); } }
+    if (C.slam) { f.t[i] += dt; if (f.t[i] >= 0.8) { f.t[i] -= 0.8; if (this.area(i, C.slam, 3)) this.shake = Math.max(this.shake || 0, 0.15); this.snd('slam', 0.2); this.fx.burst(f.x[i], 0.3, f.z[i], '#21c7a8', 14, 5, 0.35, 0.4, this.rand); } }
     if (C.aura) this.area(i, C.aura, 99, 0.35);
   }
   area(i, R, dmg, cost = 0) {
@@ -468,7 +460,7 @@ export class OrdaVersus {
     if (c.cd > 0) return;
     c.cd += 1 / rate;
     const i = this.spawn(p, c.side, c.x + (this.rand() - 0.5) * 0.6, c.z + dz * 2.2);
-    if (i >= 0) { this.stats[p].sent++; c.kick = 1; this.sndFire(p); }
+    if (i >= 0) { this.stats[p].sent++; c.kick = 1; if (p < 2) this.snd('shoot', 0.09); }
   }
   callChamp(c) {
     const p = c.p, C = VS_CHAMPIONS[this.champOf(p)];
@@ -478,13 +470,15 @@ export class OrdaVersus {
     this.spawn(p, c.side, c.x, c.z + dz * 2.6, id);
     this.fx.burst(c.x, 1.5, c.z + dz * 2.6, '#ffd23a', 26, 6, 0.4, 0.7, this.rand);
     if (p < 2) { const b = this.$('ovs-ch' + p); b?.classList.remove('go'); void b?.offsetWidth; b?.classList.add('go'); }
-    try { if (this.o.volume > 0) sfx.overtake(); } catch {}
+    this.snd('champ');
     return true;
   }
-  sndFire(p) {
-    const t = this.clock; this._snd ||= [0, 0, 0];
-    if (this.o.volume <= 0 || t - this._snd[p] < 0.22 || p === 2) return; this._snd[p] = t;
-    try { sfx.tick(); } catch {}
+  // sound: the core's Orda kit (shared effects bus and voice limits), throttled per effect
+  snd(name, gap = 0, ...args) {
+    if (!(this.o.volume > 0) || this.manual && !this.o.soundInTests) return;
+    const t = performance.now() / 1000; this._snd ||= {};
+    if (gap && t - (this._snd[name] || -9) < gap) return; this._snd[name] = t;
+    try { osfx[name]?.(...args); } catch {}
   }
 
   // bots (AI fortress, attract mode and tests): slide toward a target, fire, call the champion
@@ -519,7 +513,7 @@ export class OrdaVersus {
     if (this.countdown > 0) {
       const b = Math.ceil(this.countdown); this.countdown -= dt; const a = Math.ceil(this.countdown);
       const el = this.$('ovs-count');
-      if (a !== b || !el.textContent) { el.textContent = a > 0 ? a : 'Via!'; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); try { if (this.o.volume > 0) (a > 0 ? sfx.beep : sfx.go)(); } catch {} }
+      if (a !== b || !el.textContent) { el.textContent = a > 0 ? a : 'Via!'; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); this.snd(a > 0 ? 'beep' : 'go'); }
       if (this.countdown <= 0) setTimeout(() => { if (el && this.countdown <= 0) el.textContent = ''; }, 700);
       // cannons can already be positioned
       for (const c of this.cannons) { const s = c.ai || this.o.bots?.[c.p] ? null : ins[c.p]; if (s) c.x = clamp(c.x + s.move * 15 * dt + s.drag, c.lo, c.hi); c.g.position.x = c.x; }
@@ -535,6 +529,7 @@ export class OrdaVersus {
       c.cd = Math.max(0, c.cd - dt);
       const hc = c.p < 2 ? this.hc(c.p) : 0, C = VS_CHAMPIONS[this.champOf(c.p)];
       c.charge = Math.min(1, c.charge + dt / (C.charge / (1 + 0.15 * hc)) * (this.sudden ? 1.6 : 1));
+      if (c.charge >= 1 && !c.rdy) { c.rdy = true; if (c.p < 2) this.snd('ready', 0.3); } else if (c.charge < 1) c.rdy = false;
       if (s) {
         c.x = clamp(c.x + s.move * 15 * dt + s.drag, c.lo, c.hi);
         if (s.fire) this.fire(c);
@@ -565,6 +560,7 @@ export class OrdaVersus {
         f.mask[i] |= 1 << g.i;
         const p = f.own[i];
         this.gateHit(g);
+        if (s === 0 || !this.coop) this.snd(g.type === 'sub' ? 'minus' : 'gate', 0.07, g.type === 'mul' ? g.value : 2);
         if (g.type === 'sub') {
           if (g.broken) continue;
           if (f.ch[i] >= 0) { g.left = 0; } else { g.left -= 1; this.fx.burst(f.x[i], 0.6, f.z[i], '#ff4060', 4, 3, 0.25, 0.4, this.rand); this.kill(i); }
@@ -622,7 +618,7 @@ export class OrdaVersus {
         else if (this.time <= 0 && !this.sudden) {
           const a = this.bases[0].hp / this.bases[0].max, b = this.bases[1].hp / this.bases[1].max;
           if (Math.abs(a - b) > 0.02) this.endRound(a > b ? 0 : 1, 'time');
-          else { this.sudden = true; this.time = SUDDEN; this.suddenHp = this.bases.map((x) => x.hp); this.banner('Morte improvvisa!', 'Il primo colpo alla base vince · porte raddoppiate'); try { if (this.o.volume > 0) sfx.notify(); } catch {} }
+          else { this.sudden = true; this.time = SUDDEN; this.suddenHp = this.bases.map((x) => x.hp); this.banner('Morte improvvisa!', 'Il primo colpo alla base vince · porte raddoppiate'); this.snd('alarm'); }
         } else if (this.sudden) {
           // first base to lose hit points in sudden death loses the round
           const l0 = this.bases[0].hp < this.suddenHp[0], l1 = this.bases[1].hp < this.suddenHp[1];
@@ -644,6 +640,7 @@ export class OrdaVersus {
     const pi = f.own[i], pj = f.own[j];
     if (f.hp[i] <= 0.001) this.kill(i, pj);
     if (f.hp[j] <= 0.001) this.kill(j, pi);
+    this.snd('pop', 0.06);
     if (this.rand() < 0.5) this.fx.burst(x, 0.7, z, this.rand() < 0.5 ? this.cols[pi].body : this.cols[pj].body, 3, 3.5, 0.28, 0.45, this.rand);
   }
   gateHit(g) { const o = this.gateObjs[g.i]; if (o) o.flash = 0.25; }
@@ -653,8 +650,7 @@ export class OrdaVersus {
     this.stats[p].dmg += dmg;
     this.fx.burst(x, 1.6, B.z0 + (s === 0 ? -1 : 1), dmg > 3 ? '#ffd23a' : this.cols[p].body, dmg > 3 ? 24 : 3, dmg > 3 ? 7 : 4, 0.32, 0.5, this.rand);
     if (dmg > 3) this.shake = Math.max(this.shake || 0, 0.35);
-    const t = this.clock; this._hit ||= [0, 0];
-    if (this.o.volume > 0 && t - this._hit[s] > 0.35) { this._hit[s] = t; try { sfx.click(); } catch {} }
+    this.snd(dmg > 3 ? 'boom' : 'hit', dmg > 3 ? 0.4 : 0.12);
   }
   banner(t, sub) {
     const el = this.$('ovs-banner'); el.style.setProperty('--wc', '#ffd23a');
@@ -664,24 +660,27 @@ export class OrdaVersus {
 
   // ---------- visuals
   animate(dt) {
-    const f = this.f, M = this.tm, Q = this.tq, V = this.tv, S = this.ts, E = this.te;
-    let n = 0, nd = 0;
-    // instanced meshes: draw slots 0..max alive index (count = highest used + 1; dead ones scaled to 0)
-    let hiIdx = -1; for (let i = N - 1; i >= 0; i--) if (f.alive[i]) { hiIdx = i; break; }
-    const zero = this.zeroM ||= new THREE.Matrix4().makeScale(0, 0, 0);
-    for (let i = 0; i <= hiIdx; i++) {
-      if (!f.alive[i]) { this.bodies.setMatrixAt(i, zero); this.heads.setMatrixAt(i, zero); continue; }
-      const C = f.ch[i] >= 0 ? VS_CHAMPIONS[VS_CHAMP_IDS[f.ch[i]]] : null;
-      if (C?.aura && nd < this.domes.length) { const d = this.domes[nd++]; d.visible = true; d.position.set(f.x[i], 0, f.z[i]); d.scale.setScalar(C.aura); }
-      const sc = f.sc[i], bob = C?.slam ? Math.sin((f.t[i] / 0.8) * Math.PI) * 1.6 : Math.abs(Math.sin(f.ph[i])) * 0.16 * sc, dz = f.side[i] === 0 ? 0 : Math.PI;
-      E.set(Math.sin(f.ph[i]) * 0.12 - 0.12, dz + f.vx[i] * 0.6, Math.sin(f.ph[i] * 2) * 0.05); Q.setFromEuler(E);
-      M.compose(V.set(f.x[i], bob, f.z[i]), Q, S.set(sc, sc, sc));
-      this.bodies.setMatrixAt(i, M); this.heads.setMatrixAt(i, M); n++;
+    const f = this.f;
+    let n = 0;
+    this.uTime.value += dt;
+    const FIG = 1.25;
+    for (let i = 0; i < N; i++) {
+      const cg = this.champG.get(i);
+      if (!f.alive[i] || f.ch[i] < 0) { if (cg) { this.scene.remove(cg.g); cg.g.traverse((m) => { m.geometry?.dispose?.(); m.material?.dispose?.(); }); this.champG.delete(i); } if (!f.alive[i]) continue; }
+      const rot = f.side[i] === 0 ? Math.PI + f.vx[i] * 0.5 : -f.vx[i] * 0.5;
+      if (f.ch[i] >= 0) {
+        const id = VS_CHAMP_IDS[f.ch[i]], C = VS_CHAMPIONS[id];
+        let e = cg;
+        if (!e || e.id !== id || e.own !== f.own[i]) { if (e) this.scene.remove(e.g); e = { id, own: f.own[i], g: this.makeChamp(id, f.own[i]) }; this.champG.set(i, e); }
+        const hop = C.slam ? Math.sin((f.t[i] / 0.8) * Math.PI) * 1.6 : Math.abs(Math.sin(f.ph[i])) * 0.12;
+        e.g.position.set(f.x[i], hop, f.z[i]); e.g.rotation.y = rot; e.g.scale.setScalar(0.45 * f.sc[i]);
+        if (e.g.userData.dome && C.aura) e.g.userData.dome.scale.setScalar(C.aura / (0.45 * f.sc[i]));
+        continue;
+      }
+      const c = this.cols[f.own[i]].body;
+      this.crowd.set(n++, f.x[i], 0, f.z[i], rot, FIG, c.r, c.g, c.b, (f.ph[i] / 6.2832) % 1, 1);
     }
-    for (let k = nd; k < this.domes.length; k++) this.domes[k].visible = false;
-    this.bodies.count = this.heads.count = hiIdx + 1;
-    this.bodies.instanceMatrix.needsUpdate = this.heads.instanceMatrix.needsUpdate = true;
-    if (this.colorDirty) { this.bodies.instanceColor.needsUpdate = this.heads.instanceColor.needsUpdate = true; this.colorDirty = false; }
+    this.crowd.commit(n);
     // cannons
     for (const c of this.cannons) {
       c.g.position.x += (c.x - c.g.position.x) * Math.min(1, dt * 20);
@@ -695,6 +694,12 @@ export class OrdaVersus {
     this.shake = Math.max(0, (this.shake || 0) - dt * 1.6);
     if (this.camBase) { this.cam.position.copy(this.camBase); if (this.shake > 0) this.cam.position.add(this.tv.set((this.rand() - 0.5) * this.shake, 0, (this.rand() - 0.5) * this.shake)); }
     return n;
+  }
+  makeChamp(id, p) {
+    const g = OrdaGame.prototype.champMesh.call({ scene: this.scene }, id);
+    const from = new THREE.Color(VS_CHAMPIONS[id].color || '#2f6bff').getHex(), to = this.cols[p].body;
+    g.traverse((m) => { if (m.isMesh && m.material?.color?.getHex() === from) { m.material = m.material.clone(); m.material.color.copy(to); } });
+    return g;
   }
   drawTouch(p, T) {
     const el = this.$('ovs-t' + p); if (!el) return;
