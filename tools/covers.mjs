@@ -121,7 +121,7 @@ if (!ONLY || ONLY === 'orda') {
     g.readInput = () => { S.input.x = Math.sin(S.t * 1.1) * 2.6; S.input.fire = true; };
     for (let i = 0; i < 60 * 13; i++) g.step(1 / 60);
     g.paused = true; document.querySelector('.or-hud').style.display = 'none';
-    g.camOverride = (cam) => { cam.fov = 44; cam.updateProjectionMatrix(); cam.position.set(-7.5, 10.5, 9); cam.lookAt(1.2, 0, 36); };
+    g.camOverride = (cam) => { cam.fov = 44; cam.updateProjectionMatrix(); cam.position.set(-7.5, 10.5, 9); cam.lookAt(1.0, 3.4, 36); };
     return { blue: S.blueUnits(), bodies: S.blue.n, red: S.red.n };
   });
   console.log('orda stage', JSON.stringify(info));

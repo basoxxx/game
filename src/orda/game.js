@@ -784,9 +784,9 @@ export class OrdaGame {
       let m = this.champMeshes.get(ch); if (!m) { m = this.champMesh(ch.id); this.champMeshes.set(ch, m); }
       seen.add(ch);
       const sc = ch.alive ? 1 + ch.hit * 0.08 : Math.max(0.01, ch.fade / 0.6);
-      m.position.set(ch.x, ch.air || Math.abs(Math.sin(t * 7)) * 0.15, ch.z); m.scale.setScalar(sc * (ch.age < 0.3 ? 0.4 + ch.age * 2 : 1));
+      m.position.set(ch.x, ch.air || Math.abs(Math.sin(t * 7)) * 0.15, ch.z); m.scale.setScalar(1.35 * sc * (ch.age < 0.3 ? 0.4 + ch.age * 2 : 1));
       m.rotation.z = Math.sin(t * 7) * 0.06;
-      if (m.userData.dome) { const a = ch.st.aura; m.userData.dome.scale.set(a, a * 0.8, a); m.userData.dome.material.opacity = 0.14 + ch.hit * 0.2; }
+      if (m.userData.dome) { const a = ch.st.aura / 1.35; m.userData.dome.scale.set(a, a * 0.8, a); m.userData.dome.material.opacity = 0.14 + ch.hit * 0.2; }
     }
     for (const [ch, m] of this.champMeshes) if (!seen.has(ch)) { this.scene.remove(m); m.traverse((x) => { x.geometry?.dispose(); }); this.champMeshes.delete(ch); }
     this.renderer.render(this.scene, this.cam);
