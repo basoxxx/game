@@ -8,7 +8,7 @@ const go = (App, extra = {}) => App.go('arcade', { from: 'launcher', ...extra })
 const ICON = { astro: 'target', rimbalzo: 'burst', corri: 'speed', labirinto: 'compass' };
 
 export default {
-  id: 'arcade', order: 42, category: 'Arcade', section: 'Arcade', title: 'Arcade Baso', genre: 'Arcade · 4 classici', accent: '#36e0ff',
+  id: 'arcade', order: 43, category: 'Arcade', section: 'Arcade', title: 'Arcade Baso', genre: 'Arcade · 4 classici', accent: '#36e0ff',
   desc: 'Quattro classici da sala giochi al neon: lo sparatutto Astro Baso, lo spaccamattoni Rimbalzo, la corsa infinita Corri Baso e il Labirinto Goloso. Record, sfida del giorno, monete e colori.',
   stat: () => { const p = arLoad(); const top = GAME_IDS.map((g) => best(p, g)).filter(Boolean).length; return p.games ? `${p.games} partite · ${top}/4 record · ${fmt(p.coins)} monete` : '4 giochi · sfida del giorno · 1-2 giocatori'; },
   cover: 'covers/arcade.webp',
