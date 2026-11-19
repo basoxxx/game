@@ -41,3 +41,7 @@ cars are Apex Dynasty's own procedural models (src/ui/cars). Cover rendered from
 Festa Baso (src/festa): no external assets. The board, minigame arenas, effects and the cover
 (covers/festa.webp, rendered by tools/festa-cover.mjs) are procedural; it reuses the Baso Hub's own procedural
 art (Orda figures, Serpentone hats and heads, Kart Baso karts, Scontro Totale bangers, Bastione buildings).
+
+Rompicapo (src/rompicapo): no external assets. Boards, tiles (original Mahjong faces: suns, drops, leaves,
+winds, gems, flowers, seasons), bricks, effects and sounds are drawn and synthesised in code; the cover
+(covers/rompicapo.webp) is rendered from the games by tools/rompicapo-cover.mjs.
