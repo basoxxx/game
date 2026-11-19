@@ -12,6 +12,9 @@
 
 ![Scontro Totale](site-src/shots/cover-derby.webp)
 
+## Novità della versione 6.4
+- **Festa Baso** – party game per 2–4 giocatori sullo stesso schermo: tabellone 3D con dadi, monete e stelle, torneo e allenamento, 15 minigiochi costruiti con i pezzi degli altri giochi (tiro alla fune e corsa delle porte con Orda, sprint e palloncini con Kart Baso, autoscontro, mini voragine, arena dei serpenti, pittura del territorio, Bastione unito, più vicino alla buca, Ingorgo lampo, corsa all'officina, semaforo, ritmo e memoria). Tastiera a zone, fino a 4 controller e touch diviso anche con tablet sul tavolo. Il Baso Hub ora ha 12 giochi.
+
 ## Novità della versione 6.3
 Sette nuovi giochi nel Baso Hub (ora 11):
 - **Kart Baso** – corse arcade di kart con derapate e mini-turbo, 8 piloti, 8 piste in 4 coppe, oggetti originali, Gran Premio, prova a tempo con fantasma, battaglia e schermo diviso fino a 4 giocatori.
