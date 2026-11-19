@@ -6,3 +6,6 @@ site/
 .DS_Store
 .claude/worktrees/
 orda-modes-shots/
+kart-shots/
+tmp-ingorgo-shots/
+*-shots/
