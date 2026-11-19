@@ -1,5 +1,6 @@
 import './styles/main.css';
 import { App, lazyScreens, preloadScreens } from './app.js';
+import { hubScreens } from './hub/registry.js';
 // first paint needs only the shell + the Baso Hub launcher; the Apex menu, the title screen and the
 // game engine are code-split (the menu chunk is warmed first, on idle)
 import { launchTarget } from './screens/launcher.js';
@@ -33,6 +34,7 @@ lazyScreens({
   weekend: () => import('./screens/weekend.js'),
   rally: () => import('./screens/rallyweekend.js'),
   pitwall: () => import('./screens/pitwall.js'),
+  ...hubScreens, // plug-in games of the Baso Hub (src/hub/games/*.js)
   ...Object.fromEntries(['hub', 'inbox', 'standings', 'calendar', 'career', 'halloffame', 'car', 'drivers', 'market', 'staff', 'finance', 'paddock', 'results', 'seasonend'].map((id) => [id, career])),
 });
 

@@ -10,6 +10,7 @@ import { vgLoad, vgBestOverall } from '../voragine/store.js';
 import { ordaLoad, ordaStars } from '../orda/store.js';
 import { launcherModes } from '../orda/modes-entries.js';
 import { baseDesc, baseSummary } from '../orda/base/badge.js';
+import { HUB_GAMES } from '../hub/registry.js';
 import '../styles/launcher.css';
 
 const LAST = 'sala_last_game';
@@ -54,7 +55,7 @@ const ART = {
 //   mode: { id, icon, name, desc, go(), when?(), tag? }
 export const GAMES = [
   {
-    id: 'apex', section: 'Manager', title: 'Apex Dynasty', genre: 'Gestionale motorsport', accent: '#e5141b',
+    id: 'apex', category: 'Gestionali', section: 'Manager', title: 'Apex Dynasty', genre: 'Gestionale motorsport', accent: '#e5141b',
     desc: 'Guida la tua scuderia in Formula, Formula Apex 2, Rally ed Endurance: vettura, piloti, sponsor e strategia di gara.',
     stat: () => { const s = lastSave(); return s ? `${esc(s.team || 'Carriera')} · Stagione ${s.season}` : 'Nessuna carriera ancora: inizia la tua dinastia'; },
     play: () => App.go(introSeen() ? 'menu' : 'intro'),
@@ -70,7 +71,7 @@ export const GAMES = [
     ],
   },
   {
-    id: 'derby', section: 'Flatout', title: 'Scontro Totale', genre: 'Guida · corse a contatto', accent: '#ffb000',
+    id: 'derby', category: 'Corse', section: 'Flatout', title: 'Scontro Totale', genre: 'Guida · corse a contatto', accent: '#ffb000',
     desc: 'Prendi il volante: corse a contatto, salti, lamiere che volano e il derby della distruzione.',
     stat: () => { const p = derbyProg(); return p?.races ? `${p.wins || 0} vittorie su ${p.races} eventi` : 'Fisica vera, auto che si ammaccano'; },
     play: () => App.go('derby', { from: 'launcher' }),
@@ -82,7 +83,7 @@ export const GAMES = [
     ],
   },
   {
-    id: 'voragine', section: 'Voragine', title: 'Voragine', genre: 'Arcade · città', accent: '#8b5cff',
+    id: 'voragine', category: 'Arcade', section: 'Voragine', title: 'Voragine', genre: 'Arcade · città', accent: '#8b5cff',
     desc: 'Sei una voragine che si apre in città: inghiotti tutto ciò che è più piccolo di te, cresci e divora le voragini rivali.',
     stat: () => { const p = vgLoad(); const b = vgBestOverall(p); return b ? `Record ${b.toLocaleString('it-IT')} punti · ${p.games} partite` : '2 minuti, una città intera da divorare'; },
     play: () => App.go('voragine', { from: 'launcher' }),
@@ -94,7 +95,7 @@ export const GAMES = [
     ],
   },
   {
-    id: 'orda', section: 'Orda', title: 'Orda', genre: 'Arcade · assalto', accent: '#2f80ff',
+    id: 'orda', category: 'Arcade', section: 'Orda', title: 'Orda', genre: 'Arcade · assalto', accent: '#2f80ff',
     desc: 'Spara un’orda di fagiolini blu, moltiplicala nelle porte, schiva le trappole e travolgi la fortezza rossa.',
     stat: () => { const p = ordaLoad(); return p.games ? `Livello ${Math.min(p.next, 30)} · ★ ${ordaStars(p)} · ${p.wins} vittorie` : '30 livelli, 6 fortezze, 4 campioni'; },
     play: () => App.go('orda', { from: 'launcher' }),
@@ -108,6 +109,15 @@ export const GAMES = [
     ],
   },
 ];
+
+// Plug-in games (src/hub/games/*.js): same shape as above, App is passed to their actions
+const genericArt = (g) => () => `<svg viewBox="0 0 320 180" aria-hidden="true"><defs><radialGradient id="ga-${g.id}" cx=".5" cy=".5"><stop offset="0" stop-color="${g.accent}" stop-opacity=".55"/><stop offset="1" stop-color="${g.accent}" stop-opacity="0"/></radialGradient></defs><circle cx="210" cy="90" r="110" fill="url(#ga-${g.id})"/><text x="210" y="122" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-style="italic" font-weight="800" font-size="96" fill="#fff" opacity=".9">${esc(g.title.slice(0, 1))}</text></svg>`;
+for (const h of HUB_GAMES) {
+  if (GAMES.some((x) => x.id === h.id)) continue;
+  if (h.cover) COVERS[h.id] = h.cover;
+  ART[h.id] = h.art || genericArt(h);
+  GAMES.push({ ...h, plug: true, stat: h.stat || (() => ''), play: () => h.play(App), modes: (h.modes || []).map((m) => Object.defineProperties({ ...m, go: () => m.go(App) }, Object.getOwnPropertyDescriptor(m, 'tag')?.get ? { tag: Object.getOwnPropertyDescriptor(m, 'tag') } : {})) });
+}
 
 let keyH = null, sel = null;
 const cur = () => GAMES.find((g) => g.id === sel) || GAMES.find((g) => g.id === lastGame()) || GAMES[0];
@@ -137,15 +147,15 @@ registerScreen({
     return `<div class="lg-screen bh">
       <div class="lg-bg" aria-hidden="true"><i></i><i></i><i></i></div>
       <header class="lg-head bh-head">
-        <div class="bh-logo"><span class="bh-mark">B</span><div><div class="bh-word">Baso<span>Hub</span></div><div class="lg-eyebrow">Manager · Flatout · Voragine · Orda</div></div></div>
-        <nav class="bh-tabs" role="tablist" aria-label="Giochi">${GAMES.map((x, i) => `<div class="bh-tab ${x.id === g.id ? 'on' : ''}" role="tab" aria-selected="${x.id === g.id}" data-a="bh-game" data-id="${x.id}" style="--acc:${x.accent}${COVERS[x.id] ? `;--thumb:url(${new URL(COVERS[x.id], document.baseURI).href})` : ''}" tabindex="0"><span class="kbd">${i + 1}</span><b>${esc(x.section)}</b><small>${esc(x.title)}</small></div>`).join('')}</nav>
+        <div class="bh-logo"><span class="bh-mark">B</span><div><div class="bh-word">Baso<span>Hub</span></div><div class="lg-eyebrow">${GAMES.length} giochi · ${[...new Set(GAMES.map((x) => x.category || x.section))].slice(0, 5).map(esc).join(' · ')}</div></div></div>
+        <nav class="bh-tabs ${GAMES.length > 4 ? 'many' : ''}" role="tablist" aria-label="Giochi">${GAMES.map((x, i) => `<div class="bh-tab ${x.id === g.id ? 'on' : ''}" role="tab" aria-selected="${x.id === g.id}" data-a="bh-game" data-id="${x.id}" style="--acc:${x.accent}${COVERS[x.id] ? `;--thumb:url(${new URL(COVERS[x.id], document.baseURI).href})` : ''}" tabindex="0">${i < 9 ? `<span class="kbd">${i + 1}</span>` : ''}<b>${esc(x.section)}</b><small>${esc(x.title)}</small></div>`).join('')}</nav>
       </header>
       ${panel(g)}
       <footer class="lg-foot">
         <span class="ver-badge">v${__APP_VERSION__}</span>
         <button class="btn ghost sm" data-a="nav" data-to="settings" data-back="launcher">${icon('settings')} Impostazioni</button>
         ${window.apex?.quit ? `<button class="btn ghost sm" data-a="lg-quit">${icon('logout')} Esci</button>` : ''}
-        <span class="lg-note">1-4 o Q/E per cambiare gioco · Invio per giocare · Giochi di fantasia: nomi e marchi sono inventati</span>
+        <span class="lg-note">1-9 o Q/E per cambiare gioco · Invio per giocare · Giochi di fantasia: nomi e marchi sono inventati</span>
       </footer>
     </div>`;
   },
@@ -192,5 +202,7 @@ export function launchTarget() {
   const g = new URLSearchParams(location.search).get('game');
   if (g === 'apex') return 'menu';
   if (g === 'derby' || g === 'voragine' || g === 'orda') return g;
+  const h = g && HUB_GAMES.find((x) => x.id === g);
+  if (h) return h.deepLink || Object.keys(h.screens || {})[0] || null;
   return null;
 }

@@ -126,3 +126,8 @@
   .bh-hero .lg-art svg { left: 35%; width: 65%; }
   .bh-play { margin-top: 14px; }
 }
+
+/* many games: the tab row becomes a horizontal, snap-scrolling shelf under the logo */
+.bh-tabs.many { width: 100%; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: thin; padding-bottom: 4px; }
+.bh-tabs.many .bh-tab { flex: 0 0 auto; min-width: 150px; scroll-snap-align: start; }
+@media (max-width: 900px) { .bh-tabs.many .bh-tab { min-width: 118px; } }
