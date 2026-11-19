@@ -90,7 +90,7 @@ registerScreen({
     if (!V.playing) { requestAnimationFrame(() => document.querySelector('.ovs-go .btn')?.focus({ preventScroll: true })); return; }
     const root = document.getElementById('ovs-root');
     const P = vsPrefs(), s = getSettings();
-    try { music.setMood?.('derby'); } catch {}
+    try { music.setMood?.('orda'); } catch {}
     const { OrdaVersus } = await import('../orda/versus.js');
     if (!V.playing || !root.isConnected) return;
     const q = new URLSearchParams(location.search);
