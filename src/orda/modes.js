@@ -25,6 +25,12 @@ export function dailyInfo(d = new Date()) {
   const difficulty = WEEK_D[date.getDay()];
   return { key, num: dayNumber(date), seed: hashStr(`orda-daily:${key}`) % 1000000 + 1, difficulty, reward: 60 + Math.round(difficulty * 60) };
 }
+// is today's level ready without generating it? (the menu shows a placeholder while it is built)
+export function dailyReady(d = new Date()) {
+  const key = dayKey(d);
+  if (_dailyCache.has(key)) return true;
+  try { const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); return c?.key === key && c.v === GEN_VERSION && !!c.level; } catch { return false; }
+}
 export function dailySpec(d = new Date()) {
   const info = dailyInfo(d);
   if (_dailyCache.has(info.key)) return _dailyCache.get(info.key);
@@ -93,17 +99,24 @@ export function perkUps(perks = [], playerUp = {}) {
 export const coinMul = (perks = []) => 1 + 0.25 * perks.filter((x) => x === 'bottino').length;
 export const ENDLESS_LINE = 40;
 export function newRun(seed = (Math.random() * 1e9) | 0) { return { seed, wave: 1, perks: [], line: ENDLESS_LINE, lineMax: ENDLESS_LINE, figures: 0, maxCrowd: 0, kills: 0, startedAt: Date.now(), cleared: 0 }; }
-export const waveDifficulty = (w) => 0.2 + (w - 1) * 0.08;
+export const waveDifficulty = (w) => 0.12 + (w - 1) * 0.08;
 // level for the run's current wave: fresh seed (gates reshuffle), stronger base, perks baked in
+const _waves = new Map();
+// the raw generated wave (memoised: the screen builds the next one while the perk cards are shown)
+export function prepareWave(seed, wave) {
+  const k = `${seed}:${wave}`;
+  if (!_waves.has(k)) { if (_waves.size > 6) _waves.clear(); _waves.set(k, JSON.stringify(generateLevel(hashStr(`orda-endless:${seed}:${wave}`), waveDifficulty(wave), { endless: true }))); }
+  return JSON.parse(_waves.get(k));
+}
 export function endlessWave(run) {
   const d = waveDifficulty(run.wave);
-  const L = generateLevel(hashStr(`orda-endless:${run.seed}:${run.wave}`), d, { endless: true });
+  const L = prepareWave(run.seed, run.wave);
   // past the generator's ceiling the base keeps growing
   const grow = 1 + Math.max(0, d - 1) * 0.8 + (run.wave - 1) * 0.04;
   L.base.hp = Math.round((L.base.hp * grow) / 10) * 10;
   L.id = `endless-${run.seed}-${run.wave}`; L.name = `Ondata ${run.wave}`; L.wave = run.wave;
   L.endless = true; L.time = 900; // no real clock: the base's spawns ramp up over time instead
-  L.base.ramp = 0.35 + Math.min(0.4, run.wave * 0.02);
+  L.base.ramp = 0.25 + Math.min(0.4, (run.wave - 1) * 0.02);
   L.cannon = { hp: Math.max(1, Math.round(run.line)), max: run.lineMax };
   if (run.wave % 5 === 0) { L.base.boss = true; L.base.name = `Cittadella ${run.wave / 5}`; }
   for (const id of run.perks) perkById(id)?.lvl?.(L);

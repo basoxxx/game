@@ -269,7 +269,8 @@ export function generateLevel(seed, difficulty = 0.5, { endless = false, why = n
     let dec = null;
     for (let i = 0; i < 6; i++) {
       dec = play(L, { player: 'decent', seed: s, up: LOADOUT, maxTime: L.time * 2.5 });
-      if (!dec.won && dec.why === 'overrun') { redPs *= 0.72; setReds(); L.base.towers.forEach((t) => { t.rate = r2(t.rate * 0.8); }); continue; }
+      // overrun, or won with the cannon nearly down: too many reds → thin them out
+      if ((!dec.won && dec.why === 'overrun') || (dec.won && dec.cannonHp < dec.cannonMax * 0.35)) { redPs *= dec.won ? 0.85 : 0.72; setReds(); L.base.towers.forEach((t) => { t.rate = r2(t.rate * 0.85); }); continue; }
       if (dec.won && Math.abs(dec.time - target) < L.time * 0.05) break;
       const done = L.base.hp - (dec.won ? 0 : dec.baseHp);
       const rate = done / Math.max(1, dec.time - travel);
@@ -281,7 +282,7 @@ export function generateLevel(seed, difficulty = 0.5, { endless = false, why = n
     L.gen.redPs = r2(redPs);
     if (!dec?.won || dec.time > L.time * 0.9) { no(dec?.won ? 'decent-slow' : `decent-${dec?.why}`); continue; }
     const dec2 = play(L, { player: 'decent', seed: s + 101, up: LOADOUT });
-    if (!dec2.won) { no(`decent2-${dec2.why}`); continue; }
+    if (!dec2.won || dec2.cannonHp < dec2.cannonMax * 0.2) { no(`decent2-${dec2.why || 'close'}`); continue; }
     const sharp = play(L, { player: 'sharp', seed: s + 202, up: LOADOUT });
     if (!sharp.won || sharp.time > L.time * 0.85) { no('sharp'); continue; }
     // stars: 2nd for finishing about as fast as a decent player, 3rd for a big crowd left at the win
