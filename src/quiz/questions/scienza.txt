@@ -1,0 +1,140 @@
+# Scienza
+1|Qual è il pianeta più vicino al Sole?|Mercurio|Venere|Marte|Terra|Mercurio compie un'orbita in circa 88 giorni.
+1|Qual è il pianeta più grande del Sistema solare?|Giove|Saturno|Nettuno|Urano|Giove ha una massa oltre due volte quella di tutti gli altri pianeti insieme.
+1|Quale pianeta è famoso per i suoi anelli ben visibili?|Saturno|Giove|Marte|Mercurio|Anche Giove, Urano e Nettuno hanno anelli, ma molto più deboli.
+1|Quanti pianeti ci sono nel Sistema solare?|8|9|7|10|Dal 2006 Plutone è classificato come pianeta nano.
+1|Come si chiama il satellite naturale della Terra?|Luna|Fobos|Titano|Europa|La Luna dista in media circa 384.000 km.
+1|Qual è la formula chimica dell'acqua?|H2O|CO2|O2|NaCl|Due atomi di idrogeno e uno di ossigeno.
+1|A quale temperatura bolle l'acqua al livello del mare?|100 °C|90 °C|80 °C|120 °C|In montagna, con pressione più bassa, l'acqua bolle a temperatura inferiore.
+1|A quale temperatura gela l'acqua pura?|0 °C|-10 °C|4 °C|-1 °C|A pressione normale l'acqua pura solidifica a 0 °C.
+1|Quale gas respiriamo per vivere?|Ossigeno|Azoto|Anidride carbonica|Idrogeno|L'aria contiene circa il 21% di ossigeno.
+1|Qual è il gas più abbondante nell'aria?|Azoto|Ossigeno|Anidride carbonica|Argon|L'azoto costituisce circa il 78% dell'atmosfera.
+1|Quale organo pompa il sangue nel corpo?|Cuore|Fegato|Polmone|Rene|Il cuore batte in media 60-100 volte al minuto a riposo.
+1|Quante ossa ha circa un adulto umano?|206|150|300|180|Alla nascita le ossa sono di più: alcune si fondono crescendo.
+1|Qual è l'organo più grande del corpo umano?|La pelle|Il fegato|Il cervello|L'intestino|La pelle protegge il corpo e ne regola la temperatura.
+1|Quale stella è al centro del Sistema solare?|Il Sole|Sirio|Polare|Alfa Centauri|Il Sole è una stella nana gialla.
+1|Che cosa usano le piante per fare la fotosintesi?|Luce, acqua e anidride carbonica|Solo acqua|Ossigeno e sale|Azoto e buio|Con la luce le piante producono zuccheri e liberano ossigeno.
+1|Di che colore è la clorofilla?|Verde|Rossa|Gialla|Blu|La clorofilla dà il colore verde a foglie e steli.
+1|Quale animale è un mammifero?|Delfino|Squalo|Trota|Polpo|I delfini respirano aria e allattano i piccoli.
+1|Quale di questi animali è un rettile?|Lucertola|Rana|Salamandra|Tritone|Rane, salamandre e tritoni sono anfibi.
+1|Quale animale è un anfibio?|Rana|Serpente|Coccodrillo|Tartaruga|Gli anfibi vivono tra acqua e terra e cambiano forma crescendo.
+1|Quale forza ci tiene attaccati al suolo?|Gravità|Magnetismo|Attrito|Elettricità|La gravità attira i corpi verso la Terra.
+1|Chi formulò la legge della gravitazione universale?|Isaac Newton|Albert Einstein|Galileo Galilei|Nicolò Copernico|Newton la pubblicò nei «Principia» del 1687.
+1|Quale scienziato formulò la teoria della relatività?|Albert Einstein|Isaac Newton|Max Planck|Niels Bohr|La relatività ristretta è del 1905.
+1|Quale strumento si usa per osservare cose molto piccole?|Microscopio|Telescopio|Periscopio|Stetoscopio|Il telescopio serve per gli oggetti lontani.
+1|Quale strumento usa il medico per ascoltare il cuore?|Stetoscopio|Microscopio|Termometro|Sfigmomanometro|Lo sfigmomanometro misura la pressione del sangue.
+1|Quanti denti ha un adulto con dentizione completa?|32|28|20|36|Compresi i quattro denti del giudizio.
+1|Quanti denti da latte ha un bambino?|20|32|24|16|I denti da latte cadono tra i 6 e i 12 anni circa.
+1|Qual è lo stato della materia del ghiaccio?|Solido|Liquido|Gassoso|Plasma|Il ghiaccio è acqua allo stato solido.
+1|Come si chiama il passaggio da liquido a gas?|Evaporazione|Condensazione|Solidificazione|Fusione|La condensazione è il passaggio inverso.
+1|Quale animale depone le uova?|Gallina|Mucca|Cane|Gatto|Gli uccelli depongono uova con guscio.
+1|Quale vitamina produce la pelle esposta al sole?|Vitamina D|Vitamina C|Vitamina A|Vitamina B12|La vitamina D aiuta a fissare il calcio nelle ossa.
+1|Quale frutto è particolarmente ricco di vitamina C?|Arancia|Banana|Mela|Pera|Agrumi, kiwi e peperoni sono ricchi di vitamina C.
+1|Qual è l'animale terrestre più veloce?|Ghepardo|Leone|Antilope|Cavallo|Il ghepardo supera i 100 km/h in brevi scatti.
+1|Qual è l'uccello più grande del mondo?|Struzzo|Aquila reale|Condor|Albatro|Lo struzzo non vola ma corre velocissimo.
+1|Quale animale ha il collo più lungo?|Giraffa|Cammello|Struzzo|Lama|Il collo della giraffa ha comunque solo sette vertebre.
+1|Di cosa si nutre principalmente il panda gigante?|Bambù|Pesce|Frutta|Insetti|Il panda trascorre gran parte della giornata a mangiare bambù.
+1|Come si chiama la scienza che studia le stelle e i pianeti?|Astronomia|Astrologia|Geologia|Meteorologia|L'astrologia non è una scienza.
+1|Come si chiama la scienza che studia le rocce e la Terra?|Geologia|Biologia|Ecologia|Zoologia|La geologia studia la composizione e la storia della Terra.
+1|Quale parte della pianta assorbe l'acqua dal terreno?|Radice|Foglia|Fiore|Frutto|Le radici assorbono acqua e sali minerali.
+1|In che unità si misura la corrente elettrica?|Ampere|Volt|Watt|Ohm|Il volt misura la tensione, il watt la potenza, l'ohm la resistenza.
+1|Che cosa attira una calamita?|Ferro|Legno|Plastica|Vetro|Ferro, nichel e cobalto sono attratti dai magneti.
+2|Qual è il simbolo chimico dell'oro?|Au|Ag|Fe|Or|Au viene dal latino «aurum».
+2|Qual è il simbolo chimico dell'argento?|Ag|Au|Ar|Si|Ag viene dal latino «argentum».
+2|Qual è il simbolo chimico del ferro?|Fe|Fr|Ir|F|Fe viene dal latino «ferrum».
+2|Qual è il simbolo chimico del sodio?|Na|So|S|Sd|Na viene dal latino «natrium».
+2|Qual è il simbolo chimico del potassio?|K|P|Po|Pt|K viene dal latino «kalium».
+2|Qual è il simbolo chimico del piombo?|Pb|Pl|Po|Pi|Pb viene dal latino «plumbum».
+2|Qual è l'elemento chimico più leggero?|Idrogeno|Elio|Litio|Ossigeno|L'idrogeno ha numero atomico 1.
+2|Quale gas nobile si usa per gonfiare i palloncini che volano?|Elio|Neon|Argon|Xeno|L'elio è più leggero dell'aria e non è infiammabile.
+2|Come si chiama il sale da cucina in chimica?|Cloruro di sodio|Carbonato di calcio|Bicarbonato di sodio|Solfato di rame|La formula del sale è NaCl.
+2|Qual è il pH dell'acqua pura a 25 °C?|7|0|14|5|Un pH di 7 è neutro: sotto è acido, sopra è basico.
+2|Qual è la velocità della luce nel vuoto, circa?|300.000 km/s|30.000 km/s|3.000 km/s|1 milione di km/s|Il valore esatto è 299.792,458 km/s.
+2|Quanto impiega circa la luce del Sole ad arrivare sulla Terra?|8 minuti|8 secondi|1 ora|1 giorno|La distanza Terra-Sole è di circa 150 milioni di km.
+2|Qual è la velocità del suono nell'aria, circa?|340 m/s|34 m/s|3.400 m/s|1.000 km/s|Nell'acqua il suono viaggia circa quattro volte più veloce.
+2|Su quale pianeta un giorno dura più di un anno?|Venere|Mercurio|Marte|Giove|Venere ruota su sé stessa in circa 243 giorni terrestri, più del suo anno.
+2|Qual è il pianeta più caldo del Sistema solare?|Venere|Mercurio|Marte|Giove|La densa atmosfera di CO2 di Venere crea un fortissimo effetto serra.
+2|Come si chiama il vulcano più alto del Sistema solare, su Marte?|Olympus Mons|Mauna Kea|Valles Marineris|Tharsis Tholus|Olympus Mons è alto circa 22 km sopra la pianura circostante.
+2|Quale satellite di Saturno ha un'atmosfera densa?|Titano|Encelado|Io|Ganimede|Titano è il secondo satellite più grande del Sistema solare.
+2|Qual è il satellite più grande del Sistema solare?|Ganimede|Titano|Luna|Callisto|Ganimede, di Giove, è più grande del pianeta Mercurio.
+2|Chi scoprì i quattro satelliti maggiori di Giove nel 1610?|Galileo Galilei|Giovanni Keplero|Tycho Brahe|Giovanni Cassini|Sono detti satelliti galileiani: Io, Europa, Ganimede e Callisto.
+2|Quale scienziato propose che la Terra girasse intorno al Sole, nel 1543?|Niccolò Copernico|Galileo Galilei|Tolomeo|Giovanni Keplero|Il «De revolutionibus» fu pubblicato nell'anno della sua morte.
+2|Chi formulò la teoria dell'evoluzione per selezione naturale?|Charles Darwin|Gregor Mendel|Jean-Baptiste Lamarck|Louis Pasteur|«L'origine delle specie» fu pubblicato nel 1859.
+2|Chi è considerato il padre della genetica?|Gregor Mendel|Charles Darwin|James Watson|Rosalind Franklin|Mendel studiò l'ereditarietà con le piante di pisello.
+2|Quale molecola contiene l'informazione genetica?|DNA|ATP|Emoglobina|Glucosio|Il DNA ha la struttura a doppia elica.
+2|In che anno fu descritta la struttura a doppia elica del DNA?|1953|1929|1968|1975|Watson e Crick pubblicarono il modello nel 1953, grazie anche ai dati di Rosalind Franklin.
+2|Chi sviluppò il primo vaccino contro il vaiolo?|Edward Jenner|Louis Pasteur|Robert Koch|Albert Sabin|Jenner usò il vaiolo bovino nel 1796.
+2|Chi sviluppò il vaccino contro la rabbia?|Louis Pasteur|Edward Jenner|Alexander Fleming|Robert Koch|Pasteur lo sperimentò con successo nel 1885.
+2|Quale scienziata vinse due premi Nobel in due discipline diverse?|Marie Curie|Rosalind Franklin|Rita Levi-Montalcini|Lise Meitner|Fisica nel 1903 e chimica nel 1911.
+2|Quale scienziata italiana vinse il Nobel per la medicina nel 1986?|Rita Levi-Montalcini|Margherita Hack|Maria Montessori|Fabiola Gianotti|Lo vinse per la scoperta del fattore di crescita nervoso.
+2|Quale fisico italiano realizzò la prima pila nucleare nel 1942?|Enrico Fermi|Ettore Majorana|Emilio Segrè|Guglielmo Marconi|La pila fu costruita a Chicago.
+2|Quale italiano inventò la pila elettrica?|Alessandro Volta|Luigi Galvani|Antonio Meucci|Galileo Ferraris|La pila di Volta è del 1799-1800.
+2|Quale astrofisica italiana diresse l'Osservatorio di Trieste?|Margherita Hack|Samantha Cristoforetti|Fabiola Gianotti|Rita Levi-Montalcini|Margherita Hack fu la prima donna a dirigere un osservatorio in Italia.
+2|Quanti cromosomi ha una cellula umana normale?|46|23|48|44|Le cellule umane hanno 23 coppie di cromosomi.
+2|Quale gruppo sanguigno è detto «donatore universale» per i globuli rossi?|0 negativo|AB positivo|A positivo|B negativo|Lo 0 negativo può essere trasfuso a quasi tutti in emergenza.
+2|In quale organo si trovano gli alveoli?|Polmoni|Reni|Fegato|Stomaco|Negli alveoli avviene lo scambio tra ossigeno e anidride carbonica.
+2|Quale organo produce l'insulina?|Pancreas|Fegato|Milza|Tiroide|L'insulina regola il livello di zucchero nel sangue.
+2|Quale ghiandola si trova nel collo e regola il metabolismo?|Tiroide|Ipofisi|Surrene|Timo|La tiroide produce ormoni che contengono iodio.
+2|Qual è l'osso più lungo del corpo umano?|Femore|Omero|Tibia|Perone|Il femore si trova nella coscia.
+2|Qual è l'osso più piccolo del corpo umano?|Staffa|Martello|Incudine|Falange|La staffa si trova nell'orecchio medio.
+2|Quale parte dell'occhio regola la quantità di luce che entra?|Iride|Cornea|Retina|Cristallino|L'iride allarga o stringe la pupilla.
+2|Quale animale ha tre cuori?|Polpo|Squalo|Delfino|Rana|Il polpo ha due cuori branchiali e uno sistemico.
+2|Quale mammifero è capace di volare?|Pipistrello|Scoiattolo volante|Pinguino|Colibrì|Lo scoiattolo volante plana, il pipistrello vola davvero.
+2|Quale mammifero depone le uova?|Ornitorinco|Canguro|Koala|Riccio|Ornitorinco ed echidna sono i monotremi.
+2|Come si chiama il processo con cui il bruco diventa farfalla?|Metamorfosi|Mitosi|Muta|Fotosintesi|Il bruco si chiude nella crisalide e si trasforma.
+2|Quale unità misura la potenza elettrica?|Watt|Volt|Joule|Ampere|Il joule misura l'energia.
+2|Chi inventò la radio, brevettandola nel 1896?|Guglielmo Marconi|Nikola Tesla|Thomas Edison|Alessandro Volta|Marconi vinse il Nobel per la fisica nel 1909.
+2|Chi è considerato l'inventore del telefono in Italia, oltre a Bell?|Antonio Meucci|Guglielmo Marconi|Alessandro Volta|Galileo Ferraris|Nel 2002 la Camera USA riconobbe il suo contributo.
+2|Qual è l'unità di misura della temperatura nel Sistema internazionale?|Kelvin|Celsius|Fahrenheit|Joule|Lo zero kelvin è lo zero assoluto, circa -273,15 °C.
+2|Quale scala termometrica usano gli Stati Uniti nella vita quotidiana?|Fahrenheit|Celsius|Kelvin|Réaumur|In Fahrenheit l'acqua gela a 32 °F.
+2|Quale tipo di roccia nasce dal raffreddamento del magma?|Magmatica|Sedimentaria|Metamorfica|Calcarea|Granito e basalto sono rocce magmatiche.
+2|Quale scala misura l'intensità dei terremoti in base agli effetti?|Mercalli|Richter|Beaufort|Kelvin|La scala Richter misura invece la magnitudo.
+2|Quale scala misura la forza del vento?|Beaufort|Mercalli|Richter|Saffir|Va da 0 (calma) a 12 (uragano).
+2|Come si chiama lo strato dell'atmosfera che contiene l'ozono protettivo?|Stratosfera|Troposfera|Mesosfera|Ionosfera|L'ozono assorbe gran parte dei raggi ultravioletti.
+3|Qual è il numero atomico del carbonio?|6|12|8|14|Il carbonio ha sei protoni nel nucleo.
+3|Qual è il simbolo chimico del mercurio?|Hg|Me|Mr|Mc|Hg viene da «hydrargyrum», argento liquido.
+3|Qual è il simbolo chimico del tungsteno?|W|Tu|Tg|Tn|W viene dal nome tedesco «Wolfram».
+3|Quale metallo è liquido a temperatura ambiente?|Mercurio|Gallio|Piombo|Stagno|Il mercurio fonde a circa -39 °C.
+3|Quale elemento chimico è il più abbondante nella crosta terrestre?|Ossigeno|Silicio|Ferro|Alluminio|L'ossigeno è legato nei silicati e negli ossidi.
+3|Qual è l'elemento più abbondante nell'universo?|Idrogeno|Elio|Ossigeno|Carbonio|L'idrogeno costituisce circa tre quarti della materia ordinaria.
+3|Chi creò la tavola periodica degli elementi nel 1869?|Dmitrij Mendeleev|Antoine Lavoisier|John Dalton|Amedeo Avogadro|Mendeleev lasciò spazi per elementi non ancora scoperti.
+3|Quale scienziato italiano formulò l'ipotesi sui volumi dei gas che porta il suo nome?|Amedeo Avogadro|Stanislao Cannizzaro|Alessandro Volta|Evangelista Torricelli|Il numero di Avogadro vale circa 6,022 × 10²³.
+3|Chi inventò il barometro a mercurio nel 1643?|Evangelista Torricelli|Blaise Pascal|Galileo Galilei|Otto von Guericke|Torricelli fu allievo di Galileo.
+3|Chi è considerato il padre della chimica moderna e della legge di conservazione della massa?|Antoine Lavoisier|Robert Boyle|Dmitrij Mendeleev|John Dalton|«Nulla si crea, nulla si distrugge, tutto si trasforma».
+3|Quale costante fondamentale si indica con la lettera h?|Costante di Planck|Costante di gravitazione|Carica dell'elettrone|Costante di Boltzmann|La costante di Planck è alla base della meccanica quantistica.
+3|Quale particella ha carica elettrica negativa?|Elettrone|Protone|Neutrone|Fotone|Il protone è positivo, il neutrone neutro.
+3|Quale particella fu osservata al CERN nel 2012?|Bosone di Higgs|Quark top|Neutrino|Positrone|L'annuncio arrivò il 4 luglio 2012.
+3|In quale città ha sede il CERN?|Ginevra|Zurigo|Parigi|Monaco di Baviera|Il CERN è al confine tra Svizzera e Francia.
+3|Quale fisica italiana è stata direttrice generale del CERN?|Fabiola Gianotti|Margherita Hack|Lucia Votano|Elena Cattaneo|Gianotti è stata la prima donna alla guida del CERN.
+3|Dove si trovano i Laboratori nazionali sotterranei dell'INFN, sotto una montagna abruzzese?|Gran Sasso|Majella|Monte Velino|Monte Sirente|Sono tra i laboratori sotterranei più grandi del mondo.
+3|Qual è la distanza media Terra-Sole, detta unità astronomica?|Circa 150 milioni di km|Circa 15 milioni di km|Circa 1 miliardo di km|Circa 384.000 km|384.000 km è la distanza Terra-Luna.
+3|Qual è la stella più vicina alla Terra dopo il Sole?|Proxima Centauri|Sirio|Betelgeuse|Vega|Proxima dista circa 4,2 anni luce.
+3|Qual è la stella più luminosa del cielo notturno?|Sirio|Canopo|Polare|Arturo|Sirio si trova nella costellazione del Cane Maggiore.
+3|Come si chiama la galassia in cui si trova il Sistema solare?|Via Lattea|Andromeda|Triangolo|Grande Nube di Magellano|Andromeda è la grande galassia più vicina.
+3|In quale anno Plutone fu riclassificato come pianeta nano?|2006|1999|2010|2015|La decisione fu presa dall'Unione Astronomica Internazionale.
+3|Quale sonda della NASA sorvolò Plutone nel 2015?|New Horizons|Voyager 1|Cassini|Juno|New Horizons fotografò il «cuore» di Plutone.
+3|Quale sonda è l'oggetto umano più lontano dalla Terra?|Voyager 1|Voyager 2|Pioneer 10|New Horizons|Lanciata nel 1977, ha superato il confine dell'eliosfera.
+3|Quale missione fu la prima a portare un lander su una cometa, nel 2014?|Rosetta|Giotto|Deep Impact|Stardust|Il lander Philae atterrò sulla cometa 67P.
+3|Che cos'è un anno luce?|Una distanza|Un tempo|Una velocità|Un'energia|È la distanza percorsa dalla luce in un anno: circa 9.460 miliardi di km.
+3|Come si chiamano le cellule del sangue che trasportano ossigeno?|Globuli rossi|Globuli bianchi|Piastrine|Linfociti|L'ossigeno si lega all'emoglobina dei globuli rossi.
+3|Quale proteina dei globuli rossi trasporta l'ossigeno?|Emoglobina|Mioglobina|Insulina|Cheratina|L'emoglobina contiene ferro.
+3|Quale organello cellulare produce gran parte dell'energia?|Mitocondrio|Ribosoma|Nucleo|Lisosoma|I mitocondri producono ATP con la respirazione cellulare.
+3|In quale parte della cellula vegetale avviene la fotosintesi?|Cloroplasti|Mitocondri|Vacuoli|Ribosomi|I cloroplasti contengono la clorofilla.
+3|Quale nervo collega l'occhio al cervello?|Nervo ottico|Nervo vago|Nervo trigemino|Nervo facciale|Il nervo ottico porta i segnali della retina al cervello.
+3|Qual è il muscolo più grande del corpo umano?|Grande gluteo|Quadricipite|Bicipite|Gran dorsale|Il grande gluteo è il muscolo più voluminoso.
+3|Quante camere ha il cuore umano?|4|2|3|6|Due atri e due ventricoli.
+3|Quale scienziato studiò il condizionamento con i cani?|Ivan Pavlov|Sigmund Freud|B. F. Skinner|Jean Piaget|Pavlov vinse il Nobel per la medicina nel 1904.
+3|Quale classe di animali comprende i ragni e gli scorpioni?|Aracnidi|Insetti|Crostacei|Miriapodi|Gli aracnidi hanno otto zampe.
+3|A quale gruppo appartengono le balene?|Cetacei|Pinnipedi|Sirenii|Pesci cartilaginei|Delfini e balene sono cetacei; foche e trichechi pinnipedi.
+3|Come si chiama lo studio dei funghi?|Micologia|Ornitologia|Entomologia|Erpetologia|L'ornitologia studia gli uccelli, l'entomologia gli insetti.
+3|Come si chiama lo studio degli insetti?|Entomologia|Ittiologia|Etologia|Botanica|L'ittiologia studia i pesci, l'etologia il comportamento animale.
+3|Quale era geologica è detta «età dei dinosauri»?|Mesozoico|Paleozoico|Cenozoico|Precambriano|Il Mesozoico comprende Triassico, Giurassico e Cretaceo.
+3|Circa quanti anni fa si estinsero i dinosauri non aviani?|66 milioni|6 milioni|250 milioni|10.000|L'impatto di un asteroide nello Yucatán è la causa principale.
+3|Quale supercontinente riuniva le terre emerse circa 300 milioni di anni fa?|Pangea|Gondwana|Laurasia|Rodinia|Pangea si frammentò a partire da circa 200 milioni di anni fa.
+3|Chi propose la teoria della deriva dei continenti?|Alfred Wegener|Charles Lyell|James Hutton|Alexander von Humboldt|Wegener la presentò nel 1912.
+3|Come si chiama il punto di un terremoto sulla superficie, sopra l'ipocentro?|Epicentro|Faglia|Placca|Magnitudo|L'ipocentro è il punto in profondità dove ha origine la scossa.
+3|Qual è il punto più profondo degli oceani?|Fossa delle Marianne|Fossa di Porto Rico|Fossa del Giappone|Fossa delle Tonga|L'abisso Challenger supera i 10.900 metri.
+3|Quale effetto spiega il cambio di tono della sirena di un'ambulanza che passa?|Effetto Doppler|Effetto serra|Effetto Joule|Effetto fotoelettrico|La frequenza percepita cambia se la sorgente si avvicina o si allontana.
+3|Per quale scoperta Einstein ricevette il Nobel nel 1921?|L'effetto fotoelettrico|La relatività generale|La formula E = mc²|Il moto browniano|La relatività era ancora considerata troppo discussa.
+3|Quale principio di Archimede riguarda i corpi immersi in un fluido?|Ricevono una spinta pari al peso del fluido spostato|Diventano più pesanti|Perdono calore|Si caricano elettricamente|Per questo una nave galleggia.
+3|Quale legge collega tensione, corrente e resistenza?|Legge di Ohm|Legge di Coulomb|Legge di Hooke|Legge di Boyle|V = R × I.
