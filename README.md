@@ -12,6 +12,9 @@
 
 ![Scontro Totale](site-src/shots/cover-derby.webp)
 
+## Novità della versione 6.2.1
+- **Orda più veloce e coinvolgente**: cannone a 8 colpi/s e omini più rapidi (centinaia in pochi secondi), livelli di 20–50 s, nessun tempo morto (ripartenza istantanea, prossimo livello automatico); numeri e porte che esplodono, contatore che rimbalza, misuratore Valanga, rallentatori e crolli spettacolari; forziere ogni 3 livelli, calendario dei premi giornalieri, livelli bonus "Caveau d'oro", mondo segreto; nuove porte (arcobaleno ×5, sdoppia, riciclo), trampolini, giganti rossi; tutorial giocato nei primi livelli.
+
 ## Novità della versione 6.2
 - **Orda (nuovo gioco)**: spara la tua orda di omini blu attraverso porte ×, +, −, ÷ fino alla base rossa. 30 livelli in 6 mondi con boss ogni 5, 4 campioni (Colosso, Grillo, Matrioska, Testuggine), potenziamenti e skin con monete, niente pubblicità.
 - **Base e razzie**: costruisci la tua base 3D (mura, torri, caserme, trappole, miniere, scudi), razzia basi rivali per monete e mattoni, rapporti degli attacchi subiti mentre sei via e Vendetta.

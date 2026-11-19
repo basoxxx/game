@@ -17,6 +17,9 @@ import { rng, hash } from './logic.js';
 
 const W = 16, COLW = 1.65;
 export let HP_K = 1.5; // raid bases are sturdier than campaign levels of the same rank (walls and traps are gentler than pits and saws)
+// the fast Orda (crowds in the hundreds/thousands): hit points and red numbers scale with the blue flow
+export let FLOW_K = 6;
+export const setFlowK = (k) => { FLOW_K = k; };
 export const setHpK = (k) => { HP_K = k; };
 export const colX = (c) => +((c + 0.5 - GRID / 2) * COLW).toFixed(2);
 // campaign level the rival matches (1..30) and the campaign's base HP curve for non-boss levels
@@ -38,10 +41,10 @@ export function layoutToLevel(rival, opts = {}) {
   for (let i = 0; i < rows; i++) {
     const y = Math.round(14 + (i / Math.max(1, rows - 1)) * span);
     const s = R() < 0.5 ? -1 : 1, kind = R();
-    if (kind < 0.35) gates.push({ x: 4 * s, y, w: 4.6, type: 'mul', value: 2 }, { x: -4 * s, y, w: 4.6, type: 'add', value: 2 + Math.floor(R() * (2 + n / 8)) });
-    else if (kind < 0.6) gates.push({ x: 0, y, w: 4.2, type: 'mul', value: 2, move: { amp: +(3.5 + R() * 1.5).toFixed(1), speed: +(0.2 + R() * 0.12).toFixed(2) } });
-    else if (kind < 0.8) gates.push({ x: 4 * s, y, w: 4.6, type: 'mul', value: 3, toggle: { every: +(2.6 + R()).toFixed(1), type: 'div', value: 2 } }, { x: -4 * s, y, w: 4.6, type: 'add', value: 3 });
-    else gates.push({ x: 4 * s, y, w: 4.6, type: 'mul', value: 2 }, { x: -4 * s, y, w: 4.6, type: 'sub', value: 8 + n });
+    if (kind < 0.35) gates.push({ x: 4 * s, y, w: 4.6, type: 'mul', value: 3 }, { x: -4 * s, y, w: 4.6, type: 'add', value: 5 + 5 * Math.floor(R() * (2 + n / 8)) });
+    else if (kind < 0.6) gates.push({ x: 0, y, w: 4.2, type: 'mul', value: 3, move: { amp: +(3.5 + R() * 1.5).toFixed(1), speed: +(0.25 + R() * 0.15).toFixed(2) } });
+    else if (kind < 0.8) gates.push({ x: 4 * s, y, w: 4.6, type: 'mul', value: 4, toggle: { every: +(2.4 + R()).toFixed(1), type: 'div', value: 2 } }, { x: -4 * s, y, w: 4.6, type: 'add', value: 10 });
+    else gates.push({ x: 4 * s, y, w: 4.6, type: 'mul', value: 3 }, { x: -4 * s, y, w: 4.6, type: 'sub', value: (8 + n) * 5 });
   }
 
   // walls: merge horizontal runs of wall cells into single blocks
@@ -63,33 +66,34 @@ export function layoutToLevel(rival, opts = {}) {
     const g = BUILDINGS.porta.op(b.l), y = rowY(b.y);
     const gw = 2.8, gx = Math.max(-W / 2 + gw / 2, Math.min(W / 2 - gw / 2, colX(b.x)));
     gates.push({ x: gx, y, w: gw, type: 'div', value: g.v, trap: true });
-    if (g.sub) gates.push({ x: gx, y: +(y + 1.6).toFixed(1), w: gw, type: 'sub', value: g.sub * 2, trap: true });
+    if (g.sub) gates.push({ x: gx, y: +(y + 1.6).toFixed(1), w: gw, type: 'sub', value: Math.round(g.sub * 2 * FLOW_K), trap: true });
   }
 
   // towers: the base's red towers (hp, rate, count), with hints for renderers that know the type
-  const towerHp = (l) => Math.round(20 + n * 4.5 + l * 10);
+  const towerHp = (l) => Math.round((20 + n * 4.5 + l * 10) * FLOW_K);
   for (const b of L.b) {
     const y = Math.min(len - 1.5, rowY(b.y)), x = colX(b.x), l = b.l;
     if (b.t === 'gelo') towers.push({ x, y, hp: towerHp(l), rate: +(0.3 + 0.04 * l).toFixed(2), count: 2, kind: 'slow', range: +(BUILDINGS.gelo.range(l) * COLW).toFixed(1), slow: +BUILDINGS.gelo.slow(l).toFixed(2), lvl: l });
     else if (b.t === 'mortaio') towers.push({ x, y, hp: towerHp(l) + 10, rate: +(0.22 + 0.03 * l).toFixed(2), count: 3 + Math.floor(l / 2), kind: 'splash', range: +(BUILDINGS.mortaio.range(l) * COLW).toFixed(1), lvl: l });
     else if (b.t === 'cecchino') towers.push({ x, y, hp: towerHp(l) - 5, rate: +(0.55 + 0.08 * l).toFixed(2), count: 1, kind: 'sniper', range: +(BUILDINGS.cecchino.range(l) * COLW).toFixed(1), lvl: l });
-    else if (b.t === 'caserma') spawners.push({ x, rate: +(0.25 + 0.1 * l).toFixed(2), count: 1 + Math.floor(l / 2), spread: 1.4 });
+    else if (b.t === 'caserma') spawners.push({ x, rate: +(0.25 + 0.1 * l).toFixed(2), count: Math.round((1 + Math.floor(l / 2)) * FLOW_K * 0.6), spread: 1.4 });
   }
   // the base itself always defends like a campaign base of the same rank; barracks add on top
-  const core = +(0.45 + nx * 0.032).toFixed(2), cc = nx >= 12 ? 2 : 1;
+  const core = +(0.45 + nx * 0.032).toFixed(2), cc = Math.round((nx >= 12 ? 2 : 1) * FLOW_K * 0.6);
   spawners.unshift({ x: -3, rate: core, count: cc }, { x: 3, rate: core, count: cc });
 
   // HQ + shield
   const hq = L.b.find((b) => b.t === 'hq');
   const shield = L.b.filter((b) => b.t === 'scudo').reduce((a, b) => Math.max(a, b.l), 0);
   const hqL = hq?.l || 1;
-  const hp = Math.round(hpCurve(nx) * HP_K * (0.9 + hqL * 0.04) * (1 + (shield ? BUILDINGS.scudo.hqBoost(shield) : 0)) / 10) * 10;
-  if (n >= 8) phases.push({ at: 0.5, wave: 8 + n });
+  const hp = Math.round(hpCurve(nx) * HP_K * FLOW_K * (1 + nx / 20) * (0.9 + hqL * 0.04) * (1 + (shield ? BUILDINGS.scudo.hqBoost(shield) : 0)) / 10) * 10;
+  if (n >= 8) phases.push({ at: 0.5, wave: Math.round((8 + n) * FLOW_K * 0.6) });
   if (shield) phases.push({ at: 0.75, shield: +(1.5 + shield * 0.5).toFixed(1) });
-  if (n >= 16) phases.push({ at: 0.25, wave: 12 + n, brute: 1 + (n >= 24 ? 1 : 0), rate: 1.15 });
+  if (n >= 16) phases.push({ at: 0.25, wave: Math.round((12 + n) * FLOW_K * 0.6), brute: 1 + (n >= 24 ? 1 : 0), bruteHp: Math.round(18 * FLOW_K), rate: 1.15 });
+  if (n >= 20) phases.push({ at: 0.6, giant: Math.round((40 + n * 3) * FLOW_K) });
   phases.sort((a, b) => b.at - a.at);
 
-  const time = 110 + Math.min(40, n * 1.5);
+  const time = 60 + Math.min(30, n);
   return {
     id: n, name: rival.name, world: opts.world ?? WORLD_OF(n), len, w: W, time: Math.round(time),
     tip: opts.revenge ? `Vendetta su ${rival.leader}: bottino ×${REVENGE_BONUS}!` : `Razzia: più distruggi, più bottino porti a casa.`,
@@ -99,7 +103,7 @@ export function layoutToLevel(rival, opts = {}) {
     gates: gates.slice(0, 32), obstacles,
     base: {
       hp, w: hqL >= 4 ? 11 : 10, name: rival.name, raid: true,
-      spawners, waves: { every: Math.max(7, 13 - Math.floor(nx / 6)), count: 6 + Math.round(nx * 0.45) }, towers, ...(phases.length ? { phases } : {}),
+      spawners, waves: { every: Math.max(6, 10 - Math.floor(nx / 6)), count: Math.round((6 + nx * 0.45) * FLOW_K * 0.6) }, towers, ...(phases.length ? { phases } : {}),
     },
     raid: { seed: rival.seed, diff: rival.diff, leader: rival.leader, color: rival.color, revenge: !!opts.revenge, loot: rival.loot },
   };
