@@ -85,6 +85,7 @@ function makeRow(r, y, k, late) {
       else { type = 'add'; value = pick(r, late > 0.5 ? [5, 10, 15, 20] : [5, 8, 10]); }
     }
     let w = r1(lerp(P.w[0], P.w[1], r()));
+    if (k.e < 0.2 && P.xs.length === 2) w = Math.max(w, 5.8); // the gentlest levels forgive a wobbly aim
     const g = { x, y: r1(y), w, type, value };
     // a single gate across the lane may be the quick rainbow ×5, or a split into two lanes
     if (P.single && r() < k.rainbow) { g.type = 'mul'; g.value = 5; g.rainbow = true; g.w = w = 3.2; g.move = { amp: r1(4 + r() * 1.8), speed: r2(0.45 + r() * 0.25), phase: r2(r() * 6.28) }; out.push(g); return; }
@@ -265,7 +266,7 @@ export function generateLevel(seed, difficulty = 0.5, { endless = false, why = n
     // reds are a share of the multiplied flow, but never more than a share of the raw fire rate: a
     // wobbly aim multiplies far less, and must not be overrun by reds sized on a sharp one
     const raw = (8 + 0.7 * (LO.up.rate || 0)) * (1 + 0.2 * (LO.up.shot || 0));
-    let redPs = Math.max(0.6, Math.min(P * k.redFrac, raw * lerp(0.45, 1.1, k.e)));
+    let redPs = Math.max(0.6, Math.min(P * k.redFrac, raw * lerp(0.3, 1.1, k.e)));
     const setReds = () => {
       const share = L.base.waves ? 0.7 : 1, perSp = (redPs * share) / L.base.spawners.length;
       L.base.spawners.forEach((sp) => { sp.count = Math.max(1, Math.round(perSp / 1.3)); sp.rate = r2(perSp / sp.count); });

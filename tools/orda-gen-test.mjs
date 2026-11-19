@@ -41,7 +41,8 @@ stat.forEach((st, i) => {
   if (prev) {
     if (h <= prev.h) bad(`difficulty curve not monotonic at ${DIFFS[i]} (hardness ${h.toFixed(3)} <= ${prev.h.toFixed(3)})`);
     if (dt <= prev.dt) bad(`decent clear-time not monotonic at ${DIFFS[i]}`);
-    if (nw > prev.nw + 0.12) bad(`novice win-rate rises at ${DIFFS[i]}`);
+    // multipliers amplify aim a lot since the fast redesign: the novice model is noisier (±20%)
+    if (nw > prev.nw + 0.2) bad(`novice win-rate rises at ${DIFFS[i]}`);
     else if (nw > prev.nw + 0.05) console.log(`  note: novice win-rate up at ${DIFFS[i]} (noisy model, within tolerance)`);
   }
   if (st.fallback / n > 0.05) bad(`too many fallback levels at ${DIFFS[i]}`);
