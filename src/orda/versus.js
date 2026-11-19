@@ -317,7 +317,7 @@ export class OrdaVersus {
         const a = this.toScreen(c.x, c.z), b = this.toScreen(c.x, c.z + (c.side === 0 ? -1 : 1)), dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1;
         return { x: dx / l, y: dy / l };
       });
-      this.input.setLayout({ split: this.coop || !this.portrait ? 'v' : 'h', rail, fwd, px: (rail[0].px + rail[1].px) / 2 / 1.25 });
+      this.input.setLayout({ split: this.portrait !== !!this.coop ? 'h' : 'v', swap: !!this.coop && !this.portrait, rail, fwd, px: (rail[0].px + rail[1].px) / 2 / 1.25 });
       this.showHelp();
     }
   }
@@ -329,14 +329,14 @@ export class OrdaVersus {
     const cam = this.cam, W = this.W, L = this.L, coop = this.coop, portrait = this.portrait;
     // view direction and screen-up per layout
     let dir, up, target = new THREE.Vector3(0, 0, 0);
-    if (coop) { const t = portrait ? 0.95 : 0.78; dir = new THREE.Vector3(0, Math.cos(t), Math.sin(t)); up = new THREE.Vector3(0, 0, -1); target.set(0, 0, portrait ? -1 : -3); }
+    if (coop && portrait) { const t = 0.95; dir = new THREE.Vector3(0, Math.cos(t), Math.sin(t)); up = new THREE.Vector3(0, 0, -1); target.set(0, 0, -1); } // behind the cannons
     else if (portrait) { const t = 0.42; dir = new THREE.Vector3(Math.sin(t), Math.cos(t), 0); up = new THREE.Vector3(0, 0, -1); } // P1 bottom, P2 top
-    else { const t = 0.5; dir = new THREE.Vector3(Math.sin(t), Math.cos(t), 0); up = new THREE.Vector3(-1, 0, 0); } // P1 left, P2 right
+    else { const t = 0.5; dir = new THREE.Vector3(Math.sin(t), Math.cos(t), 0); up = new THREE.Vector3(-1, 0, 0); } // P1 left, P2 right (co-op: both left, P1 above)
     cam.up.copy(up); cam.updateProjectionMatrix();
     // corners that must be in frame: the arena and the castles
     const pts = [];
     for (const x of [-W / 2 - 1.2, W / 2 + 1.2]) for (const z of [-L / 2 - 2.4, L / 2 + 2.4]) for (const y of [0, 3]) pts.push(new THREE.Vector3(x, y, z));
-    const margin = this.portrait ? [0.86, 0.80] : coop ? [0.80, 0.84] : [0.86, 0.80]; // NDC x, y limits (room for the HUD)
+    const margin = coop && portrait ? [0.80, 0.84] : [0.86, 0.80]; // NDC x, y limits (room for the HUD)
     let lo = 10, hi = 400;
     for (let it = 0; it < 26; it++) {
       const d = (lo + hi) / 2;

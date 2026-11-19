@@ -57,7 +57,7 @@ function setup() {
 function statRows(r, p) {
   const s = r.stats[p], o = r.stats[1 - p] || {};
   const row = (k, v, ov) => `<dt>${k}</dt><dd class="${!r.coop && v > ov ? 'best' : ''}">${fmt(v)}</dd>`;
-  return `<dl>${row('Figure lanciate', s.sent, o.sent)}${row('Nemici abbattuti', s.kills, o.kills)}${row('Danni alla base', s.dmg, o.dmg)}${row('Figure dalle porte', s.gates, o.gates)}${row('Campioni', s.champs, o.champs)}${row('Figure perse', s.lost, -1)}</dl>`;
+  return `<dl>${row('Figure lanciate', s.sent, o.sent)}${row('Nemici abbattuti', s.kills, o.kills)}${row('Danni alla base', s.dmg, o.dmg)}${row('Figure dalle porte', s.gates, o.gates)}${row('Campioni', s.champs, o.champs)}<dt>Figure perse</dt><dd>${fmt(s.lost)}</dd></dl>`;
 }
 function results(r) {
   const coop = r.variant === 'coop'; r.coop = coop;

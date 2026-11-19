@@ -1,5 +1,6 @@
 // Orda · 2 giocatori — data: champions, arenas, co-op tuning and the level expander. No three.js
 // here: the setup screen reads it without loading the game.
+import { CHAMPIONS } from './meta.js';
 // Champions available in 2-player mode. Ids follow the core where they exist ('colosso' is the
 // core's first champion); stats here are tuned for the versus sim.
 export const VS_CHAMPIONS = {
@@ -8,6 +9,8 @@ export const VS_CHAMPIONS = {
   matrioska: { name: 'Matrioska', desc: 'Quando cade si apre in tante figure. Le porte la moltiplicano!', hp: 10, speed: 1.0, dmg: 5, scale: 1.9, charge: 12, split: 12, icon: '❂' },
   testuggine: { name: 'Testuggine', desc: 'Avanza sotto una cupola: chi la tocca svanisce.', hp: 40, speed: 0.72, dmg: 8, scale: 1.9, charge: 14, aura: 2.4, icon: '⛨' },
 };
+// names and colours come from the core's champion list (single source for the shared ids)
+for (const [id, C] of Object.entries(VS_CHAMPIONS)) { const K = CHAMPIONS.find((x) => x.id === id); if (K) { C.name = K.name; C.color = K.color; C.role = K.role; } }
 export const VS_CHAMP_IDS = Object.keys(VS_CHAMPIONS);
 
 // Arenas. Gates and obstacles are written for the half of player 1 (z > 0, the bottom / left of the
