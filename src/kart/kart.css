@@ -294,3 +294,7 @@
 .kt-hud.multi.race .kt-tr { display: none; }
 .kt-map.mid { left: auto; right: calc(10px + env(safe-area-inset-right)); top: 50%; bottom: auto; transform: translateY(-50%); }
 @media (max-width: 700px), (max-height: 520px) { .kt-map.mid { top: 50%; right: calc(6px + env(safe-area-inset-right)); } }
+.kt-q4 { position: absolute; display: flex; gap: 16px; align-items: center; justify-content: center; flex-wrap: wrap; padding: 12px; background: radial-gradient(circle at 30% 30%, rgba(255,59,107,.25), transparent 60%), #0e1014; }
+.kt-q4-h { position: absolute; left: 14px; top: 10px; font-style: italic; font-size: 20px; text-transform: uppercase; opacity: .6; }
+.kt-q4 .kt-map.q4 { position: relative; left: auto; top: auto; bottom: auto; right: auto; transform: none; }
+.kt-q4 .kt-board { position: relative; left: auto; top: auto; display: grid !important; }

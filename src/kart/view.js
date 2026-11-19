@@ -288,6 +288,7 @@ export class KartView {
   render() {
     const r = this.renderer, W = this.W, H = this.H;
     if (this.vps.length === 1) { r.setScissorTest(false); r.setViewport(0, 0, W, H); r.render(this.scene, this.cams[0].cam); return; }
+    if (this.vps.length === 3) { r.setScissorTest(false); r.setViewport(0, 0, W, H); r.setClearColor(0x0a0b0e, 1); r.clear(); }
     r.setScissorTest(true);
     this.vps.forEach((v, i) => { const y = H - v.y - v.h; r.setViewport(v.x, y, v.w, v.h); r.setScissor(v.x, y, v.w, v.h); r.render(this.scene, this.cams[i].cam); });
     r.setScissorTest(false);

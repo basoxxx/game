@@ -27,8 +27,11 @@ export class Hud {
     this.el = document.createElement('div'); this.el.className = 'kt-hud' + (players.length > 1 ? ' multi' : '') + (sim.battle ? ' battle' : ' race'); root.appendChild(this.el);
     this.multi = players.length > 1;
     this.vp = players.map((p, i) => this.makeVp(p, i));
-    if (!sim.battle && players.length <= 2) this.makeMap();
-    if (!this.multi && !o.compact) this.makeBoard();
+    // three players: the free quarter of the screen shows the map and the standings
+    if (players.length === 3) { this.q4 = document.createElement('div'); this.q4.className = 'kt-q4'; this.q4.innerHTML = '<div class="kt-q4-h">Kart Baso</div>'; this.el.appendChild(this.q4); }
+    if (!sim.battle && (players.length <= 2 || this.q4)) this.makeMap();
+    if ((!this.multi && !o.compact) || this.q4) this.makeBoard();
+    if (this.q4) { if (this.map) this.q4.appendChild(this.map); this.q4.appendChild(this.board); }
     this.t = 0; this.last = {};
   }
   makeVp(p, i) {
@@ -66,12 +69,13 @@ export class Hud {
   makeBoard() { const b = document.createElement('ol'); b.className = 'kt-board'; this.el.appendChild(b); this.board = b; }
   layout(vps, W, H) {
     this.vps = vps;
+    if (this.q4) Object.assign(this.q4.style, { left: Math.ceil(W / 2) + 1 + 'px', top: Math.ceil(H / 2) + 1 + 'px', width: Math.floor(W / 2) - 1 + 'px', height: Math.floor(H / 2) - 1 + 'px' });
     vps.forEach((v, i) => { if (!this.vp[i]) return; const s = this.vp[i].d.style; s.left = v.x + 'px'; s.top = v.y + 'px'; s.width = v.w + 'px'; s.height = v.h + 'px'; this.vp[i].d.classList.toggle('small', v.w < 560 || v.h < 380); this.vp[i].d.classList.toggle('tiny', v.w < 380 || v.h < 260); });
     if (this.map) {
       const small = Math.min(W, H) < 560;
       const sz = this.multi ? Math.min(124, Math.min(W, H) * 0.2) : small ? 104 : 168;
       Object.assign(this.map.style, { width: sz + 'px', height: sz + 'px' });
-      this.map.className = 'kt-map' + (this.multi ? ' mid' : '');
+      this.map.className = 'kt-map' + (this.q4 ? ' q4' : this.multi ? ' mid' : '');
     }
   }
   msg(i, text, cls = '', dur = 1.4) { const v = this.vp[i]; if (!v) return; v.msg.textContent = text; v.msg.className = 'kt-msg on ' + cls; v.msgT = dur; }

@@ -89,7 +89,7 @@ export class TouchControls {
     if (!document.getElementById('ktt-css')) { const st = document.createElement('style'); st.id = 'ktt-css'; st.textContent = CSS; document.head.appendChild(st); }
     const el = this.el = document.createElement('div'); el.className = 'ktt';
     el.innerHTML = `<div class="ktt-zone"><div class="ktt-base"><div class="ktt-knob"></div></div></div>
-      <div class="ktt-b ktt-drift" data-k="drift">Derapa</div><div class="ktt-b ktt-item" data-k="item">Oggetto</div><div class="ktt-b ktt-brk" data-k="brk">Freno</div><div class="ktt-b ktt-gas ${auto ? 'auto' : ''}" data-c="gas">${auto ? 'Gas auto' : 'Gas'}</div>`;
+      <div class="ktt-b ktt-drift" data-k="drift">Derapa</div><div class="ktt-b ktt-item" data-k="item">Oggetto</div><div class="ktt-b ktt-brk" data-k="brk">Freno</div><div class="ktt-b ktt-gas ${auto ? 'auto' : ''}" ${auto ? 'aria-hidden="true"' : 'data-k="thr"'}>${auto ? 'Gas auto' : 'Gas'}</div>`;
     root.appendChild(el);
     const zone = el.querySelector('.ktt-zone'), base = el.querySelector('.ktt-base'), knob = el.querySelector('.ktt-knob');
     this.knob = knob; this.base = base;
@@ -99,18 +99,16 @@ export class TouchControls {
     zone.addEventListener('pointermove', (e) => { if (e.pointerId !== stick) return; e.preventDefault(); move(e); });
     const end = (e) => { if (e.pointerId !== stick) return; stick = null; this.s.steer = 0; knob.style.transform = ''; base.classList.remove('on'); };
     zone.addEventListener('pointerup', end); zone.addEventListener('pointercancel', end); zone.addEventListener('lostpointercapture', end);
-    for (const b of el.querySelectorAll('.ktt-b[data-k]')) {
+    for (const b of el.querySelectorAll('[data-k]')) {
       const k = b.dataset.k, ids = new Set();
       b.addEventListener('pointerdown', (e) => { e.preventDefault(); ids.add(e.pointerId); try { b.setPointerCapture?.(e.pointerId); } catch {} this.s[k] = 1; b.classList.add('on'); try { navigator.vibrate?.(8); } catch {} });
       const off = (e) => { ids.delete(e.pointerId); if (!ids.size) { this.s[k] = 0; b.classList.remove('on'); } };
       b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
     }
-    const gas = el.querySelector('[data-c=gas]');
-    gas.addEventListener('pointerdown', (e) => { e.preventDefault(); this.auto = !this.auto; gas.classList.toggle('auto', this.auto); gas.textContent = this.auto ? 'Gas auto' : 'Gas'; this.manual = !this.auto; });
-    // with auto gas off, any touch on the right half (outside the buttons) is the throttle
+    // auto gas (default, set in the Comandi tab): always on, the brake wins; otherwise hold GAS
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     this.onPause = onPause;
   }
-  update(racing) { this.s.thr = this.auto ? 1 : this.s.thr; if (!this.auto) this.s.thr = this.s.brk ? 0 : 1 - (this.s.drift ? 0 : 0); this.el.style.display = racing ? '' : 'none'; }
+  update(racing) { if (this.auto) this.s.thr = 1; this.el.style.display = racing ? '' : 'none'; }
   destroy() { this.el.remove(); }
 }

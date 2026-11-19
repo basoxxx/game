@@ -151,7 +151,7 @@ if (ONLY.has('battle')) {
 
 // ───────── split screen: 2 and 4 players, separate keyboard layouts
 if (ONLY.has('split')) {
-  for (const n of [2, 4]) {
+  for (const n of (process.env.KART_SPLIT || "2,3,4").split(",").map(Number)) {
     const p = await page(1440, 900);
     await p.click('.kt-mode[data-id=multi]'); await p.click(`[data-a=kt-mp-n][data-id="${n}"]`);
     if (n === 4) await p.click('[data-a=kt-mp-mode][data-id=battle]');
@@ -166,7 +166,7 @@ if (ONLY.has('split')) {
     const inp = await p.evaluate(() => { const g = window.__kart.game; return g.players.map((pl) => ({ ...g.sim.karts[pl.kart].input, sp: g.sim.karts[pl.kart].fwd })); });
     await p.keyboard.up('ArrowLeft');
     ok(inp[0].thr === 1 && inp[0].steer === 0 && inp[1].thr === 1 && inp[1].steer === -1, `split ${n}P: W drives P1, arrows drive P2 (${inp.map((i) => `${i.thr}/${i.steer}`).join(' ')})`);
-    if (n === 4) ok(inp[2].thr === 0 && inp[3].thr === 0, 'split 4P: P3/P4 wait for their controllers');
+    if (n >= 3) ok(inp.slice(2).every((i) => i.thr === 0), `split ${n}P: P3+ wait for their controllers`);
     await p.keyboard.up('KeyW'); await p.keyboard.up('ArrowUp');
     await autoHumans(p);
     await p.evaluate(() => window.__kart.step(60 * 6)); await frames(p, 12);
