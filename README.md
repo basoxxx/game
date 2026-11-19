@@ -238,3 +238,9 @@ Le build desktop vengono create automaticamente da GitHub Actions (`.github/work
 Tecnologie: JavaScript, Vite, Three.js, Canvas/SVG, Web Audio, Electron, electron-builder.
 
 Geometria dei circuiti: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT License).
+
+### Ingorgo (Baso Hub · Puzzle)
+Puzzle di traffico in 3D cartoon: sposta auto, furgoni e autobus per liberare l’uscita. 60 livelli in 6 mondi (parcheggio classico, «tutti fuori», sensi unici, semafori, traghetto, ora di punta a tempo), 400 sfide generate, puzzle del giorno condivisibile e modalità Zen. Un generatore con seme e un risolutore A*/BFS garantiscono che ogni livello sia risolvibile e ne misurano la difficoltà (mosse minime).
+- `src/ingorgo/` – regole e risolutore (`core.js`), generatore (`gen.js`), gioco 3D (`game.js`), suoni, progressi
+- `node tools/ingorgo-gen-test.mjs` – 1000 semi: validità, ottimo del risolutore verificato da BFS, determinismo
+- `node tools/ingorgo-levels.mjs` – rigenera i 60 livelli della campagna · `node tools/ingorgo-e2e.mjs` – risolve livelli dalla UI con Playwright · `node tools/ingorgo-cover.mjs` – copertina
