@@ -28,6 +28,8 @@ export const ORDA_MODES = [];
 export function addOrdaMode(m) { if (!ORDA_MODES.some((x) => x.id === m.id)) ORDA_MODES.push(m); }
 // called after every match played from this screen: fn(result, run) — e.g. missions bookkeeping
 export const ORDA_END_HOOKS = [];
+// Orda · 2 giocatori: local versus / co-op, its own screen (src/screens/orda-versus.js)
+addOrdaMode({ id: 'versus', name: '2 giocatori', icon: 'users', tag: 'Locale', desc: 'Sfida o cooperativa sullo stesso schermo: tastiera, due controller o touch.', go: () => App.go('orda-versus', { from: 'orda' }) });
 // a menu tab: { id, name, icon, render(p) → html, mount?(p) }; `before` puts it ahead of another tab
 export const ORDA_TABS = [];
 export function addOrdaTab(t, before = 'opzioni') { if (ORDA_TABS.some((x) => x.id === t.id)) return; const i = ORDA_TABS.findIndex((x) => x.id === before); if (i < 0) ORDA_TABS.push(t); else ORDA_TABS.splice(i, 0, t); }

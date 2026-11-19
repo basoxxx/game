@@ -104,6 +104,7 @@ export const GAMES = [
       { id: 'potenziamenti', icon: 'wrench', name: 'Potenziamenti', desc: 'Cadenza, raffica, campioni e colori dell’orda.', go: () => App.go('orda', { from: 'launcher', tab: 'potenziamenti' }) },
       ...launcherModes(App), // Sfida del giorno, Infinita
       { id: 'base', icon: 'home', name: 'Base e razzie', desc: () => baseDesc(), get tag() { return baseSummary().unread ? 'Attaccata!' : ''; }, go: () => App.go('orda-base', { from: 'launcher' }) },
+      { id: 'versus', icon: 'users', name: '2 giocatori', desc: 'Sfida o cooperativa sullo stesso schermo, anche su tablet.', go: () => App.go('orda-versus', { from: 'launcher' }) },
     ],
   },
 ];

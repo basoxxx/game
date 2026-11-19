@@ -863,3 +863,5 @@ export class OrdaGame {
     this.root.innerHTML = '';
   }
 }
+// shared with the 2-player mode (src/orda/versus.js): same bean figures and champion models
+export { figureGeometry, figureMaterial, Crowd };

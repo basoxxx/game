@@ -215,12 +215,12 @@ export const App = {
     if (screens[id]?.full) this.history.length = 0;
     prev?.unmount?.();
     // the live race views own a WebGL context of their own: hand ours back before they start
-    if (id === 'weekend' || id === 'rally' || id === 'derby' || id === 'voragine' || id === 'orda' || id === 'orda-modes') disposeStage();
+    if (id === 'weekend' || id === 'rally' || id === 'derby' || id === 'voragine' || id === 'orda' || id === 'orda-modes' || id === 'orda-versus') disposeStage();
     this.cur = id; this.params = params;
     this.closeModal();
     document.querySelector('.coach')?.remove();
     setAudioScene(id);
-    const mood = { intro: 'menu', menu: 'menu', newgame: 'menu', howto: S() ? 'manage' : 'menu', settings: S() ? 'manage' : 'menu', weekend: null, rally: null, results: 'win', seasonend: 'win', quickrace: 'menu', challenges: 'menu', derby: 'derby', launcher: 'menu', voragine: 'voragine', orda: 'orda', 'orda-modes': 'orda' }[id];
+    const mood = { intro: 'menu', menu: 'menu', newgame: 'menu', howto: S() ? 'manage' : 'menu', settings: S() ? 'manage' : 'menu', weekend: null, rally: null, results: 'win', seasonend: 'win', quickrace: 'menu', challenges: 'menu', derby: 'derby', launcher: 'menu', voragine: 'voragine', orda: 'orda', 'orda-modes': 'orda', 'orda-versus': 'orda' }[id];
     if (mood !== null) music.setMood(mood || 'manage');
     else if (music.mood === 'menu' || music.mood === 'win') music.setMood('manage'); // paddock before the lights go out
     if (prev && prev.id !== id) this.wipe();
