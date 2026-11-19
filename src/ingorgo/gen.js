@@ -162,7 +162,7 @@ export function generate(seed, mech = 'classico', d = 0.5, extra = {}) {
   if (mech === 'sensi' || mech === 'punta') spec.vertHero = r() < 0.25;
   const [lo, hi] = spec.goal === 'all' ? spec.extra : spec.target;
   const isAll = spec.goal === 'all';
-  const tries = spec.tries || (isAll ? 40 : 10), climb = spec.climb ?? (isAll ? 1500 : 30);
+  const tries = spec.tries || (isAll ? 40 : 10), climb = spec.climb ?? (isAll ? 700 : 30);
   const gapOf = (x) => (x.v < lo ? lo - x.v : x.v > hi ? x.v - hi : 0);
   let got = null, gap = Infinity;
   for (let a = 0; (a < tries || (!got && a < tries * 6)) && gap > 0; a++) {

@@ -424,7 +424,10 @@ export class IngorgoGame {
     // soft shadow blob (all tiers: grounds the car even without shadow maps)
     const blob = new THREE.Mesh(kit.geo(`blob${len}`, () => { const gg = new THREE.PlaneGeometry(Lx + 0.16, Wd + 0.16); gg.rotateX(-Math.PI / 2); return gg; }), this.blobMat || (this.blobMat = new THREE.MeshBasicMaterial({ map: this.blobTex(), transparent: true, depthWrite: false, opacity: 0.55 })));
     blob.position.y = 0.057; g.add(blob);
-    const pick2 = new THREE.Mesh(kit.geo(`pick${len}`, () => new THREE.BoxGeometry(len - 0.04, 0.9, 0.96)), new THREE.MeshBasicMaterial({ visible: false })); pick2.position.y = 0.4; pick2.userData.car = i; g.add(pick2);
+    // picking uses the visible meshes (what the player sees on top), the ground blob never counts
+    blob.raycast = () => {}; g.userData.car = i;
+    // a slightly bigger low box helps fingers hit thin parts (wheels, bumpers), below the bodies
+    const pick2 = new THREE.Mesh(kit.geo(`pick${len}`, () => new THREE.BoxGeometry(len - 0.06, 0.3, 0.9)), new THREE.MeshBasicMaterial({ visible: false })); pick2.position.y = 0.15; g.add(pick2);
     this.scene.add(g);
     const v = { i, c, g, body, eyes, eyeS, eyeZ, pupils, lids, brows, star: g.userData.star, wheels: g.userData.wheels || [], pick: pick2, vp: this.s[i], vel: 0, prevVel: 0, blink: 1 + hashI(seed + 3) * 4, angry: 0, hop: 0, exitT: -1, shake: 0, look: 0, color };
     g.rotation.y = c.ax === 0 ? (c.dir > 0 ? 0 : Math.PI) : (c.dir > 0 ? -Math.PI / 2 : Math.PI / 2);
@@ -453,6 +456,20 @@ export class IngorgoGame {
     this.conf.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(220 * 3), 3);
     this.conf.count = 0; this.conf.frustumCulled = false; this.scene.add(this.conf); this.confL = [];
     void kit;
+  }
+  // comic speech bubble over a honking car
+  bubble(v, text) {
+    if (!this.bubbles) this.bubbles = [];
+    const c = document.createElement('canvas'); c.width = 256; c.height = 128; const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.strokeStyle = '#15171c'; g.lineWidth = 8;
+    g.beginPath(); g.roundRect(12, 12, 232, 82, 34); g.moveTo(110, 92); g.lineTo(128, 120); g.lineTo(146, 92); g.fill(); g.stroke();
+    g.fillStyle = '#fff'; g.fillRect(104, 84, 48, 12);
+    g.fillStyle = '#ff3b3b'; g.font = 'italic 900 52px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 128, 56);
+    const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tx, transparent: true, depthTest: false }));
+    sp.renderOrder = 10; this.scene.add(sp);
+    this.bubbles.push({ sp, v, t: 0 });
+    while (this.bubbles.length > 4) { const b = this.bubbles.shift(); this.scene.remove(b.sp); b.sp.material.map.dispose(); b.sp.material.dispose(); }
   }
   puff(x, y, z, n = 6, spread = 0.3, up = 0.8) { for (let k = 0; k < n; k++) { if (this.puffL.length >= 60) this.puffL.shift(); this.puffL.push({ x: x + (Math.random() - 0.5) * spread, y, z: z + (Math.random() - 0.5) * spread, vx: (Math.random() - 0.5) * 0.8, vy: up * (0.5 + Math.random()), vz: (Math.random() - 0.5) * 0.8, t: 0, life: 0.5 + Math.random() * 0.4, s: 0.6 + Math.random() * 0.8 }); } }
   confetti(x, z, n = 160) {
@@ -556,10 +573,11 @@ export class IngorgoGame {
   planeAt(e, y = 0.3) { const ray = this.rayAt(e).ray; const t = (y - ray.origin.y) / ray.direction.y; return ray.origin.clone().addScaledVector(ray.direction, t); }
   pickAt(e) {
     const ray = this.rayAt(e);
-    const objs = this.vs.filter((v) => v.g.visible && this.s[v.i] !== EXITED).map((v) => v.pick);
-    if (this.ferryPick) objs.push(this.ferryPick);
-    const hit = ray.intersectObjects(objs, false)[0];
-    if (hit) return hit.object.userData.ferry ? -1 : hit.object.userData.car;
+    const objs = this.vs.filter((v) => v.g.visible && this.s[v.i] !== EXITED).map((v) => v.g);
+    if (this.ferry) objs.push(this.ferry);
+    const hit = ray.intersectObjects(objs, true)[0];
+    this._hitY = hit ? clamp(hit.point.y, 0.05, 1.2) : 0.3;
+    if (hit) { let o = hit.object; while (o && o.userData.car === undefined && o !== this.ferry) o = o.parent; if (o === this.ferry) return -1; if (o) return o.userData.car; }
     // fallback: the cell under the pointer
     const p = this.planeAt(e, 0.05), B = this.B;
     const x = Math.floor(p.x + B.w / 2), y = Math.floor(p.z + B.h / 2);
@@ -578,13 +596,13 @@ export class IngorgoGame {
     e.preventDefault();
     try { this.cv.setPointerCapture(e.pointerId); } catch {}
     const B = this.B, occ = occupancy(B, this.s);
-    const p0 = this.planeAt(e);
+    const hy = this._hitY ?? 0.3, p0 = this.planeAt(e, hy); // the grabbed point follows the finger
     if (id === -1) {
       if (B.rx < 0) return;
-      this.drag = { ferry: true, id: e.pointerId, start: this.fvp, p0, x0: e.clientX, y0: e.clientY, t0: performance.now(), free: ferryFree(B, this.s, occ), samples: [] };
+      this.drag = { ferry: true, hy, id: e.pointerId, start: this.fvp, p0, x0: e.clientX, y0: e.clientY, t0: performance.now(), free: ferryFree(B, this.s, occ), samples: [] };
     } else {
       const r = carRange(B, this.s, id, occ);
-      this.drag = { car: id, id: e.pointerId, start: this.s[id], p0, x0: e.clientX, y0: e.clientY, t0: performance.now(), r, samples: [] };
+      this.drag = { car: id, hy, id: e.pointerId, start: this.s[id], p0, x0: e.clientX, y0: e.clientY, t0: performance.now(), r, samples: [] };
       this.vs[id].dragging = true;
     }
     this.sel = id; this.started = true;
@@ -592,11 +610,11 @@ export class IngorgoGame {
   }
   pointerMove(e) {
     const d = this.drag; if (!d || e.pointerId !== d.id) return;
-    const p = this.planeAt(e), B = this.B;
+    const p = this.planeAt(e, d.hy), B = this.B;
     if (d.ferry) {
       const v = d.start + (p.z - d.p0.z);
       this.fvp = d.free ? clamp(v, -0.3, B.h - B.fl + 0.3) : d.start + clamp(v - d.start, -0.12, 0.12);
-      d.samples.push([performance.now(), this.fvp]);
+      d.samples.push([e.timeStamp, this.fvp]);
       return;
     }
     const v = this.vs[d.car], c = v.c;
@@ -606,7 +624,7 @@ export class IngorgoGame {
     if (x > hi) x = d.r.outHi ? x : hi + Math.min(0.3, (x - hi) * 0.25);
     if (x < lo) x = d.r.outLo ? x : lo - Math.min(0.3, (lo - x) * 0.25);
     v.vp = x; v.vel = 0;
-    d.samples.push([performance.now(), x]); if (d.samples.length > 8) d.samples.shift();
+    d.samples.push([e.timeStamp, x]); if (d.samples.length > 8) d.samples.shift();
     d.pushed = raw > hi + 0.3 ? 1 : raw < lo - 0.3 ? -1 : 0;
   }
   pointerUp(e) {
@@ -615,7 +633,7 @@ export class IngorgoGame {
     const tap = Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 9 && performance.now() - d.t0 < 1200;
     // release speed (cells / s) from the last samples
     let vel = 0; const sm = d.samples;
-    if (sm.length >= 2) { const a = sm[0], b = sm[sm.length - 1]; const dt = (b[0] - a[0]) / 1000; if (dt > 0.01 && performance.now() - b[0] < 120) vel = (b[1] - a[1]) / dt; }
+    if (sm.length >= 2) { const a = sm[0], b = sm[sm.length - 1]; const dt = (b[0] - a[0]) / 1000; if (dt > 0.03 && e.timeStamp - b[0] < 100) vel = (b[1] - a[1]) / dt; }
     if (d.ferry) {
       const B = this.B;
       if (tap) { this.tapFerry(); return; }
@@ -662,7 +680,7 @@ export class IngorgoGame {
     snd.bump();
     if (f >= 0 && f < size) {
       const cell = c.ax === 0 ? c.fix * B.w + f : f * B.w + c.fix, o = occ[cell];
-      if (o && o !== 255) { const w = this.vs[o - 1]; w.hop = 0.35; w.angry = 1.4; setTimeout(() => snd.carHonk(w.c.len, 0.9 + Math.random() * 0.25), 90); }
+      if (o && o !== 255) { const w = this.vs[o - 1]; w.hop = 0.35; w.angry = 1.4; this.bubble(w, 'BIIP!'); setTimeout(() => snd.carHonk(w.c.len, 0.9 + Math.random() * 0.25), 90); }
       else if (isRed(B, this.s, cell)) this.msg('Rosso! Aspetta una mossa');
       else if (B.arrows[cell] >= 0) this.msg('Senso unico: non si entra contromano');
       else if (B.rx >= 0 && f === B.rx && c.ax === 0) this.msg('C’è il canale: serve il traghetto');
@@ -759,8 +777,8 @@ export class IngorgoGame {
         const r = carRange(B, this.hist[this.hist.length - 1], m[0]);
         v.exitDir = exitDir || (r.outHi ? 1 : -1); v.exitT = 0; v.exitV = Math.max(4, Math.abs(v.vel));
         snd.vroom(c.len === 3);
-        if (c.hero) { this.barrierUp = 1; snd.honk(this.o.horn || 'classico'); }
-        else setTimeout(() => snd.carHonk(c.len, 1.15), 120);
+        if (c.hero) { this.barrierUp = 1; snd.honk(this.o.horn || 'classico'); this.bubble(v, 'EVVIVA!'); }
+        else { setTimeout(() => snd.carHonk(c.len, 1.15), 120); this.bubble(v, c.len === 3 ? 'PÖÖ!' : 'BIP BIP!'); }
       } else snd.slide(Math.abs(m[1] - from), c.len === 3);
     }
     if (B.hasLights) this.syncLights();
@@ -917,6 +935,13 @@ export class IngorgoGame {
     } else this.ring.visible = false;
     if (this.ghost.visible) this.ghost.material.opacity = 0.25 + 0.2 * Math.sin(this.clock * 5);
     this.animFx(dt);
+    if (this.bubbles?.length) this.bubbles = this.bubbles.filter((b) => {
+      b.t += dt; const p = b.v.g.position, k = Math.min(1, b.t / 0.12), out = Math.max(0, b.t - 0.9) / 0.3;
+      b.sp.position.set(p.x, 1.25 + b.t * 0.25, p.z); const s = 0.9 * (k < 1 ? 0.4 + k * 0.7 : 1.1 - out * 0.3); b.sp.scale.set(s, s / 2, 1);
+      b.sp.material.opacity = 1 - out;
+      if (b.t > 1.2) { this.scene.remove(b.sp); b.sp.material.map.dispose(); b.sp.material.dispose(); return false; }
+      return true;
+    });
     const cam = this.cam;
     if (this.camOverride) this.camOverride(cam);
   }
@@ -989,10 +1014,10 @@ export class IngorgoGame {
   info() { return { moves: this.moves, opt: this.L.opt, done: this.done, time: this.time, state: Array.from(this.s), goal: this.B.goal, n: this.B.n, hinted: this.hinted, pr: this.renderer.getPixelRatio(), guard: this.guard.log, sel: this.sel }; }
   toScreen(x, y, z) { const v = new THREE.Vector3(x, y, z).project(this.cam), r = this.cv.getBoundingClientRect(); return { x: r.left + (v.x * 0.5 + 0.5) * r.width, y: r.top + (-v.y * 0.5 + 0.5) * r.height }; }
   cellScreen(x, y) { const [cx, cz] = this.cellPos(x, y); return this.toScreen(cx, 0.3, cz); }
-  carScreen(i) { const g = this.vs[i].g.position; return this.toScreen(g.x, 0.35, g.z); }
+  carScreen(i) { const v = this.vs[i], g = v.g.position, top = new THREE.Box3().setFromObject(v.body).max.y; return this.toScreen(g.x, top - 0.03, g.z); }
   ferryScreen() { const p = this.ferry.position; return this.toScreen(p.x, 0.1, p.z); }
   // pixels per cell along a car's axis at its position (for drags in tests)
-  axisScreen(i) { const c = this.B.cars[i], g = this.vs[i].g.position; const a = this.toScreen(g.x, 0.3, g.z), b = this.toScreen(g.x + (c.ax === 0 ? 1 : 0), 0.3, g.z + (c.ax === 1 ? 1 : 0)); return { x: b.x - a.x, y: b.y - a.y }; }
+  axisScreen(i) { const c = this.B.cars[i], g = this.vs[i].g.position; const y = new THREE.Box3().setFromObject(this.vs[i].body).max.y - 0.03; const a = this.toScreen(g.x, y, g.z), b = this.toScreen(g.x + (c.ax === 0 ? 1 : 0), y, g.z + (c.ax === 1 ? 1 : 0)); return { x: b.x - a.x, y: b.y - a.y }; }
   doMove(m) { return this.commit(m); }
   solveNow() { const r = solve(this.B, this.s, 300000); return r ? r.moves : null; }
 

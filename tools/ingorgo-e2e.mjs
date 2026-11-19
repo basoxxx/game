@@ -41,7 +41,7 @@ async function uiMove(page, m) {
   else {
     await page.mouse.move(info.a.x, info.a.y); await page.mouse.down();
     const N = 6; for (let k = 1; k <= N; k++) await page.mouse.move(info.a.x + (info.b.x - info.a.x) * k / N, info.a.y + (info.b.y - info.a.y) * k / N);
-    await page.waitForTimeout(150); // no flick: let the release speed settle
+    await page.waitForTimeout(300); // no flick: let the release speed settle
     await page.mouse.up();
   }
   await settle(page, 1.2);
@@ -52,16 +52,18 @@ async function solveViaUI(page, max = 80) {
     const st = await page.evaluate(() => { const g = window.__ingorgo; return g ? { done: g.done } : null; });
     if (!st || st.done) break;
     const moves = await page.evaluate(() => window.__ingorgo.solveNow());
-    if (!moves?.length) break;
+    if (!moves?.length) { console.log('  solver gave no move', JSON.stringify(await page.evaluate(() => window.__ingorgo.info()))); break; }
     const before = await page.evaluate(() => window.__ingorgo.moves);
     await uiMove(page, moves[0]);
     const after = await page.evaluate(() => window.__ingorgo?.moves ?? -1);
+    if (process.env.DEBUG) console.log('  move', JSON.stringify(moves[0]), 'moves', before, '->', after, JSON.stringify(await page.evaluate(() => window.__ingorgo && [window.__ingorgo.info().state, window.__ingorgo.done])));
     if (after === before) { // the drag missed: fall back to the hook so the run goes on, but count it
       console.log('  drag missed', JSON.stringify(moves[0]));
       fails++;
       await page.evaluate((m) => window.__ingorgo.doMove(m), moves[0]); await settle(page, 1);
     }
   }
+  if (n >= max) console.log('  gave up after', n, 'moves');
   return n;
 }
 const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, timeout: 120000 });
@@ -104,7 +106,10 @@ if (!ONLY || ONLY === 'desk') {
 // ---- 2. every world's first level via UI at phone portrait (+ ferry, lights, one-way)
 if (!ONLY || ONLY === 'worlds') {
   const store = { stars: Object.fromEntries(Array.from({ length: 50 }, (_, i) => [`c${i + 1}`, 3])), coins: 500 };
-  for (const [n, size] of [[11, [390, 844]], [21, [844, 390]], [31, [1024, 768]], [41, [390, 844]], [51, [1440, 900]]]) {
+  const LV = (process.env.LEVELS || '11,21,31,41,51').split(',').map(Number);
+  const SZ = { 11: [390, 844], 21: [844, 390], 31: [1024, 768], 41: [390, 844], 51: [1440, 900] };
+  for (const n of LV) {
+    const size = SZ[n] || [1024, 768];
     const page = await newPage(size[0], size[1], store);
     await page.goto(BASE + '?game=ingorgo');
     await page.waitForSelector('.ig-menu', { timeout: 60000 });
