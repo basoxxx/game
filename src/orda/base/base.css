@@ -126,8 +126,10 @@ body.ob-dragging, body.ob-dragging * { cursor: grabbing !important; }
 .ob-rep.on { border-color: var(--ob-line); }
 .ob-rep.ok { box-shadow: inset 4px 0 0 #22c55e; }
 .ob-rep.bad { box-shadow: inset 4px 0 0 var(--ob-red); }
-.ob-rep.new .ob-rep-h b::after { content: 'Nuovo'; margin-left: 8px; font-size: 10px; padding: 2px 6px; border-radius: 6px; background: var(--ob-red); vertical-align: 2px; }
+.ob-rep.new .ob-rep-h b::after { content: 'Nuovo'; margin-left: 8px; font-size: 10px; padding: 2px 6px; border-radius: 6px; background: #ffd23f; color: #3b2a00; vertical-align: 2px; }
 .ob-rep-h { display: flex; justify-content: space-between; gap: 8px; }
+.ob-rep-h b { color: #fff; }
+.ob-rep.bad .ob-rep-h b { color: #ffb4b4; }
 .ob-rep-h span { font-size: 12px; color: #9fb4e8; }
 .ob-rep-a { font-size: 13px; color: #c9d6ff; }
 .ob-rep-b { display: grid; grid-template-columns: 74px 1fr; gap: 10px; font-size: 12.5px; }

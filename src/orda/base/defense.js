@@ -70,7 +70,7 @@ export function resolveAttack(state, prog, a, rating = defenceRating(state.layou
     lost[B.res] += n;
     b.since = (b.since ?? a.at) + (n / B.rate(b.l)) * HOUR; // the stolen part is gone from the storage
   }
-  const bank = Math.min(20 + 15 * hq, Math.floor(state.bricks * BANK_LOSS_MAX * sim.pct * (1 - prot)));
+  const bank = Math.min(15 + 10 * hq, Math.floor(state.bricks * BANK_LOSS_MAX * sim.pct * (1 - prot)));
   state.bricks -= bank; lost.bricks += bank;
   // a held defence pays a little
   const bonus = sim.stars === 0 ? 20 + 12 * hq : 0;

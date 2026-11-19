@@ -186,10 +186,12 @@ export function simulateAttack(layout, attack) {
 // Defence rating: the largest horde (in steps of 10) a layout holds without losing a star, over a few
 // fixed seeds. Used to rate rival bases and to show the player how strong the defence is.
 export function defenceRating(layout, seeds = [11, 23, 37]) {
-  let lo = 0;
-  for (let f = 20; f <= 2400; f += f < 400 ? 20 : 50) {
-    const ok = seeds.filter((s) => simulateAttack(layout, { figures: f, seed: s }).stars === 0).length;
-    if (ok >= Math.ceil(seeds.length / 2)) lo = f; else break;
-  }
+  const holds = (f) => seeds.filter((s) => simulateAttack(layout, { figures: f, seed: s }).stars === 0).length >= Math.ceil(seeds.length / 2);
+  // binary search on a 10-figure grid (holding is monotonic enough in the horde size)
+  let lo = 0, hi = 2400;
+  if (!holds(20)) return 0;
+  if (holds(hi)) return hi;
+  lo = 20;
+  while (hi - lo > 10) { const m = Math.round((lo + hi) / 20) * 10; if (holds(m)) lo = m; else hi = m; }
   return lo;
 }

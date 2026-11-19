@@ -83,7 +83,7 @@ function palette() {
         <span>${unl ? `${costHtml(B.cost(1))}` : `${icon('lock')} Campagna liv. ${B.unlock}`}</span>
         ${unl ? `<small>${n}/${lim}</small>` : ''}</button>`;
     }).join('')}</div>
-    <p class="ob-hint">Trascina un edificio sulla griglia o toccalo e poi tocca una casella. Trascina gli edifici già piazzati per spostarli. Gli attacchi arrivano dal basso.</p>`;
+    <p class="ob-hint">Trascina un edificio sulla griglia o toccalo e poi tocca una casella. Trascina gli edifici già piazzati per spostarli (o selezionali e usa le frecce). Gli attacchi arrivano dalla pista di sabbia.</p>`;
 }
 function detail(b) {
   const st = V.st, prog = progress(), B = BUILDINGS[b.t], now = Date.now();
@@ -449,7 +449,13 @@ registerScreen({
     document.addEventListener('visibilitychange', V.onVis);
     V.onKey = (e) => {
       if (App.cur !== 'orda-base' || V.playing || document.querySelector('.modal-wrap')) return;
-      if (e.key === 'Escape' && (V.armed || V.sel)) { e.preventDefault(); e.stopPropagation(); V.armed = null; V.sel = null; update('panel'); }
+      if (e.key === 'Escape' && (V.armed || V.sel)) { e.preventDefault(); e.stopPropagation(); V.armed = null; V.sel = null; update('panel'); return; }
+      // keyboard: arrows nudge the selected building one cell (row 0 = front = down on screen)
+      const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key], b = sel();
+      if (d && b && V.tab === 'base' && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || '')) {
+        e.preventDefault(); e.stopPropagation();
+        if (G.move(V.st, b.id, b.x + d[0], b.y + d[1])) { save(); V.view?.setLayout(V.st.layout); V.view?.select(b.id); } else sfx.bad?.();
+      }
     };
     window.addEventListener('keydown', V.onKey, true);
   },
