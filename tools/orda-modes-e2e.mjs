@@ -105,8 +105,8 @@ for (let w = 1; w <= 3; w++) {
 const run = await page.evaluate(() => JSON.parse(localStorage.getItem('sala_orda_modes_v1')).run);
 log('  saved run:', JSON.stringify({ wave: run?.wave, cleared: run?.cleared, perks: run?.perks, line: run?.line }));
 if (!run || run.cleared !== 3 || run.perks.length !== 3) errors.push('endless run not saved after 3 waves');
-// lose the line on purpose: stop firing until the reds overrun the cannon
-await page.evaluate(async () => { const g = window.__ordaModes.game; g.autoplay = false; let n = 0; while (!g.over && n < 30 * 900) { for (let i = 0; i < 300; i++) { g.sim.input.fire = false; g.step(1 / 30); } n += 300; await new Promise((r) => setTimeout(r, 0)); } });
+// lose on purpose: the cannon is knocked down (the leftover crowd could otherwise still win the wave)
+await page.evaluate(() => { const g = window.__ordaModes.game; g.autoplay = false; g.sim.cannon.hp = 0; for (let i = 0; i < 10 && !g.over; i++) g.step(1 / 30); });
 await page.waitForSelector('.om-res', { timeout: 30000 });
 await shot('09-endless-over-1440');
 const hs = await page.evaluate(() => JSON.parse(localStorage.getItem('sala_orda_modes_v1')).endless);

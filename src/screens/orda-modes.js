@@ -111,10 +111,15 @@ function perkChips(ids) {
   const c = {}; ids.forEach((id) => { c[id] = (c[id] || 0) + 1; });
   return `<span class="om-chips">${Object.entries(c).map(([id, n]) => { const p = perkById(id); return p ? `<i title="${esc(p.name)}">${icon(p.icon)}${n > 1 ? `<b>${n}</b>` : ''}</i>` : ''; }).join('')}</span>`;
 }
+// a ladder of red fortresses, each bigger than the last
+const endlessArt = () => `<svg class="om-endless-art" viewBox="0 0 260 150" aria-hidden="true">${[0, 1, 2, 3].map((i) => {
+  const sc = 0.62 + i * 0.16, x = 18 + i * 60, w = 40 * sc, h = 34 * sc, y = 118 - h;
+  return `<g class="f${i}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4"/><rect x="${x - 4}" y="${y - 8 * sc}" width="${10 * sc}" height="${h + 8 * sc}" rx="3"/><rect x="${x + w - 6 * sc}" y="${y - 8 * sc}" width="${10 * sc}" height="${h + 8 * sc}" rx="3"/><text x="${x + w / 2}" y="${y + h * 0.66}">${i < 3 ? i + 1 : '∞'}</text></g>`;
+}).join('')}<path class="road" d="M0 128 H260"/>${Array.from({ length: 9 }, (_, i) => `<circle class="bean" cx="${10 + i * 28}" cy="${138 - (i % 2) * 4}" r="5"/>`).join('')}</svg>`;
 function tabEndless(s) {
   const run = s.run;
   return `<div class="om-endless">
-    <section class="om-card om-endless-hero">
+    <section class="om-card om-endless-hero">${endlessArt()}
       <div class="om-k">${icon('hourglass')} Infinita</div>
       <h2>Ondate senza fine</h2>
       <p>Abbatti la base rossa: ne arriva subito una più forte, con le porte rimescolate. Tra un’ondata e l’altra scegli <b>1 potenziamento su 3</b>. Il cannone non si ripara da solo: la corsa finisce quando i rossi lo travolgono.</p>
