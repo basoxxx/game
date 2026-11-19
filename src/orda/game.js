@@ -216,7 +216,7 @@ export class OrdaGame {
         <div class="or-boss"><div class="or-boss-n"><span id="or-bname">${L.base?.boss ? '👑 ' : ''}${L.base?.name || 'Base rossa'}</span><b id="or-bhp"></b></div><div class="or-bar"><i id="or-bbar"></i><em id="or-bshield"></em></div></div>
         <div class="or-timer" id="or-timer">0:00</div>
       </div>
-      <div class="or-goals" id="or-goals"><span id="or-g1">⏱ ${L.stars?.par ?? 60}s</span><span id="or-g2">👥 ${L.stars?.crowd ?? 30}</span><span class="or-lv">${o.mode === 'level' ? `Livello ${L.id}` : o.mode} · ${L.name || ''}</span></div>
+      <div class="or-goals" id="or-goals"><span id="or-g1">⏱ ${L.stars?.par ?? 60}s</span><span id="or-g2">👥 ${L.stars?.crowd ?? 30}</span><span class="or-lv">${o.label || (o.mode === 'level' ? `Livello ${L.id}` : ({ raid: 'Razzia', endless: 'Infinita', daily: 'Sfida del giorno', versus: '2 giocatori' })[o.mode] || o.mode)} · ${L.name || ''}</span></div>
       <div class="or-crowd" id="or-crowd"><b id="or-cn">0</b><span>in campo</span></div>
       <div class="or-can" id="or-can"><span>Cannone</span><div class="or-bar or-bar-s"><i id="or-cbar"></i></div></div>
       <button class="or-champ" id="or-champ" aria-label="Lancia il campione" style="--c:${C.color}"><i id="or-ring"></i><span class="or-champ-ic">${CHAMP_ICON[C.id] || '★'}</span><b>${C.name}</b><small id="or-champ-t">Carica…</small></button>
