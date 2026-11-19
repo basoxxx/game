@@ -48,3 +48,5 @@ winds, gems, flowers, seasons), bricks, effects and sounds are drawn and synthes
 
 Carte Baso (src/carte): no external assets. Card faces (Napoletane, Piacentine, French + jokers), backs, felts and
 the cover (covers/carte.webp, tools/carte-cover.mjs) are original procedural SVG/CSS; sounds are synthesised (Web Audio).
+Scala 40 and Burraco (src/carte/games/scala40*, burraco*): no external assets; they use the Carte Baso French faces
+and jokers. Rules written from common Italian play (two decks + 4 jokers; Burraco pinelle, pozzetti, 2005 points).
