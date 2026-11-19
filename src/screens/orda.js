@@ -42,7 +42,7 @@ function homeTab(p) {
   const modes = ORDA_MODES.filter((m) => !m.when || m.when(p));
   return `<div class="or-home">
     <section class="or-hero" style="--sky:${w.sky};--gr:${w.ground};--rim:${w.rim}">
-      <div class="or-hero-art" aria-hidden="true"><div class="or-hero-base"></div>${Array.from({ length: 14 }, (_, i) => `<i class="or-bean ${i % 4 === 3 ? 'r' : ''}" style="--i:${i}"></i>`).join('')}<div class="or-hero-gate">×${l.gates.find((g) => g.type === 'mul')?.value || 2}</div></div>
+      <div class="or-hero-art" aria-hidden="true"><div class="or-hero-base"></div>${Array.from({ length: 16 }, (_, i) => { const red = i % 5 === 4; return `<i class="or-bean ${red ? 'r' : ''}" style="--i:${i};left:${(red ? 40 : 34) + ((i * 37) % (red ? 20 : 32))}%;${red ? `top:${44 + (i % 3) * 5}%` : `bottom:${4 + ((i * 13) % 30)}%`}"></i>`; }).join('')}<div class="or-hero-gate">×${l.gates.find((g) => g.type === 'mul')?.value || 2}</div></div>
       <div class="or-hero-body">
         <div class="or-k">${esc(w.name)} · Livello ${l.id}${l.base.boss ? ' · <b>Fortezza</b>' : ''}</div>
         <h2>${done ? 'Campagna completata!' : esc(l.name)}</h2>
@@ -284,9 +284,9 @@ export const ordaActions = ORDA_ACTIONS;
 // test hook: deterministic stepping from the outside (headless WebGL is far too slow to play live)
 window.__orda = Object.assign(window.__orda || {}, {
   step(dt = 1 / 60, n = 1) { const g = V.game; if (!g?.sim) return null; for (let i = 0; i < n; i++) g.step(dt); return g.debugInfo(); },
-  play: (id) => startLevel(id), state: () => V.game?.debugInfo() || null, store: ordaLoad, save: ordaSave, levels: LEVELS,
-  get result() { return V.result; },
+  play: (id) => startLevel(id), playLevel: (level, mode = 'level') => playOrda({ level, mode }), state: () => V.game?.debugInfo() || null, store: ordaLoad, save: ordaSave, levels: LEVELS,
 });
+Object.defineProperty(window.__orda, 'result', { get: () => V.result, configurable: true });
 
 // extra modes — Sfida del giorno, Infinita, Missioni (src/orda/modes-entries.js, screen orda-modes)
 registerOrdaModes({ App, addOrdaMode, addOrdaTab, actions: ORDA_ACTIONS(), refresh: () => App.refresh() });
