@@ -4,7 +4,7 @@
 import { ordaLoad, ordaSave } from './store.js';
 import { VS_ARENAS, VS_CHAMP_IDS } from './versus-data.js';
 
-const DEF = { variant: 'versus', arena: VS_ARENAS[0].id, champs: ['colosso', 'grillo'], hc: [0, 0], rounds: 3, time: 90, ctime: 150, diff: 'normale', flat: true, played: 0, won: [0, 0], coop: 0, today: '', paid: 0 };
+const DEF = { variant: 'versus', arena: VS_ARENAS[0].id, champs: ['colosso', 'grillo'], hc: [0, 0], rounds: 3, time: 90, ctime: 150, diff: 'normale', flat: true, cpu: false, played: 0, won: [0, 0], coop: 0, today: '', paid: 0 };
 const DAILY_CAP = 120; // coins per day from 2-player matches
 
 export function vsPrefs() {

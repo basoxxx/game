@@ -46,6 +46,7 @@ function setup() {
         <div class="ovs-row"><span>Tempo</span>${seg('ovs-ctime', P.ctime, [[120, '2:00'], [150, '2:30'], [180, '3:00']])}</div>`
         : `<div class="ovs-row"><span>Round</span>${seg('ovs-rounds', P.rounds, [[1, '1'], [3, 'Meglio di 3'], [5, 'Meglio di 5']])}</div>
         <div class="ovs-row"><span>Tempo per round</span>${seg('ovs-time', P.time, [[60, '1:00'], [90, '1:30'], [120, '2:00']])}</div>
+        <div class="ovs-row"><span>Rosso guidato da</span>${seg('ovs-cpu', P.cpu ? 1 : 0, [[0, 'Giocatore'], [1, 'Computer']])}</div>
         <div class="ovs-row"><span>Tablet in piano (Rosso capovolto)</span>${seg('ovs-flat', P.flat ? 1 : 0, [[1, 'Sì'], [0, 'No']])}</div>`}
       </div>
       <p class="ovs-keys">${coop ? 'Fine del tempo: la fortezza resiste e avete perso. ' : 'Fine del tempo: vince chi ha più vita alla base; in parità si va alla <b>morte improvvisa</b> (porte raddoppiate, il primo colpo alla base vince). '}Tastiera: i tasti seguono lo schermo, le due direzioni lungo il binario muovono il cannone, quella verso l’avversario spara e quella opposta lancia il campione (con Blu in basso: A/D, W, S). Touch: ogni giocatore usa la propria metà dello schermo, trascina per spostare il cannone e tieni premuto per sparare. Il pulsante tondo lancia il campione quando l’anello è pieno.</p></section>
@@ -97,6 +98,7 @@ registerScreen({
     const coop = P.variant === 'coop';
     const g = V.game = new OrdaVersus(root, {
       variant: P.variant, level: VS_ARENAS.find((a) => a.id === P.arena) || VS_ARENAS[0], champions: P.champs, handicap: P.hc,
+      bots: [false, !coop && !!P.cpu], names: !coop && P.cpu ? ['Blu', 'Rosso (CPU)'] : undefined,
       rounds: P.rounds, roundTime: coop ? P.ctime : P.time, diff: P.diff, flat: P.flat && isTouch(), tier: gfxTier(),
       seed: q.has('seed') ? +q.get('seed') : undefined,
       volume: s.sound === false ? 0 : 0.6 * (s.volume ?? 0.5) / 0.5,
@@ -126,6 +128,7 @@ registerScreen({
     'ovs-time'(el) { const P = vsPrefs(); P.time = +el.dataset.v; vsSavePrefs(P); App.refresh(); },
     'ovs-ctime'(el) { const P = vsPrefs(); P.ctime = +el.dataset.v; vsSavePrefs(P); App.refresh(); },
     'ovs-diff'(el) { const P = vsPrefs(); P.diff = el.dataset.v; vsSavePrefs(P); App.refresh(); },
+    'ovs-cpu'(el) { const P = vsPrefs(); P.cpu = el.dataset.v === '1'; vsSavePrefs(P); App.refresh(); },
     'ovs-flat'(el) { const P = vsPrefs(); P.flat = el.dataset.v === '1'; vsSavePrefs(P); App.refresh(); },
     'ovs-play'() { V.playing = true; sfx.ok?.(); App.refresh(); },
     'ovs-resume'() { V.game?.togglePause(false); },

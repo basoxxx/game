@@ -163,7 +163,7 @@ export class OrdaVersus {
     const setPR = (pr) => { if (Math.abs(r.getPixelRatio() - pr) < 0.01) return false; r.setPixelRatio(pr); this.resize(); };
     this.guard = new FrameGuard([{ fps: 40, run: () => setPR(1) }, { fps: 30, run: () => { if (!r.shadowMap.enabled) return false; r.shadowMap.enabled = false; this.scene.traverse((x) => { if (x.material) x.material.needsUpdate = true; }); } }, { fps: 24, run: () => setPR(0.75) }]);
     this.buildScene();
-    this.input = new VersusInput(root, { onPause: () => this.togglePause(), players: 2 });
+    this.input = new VersusInput(root, { onPause: () => this.togglePause(), players: this.o.bots?.[1] && !this.coop ? 1 : 2 }); // vs the CPU: the whole screen is P1's
     this.input.onTouch = (p, T) => this.drawTouch(p, T);
     for (const p of [0, 1]) this.$('ovs-ch' + p).addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); this.champReq[p] = true; });
     this.$('ovs-pause').addEventListener('click', () => this.togglePause());
@@ -297,7 +297,7 @@ export class OrdaVersus {
     this.portrait = h > w * 1.05;
     const hud = this.$('ovs-hud');
     hud.classList.toggle('portrait', this.portrait); hud.classList.toggle('landscape', !this.portrait);
-    hud.classList.toggle('flat', !!this.o.flat && this.portrait && !this.coop);
+    hud.classList.toggle('flat', !!this.o.flat && this.portrait && !this.coop && !this.o.bots?.[1]);
     hud.classList.toggle('compact', Math.min(w, h) < 520);
     this.frame();
     const s = (h * this.renderer.getPixelRatio()) / (2 * Math.tan((this.cam.fov * Math.PI) / 360));
