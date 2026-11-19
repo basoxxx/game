@@ -383,6 +383,7 @@ export class OrdaVersus {
   endRound(winner, why) {
     if (this.roundOver) return;
     this.roundOver = 3.2;
+    this.helpShown = 0; this.showHelp();
     const st = this.stats.map((s) => ({ ...s }));
     for (let p = 0; p < 3; p++) for (const k in st[p]) this.total[p][k] += st[p][k];
     const hp = this.bases.map((b) => Math.max(0, b.hp / b.max));
@@ -402,7 +403,8 @@ export class OrdaVersus {
     try { if (this.o.volume > 0) (winner >= 0 ? sfx.ok : sfx.bad)(); } catch {}
     const bw = winner >= 0 ? this.bases[1 - winner] : null;
     if (bw) for (let k = 0; k < 6; k++) this.fx.burst((this.rand() - 0.5) * this.W, 3, bw.z0, ['#ffd23a', '#ff6a3d', '#ffffff'][k % 3], 30, 8, 0.45, 1, this.rand);
-    if (this.wins[0] >= this.needWins || this.wins[1] >= this.needWins || this.round >= 5) this.matchDone = true;
+    if (this.wins[0] >= this.needWins || this.wins[1] >= this.needWins || this.round >= (this.o.rounds || 3) + 2) this.matchDone = true; // draws replay the round, up to two extra
+    this.updateHud(0, true);
   }
   finishMatch(outcome, why) {
     if (this.over) return;
@@ -729,6 +731,7 @@ export class OrdaVersus {
   loop(now) {
     this.raf = requestAnimationFrame(this.loop);
     const dt = Math.max(0, Math.min(0.1, (now - this.last) / 1000)); this.last = now;
+    if (this.paused && !this.over) this.input?.poll(); // the pad's Start resumes
     if (!this.paused && !this.manual) { this.acc += dt; let k = 0; while (this.acc >= 1 / 60 && k < 6) { this.step(1 / 60); this.acc -= 1 / 60; k++; } if (k >= 6) this.acc = 0; }
     this.renderer.render(this.scene, this.cam);
     if (!this.paused) this.guard?.tick();
