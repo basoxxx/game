@@ -80,6 +80,37 @@ for (const [w, h] of SIZES) {
     await p.close();
   }
 }
+// controls: keyboard heading, pause on Escape, touch drag on a phone
+{
+  const p = await page(1024, 768, false, store({ mode: 'battaglia' }));
+  await p.goto(BASE + '?game=territorio'); await p.waitForSelector('.tr-menu');
+  await p.click('[data-a=tr-play]');
+  await p.waitForFunction(() => window.__territorio?.sim && window.__territorio.views, null, { timeout: 60000 });
+  await p.evaluate(() => { const g = window.__territorio; g.hold = true; g.count = 0; });
+  const heading = async (key) => { await p.keyboard.down(key); const a = await p.evaluate(() => { const g = window.__territorio; g.step(1 / 30); return g.me.want; }); await p.keyboard.up(key); return a; };
+  const near = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))) < 0.01;
+  if (!near(await heading('KeyD'), 0)) errors.push('keyboard D does not steer right');
+  if (!near(await heading('ArrowUp'), -Math.PI / 2)) errors.push('arrow up does not steer up');
+  await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+  if (!(await p.$('.tr-pause'))) errors.push('Escape does not pause');
+  await p.click('[data-a=tr-resume]');
+  await p.close();
+  const q = await page(390, 844, true, store({ mode: 'battaglia' }));
+  await q.goto(BASE + '?game=territorio'); await q.waitForSelector('.tr-menu');
+  await q.click('[data-a=tr-play]');
+  await q.waitForFunction(() => window.__territorio?.sim && window.__territorio.views, null, { timeout: 60000 });
+  const a = await q.evaluate(() => {
+    const g = window.__territorio; g.hold = true; g.count = 0;
+    const cv = g.cv, ev = (type, x, y) => cv.dispatchEvent(new PointerEvent(type, { pointerId: 7, pointerType: 'touch', clientX: x, clientY: y, bubbles: true }));
+    ev('pointerdown', 200, 500); ev('pointermove', 200, 440); g.step(1 / 30);
+    const up = g.me.want; ev('pointermove', 260, 440); g.step(1 / 30); const right = g.me.want; window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, pointerType: 'touch' }));
+    return [up, right];
+  });
+  if (!near(a[0], -Math.PI / 2)) errors.push(`touch drag up gives ${a[0]}`);
+  if (!(a[1] > -Math.PI / 2 && a[1] < 0)) errors.push(`touch drag up-right gives ${a[1]}`);
+  await q.close();
+  console.log('controls checked');
+}
 // the night arena and the daily one, desktop only
 {
   const p = await page(1440, 900, false, store({ map: 'notte', mode: 'classica', vehicle: 'razzo', vehicles: ['cubo', 'razzo'], trail: 'arcobaleno', trails: ['liscia', 'arcobaleno'] }));

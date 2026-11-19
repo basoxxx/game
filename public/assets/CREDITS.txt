@@ -22,3 +22,6 @@ metal_jerrycan_green (derby/jerrycan.*).
 Voragine facades (voragine/f_*.webp, 1k webp; *_e = night window emission, partly generated from the colour maps):
 ambientCG (https://ambientcg.com) - CC0 1.0 Public Domain: Facade001, Facade003, Facade006, Facade017, Facade018A.
 Road grain reuses tex/asphalt_02 (Poly Haven, CC0).
+
+Territorio (src/territorio): no external assets. Board, vehicles, obstacles and effects are procedural
+(three.js primitives and shaders); the cover public/covers/territorio.webp is rendered from the game.

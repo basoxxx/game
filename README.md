@@ -238,3 +238,10 @@ Le build desktop vengono create automaticamente da GitHub Actions (`.github/work
 Tecnologie: JavaScript, Vite, Three.js, Canvas/SVG, Web Audio, Electron, electron-builder.
 
 Geometria dei circuiti: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT License).
+
+## Territorio (Arcade)
+Gioco di conquista del territorio: guidi un piccolo veicolo su un'arena colorata, esci dal tuo terreno lasciando una scia e la richiudi per prenderti tutto ciò che hai racchiuso. Se un rivale tocca la tua scia sei fuori (e viceversa).
+- **Modalità**: Classica (una vita, conquista il 50%), Battaglia a tempo (3 minuti, si rinasce), Squadre (Rossi contro Blu, 4 contro 4), Ultimo in piedi, **Arena del giorno** uguale per tutti.
+- **2–4 giocatori** sullo stesso dispositivo: schermo diviso o condiviso, tastiera (WASD, frecce, IJKL, tastierino), controller e tocco a zone.
+- Rivali con personalità (Prudente, Avido, Cacciatore, Furbo, Scheggia), potenziamenti (Turbo, Scudo, Gelo), 5 arene con ostacoli, missioni, colori/veicoli/scie da sbloccare con le monete: niente pubblicità, niente acquisti.
+- Link diretto `?game=territorio`. Test della logica: `node tools/territorio-test.mjs`; controllo nel browser: `node tools/territorio-shots.mjs <url>`; copertina: `node tools/territorio-cover.mjs <url>`.

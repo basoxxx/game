@@ -5,7 +5,7 @@ const pct = (x) => `${(+x || 0).toFixed(1).replace('.', ',')}%`;
 export default {
   id: 'territorio', order: 40, category: 'Arcade', section: 'Territorio', title: 'Territorio', genre: 'Arcade · conquista', accent: '#16c79a',
   desc: 'Esci dal tuo terreno, traccia una scia e richiudila per conquistare l’arena. Taglia le scie dei rivali, ma proteggi la tua.',
-  stat: () => { const p = trLoad(); const b = trBest(p); return p.games ? `Record ${pct(b)} · ${p.games} partite · ${p.wins} vittorie` : '8 veicoli in arena, una sola scia da difendere'; },
+  stat: () => { const p = trLoad(); const b = trBest(p); return p.games ? `${b > 0 ? `Record ${pct(b)} · ` : ''}${p.games} partite · ${p.wins} vittorie` : '8 veicoli in arena, una sola scia da difendere'; },
   cover: 'covers/territorio.webp',
   play: (App) => App.go('territorio', { from: 'launcher' }),
   modes: [

@@ -473,7 +473,7 @@ export class TerritorioGame {
       return;
     }
     if (this.countClear && this.clock >= this.countClear) { this.countClear = 0; const el = this.$('tr-count'); if (el) el.textContent = ''; }
-    else if (!this.countClear && this.clock < 0.1) { const el = this.$('tr-count'); if (el) el.textContent = ''; }
+    else if (!this.countClear) { const el = this.$('tr-count'); if (el?.textContent) el.textContent = ''; }
     this.readInput();
     const s = this.sim;
     s.step(dt);
