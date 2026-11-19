@@ -39,7 +39,7 @@ export function solve(spec, { maxStrokes = spec.par + 1, beam = 6 } = {}) {
       for (let i = -6; i <= 6; i++) angs.push(toCup + i * 0.012);
       for (const w of waits) for (const a of angs) for (const pw of POW) {
         sim.t = node.t + w; sim.reset(node.p); sim.shoot(a, pw); sim.run(); sims++;
-        const shot = { a, p: pw, w };
+        const shot = { a, p: pw, w, t: node.t + w };
         if (sim.state === 'holed') return { strokes: n, shots: [...node.shots, shot], sims };
         if (sim.state !== 'rest') continue;
         const k = `${Math.round(sim.p[0] * 3)},${Math.round(sim.p[1] * 8)},${Math.round(sim.p[2] * 3)}`;

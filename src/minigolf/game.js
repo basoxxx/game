@@ -232,7 +232,7 @@ export class MinigolfGame {
     this.loadHole(this.hi + 1);
   }
   finish() {
-    this.phase = 'end';
+    this.phase = 'end'; this.over.innerHTML = ''; this.hud.innerHTML = '';
     const parTot = this.holes.reduce((a, h) => a + h.par, 0);
     const players = this.players.map((p) => ({ name: p.name, color: p.color, card: p.card, total: p.total, vs: p.total - parTot }));
     this.o.onEnd?.({ players, par: parTot, holes: this.holes });

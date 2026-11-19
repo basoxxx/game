@@ -158,7 +158,7 @@
 .mg-sc tr.par td { color: var(--muted); }
 .mg-sc td:first-child { text-align: left; white-space: nowrap; }
 .mg-sc td:first-child i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c); margin-right: 6px; }
-.mg-sc td.ace { background: var(--gold); color: #000; font-weight: 800; border-radius: 50%; }
+.mg-sc td.ace { color: var(--gold); font-weight: 900; text-shadow: 0 0 10px rgba(245,197,66,.7); }
 .mg-sc td.under { color: #6ee7a0; font-weight: 800; }
 .mg-sc td.over { color: #ff9b9b; }
 

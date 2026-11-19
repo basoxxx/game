@@ -2,6 +2,7 @@
 // moving pieces drawn from the physics shapes (what you see is what the ball hits), themed props
 // around the course, the ball with its hat and trail, and the aiming helpers.
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { LV, BALL_R, CUP_R, DIRS, isHaz, cornerY } from './holes.js';
 import { THEMES } from './courses.js';
 
@@ -104,6 +105,8 @@ export class HoleView {
       Object.assign(sun.shadow.camera, { left: -S, right: S, top: S, bottom: -S, near: 1, far: 50 });
       sun.shadow.mapSize.set(hi ? 2048 : 1024, hi ? 2048 : 1024); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.01;
     } else renderer.shadowMap.enabled = false;
+    // soft studio reflections for metals and shiny balls (not on the lowest tier)
+    if (!low) { const pm = new THREE.PMREMGenerator(renderer); this.envTex = scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; pm.dispose(); scene.environmentIntensity = 0.3; }
     this.anim = [];
     this.buildCourse();
     this.buildProps();
@@ -242,7 +245,7 @@ export class HoleView {
       const geom = new THREE.BoxGeometry(k.half[0] * 2, k.half[1] * 2, k.half[2] * 2);
       const m = new THREE.Mesh(geom, k.type === 'blade'
         ? new THREE.MeshStandardMaterial({ color: '#fff', map: canvasTex(32, 128, (g, W, H) => { g.fillStyle = '#f7efe2'; g.fillRect(0, 0, W, H); g.strokeStyle = '#8a5a2b'; g.lineWidth = 3; for (let y = 0; y < H; y += 16) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); } g.strokeRect(1, 1, W - 2, H - 2); }), roughness: 0.7 })
-        : new THREE.MeshStandardMaterial({ color: this.opts.theme === 'castello' ? '#5b5b66' : '#ff8a1f', metalness: this.opts.theme === 'castello' ? 0.6 : 0.1, roughness: 0.45, emissive: this.opts.theme === 'spazio' ? '#ff5f9e' : '#000', emissiveIntensity: 0.25 }));
+        : new THREE.MeshStandardMaterial({ color: this.opts.theme === 'castello' ? '#8a8fa0' : '#ff8a1f', map: this.opts.theme === 'castello' ? canvasTex(64, 32, (g, W, H) => { g.fillStyle = '#6d717e'; g.fillRect(0, 0, W, H); g.fillStyle = '#2d2f36'; for (let x = 4; x < W; x += 12) g.fillRect(x, 0, 4, H); for (let y = 6; y < H; y += 12) g.fillRect(0, y, W, 3); }) : null, metalness: this.opts.theme === 'castello' ? 0.3 : 0.1, roughness: 0.45, emissive: this.opts.theme === 'spazio' ? '#ff5f9e' : '#000', emissiveIntensity: 0.25 }));
       m.castShadow = true; this.scene.add(m); return m;
     });
   }
@@ -398,7 +401,7 @@ export class HoleView {
   bump(b) { const v = this.bumperMeshes.get(b); if (v) v.hit = 1; }
   dispose() {
     this.scene.traverse((o) => { o.geometry?.dispose?.(); const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : []; for (const m of ms) { if (m.map && m.map !== DOT[0] && m.map !== DOT[1]) m.map.dispose(); m.dispose?.(); } });
-    this.scene.background?.dispose?.();
+    this.scene.background?.dispose?.(); this.envTex?.dispose();
   }
 }
 function exitDirOf(sim, pad) {

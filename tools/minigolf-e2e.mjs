@@ -85,6 +85,60 @@ for (const [name, w, h] of VIEWS) {
   await p.context().close();
 }
 
+// a full 9-hole round with solver shots at the solver's exact clock (windmills included), replay,
+// scorecard, coins and course unlock; then a water penalty and the daily hole
+{
+  const p = await page(1280, 800);
+  await p.goto(BASE + '?nointro&game=minigolf');
+  await p.waitForSelector('.mg-menu');
+  await p.click('[data-a=mg-round][data-c=giardino]');
+  await p.waitForFunction(() => window.__minigolf?.state?.().phase, null, { timeout: 90000 });
+  await p.evaluate(() => { window.__minigolf.manual = true; });
+  const course = courseById('giardino');
+  for (let i = 0; i < 9; i++) {
+    const sol = solve(course.holes[i]);
+    await p.evaluate(() => window.__minigolf.step(2));
+    for (const s of sol.shots) {
+      for (let k = 0; k < 20; k++) { const st = await p.evaluate(() => window.__minigolf.state()); if (st.phase === 'aim') break; await p.evaluate(() => window.__minigolf.step(0.5)); }
+      await p.evaluate((s) => { const g = window.__minigolf.game; g.sim.t = s.t; g.shoot(s.a, s.p); }, s);
+      for (let k = 0; k < 60; k++) { const st = await p.evaluate(() => window.__minigolf.step(0.5)); if (st.phase === 'aim' || st.phase === 'card') break; }
+    }
+    const st = await p.evaluate(() => window.__minigolf.state());
+    if (st.phase !== 'card') { errors.push(`round: hole ${i + 1} not holed with the solver shots (${JSON.stringify(st)})`); break; }
+    if (i === 4) { // replay of the windmill hole must hole again
+      await p.click('[data-mg=replay]');
+      let holed = false;
+      for (let k = 0; k < 40 && !holed; k++) { await p.evaluate(() => window.__minigolf.step(0.5)); holed = await p.evaluate(() => !window.__minigolf.game.replay); }
+      const rs = await p.evaluate(() => window.__minigolf.game.view.sim === window.__minigolf.game.sim);
+      if (!holed || !rs) errors.push('replay did not finish');
+    }
+    await p.click('[data-mg=next]');
+  }
+  await p.waitForSelector('.mg-res', { timeout: 20000 }).catch(() => errors.push('round: no results'));
+  await shot(p, 'round-results');
+  const store = await p.evaluate(() => JSON.parse(localStorage.getItem('sala_minigolf_v1')));
+  if (!store.courses?.giardino?.done || Object.keys(store.best).length !== 9 || store.coins <= 260) errors.push('round: store not updated ' + JSON.stringify(store).slice(0, 200));
+  await p.click('[data-a=mg-menu]');
+  await p.click('.mg-tabs [data-id=percorsi]');
+  if (await p.$('[data-a=mg-round][data-c=spiaggia]') === null) errors.push('spiaggia not unlocked');
+  // penalty: straight into the pond of «Laghetto»
+  await p.click('[data-a=mg-single][data-c=giardino][data-h="3"]');
+  await p.waitForFunction(() => window.__minigolf?.state?.().phase, null, { timeout: 90000 });
+  await p.evaluate(() => { window.__minigolf.manual = true; window.__minigolf.step(2); window.__minigolf.shoot(0, 0.42); });
+  let pen = null;
+  for (let k = 0; k < 20; k++) { const st = await p.evaluate(() => window.__minigolf.step(0.25)); if (st.phase === 'aim') { pen = st; break; } }
+  if (!pen || pen.strokes !== 2 || Math.abs(pen.ball[2] - 6.5) > 0.01) errors.push('penalty: ' + JSON.stringify(pen));
+  await p.evaluate(() => window.__minigolf.game.o.onQuit());
+  // daily hole
+  await p.click('.mg-tabs [data-id=daily]');
+  await p.click('[data-a=mg-daily]');
+  await p.waitForFunction(() => window.__minigolf?.state?.().phase, null, { timeout: 90000 });
+  await p.evaluate(() => { window.__minigolf.manual = true; window.__minigolf.step(2); });
+  await shot(p, 'daily');
+  await p.evaluate(() => window.__minigolf.game.o.onQuit());
+  await p.context().close();
+}
+
 // themed holes (one screenshot per course) + multiplayer
 {
   const p = await page(1440, 900);
