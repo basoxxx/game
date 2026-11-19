@@ -28,7 +28,7 @@ export class Four2D {
   quads() { const { s, ox, oy } = this.geo(), out = []; for (let c = 0; c < 7; c++) { const x = ox + c * s; out.push({ c, pts: [[x, oy - s * 1.2], [x + s, oy - s * 1.2], [x + s, oy + s * 6], [x, oy + s * 6]] }); } return out; }
   loop(now) {
     this.raf = requestAnimationFrame(this.loop);
-    const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now;
+    const dt = Math.min(0.25, (now - this.last) / 1000); this.last = now;
     if (this.resize()) this.onLayout?.();
     if (this.anims.length) { this.dirty = true; for (const a of this.anims.slice()) { a.t += dt; const k = Math.min(1, a.t / a.dur); a.fn(k); if (k >= 1) { this.anims.splice(this.anims.indexOf(a), 1); a.res(); } } }
     if (this.win) { this.t += dt; this.dirty = true; }

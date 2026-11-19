@@ -34,7 +34,7 @@ export class Sea2D {
   }
   loop(now) {
     this.raf = requestAnimationFrame(this.loop);
-    const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now;
+    const dt = Math.min(0.25, (now - this.last) / 1000); this.last = now;
     if (this.resize()) this.onLayout?.();
     if (this.fxs.length) { this.dirty = true; for (const f of this.fxs) f.t += dt; this.fxs = this.fxs.filter((f) => f.t < 0.7); }
     if (!this.dirty) return; this.dirty = false; this.draw();

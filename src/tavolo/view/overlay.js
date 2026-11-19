@@ -40,7 +40,7 @@ export class CellOverlay {
   }
   down(e) {
     const b = e.target.closest('.tv-cell'); if (!b || e.button > 0) return;
-    let id = b.dataset.id; const p = this.cb.pick?.(e.clientX, e.clientY); if (p) id = p;
+    let id = b.dataset.id; const p = this.cb.pick?.(e.clientX, e.clientY, id); if (p) id = p;
     this.press = { id, x: e.clientX, y: e.clientY, drag: false, pid: e.pointerId, can: !!this.cb.canDrag?.(id) };
     if (this.press.can) { try { this.el.setPointerCapture(e.pointerId); } catch {} }
   }

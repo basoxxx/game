@@ -77,10 +77,9 @@ export class NavaleGame {
   rotateSel() {
     const s = this.ships().find((q) => q.id === this.sel); if (!s) { this.shell.msg('Seleziona prima una nave'); return; }
     const dir = 1 - s.dir;
-    for (let k = 0; k < s.len; k++) for (const sg of [-1, 1]) {
-      const t = { ...s, dir, x: s.x - (dir ? 0 : k * sg * 0) + (dir ? 0 : 0), y: s.y };
-      // pivot on the selected cell first, then slide along the new axis to find room
-      if (dir) { t.x = s.x; t.y = s.y - k * sg; } else { t.x = s.x - k * sg; t.y = s.y; }
+    // pivot on the bow first, then slide along the new axis to find room
+    for (let k = 0; k < s.len; k++) for (const sg of [1, -1]) {
+      const t = { ...s, dir, x: dir ? s.x : s.x - k * sg, y: dir ? s.y - k * sg : s.y };
       if (this.fits(t)) { Object.assign(s, t); snd('click'); this.render(); return; }
     }
     snd('bad'); this.shell.msg('Non c’è spazio per ruotarla qui', 'bad');

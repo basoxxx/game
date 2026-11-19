@@ -322,3 +322,30 @@ Semaforo (riflessi), Ritmo Baso e Memoria a colori.
 - `node tools/festa-test.mjs` (ogni minigioco con 2/3/4 giocatori CPU, determinismo, tabellone e torneo completi),
   `node tools/festa-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/festa-cover.mjs <url>` (copertina),
   `node tools/festa-bank.mjs` (rigenera gli ingorghi del minigioco con il generatore di Ingorgo).
+
+## Tavolo Baso (Baso Hub · Tavolo)
+
+Collezione di quattro classici da tavolo su scacchiere 3D (three.js: legno e marmo procedurali, luci morbide,
+riflessi d'ambiente, pezzi torniti, animazioni di salto e scivolamento; in 2D con qualità Bassa o senza WebGL),
+contro il computer o in due sullo stesso dispositivo (scacchiera che ruota verso chi muove, oppure «tablet sul
+tavolo» con vista dall'alto e barra dell'avversario capovolta).
+- **Scacchi**: regole complete (arrocco, en passant, promozione a scelta, scacco/matto/stallo, 50 mosse, triplice
+  ripetizione, materiale insufficiente), motore in un Web Worker (alpha-beta PVS con approfondimento iterativo,
+  quiescenza, tabella delle trasposizioni, mossa nulla, LMR, libro d'aperture) a 6 livelli da Principiante a
+  Campione, suggerimenti, annulla, orologi (3+2, 5′, 10′, 15+10), esportazione PGN/FEN, mosse in notazione italiana.
+- **Dama italiana**: pedine che non mangiano la dama, presa obbligatoria con le priorità italiane (quantità,
+  qualità del pezzo che prende, numero di dame, dama incontrata per prima), dama che muove di una casa; IA a 4 livelli.
+- **Quattro in fila** (7×6): negamax con potatura alfa-beta e tabella delle trasposizioni, 4 livelli.
+- **Battaglia navale**: schieramento a trascinamento/rotazione, navi separate o a contatto, colpo a segno che
+  rispara (opzione), ammiraglio del computer a 4 livelli (caccia/bersaglio, scacchiera, densità di probabilità),
+  due giocatori con schermo nascosto e passaggio del dispositivo.
+- **Puzzle del giorno**: matto in 2 (banca di posizioni originali generate e verificate dal risolutore), «vinci in 3»
+  di Quattro in fila (generato dal giorno), la flotta nascosta del giorno; serie di giorni; 200 matti in 2 di allenamento.
+- Monete solo giocando (niente pubblicità) per 6 scacchiere/tavoli e 5 set di pezzi (anche i dischi di Quattro in fila).
+- Comandi: tocco/clic e trascinamento, tastiera (frecce + Invio, U annulla, H suggerimento, V vista, Esc pausa),
+  controller tramite la navigazione del Baso Hub (le caselle sono pulsanti veri sopra la scena 3D).
+- Codice: regole e IA pure in `src/tavolo/{chess,dama,four,navale}/`, viste in `src/tavolo/view/`, partite in
+  `src/tavolo/play/`, schermata `src/screens/tavolo.js`.
+- `node tools/tavolo-test.mjs` (perft sulle posizioni standard, regole, IA; `QUICK=1` più veloce),
+  `node tools/tavolo-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/tavolo-cover.mjs <url>`
+  (copertina), `node tools/tavolo-puzzles.mjs [n] [seme]` (rigenera la banca dei matti in 2).

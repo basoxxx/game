@@ -41,3 +41,8 @@ cars are Apex Dynasty's own procedural models (src/ui/cars). Cover rendered from
 Festa Baso (src/festa): no external assets. The board, minigame arenas, effects and the cover
 (covers/festa.webp, rendered by tools/festa-cover.mjs) are procedural; it reuses the Baso Hub's own procedural
 art (Orda figures, Serpentone hats and heads, Kart Baso karts, Scontro Totale bangers, Bastione buildings).
+
+Tavolo Baso (src/tavolo): no external assets. Boards, pieces (turned lathe profiles), ships, textures (wood grain,
+marble veins, sea) and the cover (covers/tavolo.webp, rendered by tools/tavolo-cover.mjs) are procedural; the
+chess engine, draughts/four-in-a-row/battleship AIs and the mate-in-two positions (tools/tavolo-puzzles.mjs) are
+original code and generated content. The opening book lists common mainstream opening moves.

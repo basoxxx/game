@@ -39,7 +39,7 @@ export class DamaGame {
     if (!this.shell) return;
     this.overlay = new CellOverlay(S.stageEl, {
       onActivate: (id) => this.tap(id), onFocus: (id) => { this.cursor = id; this.marks(); },
-      canDrag: (id) => this.movable().has(sqOf(id)), pick: (x, y) => { const s = this.view.pick?.(x, y); return s ? `${s[0]},${s[1]}` : null; },
+      canDrag: (id) => this.movable().has(sqOf(id)), pick: (x, y, id) => { const q = sqOf(id); if (this.st.b[q] || (this.sel >= 0 && this.moves().some((m) => m.from === this.sel && m.to === q))) return null; const s = this.view.pick?.(x, y); return s ? `${s[0]},${s[1]}` : null; },
       onDragStart: (id) => { const s = sqOf(id); this.select(s); this.view.lift(this.ids[s]); },
       onDragMove: (id, x, y, over) => { this.view.dragTo(x, y); if (over !== this.cursor) { this.cursor = over; this.marks(); } },
       onDrop: (id, to) => { if (to && to !== id && this.tryMove(sqOf(id), sqOf(to))) return; this.view.drop(); },
@@ -163,7 +163,7 @@ export class DamaGame {
       const human = this.humans[c], turn = !this.over && this.color === c;
       const name = this.cfg.mode === '2p' ? (c ? 'Nero' : 'Bianco') : human ? 'Tu' : `Computer · ${DAMA_LEVELS[this.level].name}`;
       const ms = turn ? this.moves() : [];
-      const sub = turn ? (this.busy && !human ? 'sta pensando…' : ms[0]?.caps.length ? '<b class="tv-chk">presa obbligatoria</b>' : human ? 'tocca a te' : 'tocca al computer') : c ? 'Neri' : 'Bianchi';
+      const sub = turn ? (this.busy && !human ? 'sta pensando…' : ms[0]?.caps.length ? '<em class="tv-chk">presa obbligatoria</em>' : human ? 'tocca a te' : 'tocca al computer') : c ? 'Neri' : 'Bianchi';
       S.seat(this.viewSeat(c), { name, sub, color: c ? '#26201c' : '#efe3c8', active: turn, extra: `${damaIcon(false, c, S.set, 'tv-cap')}<em>${men}</em>${kings ? `${damaIcon(true, c, S.set, 'tv-cap')}<em>${kings}</em>` : ''}` });
     }
     let h = '';

@@ -259,7 +259,7 @@ export class Stage3D {
   }
   loop(now) {
     this.raf = requestAnimationFrame(this.loop);
-    const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now;
+    const dt = Math.min(0.25, (now - this.last) / 1000); this.last = now;
     if (this.resize()) this.reframe();
     if (this.anims.length) {
       this.dirty = true;

@@ -109,7 +109,7 @@ export class Board2D {
   drop() { const q = this.drag; this.drag = null; if (!q) return; const fx = q.x, fy = q.y; this.animate(0.12, (k) => { q.x = fx + (q.s[0] - fx) * k; q.y = fy + (q.s[1] - fy) * k; q.lift = 0.12 * (1 - k); }); }
   loop(now) {
     this.raf = requestAnimationFrame(this.loop);
-    const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now;
+    const dt = Math.min(0.25, (now - this.last) / 1000); this.last = now;
     if (this.resize()) this.onLayout?.();
     if (this.anims.length) { this.dirty = true; for (const a of this.anims.slice()) { a.t += dt; const k = Math.min(1, a.t / a.dur); a.fn(k); if (k >= 1) { this.anims.splice(this.anims.indexOf(a), 1); a.res(); } } }
     if (!this.dirty) return;

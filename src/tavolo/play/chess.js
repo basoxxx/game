@@ -29,6 +29,7 @@ export class ChessGame {
     this.pos = new Position(startFen); this.startFen = startFen;
     let me = cfg.color === 'b' ? 1 : cfg.color === 'r' ? (Math.random() < 0.5 ? 0 : 1) : 0;
     if (this.puzzle) me = this.pos.side;
+    if (cfg.resume && !this.puzzle) { const r = cfg.resume; me = r.me ?? me; if (r.startFen) { this.pos = new Position(r.startFen); this.startFen = r.startFen; } Object.assign(cfg, { mode: r.mode || cfg.mode, level: r.level ?? cfg.level, clock: 0 }); }
     this.me = me;
     this.humans = cfg.mode === '2p' ? [true, true] : [me === 0, me === 1];
     this.level = cfg.level ?? 2;
@@ -54,14 +55,17 @@ export class ChessGame {
     if (!this.shell) return; // closed while loading
     this.overlay = new CellOverlay(S.stageEl, {
       onActivate: (id) => this.tap(id), onFocus: (id) => { this.cursor = id; this.marks(); },
-      canDrag: (id) => this.canMoveFrom(sqOf(id)), pick: (x, y) => { const s = this.view.pick?.(x, y); return s ? `${s[0]},${s[1]}` : null; },
+      canDrag: (id) => this.canMoveFrom(sqOf(id)), pick: (x, y, id) => { const q = sqOf(id); if (this.pos.board[q] || (this.sel >= 0 && this.legalFrom(this.sel).some((m) => mTo(m) === q))) return null; const s = this.view.pick?.(x, y); return s ? `${s[0]},${s[1]}` : null; },
       onDragStart: (id) => { const s = sqOf(id); this.select(s); this.view.lift(this.ids[s]); }, onDragMove: (id, x, y, over) => { this.view.dragTo(x, y); if (over !== this.cursor) { this.cursor = over; this.marks(); } },
       onDrop: (id, to) => { const f = sqOf(id); if (to && to !== id && this.tryMove(f, sqOf(to), true)) return; this.view.drop(); },
       label: (id) => this.label(id),
     });
     this.view.onLayout = () => this.overlay.update(this.view.quads().map((q) => ({ id: `${q.f},${q.r}`, pts: q.pts })));
     this.view.onLayout();
-    this.initIds(); this.sync(true); this.marks(); this.hud();
+    this.initIds();
+    if (this.cfg.resume) for (const u of this.cfg.resume.moves || []) { const m = this.pos.parse(u); if (!m) break; this.moves.push({ m, uci: u, san: this.pos.san(m), sanIt: this.pos.san(m, true) }); this.moveIds(m); this.pos.make(m); this.pos.stack.length = 0; }
+    if (this.cfg.resume && this.cfg.mode === '2p' && this.cfg.rotate !== false && !this.shell.flat) this.view.setSide(this.pos.side, 0);
+    this.sync(true); this.marks(); this.hud();
     if (this.clock) this.tickT = setInterval(() => this.tickClock(), 100);
     if (this.puzzle) this.shell.msg(`${this.pos.side === WHITE ? 'Il Bianco' : 'Il Nero'} muove e dà matto in 2`, 'big', 3500);
     requestAnimationFrame(() => this.overlay?.focus(idOf(this.pos.kings[this.me])));
@@ -127,6 +131,7 @@ export class ChessGame {
     if (!cpu) this.view.drop?.();
     this.moveIds(m); pos.make(m); pos.stack.length = 0;
     this.moves.push({ m, uci: pos.uci(m), san, sanIt });
+    this.save();
     if (this.clock) { if (this.clock.running) this.clock.left[mover] += this.clock.inc; this.clock.running = true; this.clock.last = performance.now(); }
     this.sel = -1; this.hint = null;
     const st = pos.status();
@@ -232,7 +237,7 @@ export class ChessGame {
     if (!keep.length && !this.humans[new Position(this.startFen).side]) { if (this.moves.length <= 1) return; }
     this.pos = new Position(this.startFen); this.initIds();
     for (const x of keep) { this.moveIds(x.m); this.pos.make(x.m); this.pos.stack.length = 0; }
-    this.moves = keep; this.over = null; this.sel = -1; this.hint = null;
+    this.moves = keep; this.over = null; this.sel = -1; this.hint = null; this.save();
     this.shell.closeDialog();
     this.view.clearTrays?.(); this.view.reset(); this.sync(true);
     // pieces already captured go straight back to the tray
@@ -271,7 +276,7 @@ export class ChessGame {
       const human = this.humans[color], turn = !this.over && pos.side === color;
       const name = this.cfg.mode === '2p' ? (color ? 'Nero' : 'Bianco') : human ? 'Tu' : cpuName;
       let sub = color ? 'Neri' : 'Bianchi';
-      if (turn) sub = this.busy && !human ? 'sta pensando…' : pos.inCheck() ? '<b class="tv-chk">Scacco!</b> tocca a ' + (human && this.cfg.mode !== '2p' ? 'te' : 'lui') : human ? (this.cfg.mode === '2p' ? 'tocca a te' : 'tocca a te') : 'tocca al computer';
+      if (turn) sub = this.busy && !human ? 'sta pensando…' : pos.inCheck() ? '<em class="tv-chk">Scacco!</em> tocca a ' + (human && this.cfg.mode !== '2p' ? 'te' : 'lui') : human ? (this.cfg.mode === '2p' ? 'tocca a te' : 'tocca a te') : 'tocca al computer';
       if (this.puzzle) sub = color === this.me ? `matto in 2 · ${turn ? 'tocca a te' : ''}` : 'si difende';
       S.seat(this.viewSeat(color), { name, sub, color: color ? '#26201c' : '#efe3c8', active: turn, clock: this.clock ? fmtClock(this.clock.left[color]) : null, extra: this.puzzle ? '' : this.material(color) });
     }
@@ -292,7 +297,7 @@ export class ChessGame {
     S.enableTool('hint', !this.over);
   }
   finish(st) {
-    this.over = st; this.gen = (this.gen || 0) + 1; cancelThinking(); this.busy = false; this.shell.thinking(false);
+    this.over = st; this.gen = (this.gen || 0) + 1; cancelThinking(); this.busy = false; this.shell.thinking(false); this.save();
     if (this.clock) this.clock.running = false;
     this.marks(); this.hud();
     const res = st.result, winner = res === '1-0' ? 0 : res === '0-1' ? 1 : -1;
@@ -336,6 +341,20 @@ export class ChessGame {
       restart: () => { this.shell.closeDialog(); if (this.puzzle) this.restartPuzzle(); else this.onExit('again'); },
       menu: () => this.onExit('menu'),
     }, { cancel: () => this.shell.closeDialog() });
+  }
+  // a game in progress is kept (moves only) so it can be resumed from the menu; finished games are dropped
+  save() {
+    if (this.puzzle || this.cfg.noSave) return;
+    const d = tvLoad();
+    if (this.over || !this.moves.length) delete d.saved.chess;
+    else d.saved.chess = { moves: this.moves.map((x) => x.uci), startFen: this.startFen, me: this.me, mode: this.cfg.mode, level: this.level };
+    tvSave(d);
+  }
+  // test / cover hook: start over from a position
+  setPosition(fen) {
+    cancelThinking(); this.gen = (this.gen || 0) + 1; this.busy = false;
+    this.pos = new Position(fen); this.startFen = fen; this.moves = []; this.sel = -1; this.hint = null; this.over = null; this.cfg.noSave = true;
+    this.initIds(); this.view.reset(); this.sync(true); this.marks(); this.hud();
   }
   // test hooks
   state() { return { fen: this.pos.fen(), moves: this.moves.map((x) => x.uci), over: this.over, busy: this.busy, turn: this.pos.side, sel: this.sel }; }
