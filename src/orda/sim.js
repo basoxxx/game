@@ -79,7 +79,7 @@ export class Sim {
     this.hpB = E.hp; this.hpR = level.redHp || 1;
     this.spdB = E.speed; this.spdR = level.redSpeed || RED_SPEED;
     const cap = o.cap || 1600;
-    this.blue = new Pool(cap); this.red = new Pool(Math.max(200, Math.round(cap * 0.6)));
+    this.blue = new Pool(cap); this.red = new Pool(o.redCap || Math.max(200, Math.round(cap * 0.6)));
     this.t = 0; this.time = level.time || 120; this.count = o.countdown ?? level.countdown ?? COUNTDOWN;
     this.bonus = !!level.bonus;
     this.state = 'count'; this.why = '';
@@ -481,8 +481,11 @@ export class Sim {
   clash() {
     const B = this.blue, R = this.red;
     if (!R.n) return;
-    this.giantsOn = false; for (let j = 0; j < R.n; j++) if (R.kind[j] === 2) { this.giantsOn = true; break; }
+    let zlo = 1e9, zhi = -1e9; this.giantsOn = false;
+    for (let j = 0; j < R.n; j++) { if (R.kind[j] === 2) this.giantsOn = true; if (R.z[j] < zlo) zlo = R.z[j]; if (R.z[j] > zhi) zhi = R.z[j]; }
+    zlo -= 3; zhi += 3; // nothing to meet outside the band the reds occupy
     for (let i = 0; i < B.n; i++) {
+      if (B.z[i] < zlo || B.z[i] > zhi) continue;
       if (B.h[i] <= 0 || B.air[i] > 0.15) continue; // a jumping crowd sails over the reds
       const rb = 0.3 * unitScale(B.u[i]), x = B.x[i], z = B.z[i];
       this.nearRed(x, z, this.giantsOn ? 2 : 1, (j) => {

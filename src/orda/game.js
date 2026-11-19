@@ -236,7 +236,7 @@ export class OrdaGame {
     root.innerHTML = `<canvas class="or-cv"></canvas><div class="or-hud">
       <div class="or-top">
         <button class="or-pausebtn" id="or-pausebtn" aria-label="Pausa">II</button>
-        <button class="or-pausebtn or-restart" id="or-restart" aria-label="Ricomincia (R)">↻</button>
+        ${o.onRestart ? '<button class="or-pausebtn or-restart" id="or-restart" aria-label="Ricomincia (R)">↻</button>' : ''}
         <div class="or-boss ${L.bonus ? 'vault' : ''}"><div class="or-boss-n"><span id="or-bname">${L.bonus ? '💰 Caveau' : `${L.base?.boss ? '👑 ' : ''}${L.base?.name || 'Base rossa'}`}</span><b id="or-bhp"></b></div><div class="or-bar"><i id="or-bbar"></i><em id="or-bshield"></em></div></div>
         <div class="or-timer" id="or-timer">0:00</div>
       </div>
@@ -543,7 +543,7 @@ export class OrdaGame {
     this.onVis = () => { if (document.hidden && !this.paused && !this.over) this.togglePause(true); };
     document.addEventListener('visibilitychange', this.onVis);
     this.$('or-pausebtn').addEventListener('click', () => this.togglePause());
-    this.$('or-restart').addEventListener('click', () => this.o.onRestart?.());
+    this.$('or-restart')?.addEventListener('click', () => this.o.onRestart?.());
     // the end of a match can be skipped with a tap / key
     this.onSkip = () => { if (this.over && this.result && !this.skipped) { this.skipped = true; clearTimeout(this._endT); this.o.onEnd?.(this.result); } };
     this.root.addEventListener('pointerdown', this.onSkip);

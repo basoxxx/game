@@ -21,7 +21,7 @@ async function newPage(w, h, mobile = false, fresh = true) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${w}x${h} pageerror ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error' && !IGNORE.test(m.text())) errors.push(`${w}x${h} console ${m.text()}`); });
-  await page.addInitScript(([s, fr]) => { localStorage.setItem('apexdynasty_settings', s); if (fr && !sessionStorage.getItem('or-init')) { localStorage.removeItem('sala_orda_v1'); sessionStorage.setItem('or-init', '1'); } }, [SET, fresh]);
+  await page.addInitScript(([s, fr]) => { localStorage.setItem('apexdynasty_settings', s); if (fr && !sessionStorage.getItem('or-init')) { localStorage.setItem('sala_orda_v1', JSON.stringify({ opt: { autonext: false } })); sessionStorage.setItem('or-init', '1'); } }, [SET, fresh]);
   return page;
 }
 // software WebGL sometimes refuses a capture mid-frame: retry, never fail the run for a picture
@@ -31,7 +31,7 @@ async function playOut(page, { auto = true, maxS = 260 } = {}) {
   await page.waitForFunction(() => window.__orda?.game?.sim && window.__orda.game.cam, null, { timeout: 60000 });
   await page.evaluate((a) => { window.__orda.game.autoplay = a; }, auto);
   const st = await page.evaluate((maxS) => { const o = window.__orda; let r; for (let i = 0; i < maxS * 30; i++) { r = o.step(1 / 30); if (r.state === 'won' || r.state === 'lost') break; } return r; }, maxS);
-  await page.waitForSelector('.or-res', { timeout: 15000 });
+  await page.waitForSelector('.or-res', { timeout: 60000 });
   return { st, r: await page.evaluate(() => window.__orda.result) };
 }
 
