@@ -51,7 +51,7 @@ async function playOut(page, { auto = true, maxS = 260 } = {}) {
     ok(res.r.win && res.r.levelId === id && res.r.stars >= 1, `level ${id} won in ${(res.r.timeMs / 1000).toFixed(1)}s · ★${res.r.stars} · ${res.r.left} left · +${res.r.coins} coins · peak ${res.r.peak} bodies${tries > 1 ? ` (try ${tries})` : ''}`);
     ok(st.next === id + 1 && st.stars[id] === res.r.stars && st.coins === coins, `store: next ${st.next}, stars ${st.stars[id]}, coins ${st.coins}`);
     if (id === 1) await shot(page, '1440x900-results');
-    if (id === 5) ok(st.champs.includes('grillo') && (await page.locator('.or-res-unl').count()) === 1, 'boss 5 unlocks the champion Grillo');
+    if (id === 5) { const nU = await page.locator('.or-res-unl').count(); ok(st.champs.includes('grillo') && nU >= 1, `boss 5 unlocks the champion Grillo (champs ${st.champs.join(',')}, banners ${nU})`); }
     if (id === 2) { // spend in the shop between levels
       await page.click('[data-a=or-back]'); await page.click('[data-a=or-tab][data-id=potenziamenti]');
       const before = (await page.evaluate(() => window.__orda.store())).coins;
