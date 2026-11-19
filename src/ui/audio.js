@@ -500,6 +500,47 @@ export const vsfx = {
 for (const k of Object.keys(vsfx)) { const f = vsfx[k]; vsfx[k] = (...a) => { if (!ac()) return; try { f(...a); } catch (e) { console.warn('vsfx', k, e); } }; }
 
 // ---------------------------------------------------------------------------
+// ORDA sound kit (src/orda/game.js): cartoon pops, gate blips that climb with the
+// multiplier, thuds on the fortress, a horn for the champion. Same effects bus and
+// voice limits as everything else, so the volume settings apply.
+// ---------------------------------------------------------------------------
+const OS = { gateN: 0, gateT: -9 };
+export const osfx = {
+  shoot() { const t = ctx.currentTime; osc('sine', rnd(520, 600), t, 0.06, 0.03, { slide: 0.55, voice: 'low' }); nz(0.03, 0.012, { t, type: 'highpass', f: 3000, voice: 'low' }); },
+  // gate pass: a bright blip; rapid passes climb the pentatonic scale
+  gate(mult = 2) {
+    const t = ctx.currentTime;
+    if (t - OS.gateT < 0.5) OS.gateN = Math.min(PENT.length - 1, OS.gateN + 1); else OS.gateN = 0;
+    OS.gateT = t;
+    const f = mtof(72 + PENT[OS.gateN]) * (mult >= 3 ? 1.5 : 1);
+    bell(f, t, 0.25, 0.022, { ratio: 2, index: 0.8, pan: rnd(-0.3, 0.3) });
+    osc('triangle', f / 2, t, 0.08, 0.02, { slide: 1.5, slideT: 0.06 });
+  },
+  minus() { const t = ctx.currentTime; osc('square', 300, t, 0.12, 0.02, { slide: 0.5, cut: 1200 }); },
+  pop() { const t = ctx.currentTime; osc('sine', rnd(700, 1000), t, 0.05, 0.022, { slide: 0.35, voice: 'low', pan: rnd(-0.5, 0.5) }); nz(0.025, 0.02, { t, f: rnd(1500, 3000), q: 2, voice: 'low' }); },
+  fall() { const t = ctx.currentTime; osc('sine', 900, t, 0.45, 0.025, { slide: 0.25, slideT: 0.45 }); },
+  swat() { const t = ctx.currentTime; nz(0.12, 0.05, { t, f: 900, q: 1.2, sweep: 2600 }); osc('triangle', rnd(600, 900), t + 0.02, 0.18, 0.02, { slide: 1.8, slideT: 0.12 }); },
+  saw() { const t = ctx.currentTime; nz(0.09, 0.04, { t, f: 5200, q: 4 }); osc('sawtooth', 1400, t, 0.06, 0.012, { cut: 4000 }); },
+  hit() { const t = ctx.currentTime; osc('sine', 110, t, 0.14, 0.07, { slide: 0.5 }); nz(0.08, 0.035, { t, type: 'lowpass', f: 700 }); },
+  crash() { const t = ctx.currentTime; duck(0.3, 0.6, ['music']); nz(0.9, 0.12, { t, type: 'lowpass', f: 300, buf: brownBuf, sweep: 90, a: 0.02 }); osc('sine', 60, t, 0.6, 0.15, { slide: 0.5 }); debris(t + 0.05, 10, 0.7, 0.03, 900, 4500); },
+  champ() { const t = ctx.currentTime; duck(0.35, 0.8, ['music']); [[55, 0], [62, 0.12], [67, 0.24]].forEach(([n, d], i) => brass(mtof(n + 12), t + d, i === 2 ? 0.7 : 0.14, 0.05, (i - 1) * 0.3)); drum('tom', t, B.sfx, 0.7, 0, 0.8); },
+  boom() { const t = ctx.currentTime; duck(0.5, 0.9, ['music']); osc('sine', 52, t, 0.9, 0.22, { slide: 0.45 }); nz(1.1, 0.14, { t, type: 'lowpass', f: 600, sweep: 80, a: 0.004 }); drum('crash', t + 0.02, B.sfx, 0.5); debris(t + 0.05, 8, 0.6, 0.03, 1200, 5000); },
+  slam() { const t = ctx.currentTime; osc('sine', 80, t, 0.25, 0.1, { slide: 0.6 }); nz(0.2, 0.05, { t, type: 'lowpass', f: 900 }); },
+  burst() { const t = ctx.currentTime; for (let i = 0; i < 8; i++) osc('sine', mtof(76 + PENT[i]), t + i * 0.03, 0.12, 0.02, { slide: 1.3, pan: (i - 3.5) * 0.2 }); nz(0.3, 0.04, { t, f: 2400, q: 1, sweep: 6000 }); },
+  alarm() { const t = ctx.currentTime; for (let i = 0; i < 3; i++) { osc('square', 620, t + i * 0.24, 0.1, 0.025, { cut: 2200 }); osc('square', 460, t + i * 0.24 + 0.12, 0.1, 0.025, { cut: 2200 }); } drum('crash', t, B.sfx, 0.3); },
+  wave() { const t = ctx.currentTime; brass(mtof(50), t, 0.4, 0.03, 0); brass(mtof(53), t + 0.15, 0.5, 0.03, 0); },
+  hurt() { const t = ctx.currentTime; osc('sawtooth', 160, t, 0.18, 0.04, { slide: 0.6, cut: 900 }); },
+  toggle() { const t = ctx.currentTime; osc('square', 880, t, 0.04, 0.012, { cut: 3000 }); osc('square', 660, t + 0.05, 0.04, 0.012, { cut: 3000 }); },
+  ready() { const t = ctx.currentTime; [72, 76, 79, 84].forEach((n, i) => bell(mtof(n), t + i * 0.06, 0.5, 0.025, { ratio: 3.5, index: 1, pan: (i - 1.5) * 0.3 })); },
+  beep() { vsfx.beep(false); },
+  go() { vsfx.beep(true); },
+  collapse() { const t = ctx.currentTime; duck(0.6, 2, ['music']); nz(2.2, 0.2, { t, type: 'lowpass', f: 260, buf: brownBuf, sweep: 70, a: 0.05 }); osc('sine', 45, t, 1.6, 0.24, { slide: 0.5 }); debris(t + 0.1, 18, 1.6, 0.035, 700, 5000); },
+  win() { vsfx.end(true); },
+  lose() { vsfx.lost(); },
+};
+for (const k of Object.keys(osfx)) { const f = osfx[k]; osfx[k] = (...a) => { if (!ac()) return; try { f(...a); } catch (e) { console.warn('osfx', k, e); } }; }
+
+// ---------------------------------------------------------------------------
 // MUSIC — generative but composed: each theme has chords per bar, a section
 // arrangement (intro / verse / chorus / break) with instrument layers, drum
 // patterns, bass lines, arps and hand-written lead melodies. Switching mood
@@ -702,6 +743,43 @@ THEMES.voragine = {
     [[0, 83, 2], [2, 79, 2], [4, 74, 2], [6, 71, 2], [8, 79, 4], [12, 67, 2], [14, 71, 2]],
   ],
   counter: [[[0, 67, 6], [8, 72, 6]], [[0, 64, 6], [8, 69, 6]], [[0, 65, 6], [8, 69, 6]], [[0, 67, 6], [8, 71, 6]], [[0, 67, 6], [8, 72, 6]], [[0, 68, 6], [8, 71, 6]], [[0, 69, 6], [8, 72, 6]], [[0, 71, 6], [8, 74, 6]]],
+};
+// ORDA — "Marcia dei Fagioli": a bouncy brass-and-mallet march in F, claps and toms
+THEMES.orda = {
+  bpm: 132, swing: 0.04, level: 0.95, cut: 2800, pump: 0.3,
+  chords: [
+    { b: 41, n: [57, 60, 65, 69] }, { b: 38, n: [57, 62, 65, 69] }, { b: 46, n: [58, 62, 65, 70] }, { b: 48, n: [55, 60, 64, 67] },
+    { b: 41, n: [57, 60, 65, 69] }, { b: 45, n: [57, 61, 64, 69] }, { b: 46, n: [58, 62, 65, 70] }, { b: 48, n: [58, 60, 64, 67] },
+  ],
+  sections: [
+    { name: 'intro', bars: 2, L: { drums: 'march', brass: 1 } },
+    { name: 'verse', bars: 8, L: { plucks: 1, bass: 1, drums: 'march', counter: 1 } },
+    { name: 'chorus', bars: 8, L: { plucks: 0.6, bass: 1, drums: 'full', lead: 1, brass: 1, pump: 1, boing: 1 } },
+    { name: 'break', bars: 4, L: { arp: 1, drums: 'half', riser: 1 } },
+    { name: 'chorus', bars: 8, L: { plucks: 0.6, bass: 1, drums: 'full', lead: 1, brass: 1, pump: 1, bells: 0.8 } },
+  ],
+  loopFrom: 1,
+  drums: {
+    march: { kick: P16('X.......X.......'), snare: P16('....x..-....x.x-'), clap: P16('....X.......X...'), hat: P16('x.x.x.x.x.x.x.x.') },
+    full: { kick: P16('X...X...X...X...'), clap: P16('....X.......X...'), snare: P16('..-.x.-...-.x.xx'), ohat: P16('..x...x...x...x.'), tom: P16('..............xX') },
+    half: { kick: P16('X.......X.......'), clap: P16('........X.......'), shaker: P16('-x-x-x-x-x-x-x-x') },
+  },
+  bassLine: [[0, 0, 2], [4, 7, 2], [8, 0, 2], [12, 7, 1], [14, 12, 2]],
+  plucks: P16('..x...x...x...x.'),
+  brassHits: P16('X.....x.....x...'),
+  arp: { order: [0, 1, 2, 3, 2, 1, 0, 2], rate: 1, oct: 12, wave: 'square', vol: 0.014 },
+  leadWave: 'mallet',
+  lead: [
+    [[0, 72, 2], [2, 77, 2], [4, 81, 2], [6, 77, 2], [8, 84, 4], [12, 81, 4]],
+    [[0, 81, 2], [2, 77, 2], [4, 74, 4], [8, 77, 2], [10, 81, 2], [12, 79, 4]],
+    [[0, 77, 2], [2, 82, 2], [4, 86, 2], [6, 82, 2], [8, 81, 3], [11, 79, 1], [12, 77, 4]],
+    [[0, 79, 2], [2, 76, 2], [4, 72, 2], [6, 76, 2], [8, 79, 6], [14, 84, 2]],
+    [[0, 84, 2], [2, 81, 2], [4, 77, 2], [6, 81, 2], [8, 72, 4], [12, 77, 2], [14, 81, 2]],
+    [[0, 81, 3], [3, 76, 1], [4, 73, 2], [6, 76, 2], [8, 81, 4], [12, 85, 4]],
+    [[0, 82, 2], [2, 77, 2], [4, 74, 2], [6, 77, 2], [8, 82, 2], [10, 86, 2], [12, 89, 4]],
+    [[0, 88, 2], [2, 84, 2], [4, 79, 2], [6, 76, 2], [8, 84, 4], [12, 72, 4]],
+  ],
+  counter: [[[0, 65, 6], [8, 69, 6]], [[0, 62, 6], [8, 65, 6]], [[0, 65, 6], [8, 70, 6]], [[0, 64, 6], [8, 67, 6]], [[0, 65, 6], [8, 69, 6]], [[0, 64, 6], [8, 69, 6]], [[0, 65, 6], [8, 70, 6]], [[0, 64, 6], [8, 67, 6]]],
 };
 THEMES.intro = THEMES.menu;
 
