@@ -1,0 +1,213 @@
+# Motori e Formula — formato: difficoltà|domanda|giusta|errata|errata|errata|spiegazione
+1|In quale città si trova la sede della Ferrari?|Maranello|Modena|Imola|Sant'Agata Bolognese|La Ferrari ha sede a Maranello, in provincia di Modena, dove si trova anche la pista di Fiorano.
+1|Come viene soprannominato l'autodromo di Monza?|Tempio della velocità|Inferno verde|Circuito della luna|Anello d'oro|Monza è il «Tempio della velocità» per i suoi lunghi rettilinei e le medie altissime.
+1|Quale bandiera segnala la fine di una gara?|A scacchi bianca e nera|Rossa|Verde|Blu|La bandiera a scacchi viene sventolata quando il vincitore taglia il traguardo.
+1|Cosa indica la bandiera blu in Formula 1?|Un'auto più veloce sta per doppiarti|Pericolo in pista|Gara sospesa|Pista libera|La bandiera blu avvisa il pilota doppiato che deve lasciare passare l'auto più veloce.
+1|Cosa indica la bandiera rossa in pista?|La sessione è sospesa|Ultimo giro|Pista bagnata|Ritiro di un pilota|Con la bandiera rossa la sessione viene interrotta e le auto rientrano lentamente.
+1|Cosa significa la bandiera gialla?|Pericolo, vietato sorpassare|Pit stop obbligatorio|Squalifica|Inizio gara|La bandiera gialla segnala un pericolo: bisogna rallentare e non si può sorpassare.
+1|Quanti titoli mondiali piloti ha vinto Michael Schumacher in Formula 1?|7|5|6|4|Schumacher vinse nel 1994 e 1995 con la Benetton e dal 2000 al 2004 con la Ferrari.
+1|Con quale numero correva Valentino Rossi?|46|93|27|99|Il 46 accompagnò Valentino Rossi per tutta la carriera, come omaggio al padre Graziano.
+1|Quale casa automobilistica ha come simbolo un cavallino rampante?|Ferrari|Lamborghini|Maserati|Alfa Romeo|Il cavallino rampante era l'emblema dell'aviatore Francesco Baracca, donato a Enzo Ferrari.
+1|Quale marchio italiano ha come simbolo un toro?|Lamborghini|Ferrari|Abarth|Lancia|Ferruccio Lamborghini scelse il toro, suo segno zodiacale e simbolo di potenza.
+1|Quale marchio ha come simbolo un tridente?|Maserati|Lamborghini|Pagani|Fiat|Il tridente Maserati richiama la fontana del Nettuno di Bologna, città natale del marchio.
+1|Quale marchio ha uno scorpione nel logo?|Abarth|Ducati|Alfa Romeo|Lancia|Carlo Abarth era dello Scorpione: lo scelse come simbolo della sua azienda di elaborazioni.
+1|In Formula 1 cosa si intende con «pole position»?|La prima posizione in griglia di partenza|Il giro più veloce in gara|Una sosta ai box|L'ultima curva del circuito|La pole position spetta a chi ottiene il miglior tempo in qualifica e parte davanti a tutti.
+1|In quale Paese si corre il Gran Premio di Monaco?|Principato di Monaco|Francia|Italia|Svizzera|Il GP di Monaco si corre per le strade del Principato, a Monte Carlo.
+1|Quale pilota ha vinto 7 titoli mondiali di Formula 1 come Michael Schumacher?|Lewis Hamilton|Sebastian Vettel|Ayrton Senna|Alain Prost|Hamilton ha eguagliato i 7 titoli di Schumacher vincendo il mondiale nel 2020.
+1|Come si chiama il pilota olandese campione del mondo di F1 dal 2021 al 2024?|Max Verstappen|Nyck de Vries|Jos Verstappen|Giedo van der Garde|Max Verstappen ha vinto quattro titoli consecutivi con la Red Bull.
+1|Che cos'è un «pit stop»?|Una sosta ai box durante la gara|Un sorpasso all'esterno|Una penalità di squalifica|La curva più lenta del tracciato|Ai box i meccanici cambiano gomme e regolano l'auto in pochi secondi.
+1|In quale città si trova il circuito che ospita il GP d'Italia di Formula 1?|Monza|Imola|Mugello|Misano|Il Gran Premio d'Italia si corre a Monza quasi ininterrottamente dal 1950.
+1|Quale pilota è soprannominato «il Dottore»?|Valentino Rossi|Max Biaggi|Marco Simoncelli|Andrea Dovizioso|Valentino Rossi è «il Dottore», nove volte campione del mondo nel motociclismo.
+1|In quale sport gareggiano Ducati, Yamaha e Honda nella classe regina?|MotoGP|Formula 1|Rally|Formula E|La MotoGP è la classe regina del motomondiale.
+1|Quale casa produce moto a Borgo Panigale, Bologna?|Ducati|Aprilia|Moto Guzzi|MV Agusta|La Ducati ha sede a Borgo Panigale, quartiere di Bologna.
+1|Quante ore dura la celebre corsa di Le Mans?|24|12|6|48|La 24 Ore di Le Mans si corre giorno e notte sul circuito della Sarthe, in Francia.
+1|Quale colore è tradizionalmente associato alle auto da corsa italiane?|Rosso|Verde|Blu|Argento|Il «rosso corsa» era il colore assegnato all'Italia nelle corse internazionali.
+1|Le Mercedes da corsa sono soprannominate…|Frecce d'Argento|Frecce Rosse|Saette Blu|Lampi Neri|«Frecce d'Argento» nasce negli anni Trenta per il colore argento delle auto tedesche.
+1|In Formula 1 quante posizioni ricevono punti in un Gran Premio, dal 2010?|10|8|6|12|Dal 2010 vanno a punti i primi dieci, con 25 punti al vincitore.
+1|Quanti punti prende il vincitore di un GP di F1 (sistema dal 2010)?|25|10|20|15|Il sistema 25-18-15-12-10-8-6-4-2-1 è in vigore dal 2010.
+1|Come si chiama la protezione a forma di arco sopra l'abitacolo delle F1, introdotta nel 2018?|Halo|Roll-bar|Shield|Canopy|L'Halo è una struttura in titanio che protegge la testa del pilota.
+1|Che cos'è la «safety car»?|L'auto che guida il gruppo in caso di pericolo|L'ambulanza del circuito|L'auto del direttore di gara al traguardo|Un'auto di riserva per i piloti|La safety car rallenta il gruppo quando la pista va messa in sicurezza.
+1|In quale nazione si trova il circuito di Silverstone?|Regno Unito|Irlanda|Australia|Canada|Silverstone, in Inghilterra, ospitò la prima gara del mondiale di F1 nel 1950.
+1|Quale di questi è un circuito belga famoso per la curva Eau Rouge?|Spa-Francorchamps|Zandvoort|Hockenheim|Magny-Cours|La sequenza Eau Rouge-Raidillon di Spa è una delle più celebri del motorsport.
+1|Che tipo di gara è il Rally?|Prove cronometrate su strade chiuse, una vettura alla volta|Corsa in circuito con partenza in griglia|Gara su ovale|Gara di accelerazione su 400 metri|Nei rally le auto partono distanziate e si sfidano contro il cronometro.
+1|Chi legge le note al pilota durante un rally?|Il navigatore|Il team principal|Il commissario|Il meccanico|Il navigatore, o copilota, detta le note sulle curve in arrivo.
+1|Nel GP di F1, quale colore hanno le gomme morbide Pirelli?|Rosso|Bianco|Giallo|Verde|Morbide rosse, medie gialle, dure bianche; intermedie verdi e da bagnato blu.
+1|Quale colore identifica le gomme da pioggia estrema Pirelli in F1?|Blu|Verde|Viola|Arancione|Le gomme full wet hanno la banda blu, le intermedie verde.
+1|Quale pilota brasiliano vinse tre mondiali di F1 con la McLaren?|Ayrton Senna|Nelson Piquet|Emerson Fittipaldi|Rubens Barrichello|Senna fu campione nel 1988, 1990 e 1991 con la McLaren-Honda.
+1|Quale scuderia ha vinto più titoli costruttori in Formula 1?|Ferrari|McLaren|Williams|Mercedes|La Ferrari ha vinto 16 titoli costruttori, l'ultimo nel 2008.
+1|Cosa si vince salendo sul gradino più alto del podio?|Il primo posto|Il giro più veloce|La pole position|Il premio della critica|Il gradino centrale e più alto del podio spetta al vincitore.
+1|In Formula 1 cosa sono i «box»?|Le aree dove le squadre lavorano sulle auto|I settori cronometrati|Le tribune principali|Le vie di fuga|Nei box le squadre preparano le auto ed eseguono i pit stop.
+1|Quale pilota spagnolo vinse due mondiali di F1 con la Renault?|Fernando Alonso|Carlos Sainz|Pedro de la Rosa|Jaime Alguersuari|Alonso fu campione nel 2005 e 2006 con la Renault.
+1|Con quale squadra Lewis Hamilton è passato a correre nel 2025?|Ferrari|Red Bull|McLaren|Aston Martin|L'arrivo di Hamilton in Ferrari per il 2025 fu annunciato a febbraio 2024.
+1|Come si chiama il circuito sulle colline di Imola?|Autodromo Enzo e Dino Ferrari|Autodromo del Mugello|Autodromo Vallelunga|Autodromo di Pergusa|Imola è dedicato a Enzo Ferrari e a suo figlio Dino.
+1|Cosa fa il «commissario di percorso»?|Segnala con le bandiere e interviene in pista|Progetta le auto|Decide la strategia gomme|Cronometra i pit stop|I commissari espongono le bandiere e soccorrono le vetture ferme.
+1|In quale regione si trova il circuito del Mugello?|Toscana|Emilia-Romagna|Lombardia|Umbria|Il Mugello è in provincia di Firenze ed è di proprietà della Ferrari.
+1|Come si chiama il circuito di Misano Adriatico?|Misano World Circuit Marco Simoncelli|Autodromo Riccardo Paletti|Circuito Tazio Nuvolari|Autodromo Santamonica Villeneuve|Dal 2012 il circuito di Misano porta il nome di Marco Simoncelli.
+1|Cos'è la Formula E?|Un campionato di monoposto elettriche|Un campionato per auto d'epoca|La categoria dei kart|Un rally nel deserto|La Formula E corre con monoposto completamente elettriche dalla stagione 2014-15.
+1|In quale città si corre la Indy 500?|Indianapolis|Daytona|Detroit|Chicago|La 500 Miglia di Indianapolis si corre sull'ovale soprannominato «Brickyard».
+1|Cosa beve tradizionalmente il vincitore della Indy 500?|Latte|Champagne|Acqua di cocco|Aranciata|La tradizione del latte nasce nel 1936 con Louis Meyer.
+2|In che anno si è disputato il primo campionato del mondo di Formula 1?|1950|1946|1955|1960|Il primo GP del mondiale si corse a Silverstone il 13 maggio 1950.
+2|Chi fu il primo campione del mondo di Formula 1?|Giuseppe Farina|Juan Manuel Fangio|Alberto Ascari|Tazio Nuvolari|Nino Farina vinse il titolo 1950 con l'Alfa Romeo.
+2|Quale marca vinse i primi due mondiali piloti di F1 (1950 e 1951)?|Alfa Romeo|Ferrari|Maserati|Mercedes|Farina nel 1950 e Fangio nel 1951 vinsero con l'Alfa Romeo 158/159 «Alfetta».
+2|Quanti titoli mondiali vinse Juan Manuel Fangio?|5|3|4|7|Fangio fu campione nel 1951 e dal 1954 al 1957, con quattro marche diverse.
+2|Chi è l'ultimo pilota italiano ad aver vinto il mondiale di Formula 1?|Alberto Ascari|Giuseppe Farina|Michele Alboreto|Riccardo Patrese|Ascari vinse nel 1952 e 1953 con la Ferrari.
+2|Chi ha vinto l'ultimo titolo piloti della Ferrari, nel 2007?|Kimi Räikkönen|Felipe Massa|Michael Schumacher|Fernando Alonso|Räikkönen vinse il mondiale 2007 all'ultima gara in Brasile per un punto.
+2|In che anno la Ferrari ha vinto il suo ultimo titolo costruttori?|2008|2004|2007|2010|Il titolo costruttori 2008 è il sedicesimo della Ferrari.
+2|Con quale squadra Michael Schumacher vinse il suo primo mondiale?|Benetton|Ferrari|Jordan|Williams|Il primo titolo arrivò nel 1994 con la Benetton.
+2|Con quale squadra esordì Michael Schumacher in Formula 1, nel 1991?|Jordan|Benetton|Ferrari|Mercedes|Schumacher debuttò a Spa nel 1991 con la Jordan.
+2|Quale squadra vinse entrambi i titoli nel 2009, unica stagione della sua storia?|Brawn GP|Toyota|BMW Sauber|Super Aguri|La Brawn GP vinse con Jenson Button e poi divenne la Mercedes.
+2|Chi vinse il mondiale piloti 2009?|Jenson Button|Rubens Barrichello|Sebastian Vettel|Lewis Hamilton|Button vinse con la Brawn GP, che si impose anche tra i costruttori.
+2|Quanti titoli consecutivi vinse Sebastian Vettel con la Red Bull?|4|3|5|2|Vettel fu campione dal 2010 al 2013.
+2|Chi vinse il mondiale di F1 nel 2016 e poi si ritirò subito?|Nico Rosberg|Jenson Button|Felipe Massa|Mark Webber|Rosberg annunciò il ritiro pochi giorni dopo aver battuto Hamilton per il titolo.
+2|Quale pilota vinse il mondiale 1982, padre di un altro campione?|Keke Rosberg|Graham Hill|Gilles Villeneuve|Jack Brabham|Keke Rosberg è il padre di Nico, campione 2016.
+2|Il canadese Jacques Villeneuve fu campione del mondo nel…|1997|1994|2001|1985|Villeneuve vinse il titolo 1997 con la Williams.
+2|Quanti titoli mondiali vinse Alain Prost?|4|3|2|5|Prost fu campione nel 1985, 1986, 1989 e 1993.
+2|Quanti mondiali di F1 vinse Niki Lauda?|3|2|4|1|Lauda vinse nel 1975 e 1977 con la Ferrari e nel 1984 con la McLaren.
+2|Con quale squadra Nigel Mansell vinse il mondiale 1992?|Williams|Ferrari|Lotus|McLaren|La Williams FW14B dominò il 1992 con le sospensioni attive.
+2|Chi è l'unico campione del mondo sia nel motomondiale classe 500 sia in Formula 1?|John Surtees|Mike Hailwood|Valentino Rossi|Graham Hill|Surtees vinse sette titoli in moto e il mondiale F1 1964 con la Ferrari.
+2|Quale pilota detiene il record di vittorie al GP di Monaco di F1?|Ayrton Senna|Michael Schumacher|Graham Hill|Lewis Hamilton|Senna vinse sei volte a Monte Carlo, cinque consecutive dal 1989 al 1993.
+2|In quale GP Max Verstappen divenne il più giovane vincitore della storia della F1?|Spagna 2016|Brasile 2016|Monaco 2017|Malesia 2017|A Barcellona nel 2016 vinse a 18 anni, alla prima gara con la Red Bull.
+2|Quante vittorie ottenne Max Verstappen nella stagione 2023, record assoluto?|19|15|21|17|Verstappen vinse 19 delle 22 gare del 2023.
+2|Quale pilota vinse l'unico GP della stagione 2023 non conquistato dalla Red Bull?|Carlos Sainz|Charles Leclerc|Lewis Hamilton|Lando Norris|Sainz vinse a Singapore con la Ferrari.
+2|Quale pilota fu il primo a superare le 91 vittorie di Schumacher?|Lewis Hamilton|Max Verstappen|Sebastian Vettel|Fernando Alonso|Hamilton ottenne la 92ª vittoria a Portimão nel 2020.
+2|Quale scuderia vinse otto titoli costruttori consecutivi dal 2014 al 2021?|Mercedes|Red Bull|Ferrari|McLaren|La Mercedes dominò l'era ibrida con otto titoli costruttori di fila.
+2|Che motore usano le F1 dal 2014?|V6 turbo ibrido di 1,6 litri|V8 aspirato di 2,4 litri|V10 aspirato di 3 litri|V12 di 3,5 litri|Dal 2014 si usano power unit V6 1.6 turbo con recupero di energia.
+2|Che cos'è il DRS, introdotto in F1 nel 2011?|Un'ala posteriore apribile per facilitare i sorpassi|Un sistema di frenata d'emergenza|Una telecamera di bordo|Un sensore per la pioggia|Il Drag Reduction System riduce la resistenza aprendo un flap dell'ala posteriore.
+2|Da quale stagione è stato vietato il rifornimento in gara in F1?|2010|2000|1994|2014|Il rifornimento, reintrodotto nel 1994, fu di nuovo vietato dal 2010.
+2|Da quale anno Pirelli è fornitore unico di gomme in F1?|2011|2005|1998|2016|La Pirelli è tornata in F1 nel 2011 come unica fornitrice.
+2|Come si chiama la curva Parabolica di Monza dal 2021?|Curva Alboreto|Curva Ascari|Curva Nuvolari|Curva Farina|Nel 2021 fu intitolata a Michele Alboreto.
+2|Qual è la prima chicane di Monza dopo il rettilineo di partenza?|Variante del Rettifilo|Variante Ascari|Variante della Roggia|Variante Alta|La Variante del Rettifilo è teatro di frenate e contatti al via.
+2|Quale coppia di curve si trova a Monza?|Lesmo|Tamburello e Tosa|Acque Minerali|Arrabbiata|Le due curve di Lesmo portano verso il sottopasso e la Variante Ascari.
+2|Quali curve si trovano sul circuito di Imola?|Tamburello, Tosa e Rivazza|Lesmo e Parabolica|Arrabbiata e Bucine|Eau Rouge e Pouhon|Imola alterna Tamburello, Villeneuve, Tosa, Piratella, Acque Minerali e Rivazza.
+2|Quali curve si trovano al Mugello?|Arrabbiata e San Donato|Rivazza e Tosa|Lesmo e Ascari|Becketts e Copse|Al Mugello le due Arrabbiata sono tra le curve più veloci del motomondiale.
+2|Su quale circuito la Ferrari corse il suo 1000° Gran Premio, nel 2020?|Mugello|Monza|Imola|Fiorano|Il GP di Toscana al Mugello del 2020 fu il millesimo GP della Ferrari.
+2|Chi vinse il GP d'Italia 2019, riportando la Ferrari alla vittoria a Monza?|Charles Leclerc|Sebastian Vettel|Kimi Räikkönen|Carlos Sainz|Leclerc vinse a Monza nel 2019, prima vittoria Ferrari lì dal 2010.
+2|Chi vinse a sorpresa il GP d'Italia 2020 con l'AlphaTauri?|Pierre Gasly|Carlos Sainz|Lance Stroll|Daniil Kvyat|Gasly vinse a Monza davanti a Sainz, con soli 0,4 secondi di vantaggio.
+2|Chi vinse il GP d'Italia 2008 con la Toro Rosso, sotto la pioggia?|Sebastian Vettel|Sébastien Bourdais|Heikki Kovalainen|Fernando Alonso|Vettel divenne allora il più giovane vincitore della storia, a 21 anni.
+2|Chi vinse il GP di Monaco 2024, pilota di casa?|Charles Leclerc|Lando Norris|Oscar Piastri|Max Verstappen|Leclerc, nato a Monte Carlo, vinse finalmente il GP di casa nel 2024.
+2|Quale squadra vinse il titolo costruttori di F1 2024?|McLaren|Red Bull|Ferrari|Mercedes|La McLaren tornò campione costruttori per la prima volta dal 1998.
+2|Chi fondò la McLaren?|Bruce McLaren|Ron Dennis|Frank Williams|Colin Chapman|Il neozelandese Bruce McLaren fondò la squadra nel 1963.
+2|Chi fondò la Lotus?|Colin Chapman|Bruce McLaren|Ken Tyrrell|Jack Brabham|Colin Chapman fondò la Lotus, celebre per le sue innovazioni tecniche.
+2|Quale pilota vinse il mondiale con un'auto che portava il proprio nome?|Jack Brabham|Bruce McLaren|John Surtees|Emerson Fittipaldi|Brabham vinse il titolo 1966 con la Brabham-Repco.
+2|Chi è l'unico pilota ad aver vinto la «Tripla Corona» del motorsport?|Graham Hill|Fernando Alonso|Juan Pablo Montoya|Jacky Ickx|Graham Hill vinse GP di Monaco, 500 Miglia di Indianapolis e 24 Ore di Le Mans.
+2|Quali tre gare compongono la «Tripla Corona» del motorsport?|GP di Monaco, Indy 500, 24 Ore di Le Mans|Monza, Daytona, Dakar|Silverstone, Spa, Suzuka|Mille Miglia, Targa Florio, Le Mans|Graham Hill è l'unico ad averle vinte tutte e tre.
+2|Quale pilota detiene il record di vittorie alla 24 Ore di Le Mans?|Tom Kristensen|Jacky Ickx|Derek Bell|Emanuele Pirro|Il danese Kristensen ha vinto Le Mans nove volte.
+2|Quale marca ha vinto più volte la 24 Ore di Le Mans?|Porsche|Ferrari|Audi|Toyota|La Porsche è la marca più vincente nella storia di Le Mans.
+2|Con quale auto la Ferrari vinse la 24 Ore di Le Mans 2023?|499P|F40 GTE|488 GTE|333 SP|La 499P vinse al debutto, 58 anni dopo l'ultima vittoria assoluta Ferrari a Le Mans, nel 1965.
+2|Quante volte Fernando Alonso ha vinto la 24 Ore di Le Mans?|2|1|3|0|Alonso vinse nel 2018 e nel 2019 con la Toyota.
+2|Con quale squadra vinse Le Mans cinque volte di fila dal 2018 al 2022?|Toyota|Porsche|Audi|Peugeot|La Toyota vinse cinque edizioni consecutive con la classe ibrida.
+2|Come si chiama il circuito della 24 Ore di Le Mans?|Circuit de la Sarthe|Circuit Paul Ricard|Circuit de Nevers|Circuit de Reims|Il Circuit de la Sarthe usa in parte strade pubbliche, come il rettilineo dell'Hunaudières.
+2|Come si chiama il lungo rettilineo della 24 Ore di Le Mans?|Mulsanne o Hunaudières|Kemmel|Hangar Straight|Rettifilo Tribune|Il rettilineo delle Hunaudières porta alla curva di Mulsanne.
+2|Quante volte ha vinto il mondiale rally Sébastien Loeb?|9|7|8|6|Loeb vinse nove titoli consecutivi dal 2004 al 2012 con la Citroën.
+2|Quale casa ha vinto più titoli costruttori nel mondiale rally?|Lancia|Citroën|Toyota|Peugeot|La Lancia ha vinto 10 titoli costruttori nel WRC.
+2|Quale auto vinse sei titoli costruttori consecutivi nel rally dal 1987 al 1992?|Lancia Delta|Audi Quattro|Toyota Celica|Ford Escort|La Lancia Delta HF 4WD e poi Integrale dominò il rally per sei stagioni.
+2|Quale pilota italiano vinse il mondiale rally nel 1988 e 1989?|Miki Biasion|Sandro Munari|Andrea Aghini|Gigi Galli|Biasion vinse due titoli con la Lancia Delta.
+2|Quale gruppo di vetture da rally fu abolito dopo il 1986?|Gruppo B|Gruppo A|Gruppo N|Rally1|Le potentissime Gruppo B furono abolite per motivi di sicurezza.
+2|In quale Paese si corre la Dakar dal 2020?|Arabia Saudita|Senegal|Argentina|Marocco|Dopo l'Africa e il Sud America, la Dakar si corre in Arabia Saudita dal 2020.
+2|Quale pilota ha vinto più volte la Dakar, tra moto e auto?|Stéphane Peterhansel|Carlos Sainz|Nasser Al-Attiyah|Cyril Despres|Peterhansel ha vinto 14 volte: 6 in moto e 8 in auto.
+2|Quanti titoli mondiali ha vinto Giacomo Agostini?|15|9|12|8|Agostini vinse 8 titoli nella 500 e 7 nella 350.
+2|Con quale moto Francesco Bagnaia vinse la MotoGP nel 2022 e 2023?|Ducati|Yamaha|Aprilia|Honda|Bagnaia riportò il titolo alla Ducati quindici anni dopo Casey Stoner.
+2|Chi vinse la MotoGP 2024 con la Ducati del team Pramac?|Jorge Martín|Francesco Bagnaia|Enea Bastianini|Marc Márquez|Martín fu il primo campione della MotoGP con una squadra satellite.
+2|Chi fu il primo campione del mondo MotoGP con la Ducati, nel 2007?|Casey Stoner|Loris Capirossi|Troy Bayliss|Andrea Dovizioso|Stoner vinse il mondiale 2007 con la Desmosedici.
+2|In quale località ha sede l'Aprilia?|Noale|Mandello del Lario|Varese|Pontedera|L'Aprilia ha sede a Noale, in provincia di Venezia.
+2|Dove ha sede la Moto Guzzi?|Mandello del Lario|Noale|Borgo Panigale|Schiranna|La Moto Guzzi è a Mandello del Lario, sul lago di Como, dal 1921.
+2|Su quali strade si correva la Mille Miglia?|Brescia-Roma-Brescia|Milano-Napoli-Milano|Torino-Palermo|Roma-Firenze-Roma|La Mille Miglia partiva e arrivava a Brescia passando da Roma.
+2|In quale regione si correva la Targa Florio?|Sicilia|Sardegna|Calabria|Toscana|La Targa Florio fu fondata nel 1906 da Vincenzo Florio sulle Madonie.
+2|Come era soprannominato Tazio Nuvolari?|Il Mantovano Volante|Il Barone Rosso|Il Leone di Monza|La Freccia del Sud|Nuvolari era nato a Castel d'Ario, in provincia di Mantova.
+2|Da chi prese Enzo Ferrari il simbolo del cavallino rampante?|Dalla famiglia dell'aviatore Francesco Baracca|Dal Comune di Modena|Da una scuderia di cavalli|Dallo stemma di Maranello|La madre di Baracca suggerì a Ferrari di usare il cavallino del figlio.
+2|Cosa raffigura il «biscione» nel logo Alfa Romeo?|Lo stemma dei Visconti di Milano|Il drago di San Giorgio|Un fiume lombardo|Un serpente del deserto|Il logo unisce la croce rossa di Milano e il biscione visconteo.
+2|In che anno fu fondata la Scuderia Ferrari?|1929|1947|1950|1939|Enzo Ferrari fondò la Scuderia nel 1929; la prima auto Ferrari arrivò nel 1947.
+2|Chi ottenne la prima vittoria della Ferrari in un GP del mondiale di F1?|José Froilán González|Alberto Ascari|Juan Manuel Fangio|Luigi Villoresi|González vinse il GP di Gran Bretagna 1951.
+2|Quale pilota fu campione del mondo con la Ferrari nel 1979?|Jody Scheckter|Gilles Villeneuve|Carlos Reutemann|Niki Lauda|Il sudafricano Scheckter vinse il titolo 1979.
+2|Chi fu il primo americano campione del mondo di F1?|Phil Hill|Mario Andretti|Dan Gurney|Richie Ginther|Phil Hill vinse il titolo 1961 con la Ferrari.
+2|Con quale squadra Mario Andretti fu campione del mondo nel 1978?|Lotus|Ferrari|McLaren|Brabham|Andretti vinse con la Lotus 79 a effetto suolo.
+2|Quale pilota vinse il mondiale 1976 battendo Lauda per un punto?|James Hunt|Clay Regazzoni|Jody Scheckter|Ronnie Peterson|Hunt, con la McLaren, vinse all'ultima gara in Giappone.
+2|Quale pilota scozzese vinse tre mondiali tra il 1969 e il 1973?|Jackie Stewart|Jim Clark|David Coulthard|Innes Ireland|Stewart vinse nel 1969, 1971 e 1973.
+2|Quale squadra costruì nel 1976 la celebre F1 a sei ruote P34?|Tyrrell|Lotus|March|Brabham|La Tyrrell P34 aveva quattro piccole ruote anteriori.
+2|Quale pilota italiano, nel 1975, è l'unica donna ad aver conquistato punti nel mondiale di F1?|Lella Lombardi|Maria Teresa de Filippis|Giovanna Amati|Desiré Wilson|Lella Lombardi ottenne mezzo punto al GP di Spagna 1975.
+2|Quale fu la prima pilota donna a partecipare a un GP di F1, nel 1958?|Maria Teresa de Filippis|Lella Lombardi|Divina Galica|Giovanna Amati|La napoletana de Filippis corse con una Maserati.
+2|Cosa si intende per «undercut» nella strategia di gara?|Fermarsi ai box prima del rivale per superarlo con gomme nuove|Sorpassare all'interno in frenata|Partire con le gomme da bagnato|Saltare un pit stop|Con l'undercut si sfrutta il passo delle gomme nuove mentre il rivale è ancora in pista.
+2|Cos'è il «parco chiuso» in F1?|L'area dove le auto non possono essere modificate|La zona riservata al pubblico|Il garage della safety car|La pit lane chiusa|Dopo le qualifiche le auto sono in regime di parco chiuso.
+2|Cosa significa la bandiera bianca e nera divisa in diagonale?|Ammonizione per comportamento antisportivo|Ultimo giro|Pista scivolosa|Auto lenta in pista|È un avvertimento: alla successiva infrazione può arrivare una penalità.
+2|Da quale anno esiste la Virtual Safety Car in F1?|2015|2008|2012|2019|La VSC impone a tutti di rallentare senza far entrare la safety car.
+2|Quale fu il primo GP di F1 in notturna?|Singapore 2008|Bahrain 2004|Abu Dhabi 2009|Qatar 2021|Il GP di Singapore a Marina Bay inaugurò le gare in notturna nel 2008.
+2|Quale fu il primo GP di F1 disputato in Medio Oriente?|Bahrain 2004|Abu Dhabi 2009|Arabia Saudita 2021|Qatar 2021|Il circuito di Sakhir ospitò il primo GP del Bahrain nel 2004.
+2|Come si chiama il circuito di Montréal?|Circuit Gilles Villeneuve|Circuit Jacques Villeneuve|Mosport Park|Circuit Mont-Tremblant|Il circuito sull'Île Notre-Dame è dedicato a Gilles Villeneuve.
+2|Come si chiama ufficialmente il circuito di Interlagos?|Autódromo José Carlos Pace|Autódromo Ayrton Senna|Autódromo Nelson Piquet|Autódromo Hermanos Rodríguez|Interlagos è dedicato a Carlos Pace, pilota brasiliano.
+2|Quale caratteristica rende unico il tracciato di Suzuka in F1?|Il disegno a forma di otto con un incrocio|È un ovale|È completamente cittadino|Si corre in senso orario e antiorario|Suzuka ha un cavalcavia che crea la forma a otto.
+2|Qual era in origine l'area del circuito di Silverstone?|Un aeroporto militare|Una cava|Un ippodromo|Un porto|Silverstone nacque sulle piste di un aeroporto della RAF.
+2|Quale casa giapponese possiede il circuito di Suzuka?|Honda|Toyota|Nissan|Yamaha|Suzuka fu costruito da Honda come pista di prova negli anni Sessanta.
+2|Quale azienda italiana di Varano de' Melegari costruisce i telai per IndyCar e F2?|Dallara|Pagani|Ducati Corse|Brembo|La Dallara fornisce i telai di IndyCar, Formula 2 e Formula 3.
+2|Quale azienda italiana è famosa per gli impianti frenanti usati in F1 e MotoGP?|Brembo|Magneti Marelli|Pirelli|Sparco|La Brembo, nata in provincia di Bergamo, fornisce freni a gran parte del motorsport.
+2|Quale pilota finlandese vinse quattro mondiali rally consecutivi dal 1996 al 1999?|Tommi Mäkinen|Juha Kankkunen|Marcus Grönholm|Ari Vatanen|Mäkinen vinse quattro titoli di fila con la Mitsubishi.
+2|Chi divenne nel 2022 il più giovane campione del mondo rally?|Kalle Rovanperä|Ott Tänak|Thierry Neuville|Elfyn Evans|Rovanperä vinse a 22 anni con la Toyota.
+2|Chi vinse il mondiale rally 2024?|Thierry Neuville|Kalle Rovanperä|Ott Tänak|Sébastien Ogier|Il belga Neuville vinse il suo primo titolo con la Hyundai.
+2|Quale rally apre tradizionalmente la stagione del mondiale WRC?|Rally di Monte Carlo|Rally di Svezia|Rally di Sardegna|Rally di Finlandia|Il Monte Carlo, con neve e asfalto, apre di solito il calendario.
+2|In quale regione si corre il Rally Italia del mondiale WRC dal 2004?|Sardegna|Sicilia|Toscana|Piemonte|Il Rally Italia Sardegna si corre sugli sterrati sardi.
+3|Su quale circuito si disputò il primo GP del mondiale di F1?|Silverstone|Monza|Monaco|Spa-Francorchamps|Il 13 maggio 1950 Farina vinse a Silverstone con l'Alfa Romeo.
+3|Dove si corse il primo Gran Premio automobilistico della storia, nel 1906?|Le Mans, Francia|Monza, Italia|Brooklands, Inghilterra|Indianapolis, USA|Il GP di Francia 1906 fu vinto da Ferenc Szisz su Renault.
+3|Chi vinse la gara di F1 più veloce della storia, a Monza nel 2003?|Michael Schumacher|Juan Pablo Montoya|Rubens Barrichello|Kimi Räikkönen|Schumacher vinse alla media di circa 247,6 km/h.
+3|Con quali marche vinse i suoi cinque titoli Fangio?|Alfa Romeo, Mercedes, Ferrari e Maserati|Solo Ferrari|Maserati e Ferrari|Alfa Romeo e Lancia|Fangio vinse con quattro marche diverse: un record.
+3|Quale scuderia vinse il primo mondiale costruttori di F1, nel 1958?|Vanwall|Ferrari|Cooper|BRM|Il titolo costruttori nacque nel 1958 e lo vinse la britannica Vanwall.
+3|Chi fu il primo campione del mondo britannico di F1?|Mike Hawthorn|Stirling Moss|Graham Hill|Jim Clark|Hawthorn vinse il titolo 1958 con la Ferrari.
+3|Quale pilota vinse la Indy 500 nel 1965 e due mondiali di F1?|Jim Clark|Graham Hill|Jackie Stewart|Dan Gurney|Clark vinse a Indianapolis con la Lotus e fu campione nel 1963 e 1965.
+3|Quanti mondiali di F1 vinse Nelson Piquet?|3|2|1|4|Piquet fu campione nel 1981 e 1983 con la Brabham e nel 1987 con la Williams.
+3|Chi vinse il mondiale di F1 del 1967?|Denny Hulme|Jack Brabham|Jim Clark|John Surtees|Il neozelandese Hulme vinse con la Brabham.
+3|Quale pilota australiano vinse il mondiale 1980 con la Williams?|Alan Jones|Jack Brabham|Mark Webber|Daniel Ricciardo|Alan Jones diede alla Williams il suo primo titolo piloti.
+3|Quale auto del 1978 usava una ventola per aumentare la deportanza e vinse in Svezia?|Brabham BT46B|Lotus 79|Tyrrell P34|Chaparral 2J|La «fan car» vinse con Lauda e fu subito ritirata.
+3|Chi fu il primo pilota a disputare 200 GP di Formula 1?|Riccardo Patrese|Andrea de Cesaris|Gerhard Berger|Nelson Piquet|Patrese tagliò il traguardo dei 200 GP nel 1990.
+3|Quale pilota italiano vinse il GP di Monaco 2004?|Jarno Trulli|Giancarlo Fisichella|Vitantonio Liuzzi|Michele Alboreto|Trulli vinse a Monte Carlo con la Renault, sua unica vittoria in F1.
+3|Con quale squadra Michele Alboreto fu vicecampione del mondo nel 1985?|Ferrari|Tyrrell|Arrows|Lola|Alboreto lottò per il titolo 1985 con Prost.
+3|Quale pilota italiano vinse il GP del Brasile 2003, gara interrotta per pioggia?|Giancarlo Fisichella|Jarno Trulli|Ivan Capelli|Riccardo Patrese|La vittoria di Fisichella con la Jordan fu assegnata giorni dopo la gara.
+3|Quale circuito di F1 è il più lungo del calendario attuale, con circa 7 km?|Spa-Francorchamps|Silverstone|Baku|Jeddah|Il tracciato di Spa misura circa 7,004 km.
+3|Come si chiama il tornante più lento del circuito di Monaco?|Fairmont (ex Loews)|Sainte Dévote|Tabac|Rascasse|Il tornante del Fairmont si affronta a circa 50 km/h.
+3|Come si chiama la prima curva del circuito di Monaco?|Sainte Dévote|Massenet|Portier|Mirabeau|Sainte Dévote prende il nome dalla piccola chiesa vicina.
+3|Quale sequenza di curve si trova a Silverstone?|Maggotts, Becketts e Chapel|Eau Rouge e Raidillon|Degner e Spoon|Lesmo e Ascari|Maggotts-Becketts-Chapel è una delle sequenze più rapide del mondiale.
+3|Quale curva veloce di Suzuka è famosa per il suo nome numerico?|130R|8R|200R|R1|La 130R prende il nome dal suo raggio di 130 metri.
+3|In che anno la F1 introdusse il KERS, il primo recupero di energia?|2009|2005|2011|2014|Il KERS debuttò nel 2009 con un sistema da circa 60 kW.
+3|Quale componente della power unit ibrida recupera energia in frenata?|MGU-K|MGU-H|Turbocompressore|ERS-C|L'MGU-K recupera energia cinetica dall'asse posteriore in frenata.
+3|Cosa si intende per «Grand Chelem» in F1?|Pole, vittoria, giro veloce e comando per tutti i giri|Vincere quattro GP di fila|Vincere in tutti i continenti|Fare doppietta in casa|Il Grand Chelem è la gara perfetta, rara anche per i campioni.
+3|Quale pilota vinse il mondiale WRC 1995, primo britannico campione?|Colin McRae|Richard Burns|Ari Vatanen|Malcolm Wilson|McRae vinse con la Subaru Impreza.
+3|Quale pilota estone vinse il mondiale rally 2019?|Ott Tänak|Markko Märtin|Elfyn Evans|Kalle Rovanperä|Tänak vinse con la Toyota interrompendo l'era Ogier.
+3|In che anno nacque il mondiale rally WRC?|1973|1965|1980|1958|Il primo mondiale rally per costruttori si disputò nel 1973.
+3|Quali titoli di Carlos Sainz senior nel mondiale rally?|1990 e 1992|1995 e 1997|1988 e 1989|2000 e 2002|Sainz vinse due mondiali con la Toyota Celica.
+3|In che anno la Dakar si spostò per la prima volta in Sud America?|2009|2003|2012|1998|Dopo l'annullamento del 2008, la Dakar si corse in Sud America dal 2009 al 2019.
+3|Quanti titoli mondiali conquistò Valentino Rossi in totale?|9|7|10|8|Rossi vinse 125 (1997), 250 (1999), 500 (2001) e sei titoli MotoGP.
+3|In quale anno Valentino Rossi vinse il titolo della classe 125?|1997|1996|1999|2001|Il primo titolo di Rossi arrivò nel 1997 con l'Aprilia.
+3|Quante gare vinse Giacomo Agostini nel motomondiale?|122|89|105|115|Le 122 vittorie di Agostini sono un record del motomondiale.
+3|Con quale marca Giacomo Agostini vinse la maggior parte dei suoi titoli?|MV Agusta|Yamaha|Gilera|Benelli|Agostini vinse 13 titoli con la MV Agusta e 2 con la Yamaha.
+3|Dove ha sede la MV Agusta?|Schiranna, Varese|Noale|Mandello del Lario|Pesaro|La MV Agusta ha sede a Varese, in località Schiranna.
+3|Su quale isola si corre il Tourist Trophy motociclistico?|Isola di Man|Isola di Wight|Jersey|Anglesey|Il TT si corre sullo Snaefell Mountain Course.
+3|Quale casa costruisce l'hypercar Zonda e la Huayra?|Pagani|Lamborghini|De Tomaso|Mazzanti|Horacio Pagani fondò l'azienda a San Cesario sul Panaro.
+3|In quale località ha sede la Lamborghini?|Sant'Agata Bolognese|Maranello|Modena|Cento|La Lamborghini produce a Sant'Agata Bolognese dal 1963.
+3|In quale città nacque la Maserati, nel 1914?|Bologna|Modena|Torino|Milano|I fratelli Maserati fondarono l'azienda a Bologna; poi si trasferì a Modena.
+3|Dove si trova la celebre pista sul tetto di una fabbrica Fiat?|Lingotto, Torino|Mirafiori, Torino|Cassino|Melfi|Sul tetto del Lingotto c'era una pista di prova sopraelevata.
+3|Quale auto vinse il primo mondiale di F1, nel 1950?|Alfa Romeo 158|Ferrari 125|Maserati 4CLT|Talbot-Lago T26|L'Alfa Romeo 158 «Alfetta» dominò il 1950.
+3|Quale Ferrari di F1 degli anni Settanta aveva il cambio trasversale?|312T|156 «Sharknose»|F2004|640|La «T» di 312T sta per trasversale: vinse tre titoli piloti.
+3|Come era soprannominata la Ferrari 156 del 1961?|Sharknose|Squalo bianco|Barchetta|Testarossa|La presa d'aria a narici le valse il soprannome «sharknose», naso di squalo.
+3|Quale pilota vinse il mondiale 1961 dopo un duello in Ferrari con Wolfgang von Trips?|Phil Hill|Richie Ginther|Giancarlo Baghetti|Stirling Moss|Phil Hill fu campione nel 1961 con la Ferrari 156.
+3|Chi vinse il suo primo GP di F1 alla prima gara disputata, in Francia nel 1961?|Giancarlo Baghetti|Ludovico Scarfiotti|Lorenzo Bandini|Nino Vaccarella|Baghetti vinse a Reims al debutto mondiale, impresa unica nella storia.
+3|Quale pilota italiano vinse il GP d'Italia 1966 con la Ferrari?|Ludovico Scarfiotti|Lorenzo Bandini|Giancarlo Baghetti|Nino Vaccarella|Scarfiotti è l'ultimo italiano a vincere a Monza con la Ferrari.
+3|In quale anno la Formula 1 adottò il sistema di punti 25-18-15?|2010|2003|1991|2014|Prima del 2010 il vincitore riceveva 10 punti.
+3|Quale scuderia, poi diventata Red Bull Racing, la Red Bull acquistò nel 2004?|Jaguar|Minardi|Stewart|Arrows|La Jaguar fu venduta alla Red Bull e corse come Red Bull Racing dal 2005.
+3|Quale squadra italiana divenne Toro Rosso nel 2006?|Minardi|Forti|Scuderia Italia|Andrea Moda|La Red Bull acquistò la Minardi di Faenza, che divenne Toro Rosso.
+3|In quale città ha sede la scuderia nata come Minardi?|Faenza|Imola|Ravenna|Forlì|La squadra di Faenza è oggi la Racing Bulls.
+3|Quale circuito italiano ha ospitato il GP di San Marino di F1 fino al 2006?|Imola|Misano|Mugello|Vallelunga|Il GP di San Marino si correva a Imola, a pochi chilometri da San Marino.
+3|In quale anno debuttò la Formula E?|2014|2010|2016|2012|La prima gara si corse a Pechino nel settembre 2014.
+3|Quale pilota vinse cinque titoli consecutivi tra il 2000 e il 2004?|Michael Schumacher|Lewis Hamilton|Sebastian Vettel|Juan Manuel Fangio|Cinque titoli di fila con la Ferrari, un record.
+3|Chi detiene il record di pole position in F1?|Lewis Hamilton|Michael Schumacher|Ayrton Senna|Max Verstappen|Hamilton è stato il primo a superare quota 100 pole.
+3|Quale pilota ottenne più vittorie nella stagione 2004 di Formula 1?|Michael Schumacher|Rubens Barrichello|Jenson Button|Fernando Alonso|Schumacher vinse 13 GP su 18 nel 2004.
+3|Quale casa costruiva la «Stratos», che vinse tre mondiali rally negli anni Settanta?|Lancia|Fiat|Alfa Romeo|Autobianchi|La Lancia Stratos vinse i titoli costruttori 1974, 1975 e 1976.
+3|Quale pilota norvegese vinse il mondiale rally 2003 con la Subaru?|Petter Solberg|Henning Solberg|Mads Østberg|Andreas Mikkelsen|Petter Solberg vinse il titolo 2003 con la Subaru Impreza.
+3|Chi vinse il titolo mondiale rally nel 2001?|Richard Burns|Colin McRae|Tommi Mäkinen|Carlos Sainz|Burns vinse con la Subaru Impreza.
+3|Quale circuito è soprannominato «Inferno Verde»?|Nordschleife del Nürburgring|Spa-Francorchamps|Mugello|Brands Hatch|Fu Jackie Stewart a soprannominare così il lungo anello tedesco.
+3|Quanto è lungo circa l'ovale di Indianapolis?|2,5 miglia (circa 4 km)|1 miglio|5 miglia|3 chilometri|La 500 Miglia si corre su 200 giri dell'ovale da 2,5 miglia.
+3|Quale categoria del motorsport corre la Daytona 500?|NASCAR|IndyCar|IMSA|Formula E|La Daytona 500 apre la stagione NASCAR in Florida.
+3|In che anno nacque la 24 Ore di Le Mans?|1923|1906|1937|1950|La prima edizione si corse il 26-27 maggio 1923.
+3|Quale scuderia vinse il campionato del mondo costruttori 1998?|McLaren|Ferrari|Williams|Benetton|La McLaren-Mercedes vinse entrambi i titoli con Häkkinen.
+3|Quanti titoli mondiali vinse Mika Häkkinen?|2|1|3|4|Häkkinen fu campione nel 1998 e 1999 con la McLaren.
+3|Chi vinse il mondiale 1972, diventando il più giovane campione fino ad allora?|Emerson Fittipaldi|Jackie Stewart|Niki Lauda|Jochen Rindt|Fittipaldi vinse con la Lotus a 25 anni.
+3|In quale stagione Lewis Hamilton vinse il suo primo mondiale?|2008|2007|2010|2014|Hamilton vinse il titolo 2008 all'ultima curva in Brasile con la McLaren.
+3|Quanti titoli mondiali vinse Jackie Stewart?|3|2|4|1|Stewart vinse nel 1969, 1971 e 1973.
+3|In quale anno Ayrton Senna vinse il suo primo titolo mondiale?|1988|1987|1990|1985|Senna fu campione nel 1988 con la McLaren-Honda MP4/4.
+3|Quante gare su 16 vinse la McLaren MP4/4 nel 1988?|15|12|16|10|Senna e Prost vinsero 15 dei 16 GP del 1988.

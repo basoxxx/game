@@ -10,7 +10,7 @@ const go = (App, params) => App.go('carte', { from: 'launcher', ...params });
 const card = (x, y, r, fill, txt, col = '#2a1f1a') => `<g transform="translate(${x} ${y}) rotate(${r})"><rect x="-28" y="-46" width="56" height="92" rx="6" fill="#fbf6ea" stroke="#9a6a08" stroke-width="1.2"/>${fill}<text x="-20" y="-30" font-family="Georgia,serif" font-weight="700" font-size="14" fill="${col}">${txt}</text></g>`;
 
 export default {
-  id: 'carte', order: 50, category: 'Carte', section: 'Carte', title: 'Carte Baso', genre: 'Carte · 1-4 giocatori', accent: '#2f8a4e',
+  id: 'carte', order: 52, category: 'Carte', section: 'Carte', title: 'Carte Baso', genre: 'Carte · 1-4 giocatori', accent: '#2f8a4e',
   desc: 'Il tavolo da gioco di casa: Scopa, Scopone scientifico, Briscola e gli altri classici con carte napoletane, piacentine e francesi, contro la CPU o a turno con gli amici.',
   stat: () => { const p = peek(), t = p.total; return t?.played ? `${t.played} partite · ${t.won} vinte · ${(p.coins || 0).toLocaleString('it-IT')} monete` : `${metas.length} giochi di carte · CPU a 3 livelli`; },
   cover: 'covers/carte.webp',

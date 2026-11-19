@@ -42,5 +42,21 @@ Festa Baso (src/festa): no external assets. The board, minigame arenas, effects 
 (covers/festa.webp, rendered by tools/festa-cover.mjs) are procedural; it reuses the Baso Hub's own procedural
 art (Orda figures, Serpentone hats and heads, Kart Baso karts, Scontro Totale bangers, Bastione buildings).
 
+Arcade Baso (src/arcade): no external assets. Ships, bosses, bricks, the runner, Gnam and the wasps, mazes,
+levels, card art (inline SVG) and the cover (covers/arcade.webp, rendered by tools/arcade-cover.mjs) are
+procedural and original; sounds come from the hub's procedural audio engine (src/ui/audio.js).
+
+Rompicapo (src/rompicapo): no external assets. Boards, tiles (original Mahjong faces: suns, drops, leaves,
+winds, gems, flowers, seasons), bricks, effects and sounds are drawn and synthesised in code; the cover
+(covers/rompicapo.webp) is rendered from the games by tools/rompicapo-cover.mjs.
+
+Quiz e Parole (src/quiz): questions, explanations, hangman words and hints are original. Word lists for Parolina and
+Anagrammi are derived from "paroleitaliane" by Francesco Napoletano (https://github.com/napolux/paroleitaliane,
+MIT licence: 280000_parole_italiane.txt, 60000_parole_italiane.txt, lista_badwords.txt used as a filter,
+9000_nomi_propri.txt used as a filter), ranked by frequency with "FrequencyWords" by Hermit Dave
+(https://github.com/hermitdave/FrequencyWords; used only to sort the words by frequency, none of its data is
+redistributed), then curated
+by hand (src/quiz/words-src). Art, balloon illustration, sounds and the cover (tools/quiz-cover.mjs) are procedural.
+
 Carte Baso (src/carte): no external assets. Card faces (Napoletane, Piacentine, French + jokers), backs, felts and
 the cover (covers/carte.webp, tools/carte-cover.mjs) are original procedural SVG/CSS; sounds are synthesised (Web Audio).
