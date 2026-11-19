@@ -238,3 +238,7 @@ Le build desktop vengono create automaticamente da GitHub Actions (`.github/work
 Tecnologie: JavaScript, Vite, Three.js, Canvas/SVG, Web Audio, Electron, electron-builder.
 
 Geometria dei circuiti: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT License).
+
+## Minigolf Baso
+Minigolf 3D con fisica vera (`?game=minigolf`): 5 percorsi a tema (Giardino, Spiaggia, Castello, Luna Park, Spazio) da 9 buche con rampe, trampolini, giri della morte, mulini, cancelli mobili, respingenti, nastri, teletrasporti, acqua, lava, sabbia, ghiaccio e gravità bassa. Mira a fionda (mouse/touch) o tastiera/controller con anteprima della traiettoria, par, stelle e scorecard, multigiocatore a turno da 2 a 4 giocatori, buca del giorno, editor di buche con codici da condividere e palline/cappelli/scie da sbloccare con le monete (niente pubblicità).
+La fisica della pallina è deterministica (passi fissi a 240 Hz, sotto-passi anti-tunnelling): `node tools/minigolf-check.mjs` verifica con una ricerca di tiri che ogni buca (e le varianti specchiate della buca del giorno) si chiuda entro il par; `node tools/minigolf-e2e.mjs` prova menu, partita, multigiocatore ed editor nel browser; `node tools/minigolf-cover.mjs` genera la copertina.
