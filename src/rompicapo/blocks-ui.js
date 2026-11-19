@@ -151,15 +151,15 @@ export class BlocksGame {
           for (const y of ev.rows) this.sweepRow(y);
           if (ev.n >= 4 || ev.ts) { this.shakeT = 0.35; try { this.o.sfx?.ok(); } catch {} }
         }
-        if (ev.kind) this.callout(ev.kind.toUpperCase(), ev.n >= 4 || ev.ts ? 'big' : '', ev.pts);
-        if (ev.combo > 0) this.callout(`Combo ×${ev.combo}`, 'combo');
+        if (ev.kind) this.callout(ev.kind.toUpperCase(), ev.n >= 4 || ev.ts ? 'big' : '', ev.pts, ev.combo > 0 ? `Combo ×${ev.combo + 1}` : '');
         if (ev.perfect) this.sh.fx.confetti(80);
         this.hud();
       } else if (ev.e === 'level') { snd.level(); this.callout(`Livello ${ev.level}`, 'lvl'); this.hud(); }
     }
     if (this.mode === 'ultra' || this.mode === 'sprint') this.hud(true);
   }
-  callout(text, cls = '', pts = 0) { this.callouts.push({ text, cls, pts, t: 0 }); }
+  // one line for clears (the newest replaces the last), one for level-ups and the start
+  callout(text, cls = '', pts = 0, sub = '') { const slot = cls === 'lvl' || cls === 'go' ? 1 : 0; this.callouts = this.callouts.filter((c) => c.slot !== slot); this.callouts.push({ text, cls, pts, sub, t: 0, slot }); }
   hud(timeOnly = false) {
     const e = this.e, sh = this.sh;
     if (this.mode === 'sprint') sh.chip('t', 'Tempo', fmtMs(e.time));
@@ -246,11 +246,12 @@ export class BlocksGame {
     // countdown + callouts
     g.textAlign = 'center'; const font = getComputedStyle(this.cv).fontFamily;
     if (this.count > 0) { const n = Math.ceil(this.count / 0.4), f = (this.count % 0.4) / 0.4; g.font = `900 ${s * (2.6 + f)}px ${font}`; g.fillStyle = v.ink; g.globalAlpha = 0.4 + f * 0.6; g.fillText(String(n), ox + ww / 2, oy + hh * 0.42); g.globalAlpha = 1; }
-    this.callouts.forEach((c, i) => {
-      const p = c.t / 1.3, y = oy + hh * 0.36 - p * s * 2 + i * s * 1.3, sc = c.cls === 'big' ? 1.25 : c.cls === 'go' ? 1.6 : 0.9;
+    this.callouts.forEach((c) => {
+      const p = c.t / 1.3, pop = Math.min(1, c.t / 0.12), y = oy + hh * (c.slot ? 0.22 : 0.4) - p * s * 1.5, sc = (c.cls === 'big' ? 1.25 : c.cls === 'go' ? 1.6 : c.cls === 'lvl' ? 1 : 0.9) * (0.6 + 0.4 * pop);
       g.globalAlpha = p < 0.8 ? 1 : (1 - p) / 0.2; g.font = `900 italic ${s * sc}px ${font}`;
       g.lineWidth = Math.max(3, s * 0.18); g.strokeStyle = 'rgba(0,0,0,.55)'; g.strokeText(c.text, ox + ww / 2, y); g.fillStyle = c.cls === 'combo' ? v.acc2 : c.cls === 'lvl' ? v.acc : '#fff'; g.fillText(c.text, ox + ww / 2, y);
-      if (c.pts) { g.font = `800 ${s * 0.7}px ${font}`; g.strokeText(`+${fmt(c.pts)}`, ox + ww / 2, y + s * 0.9); g.fillStyle = v.acc2; g.fillText(`+${fmt(c.pts)}`, ox + ww / 2, y + s * 0.9); }
+      const sub = [c.pts ? `+${fmt(c.pts)}` : '', c.sub].filter(Boolean).join(' · ');
+      if (sub) { g.font = `800 ${s * 0.7}px ${font}`; g.strokeText(sub, ox + ww / 2, y + s * 0.95); g.fillStyle = v.acc2; g.fillText(sub, ox + ww / 2, y + s * 0.95); }
       g.globalAlpha = 1;
     });
     g.setTransform(1, 0, 0, 1, 0, 0);

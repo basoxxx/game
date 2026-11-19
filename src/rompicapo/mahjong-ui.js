@@ -9,7 +9,7 @@ import { THEME } from './meta.js';
 import { fmtT } from './util.js';
 import { ico } from './sudoku-ui.js';
 
-const DEPTH = 0.11; // layer lift, in tile widths
+const DEPTH = 0.15; // layer lift, in tile widths
 function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 
 // ------------------------------------------------------------------ face art (drawn once per size)
@@ -220,6 +220,7 @@ export class MahjongGame {
     const g = this.g, v = this.theme.v, th = this.thick, rad = this.tw * 0.14;
     g.globalAlpha = o.a ?? 1;
     // body (sides) then face
+    if (o.z) { g.fillStyle = 'rgba(0,0,0,.28)'; rr(g, r.x + th * 0.6, r.y + th * 0.9, r.w + th * 1.2, r.h + th * 1.2, rad); g.fill(); }
     g.fillStyle = v.back; rr(g, r.x + th * 0.2, r.y + th * 0.2, r.w + th * 0.8, r.h + th * 0.8, rad); g.fill();
     g.fillStyle = v.side; rr(g, r.x, r.y, r.w + th * 0.45, r.h + th * 0.45, rad); g.fill();
     const gr = g.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h); gr.addColorStop(0, v.face); gr.addColorStop(1, shade(v.face, -0.08));
@@ -244,7 +245,7 @@ export class MahjongGame {
       if (this.spin && !rm()) r = { ...r, y: r.y + Math.sin(this.spin * 20 + i) * 2 };
       const sel = i === this.sel, hint = this.hintPair && this.hintPair.includes(i), kf = i === this.kfocus;
       if (sel) r = { ...r, y: r.y - this.tw * 0.06 };
-      this.tile(i, r, this.faces[i], { dim: !free, ring: sel ? v.acc : hint ? `rgba(255,210,63,${0.5 + pulse * 0.5})` : kf ? v.acc2 : null, glow: sel ? 'rgba(255,255,255,.12)' : hint ? `rgba(255,220,90,${0.12 * pulse})` : null });
+      this.tile(i, r, this.faces[i], { z: this.pos[i][2], dim: !free, ring: sel ? v.acc : hint ? `rgba(255,210,63,${0.5 + pulse * 0.5})` : kf ? v.acc2 : null, glow: sel ? 'rgba(255,255,255,.12)' : hint ? `rgba(255,220,90,${0.12 * pulse})` : null });
     }
     for (const f of this.flying) { const p = f.t / 0.45; this.tile(f.i, { ...f.r, y: f.r.y - p * this.th * 0.7, x: f.r.x }, f.f, { a: 1 - p }); }
     g.setTransform(1, 0, 0, 1, 0, 0);

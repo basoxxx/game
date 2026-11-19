@@ -45,23 +45,23 @@
 .ar-sd i:nth-child(9n+3), .ar-sd i:nth-child(9n+6) { margin-right: 1px; }
 .ar-sd i.s { background: #27406e; color: #6fd0ff; animation: rpBlink 1.6s ease-in-out infinite; }
 .big .ar-sd, .rp-ghero .ar-sd { width: 190px; } .big .ar-sd i { font-size: 15px; }
-.mini .ar-sd { width: 70px; } .mini .ar-sd i { font-size: 6px; }
 @keyframes rpBlink { 50% { background: #3a5ea0; } }
 .ar-mg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; width: 124px; padding: 5px; background: #2a3557; border-radius: 10px; transform: rotate(3deg); box-shadow: 0 16px 30px -12px #000; }
 .ar-mg i { aspect-ratio: 1; border-radius: 6px; background: rgba(255,255,255,.06); font: 800 10px/1 var(--display); color: #fff; display: grid; place-items: center; font-style: normal; }
 .ar-mg i.v { background: hsl(calc(200 - var(--k) * 22) 80% 58%); animation: rpPopIn .5s var(--d) both; }
-.big .ar-mg { width: 190px; } .big .ar-mg i { font-size: 15px; } .mini .ar-mg { width: 64px; gap: 2px; padding: 3px; } .mini .ar-mg i { font-size: 0; }
+.big .ar-mg { width: 190px; } .big .ar-mg i { font-size: 15px; }
 @keyframes rpPopIn { from { transform: scale(0); } 70% { transform: scale(1.15); } }
 .ar-bk { display: grid; grid-template-columns: repeat(10, 1fr); width: 110px; padding: 3px; background: #141d34; border: 2px solid #2b3a62; border-radius: 6px; box-shadow: 0 16px 30px -12px #000; }
 .ar-bk i { aspect-ratio: 1; border-radius: 2px; }
 .ar-bk i.b { background: var(--c); box-shadow: inset 0 -2px 0 rgba(0,0,0,.25), inset 0 2px 0 rgba(255,255,255,.3); }
 .ar-bk i.fall { animation: rpFall 2.4s ease-in infinite; }
 @keyframes rpFall { 0% { transform: translateY(-40px); opacity: 0; } 15% { opacity: 1; } 70%, 100% { transform: translateY(0); } }
-.big .ar-bk { width: 150px; } .mini .ar-bk { width: 52px; }
+.big .ar-bk { width: 150px; }
 .ar-mj { position: relative; width: 150px; height: 100px; }
 .ar-mj i { position: absolute; left: calc(var(--x) * 42px + 12px - var(--z) * 5px); top: calc(var(--y) * 46px + 8px - var(--z) * 5px); width: 38px; height: 44px; border-radius: 6px; background: #f6f1e4; box-shadow: 3px 3px 0 #c9b98f, 5px 5px 0 #3a7d6a, 0 10px 18px -6px #000; display: grid; place-items: center; animation: rpPopIn .5s var(--d) both; z-index: calc(var(--z) * 10 + 1); }
 .ar-mj i b { font-size: 20px; font-style: normal; }
-.big .ar-mj { transform: scale(1.35); } .mini .ar-mj { transform: scale(.55); }
+.big .ar-mj { transform: scale(1.35); }
+.rp-art.mini > div { zoom: .52; }
 /* game page */
 .rp-ghero { --gc: #4cc3ff; display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); background: var(--s1); border: 1px solid var(--line2); border-radius: 18px; overflow: hidden; border-top: 4px solid var(--gc); }
 .rp-gh-b { padding: 20px 22px; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
@@ -129,7 +129,7 @@
 .rp-play { position: absolute; inset: 0; display: grid; color: var(--rp-ink); background: radial-gradient(120% 80% at 50% 0%, var(--rp-bg2), var(--rp-bg) 70%); font-family: var(--font, inherit);
   grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: 'hud' 'stage' 'side'; padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); gap: 8px; }
 .rp-play.land { grid-template-columns: minmax(0, 1fr) minmax(230px, 34%); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: 'stage hud' 'stage side'; column-gap: 16px; }
-.rp-play.land.wide { grid-template-columns: minmax(0, 1fr) minmax(300px, 30%); padding: 18px 28px; }
+.rp-play.land.wide { grid-template-columns: minmax(0, 1fr) minmax(300px, 30%); padding: 18px 28px; max-width: 1560px; margin: 0 auto; }
 .rp-hud { grid-area: hud; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
 .rp-pbtn { width: 44px; height: 44px; flex: none; border-radius: 12px; border: 1px solid var(--rp-line); background: var(--rp-panel); display: inline-flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; }
 .rp-pbtn i { width: 4px; height: 16px; border-radius: 2px; background: var(--rp-ink); }
@@ -284,3 +284,4 @@
   .sd-k b { font-size: 23px; } .sd-k { min-height: 50px; border-radius: 10px; }
 }
 .reduce-motion .rp-menu *, .reduce-motion .rp-play * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+.rp-play.port .rp-msg { top: calc(max(8px, env(safe-area-inset-top)) + 104px); }
