@@ -195,7 +195,8 @@ function monteCarlo(s, p, r, iters) {
   // prune to the best few by heuristic to keep it fast
   const cand = ms.map((m) => [m, evalMove(s, p, m, unseen, 'normale')]).sort((a, b) => b[1] - a[1]).slice(0, 6).map((x) => x[0]);
   const tot = new Array(cand.length).fill(0);
-  for (let it = 0; it < iters; it++) {
+  const end = Date.now() + 260; // time budget: phones stay responsive
+  for (let it = 0; it < iters && (it < 4 || Date.now() < end); it++) {
     const pool = shuffle(unseen, r);
     const w = clone(s);
     for (let q = 0; q < s.n; q++) if (q !== p) w.hands[q] = pool.splice(0, s.hands[q].length);
@@ -221,7 +222,7 @@ function ai(s, p, level, r = Math.random) {
 // ------------------------------------------------------------------ view
 function view(s, viewer, ctx = {}) {
   const P = ctx.portrait, piles = [];
-  piles.push({ id: 'deck', x: P ? 0.1 : 0.06, y: P ? 0.08 : 0.5, scale: 0.72, layout: 'stack', up: false, source: true, cards: s.deck, label: s.deck.length ? String(s.deck.length) : '' });
+  piles.push({ id: 'deck', x: P ? 0.1 : s.n >= 3 ? 0.16 : 0.06, y: P ? 0.08 : 0.5, scale: 0.72, layout: 'stack', up: false, source: true, cards: s.deck, label: s.deck.length ? String(s.deck.length) : '' });
   piles.push({ id: 'table', x: 0.5, y: P ? 0.5 : 0.48, layout: 'row', wrap: true, w: P ? 0.98 : 0.8, gap: 1.06, cards: s.table.map((c) => ({ id: c, up: true })), outline: !s.table.length && !s.over, label: s.table.length ? '' : '' });
   for (let p = 0; p < s.n; p++) {
     piles.push({ id: `hand${p}`, seat: p, slot: 'hand', cards: s.hands[p].map((c) => ({ id: c, up: p === viewer })) });
@@ -232,7 +233,7 @@ function view(s, viewer, ctx = {}) {
   return { piles, hl: s.hlTake || (s.lastMove && s.turn !== -1 ? [] : []), seats, mine: `hand${viewer}` };
 }
 const VNAME = { classica: 'Scopa', scopone: 'Scopone scientifico', assi: 'Scopa d’assi' };
-function status(s) { return `${VNAME[s.variant]} · ${s.deck.length ? `${s.deck.length} carte nel mazzo` : 'ultima mano'}${s.table.length ? ` · in tavola ${s.table.reduce((a, c) => a + rank(c), 0)}` : ''}`; }
+function status(s) { return `${VNAME[s.variant]} · ${s.deck.length ? `${s.deck.length} carte nel mazzo` : s.variant === 'scopone' ? `${s.hands[s.turn]?.length ?? 0} carte in mano` : 'ultima mano'}${s.table.length ? ` · in tavola ${s.table.reduce((a, c) => a + rank(c), 0)}` : ''}`; }
 
 const RULES = `
 <h3>Lo scopo</h3><p>Si gioca con 40 carte italiane. Si prendono carte dal tavolo per fare punti; vince chi arriva per primo a 11 (o 21) punti. Se più giocatori superano il traguardo nella stessa smazzata vince chi ha più punti; a pari punti si continua.</p>
