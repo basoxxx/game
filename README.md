@@ -238,3 +238,10 @@ Le build desktop vengono create automaticamente da GitHub Actions (`.github/work
 Tecnologie: JavaScript, Vite, Three.js, Canvas/SVG, Web Audio, Electron, electron-builder.
 
 Geometria dei circuiti: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT License).
+
+## Kart Baso
+Corse arcade di kart cartoon nel Baso Hub (`?game=kart`, categoria Corse): derapata con mini-turbo a tre livelli, partenza a razzo, acrobazie sui trampolini, monete che aumentano la velocità e scatole oggetto con power-up originali (Peperoncino e Tris, Chiazza d'olio, Bomba Rimbalzina, Ricciolo a ricerca, Scudo Bolla, Calamita, Super Moka, Sacchetto di monete).
+- **8 piloti** (Baso, Lella Lampo, Pina Pomodoro, Tito Tartufo, Gino Granito, Mimì Micia, Rocco Robot, Nonna Turbo) con statistiche diverse, 4 telai, 4 tipi di ruote e 12 vernici da sbloccare con le monete (nessuna pubblicità).
+- **8 piste in 4 coppe** (ogni coppa: due piste e le loro versioni al rovescio) con salti, scorciatoie, mucche, palloni, casse, presse, geyser, lava e una strada sospesa tra le stelle; 2 arene per la **Battaglia** a palloncini.
+- **Gran Premio** (3 cilindrate, trofei che sbloccano coppe e piloti), **Gara singola**, **Prova a tempo** con fantasma del record e medaglie, **Battaglia**, **Multigiocatore** a schermo diviso da 2 a 4 (tastiera WASD + frecce e controller); touch con comandi a schermo su telefono e tablet, in verticale e in orizzontale.
+- Codice in `src/kart/` (simulazione deterministica in `sim.js`, testabile senza browser), schermata `src/screens/kart.js`. Prove: `node tools/kart-tracks.mjs`, `node tools/kart-sim.mjs`, `node tools/kart-e2e.mjs <url>`; copertina: `node tools/kart-cover.mjs <url>`.
