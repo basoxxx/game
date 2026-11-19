@@ -116,17 +116,19 @@ function rivalsNow() {
   const list = rivalList(st, prog, hq).map((x) => ({ ...genRival(x.seed, x.diff), kind: 'rival' }));
   const rev = st.defense.reports.filter((r) => !r.revenge.done && r.revenge.until > now && r.stars > 0)
     .map((r) => ({ ...genRival(r.attacker.seed, r.attacker.diff), kind: 'revenge', rep: r.id, until: r.revenge.until }));
-  return [...rev, ...list];
+  // two generated names can collide: the later one becomes «… II»
+  const seen = new Set();
+  return [...rev, ...list].map((r) => { let n = r.name; while (seen.has(n)) n += ' II'; seen.add(n); return n === r.name ? r : { ...r, name: n }; });
 }
 function rivalCard(rv, now) {
   const done = V.st.raids.done[rv.seed];
   const on = V.rival?.seed === rv.seed;
-  const lootK = rv.kind === 'revenge' ? REVENGE_BONUS : 1;
+  const lootK = (rv.kind === 'revenge' ? REVENGE_BONUS : 1) * Math.max(0, 1 - (done?.taken || 0));
   return `<div class="ob-rv ${on ? 'on' : ''} ${rv.kind} ${done ? 'done' : ''}" data-a="ob-rival" data-seed="${rv.seed}" tabindex="0" style="--c:${rv.color}">
     <div class="ob-rv-h"><i class="ob-flag"></i><div><b>${esc(rv.name)}</b><span>${esc(rv.leader)} · ${esc(STYLE_NAMES[rv.style] || '')}</span></div>
       <em class="ob-diff d${Math.min(4, Math.ceil(rv.diff / 2.5))}">${rv.kind === 'revenge' ? 'Vendetta' : DIFF_LABEL(rv.diff)}</em></div>
-    <div class="ob-rv-s"><span title="Forza della base">${icon('shield')} ${fmt(rv.power)}</span><span title="QG">QG ${rv.hq}</span><span title="Bottino massimo">${BRICK}${fmt(rv.loot.bricks * lootK)} ${icon('coin')}${fmt(rv.loot.coins * lootK)}</span>
-      ${done ? `<span class="ob-stars">${'★'.repeat(done.stars)}${'☆'.repeat(3 - done.stars)} ${Math.round(done.pct * 100)}%</span>` : ''}
+    <div class="ob-rv-s"><span title="Forza della base">${icon('shield')} ${fmt(rv.power)}</span><span title="QG">QG ${rv.hq}</span><span title="Bottino ancora nel deposito">${BRICK}${fmt(rv.loot.bricks * lootK)} ${icon('coin')}${fmt(rv.loot.coins * lootK)}</span>
+      ${done ? `<span class="ob-stars">${'★'.repeat(done.stars)}${'☆'.repeat(3 - done.stars)} ${Math.round(done.pct * 100)}%</span>${done.taken >= 0.999 ? '<span class="ob-ttl">Deposito vuoto</span>' : ''}` : ''}
       ${rv.kind === 'revenge' ? `<span class="ob-ttl">${icon('hourglass')} ${fmtDur(rv.until - now)}</span>` : ''}</div>
   </div>`;
 }
@@ -370,12 +372,14 @@ async function attack() {
 }
 // applies a raid result (also used by tests with a fake result) → summary
 export function applyRaid(st, rv, level, r, opts = {}) {
-  const pct = destroyedPct(r, level), loot = raidLoot(rv, pct, opts), stars = raidStars(r);
+  // a base raided again only has what is left in its storage
+  const prev = st.raids.done[rv.seed], left = Math.max(0, 1 - (prev?.taken || 0));
+  const pct = destroyedPct(r, level), full = raidLoot(rv, pct, opts), stars = raidStars(r);
+  const loot = { coins: Math.round(full.coins * left), bricks: Math.round(full.bricks * left) };
   st.bricks += loot.bricks; G.addCoins(st, loot.coins);
   st.stats.raids++; if (r.win) st.stats.raidWins++; st.stats.stars += stars;
   st.stats.looted.coins += loot.coins; st.stats.looted.bricks += loot.bricks;
-  const prev = st.raids.done[rv.seed];
-  if (!prev || pct > prev.pct) st.raids.done[rv.seed] = { pct, stars: Math.max(stars, prev?.stars || 0) };
+  st.raids.done[rv.seed] = { pct: Math.max(pct, prev?.pct || 0), stars: Math.max(stars, prev?.stars || 0), taken: Math.min(1, (prev?.taken || 0) + Math.min(1, pct) * left) };
   if (opts.revenge) { const rep = st.defense.reports.find((q) => q.attacker.seed === rv.seed); if (rep) rep.revenge.done = true; st.stats.revenges++; }
   return { pct, loot, stars, win: !!r.win };
 }
