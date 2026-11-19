@@ -14,7 +14,7 @@ export const radiusOf = (m) => Math.min(3.4, 0.55 + 0.07 * Math.sqrt(Math.max(0,
 export const lengthOf = (m) => Math.min((CAP - 16) * HS, 5 + Math.max(0, m) * 0.18);
 export const turnOf = (r) => 4.6 / (0.55 + r * 0.45);
 const CELL = 8;
-const FOODCAP = 6000, SEGCAP = 40000;
+const FOODCAP = 8000, SEGCAP = 40000;
 const TAU = Math.PI * 2;
 const wrap = (a) => { a %= TAU; if (a > Math.PI) a -= TAU; else if (a < -Math.PI) a += TAU; return a; };
 const hexNum = (h) => parseInt(h.slice(1), 16);
@@ -81,7 +81,7 @@ export class Sim {
     this.segStart = new Int32Array(N + 1); this.segIdx = new Int32Array(SEGCAP);
     this.foodStart = new Int32Array(N + 1); this.foodIdx = new Int32Array(FOODCAP);
     this.cellOf = new Int32Array(Math.max(SEGCAP, FOODCAP));
-    this.foodTarget = Math.round(((this.R * this.R) / (200 * 200)) * 1500 * this.foodMul);
+    this.foodTarget = Math.round(((this.R * this.R) / (200 * 200)) * 2400 * this.foodMul);
     this.powerT = 6;
     this.pal = this.arena.pal.map(hexNum);
     this.tmp = [0, 0];

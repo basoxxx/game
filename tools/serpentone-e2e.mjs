@@ -63,10 +63,12 @@ for (const C of CASES) {
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${OUT}/${C.name}-game.png` });
   // pause overlay
-  await page.evaluate(() => window.__serpentone.togglePause(true));
-  await page.waitForSelector('.sp-pause');
-  await page.screenshot({ path: `${OUT}/${C.name}-pause.png` });
-  await page.evaluate(() => window.__serpentone.togglePause(false));
+  if (!info.over) { // (a one-life mode can already be over: the autopilot may have crashed)
+    await page.evaluate(() => window.__serpentone.togglePause(true));
+    await page.waitForSelector('.sp-pause');
+    await page.screenshot({ path: `${OUT}/${C.name}-pause.png` });
+    await page.evaluate(() => window.__serpentone.togglePause(false));
+  }
   // play to the end (time out, last survivor or death)
   const end = await page.evaluate(() => {
     const g = window.__serpentone;

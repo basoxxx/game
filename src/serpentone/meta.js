@@ -17,10 +17,10 @@ export const MODES = {
 
 // pal: food colours · ground: shader preset · sky: background · border: rim style
 export const ARENAS = {
-  giardino: { name: 'Giardino', sub: 'Prato all’inglese, siepi e fiori', sky: '#9fd8ff', fog: '#cfeeff', ground: 0, a: '#5fbf4a', b: '#4aa83c', c: '#2f7d2a', rim: '#3f8f33', glow: 0.15, sun: '#fff4dc', amb: 0.95, pal: ['#ff4d6d', '#ffd23f', '#ff8fd8', '#ffffff', '#ff9f1c', '#b388ff'] },
+  giardino: { name: 'Giardino', sub: 'Prato all’inglese, siepi e fiori', sky: '#9fd8ff', fog: '#cfeeff', ground: 0, a: '#5fbf4a', b: '#4aa83c', c: '#2f7d2a', rim: '#3f8f33', glow: 0.15, sun: '#fff4dc', amb: 0.95, pal: ['#ff4d6d', '#ffd23f', '#ff8fd8', '#7cf5ff', '#ff9f1c', '#b388ff'] },
   spiaggia: { name: 'Spiaggia', sub: 'Sabbia calda, conchiglie e onde', sky: '#7fd3ff', fog: '#d9f5ff', ground: 1, a: '#f3d9a4', b: '#e8c98a', c: '#d4ad6a', rim: '#8b5a2b', glow: 0.18, sun: '#fff1d0', amb: 1.0, pal: ['#ff5d8f', '#00c2d1', '#ffbe0b', '#fb5607', '#8338ec', '#3a86ff'] },
   neon: { name: 'Città neon', sub: 'Notte, griglie luminose e insegne', sky: '#0b0620', fog: '#1c0b3a', ground: 2, a: '#120a2a', b: '#1b0f3d', c: '#ff2bd6', rim: '#00e5ff', glow: 0.9, sun: '#b79cff', amb: 0.55, night: true, pal: ['#ff2bd6', '#00e5ff', '#fff34f', '#7cff6b', '#ff7a1a', '#a46bff'] },
-  spazio: { name: 'Stazione spaziale', sub: 'Pannelli in orbita, stelle e pianeti', sky: '#02030a', fog: '#05081a', ground: 3, a: '#3a4352', b: '#2c3442', c: '#58d0ff', rim: '#ff9f1c', glow: 0.7, sun: '#dfe8ff', amb: 0.7, night: true, pal: ['#58d0ff', '#ffe66d', '#ff6b9a', '#9bff8a', '#c9a0ff', '#ffffff'] },
+  spazio: { name: 'Stazione spaziale', sub: 'Pannelli in orbita, stelle e pianeti', sky: '#02030a', fog: '#05081a', ground: 3, a: '#3a4352', b: '#2c3442', c: '#58d0ff', rim: '#ff9f1c', glow: 0.7, sun: '#dfe8ff', amb: 0.7, night: true, pal: ['#58d0ff', '#ffe66d', '#ff6b9a', '#9bff8a', '#c9a0ff', '#ffb36b'] },
 };
 
 export const DIFFS = {

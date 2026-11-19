@@ -12,7 +12,7 @@ const quiet = (o = {}) => new Sim({ seed: 7, rivals: 0, ...o });
 // --- growth: eating food grows mass, radius and length
 {
   const s = quiet(); const p = s.players[0];
-  for (let i = 0; i < 6000; i++) if (s.fa[i]) s.killFood(i);
+  for (let i = 0; i < s.fa.length; i++) if (s.fa[i]) s.killFood(i);
   p.input.ta = p.a;
   const m0 = p.m, L0 = p.L;
   for (let k = 1; k <= 12; k++) s.spawnFood(p.x + Math.cos(p.a) * k * 1.5, p.z + Math.sin(p.a) * k * 1.5, 2, 0xffffff);
@@ -38,7 +38,7 @@ const quiet = (o = {}) => new Sim({ seed: 7, rivals: 0, ...o });
 {
   const s = quiet(); const p = s.players[0]; p.m = 100; p.input.ta = p.a; p.input.boost = true;
   const f0 = s.nFood; const x0 = p.x, z0 = p.z;
-  for (let i = 0; i < 6000; i++) if (s.fa[i]) s.killFood(i);
+  for (let i = 0; i < s.fa.length; i++) if (s.fa[i]) s.killFood(i);
   p.x = 0; p.z = 0; p.a = 0; p.input.ta = 0;
   run(s, 1.5);
   ok(p.m < 100, `boost costs mass (${p.m.toFixed(1)})`);
@@ -49,7 +49,7 @@ const quiet = (o = {}) => new Sim({ seed: 7, rivals: 0, ...o });
 // --- head into a body: the head's owner dies, the other gets the kill, the body becomes food
 {
   const s = new Sim({ seed: 3, rivals: 1 }); const p = s.players[0], r = s.snakes[1];
-  for (let i = 0; i < 6000; i++) if (s.fa[i]) s.killFood(i);
+  for (let i = 0; i < s.fa.length; i++) if (s.fa[i]) s.killFood(i);
   r.ai = false; r.spawn(0, 0, 0, 200); r.input.ta = 0; // long rival heading +x along z=0
   run(s, 1);
   p.spawn(r.x - 8, -12, Math.PI / 2, 20); p.input.ta = Math.PI / 2; p.spawnT = 0; r.spawnT = 0; // player crosses its body

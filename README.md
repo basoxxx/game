@@ -238,3 +238,6 @@ Le build desktop vengono create automaticamente da GitHub Actions (`.github/work
 Tecnologie: JavaScript, Vite, Three.js, Canvas/SVG, Web Audio, Electron, electron-builder.
 
 Geometria dei circuiti: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT License).
+
+## Serpentone (Arcade)
+Serpenti cartoon in quattro arene (Giardino, Spiaggia, Città neon, Stazione spaziale): mangia le palline luminose per allungarti, scatta spendendo lunghezza, fai schiantare le rivali contro il tuo corpo e raccogli il loro cibo. Modalità **Classica** (3 minuti, vince chi chiude in testa), **Sopravvivenza** (una vita sola), **Battaglia reale** (l'arena si stringe, nessuna rinascita), **2 giocatori** a schermo diviso e **Arena del giorno** con una variante diversa ogni giorno. Rivali con personalità (goloso, cacciatore, prudente, spericolato, avvolgente) e tre difficoltà, potenziamenti (Calamita, Fantasma, Turbo, Cibo x2), missioni, colori, motivi e cappelli sbloccabili con le monete guadagnate giocando (niente pubblicità, niente acquisti). Mouse, tastiera, controller, joystick o sterzo touch; telefono e tablet in verticale e orizzontale. Link diretto: `?game=serpentone`. Test: `node tools/serpentone-test.mjs` (simulazione) e `node tools/serpentone-e2e.mjs` (browser); copertina: `node tools/serpentone-cover.mjs`.

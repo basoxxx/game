@@ -74,9 +74,9 @@ export function buildHead(color, hat, accent) {
   const eyeM = mat('#ffffff', { shininess: 120 }), pupM = mat('#111111', { shininess: 150, specular: '#ffffff' });
   const eyes = [];
   for (const s of [-1, 1]) {
-    const e = new THREE.Group(); e.position.set(0.45, 0.48, s * 0.45); g.add(e);
-    const w = new THREE.Mesh(geo('eye', () => new THREE.SphereGeometry(0.4, 16, 12)), eyeM); e.add(w);
-    const p = new THREE.Mesh(geo('pupil', () => new THREE.SphereGeometry(0.21, 12, 10)), pupM); p.position.set(0.25, 0.02, 0); e.add(p);
+    const e = new THREE.Group(); e.position.set(0.62, 0.42, s * 0.42); g.add(e);
+    const w = new THREE.Mesh(geo('eye', () => new THREE.SphereGeometry(0.32, 16, 12)), eyeM); e.add(w);
+    const p = new THREE.Mesh(geo('pupil', () => new THREE.SphereGeometry(0.18, 12, 10)), pupM); p.position.set(0.2, 0.06, 0); e.add(p);
     eyes.push({ e, p });
   }
   const tongue = new THREE.Mesh(geo('tongue', () => { const b = new THREE.BoxGeometry(0.9, 0.04, 0.12); b.translate(0.45, 0, 0); return b; }), mat('#ff2f5a'));

@@ -17,7 +17,7 @@ import { buildArena } from './arena.js';
 import { buildHead } from './looks.js';
 import { vsfx, osfx, sfx as uisfx } from '../ui/audio.js';
 
-const MAXI = 16000, MAXF = 6000;
+const MAXI = 16000, MAXF = 8000;
 const lin = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
 const hexRGB = (n) => [lin(((n >> 16) & 255) / 255), lin(((n >> 8) & 255) / 255), lin((n & 255) / 255)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -273,7 +273,7 @@ export class SerpentoneGame {
       const H = v.head, r = s.r * 1.12;
       H.g.position.set(s.x, s.r * 0.86, s.z); H.g.scale.setScalar(r); H.g.rotation.y = -s.a;
       const turn = Math.max(-1, Math.min(1, ((s.ta - s.a + Math.PI * 3) % (Math.PI * 2)) - Math.PI));
-      for (const e of H.eyes) { e.p.position.z = turn * 0.12; e.p.position.y = 0.02 + Math.sin(t * 1.3 + s.id) * 0.03; }
+      for (const e of H.eyes) { e.p.position.z = turn * 0.12; e.p.position.y = 0.06 + Math.sin(t * 1.3 + s.id) * 0.03; }
       v.blink -= dt; if (v.blink < 0) { const k2 = v.blink > -0.12 ? 0.1 : 1; for (const e of H.eyes) e.e.scale.y = k2; if (v.blink < -0.12) v.blink = 2 + Math.random() * 4; }
       v.tongue -= dt;
       if (v.tongue < 0) { const u = -v.tongue / 0.35; H.tongue.scale.x = u < 1 ? Math.sin(u * Math.PI) + 0.001 : 0.001; if (u >= 1) v.tongue = 2 + Math.random() * 4; }
@@ -493,8 +493,8 @@ export class SerpentoneGame {
         const b = Math.ceil(this.count); this.count -= dt; const a = Math.ceil(this.count);
         const el = this.$('sp-count');
         if (a !== b || !el.textContent) { el.textContent = a > 0 ? a : 'Via!'; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); this.snd.beep(a <= 0); }
-        if (this.count <= 0) setTimeout(() => { if (el) el.textContent = ''; }, 700);
       } else {
+        if (this.count > -1) { this.count -= dt; if (this.count <= -0.8) this.$('sp-count').textContent = ''; }
         for (const v of this.views) { if (v.p.boosting && !v.wasB) this.snd.whoosh(); v.wasB = v.p.boosting; }
         this.sim.step(dt);
       }
@@ -533,7 +533,7 @@ export class SerpentoneGame {
       } else if (e.t === 'die') {
         const s = sim.snakes[e.s], by = e.by >= 0 ? sim.snakes[e.by] : null;
         if (near(e.x, e.z)) {
-          const vis = this.vis[s.id], cols = vis?.cols || [1, 1, 1], q = [0, 0];
+          const vis = this.vis[s.id], cols = vis?.cols?.length >= 18 ? vis.cols : new Float32Array(18).fill(1), q = [0, 0];
           for (let i = 0; i < 40; i++) { s.sample((i / 40) * s.L, q); const a = Math.random() * 6.28, sp = 3 + Math.random() * 6; this.fx.emit(q[0], s.r, q[1], Math.cos(a) * sp, 4 + Math.random() * 6, Math.sin(a) * sp, cols[(i % 6) * 3] + 0.3, cols[(i % 6) * 3 + 1] + 0.3, cols[(i % 6) * 3 + 2] + 0.3, 0.9 + s.r * 0.3, 0.9); }
           if (s.player < 0 && (!by || by.player < 0)) this.snd.far();
         }
