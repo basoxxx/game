@@ -22,3 +22,6 @@ metal_jerrycan_green (derby/jerrycan.*).
 Voragine facades (voragine/f_*.webp, 1k webp; *_e = night window emission, partly generated from the colour maps):
 ambientCG (https://ambientcg.com) - CC0 1.0 Public Domain: Facade001, Facade003, Facade006, Facade017, Facade018A.
 Road grain reuses tex/asphalt_02 (Poly Haven, CC0).
+
+Officina: no external assets. Garage, track, parts, crates and the kart are procedural (three.js); the race
+cars are Apex Dynasty's own procedural models (src/ui/cars). Cover rendered from the game (tools/officina-cover.mjs).

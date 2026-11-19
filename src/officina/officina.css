@@ -232,9 +232,9 @@
 .of-race { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
 .of-race > * { pointer-events: auto; }
 .of-race-hud { position: absolute; inset: 0; pointer-events: none; }
-.ofr { position: absolute; inset: 0; pointer-events: none; font-family: var(--display); }
+.ofr { position: absolute; inset: 0; pointer-events: none; font-family: var(--display); text-shadow: 0 1px 3px rgba(0,0,0,.85), 0 0 12px rgba(0,0,0,.35); }
 .ofr button { pointer-events: auto; }
-.ofr-top { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 12px; padding: 10px 14px; padding-top: max(10px, env(safe-area-inset-top)); background: linear-gradient(180deg, rgba(0,0,0,.65), transparent); }
+.ofr-top { position: absolute; left: 0; right: 0; top: 0; height: 110px; display: flex; align-items: flex-start; gap: 12px; padding: 10px 14px; padding-top: max(10px, env(safe-area-inset-top)); background: linear-gradient(180deg, rgba(0,0,0,.7), rgba(0,0,0,.35) 70%, transparent); }
 .ofr-ev { display: flex; flex-direction: column; min-width: 0; }
 .ofr-ev b { font-size: 22px; font-style: italic; text-transform: uppercase; line-height: 1; }
 .ofr-ev span { font-family: var(--font); font-size: 12px; color: var(--text2); }

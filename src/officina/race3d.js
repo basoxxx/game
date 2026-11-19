@@ -66,9 +66,16 @@ export class RaceView {
     for (let k = 0; k < 5; k++) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8), new THREE.MeshStandardMaterial({ color: 0x220000, emissive: 0x000000 })); l.position.set(0.35, 6, (k - 2) * 0.9); gan.add(l); this.lights.push(l); }
     gan.position.set(p0.x + Math.cos(p0.h) * 3, 0, p0.z + Math.sin(p0.h) * 3); gan.rotation.y = -p0.h; sc.add(gan);
     // grandstand by the start, trees around
-    const stand = new THREE.Mesh(new THREE.BoxGeometry(30, 5, 8), new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.8 }));
-    stand.position.set(p0.x - Math.sin(p0.h) * (W / 2 + 12) + 5, 2.5, p0.z + Math.cos(p0.h) * (W / 2 + 12)); stand.rotation.y = -p0.h; sc.add(stand);
-    const crowd = new THREE.Mesh(new THREE.BoxGeometry(29, 0.8, 7), new THREE.MeshStandardMaterial({ map: crowdTex(), roughness: 1 })); crowd.position.copy(stand.position).setY(5.3); crowd.rotation.y = stand.rotation.y; sc.add(crowd);
+    // grandstand beside the start, on whichever side keeps it clear of the track
+    const clear = (x, z) => { for (let i = 0; i < tr.n; i += 2) if (Math.hypot(tr.x[i] - x, tr.z[i] - z) < W / 2 + 9) return false; return true; };
+    for (const side of [1, -1]) {
+      const d = side * (W / 2 + 14), x = p0.x - Math.sin(p0.h) * d + Math.cos(p0.h) * 6, z = p0.z + Math.cos(p0.h) * d + Math.sin(p0.h) * 6;
+      if (!clear(x, z) || !clear(x + Math.cos(p0.h) * 14, z + Math.sin(p0.h) * 14) || !clear(x - Math.cos(p0.h) * 14, z - Math.sin(p0.h) * 14)) continue;
+      const stand = new THREE.Mesh(new THREE.BoxGeometry(30, 5, 8), new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.8 }));
+      stand.position.set(x, 2.5, z); stand.rotation.y = -p0.h; sc.add(stand);
+      const crowd = new THREE.Mesh(new THREE.BoxGeometry(29, 0.8, 7), new THREE.MeshStandardMaterial({ map: crowdTex(), roughness: 1 })); crowd.position.copy(stand.position).setY(5.3); crowd.rotation.y = stand.rotation.y; sc.add(crowd);
+      break;
+    }
     const nT = this.g.tier === 'low' ? 60 : 160;
     const cone = new THREE.InstancedMesh(new THREE.ConeGeometry(2.2, 7, 7), new THREE.MeshStandardMaterial({ color: '#2f6b35', roughness: 0.9 }), nT);
     const m4 = new THREE.Matrix4(); let placed = 0, tries = 0;

@@ -133,7 +133,7 @@ export function crateModel(kind = 'car', len = 1.3) {
 export function itemModel(it, cell) {
   if (!it) return null;
   if (it.k === 'car') return carModel(it.t, cell * 0.92);
-  if (it.k === 'part') return partModel(it.p, it.t, cell * 0.62);
+  if (it.k === 'part') return partModel(it.p, it.t, cell * (it.p === 'motore' ? 0.48 : 0.56));
   return crateModel(it.c, cell * 0.55);
 }
 export function disposeModels() {
