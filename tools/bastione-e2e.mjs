@@ -114,6 +114,7 @@ for (const [w, h, mobile, lvl] of [[1440, 900, false, 18], [1024, 768, true, 12]
   await page.evaluate(() => { const g = window.__bastione.game, s = g.sim.slots.find((q) => !q.tower) || g.sim.slots[0]; g.openSlot(s.i); });
   await page.waitForTimeout(500);
   await shot(page, `${w}x${h}-menu-open`);
+  ok(!(await page.evaluate(() => window.__bastione.game.renderer.getContext().isContextLost())), `${w}x${h}: WebGL context alive`);
   const over = await page.evaluate(() => { const p = document.getElementById('bs-pop').getBoundingClientRect(); return p.right <= innerWidth + 1 && p.bottom <= innerHeight + 1 && p.left >= -1 && p.top >= -1; });
   ok(over, `${w}x${h}: the build menu fits on screen`);
   const scroll = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);

@@ -186,6 +186,8 @@ export class BastioneGame {
     const tex = this.paintMap();
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 40), new THREE.MeshLambertMaterial({ map: tex }));
     ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+    const outer = new THREE.Mesh(new THREE.PlaneGeometry(320, 320), new THREE.MeshLambertMaterial({ color: wd.ground2 }));
+    outer.rotation.x = -Math.PI / 2; outer.position.y = -0.03; outer.receiveShadow = true; scene.add(outer);
     this.ground = ground;
     // pads, keep, entry gates
     this.pads = S.slots.map((sl) => { const p = padModel(); p.position.set(sl.x, 0, sl.z); scene.add(p); return p; });
@@ -270,6 +272,11 @@ export class BastioneGame {
       const x = (rnd() - 0.5) * W, z = (rnd() - 0.5) * H;
       if (S.paths.some((p) => p.samples.some((q) => (q.x - x) ** 2 + (q.z - z) ** 2 < 2))) continue;
       c.fillStyle = this.level.world === 3 ? 'rgba(255,120,40,.5)' : this.level.world === 2 ? 'rgba(255,255,255,.8)' : dots[i % 4]; c.beginPath(); c.arc(X(x), Z(z), (0.06 + rnd() * 0.08) * PX, 0, 7); c.fill();
+    }
+    // fade the edges of the painted ground into the plain outer ground (no visible seam)
+    const fade = 8 * PX;
+    for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [[0, 0, fade, 0, 0, 0, fade, cv.height], [cv.width, 0, cv.width - fade, 0, cv.width - fade, 0, fade, cv.height], [0, 0, 0, fade, 0, 0, cv.width, fade], [0, cv.height, 0, cv.height - fade, 0, cv.height - fade, cv.width, fade]]) {
+      const g2 = c.createLinearGradient(x0, y0, x1, y1); g2.addColorStop(0, wd.ground2); g2.addColorStop(1, wd.ground2 + '00'); c.fillStyle = g2; c.fillRect(rx, ry, rw, rh);
     }
     // map border: a soft frame where the playfield ends
     c.strokeStyle = 'rgba(0,0,0,.08)'; c.lineWidth = 0.3 * PX; c.setLineDash([0.6 * PX, 0.6 * PX]); c.strokeRect(X(-MAP_W / 2), Z(-MAP_H / 2), MAP_W * PX, MAP_H * PX); c.setLineDash([]);
@@ -511,9 +518,10 @@ export class BastioneGame {
   placePop() {
     const pop = this.$('bs-pop'), sel = this.sel; if (!pop.classList.contains('on') || sel?.kind !== 'slot') return;
     const sl = this.sim.slots[sel.i], p = this.toScreen(sl.x, 1, sl.z);
-    const W = this.root.clientWidth, H = this.root.clientHeight, pw = pop.offsetWidth, ph = pop.offsetHeight;
+    const W = this.root.clientWidth, H = this.root.clientHeight;
     if (W < 560) { pop.classList.add('sheet'); pop.classList.remove('wide'); pop.style.left = ''; pop.style.top = ''; return; }
     pop.classList.remove('sheet'); pop.classList.toggle('wide', H < 560);
+    const pw = pop.offsetWidth, ph = pop.offsetHeight;
     let x = p.x + 46, y = p.y - ph / 2;
     if (x + pw > W - 10) x = p.x - 46 - pw;
     x = Math.max(10, Math.min(W - pw - 10, x)); y = Math.max(H < 560 ? 52 : 64, Math.min(H - ph - 8, y));

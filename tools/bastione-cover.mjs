@@ -2,7 +2,8 @@
 // Needs a running preview (npx vite preview --port 4664). Writes public/covers/bastione.webp (1600x900).
 // A campaign level is played by the autopilot until the road is crowded, every tower gets its
 // specialisation, then a low three-quarter camera frames the towers firing at the red wave with the
-// blue keep behind. Tweak with COVER_LEVEL, COVER_T (seconds of play), COVER_YAW, COVER_DIST, COVER_PITCH.
+// blue keep behind, the action on the right (the hub puts the title on the left).
+// Tweak with COVER_LEVEL, COVER_T (seconds of play), COVER_YAW, COVER_DIST, COVER_PITCH, COVER_PAN.
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
 const require = createRequire(import.meta.url);
@@ -17,7 +18,7 @@ const store = JSON.stringify({ stars: Object.fromEntries(Array.from({ length: 23
 await page.addInitScript(([s, st]) => { localStorage.setItem('apexdynasty_settings', s); localStorage.setItem('sala_bastione_v1', st); }, [settings, store]);
 page.on('pageerror', (e) => console.log('pageerror', e.message));
 await page.goto(BASE + '?game=bastione'); await page.waitForSelector('.bs-menu');
-const env = { level: +(process.env.COVER_LEVEL || 4), t: +(process.env.COVER_T || 150), yaw: +(process.env.COVER_YAW || 0.5), dist: +(process.env.COVER_DIST || 25), pitch: +(process.env.COVER_PITCH || 0.62) };
+const env = { level: +(process.env.COVER_LEVEL || 4), t: +(process.env.COVER_T || 150), yaw: +(process.env.COVER_YAW || 0.5), dist: +(process.env.COVER_DIST || 25), pitch: +(process.env.COVER_PITCH || 0.62), pan: +(process.env.COVER_PAN || 0.3) };
 await page.evaluate((id) => window.__bastione.play(id), env.level);
 await page.waitForFunction(() => window.__bastione?.game?.sim && window.__bastione.game.cam, null, { timeout: 120000 });
 await page.waitForTimeout(1500);
@@ -37,7 +38,7 @@ const info = await page.evaluate(async (E) => {
   // frame: centre of the enemies near the towers, looking towards the keep
   const es = S.enemies.filter((e) => e.hp > 0); const c = es.length ? es.reduce((a, e) => ({ x: a.x + e.x / es.length, z: a.z + e.z / es.length }), { x: 0, z: 0 }) : { x: 0, z: 0 };
   const k = S.keep, ang = Math.atan2(k.x - c.x, k.z - c.z) + E.yaw;
-  g.camOverride = (cam) => { cam.fov = 40; cam.updateProjectionMatrix(); const fx = c.x * 0.6 + k.x * 0.4, fz = c.z * 0.6 + k.z * 0.4; cam.position.set(fx - Math.sin(ang) * E.dist * Math.cos(E.pitch), E.dist * Math.sin(E.pitch), fz - Math.cos(ang) * E.dist * Math.cos(E.pitch)); cam.lookAt(fx, 0.5, fz); };
+  g.camOverride = (cam) => { cam.fov = 40; cam.updateProjectionMatrix(); const fx = c.x * 0.6 + k.x * 0.4, fz = c.z * 0.6 + k.z * 0.4; cam.position.set(fx - Math.sin(ang) * E.dist * Math.cos(E.pitch), E.dist * Math.sin(E.pitch), fz - Math.cos(ang) * E.dist * Math.cos(E.pitch)); cam.lookAt(fx, 0.5, fz); cam.rotateY(E.pan); };
   g.placeCamera(); for (let i = 0; i < 4; i++) g.render(0.3);
   return { enemies: es.length, towers: S.towers.map((t) => t.def.id + t.tier + ':' + t.spec).join(' '), wave: S.wave };
 }, env);

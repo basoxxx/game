@@ -238,3 +238,9 @@ Le build desktop vengono create automaticamente da GitHub Actions (`.github/work
 Tecnologie: JavaScript, Vite, Three.js, Canvas/SVG, Web Audio, Electron, electron-builder.
 
 Geometria dei circuiti: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT License).
+
+## Bastione (Strategia · tower defense)
+Mappe 3D in stile cartone dove ondate di fagiolini rossi (fanti, lesti, scudati, bruti, volanti, gemelli che si dividono, sciamani guaritori e 4 capi) marciano verso il tuo castello. 9 torri originali (Balestra, Cannone, Gelo, Tesla, Mortaio, Cecchino, Veleno, Caserma con difensori blu, Miniera d'oro) con 3 livelli e 2 specializzazioni ciascuna, 4 eroi con due abilità, 3 incantesimi. 24 livelli in 4 mondi con 3 stelle, Infinita, Sfida del giorno, tre difficoltà, velocità x1/x2/x3, pausa per pianificare; monete e gemme si guadagnano solo giocando (albero dei potenziamenti, eroi). Tocco, mouse, tastiera e controller; PC, tablet e telefono in verticale e orizzontale.
+- `src/bastione/` – dati, mappe, simulazione deterministica, autopilota, grafica three.js; `src/screens/bastione.js` – menu e risultati
+- `node tools/bastione-balance.mjs check` – ogni livello vinto dall'autopilota, stelle sensate (anche `tune`, `casual`, `endless`)
+- `node tools/bastione-e2e.mjs <url> [cartella]` – prova nel browser; `node tools/bastione-cover.mjs <url>` – copertina
