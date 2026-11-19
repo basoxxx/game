@@ -20,7 +20,7 @@ import { snd, setVolume } from './sound.js';
 import { PAINTS, THEMES, MECH_RULE } from './meta.js';
 import { job } from './jobs.js';
 
-const CAR_COLORS = ['#3aa0ff', '#ffc928', '#3fe0b0', '#ff8a3d', '#9b5cff', '#ff7ac8', '#7ad14a', '#f2f2f2', '#4a5bff', '#22c3c3'];
+const CAR_COLORS = ['#3aa0ff', '#ff9f1c', '#3fe0b0', '#ff6b4a', '#9b5cff', '#ff7ac8', '#7ad14a', '#c9a0ff', '#4a5bff', '#22c3c3'];
 const VAN_COLORS = ['#f2f2f2', '#ff8a3d', '#3aa0ff', '#7ad14a', '#ffc928'];
 const fmtT = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));

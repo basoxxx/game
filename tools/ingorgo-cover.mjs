@@ -33,14 +33,14 @@ await page.evaluate((E) => {
   // a little extra life: confetti burst and a couple of cars hopping, eyes wide
   const B = g.B, hc = B.cars[B.hero];
   g.confetti(hc.ax === 0 ? B.w / 2 : 0, hc.ax === 0 ? hc.fix - B.h / 2 + 0.5 : -B.h / 2, 200);
-  for (let i = 0; i < 26; i++) g.step(1 / 60);
+  for (let i = 0; i < 12; i++) g.step(1 / 60);
   g.vs.forEach((v, k) => { if (k % 3 === 1) v.hop = 0.2; v.blink = 3; });
   g.step(1 / 60);
   g.paused = true;
   const hp = g.vs[B.hero].g.position;
   g.camOverride = (cam) => {
     cam.clearViewOffset(); cam.aspect = innerWidth / innerHeight; cam.fov = E.fov; cam.updateProjectionMatrix();
-    const tx = hp.x * 0.45, tz = hp.z * 0.5;
+    const tx = hp.x * 0.3, tz = hp.z * 0.4;
     cam.position.set(tx + Math.sin(E.yaw) * Math.cos(E.pitch) * E.dist, Math.sin(E.pitch) * E.dist, tz + Math.cos(E.yaw) * Math.cos(E.pitch) * E.dist);
     cam.lookAt(tx, 0.2, tz);
   };
