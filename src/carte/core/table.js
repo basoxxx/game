@@ -52,7 +52,7 @@ export class CardTable {
     const rels = new Set((SEATS[this.n] || SEATS[4]).map((s) => s));
     const sides = rels.has('l') || rels.has('r');
     const sz = this.view?.size || 1;
-    let ch = Math.min(H * (portrait ? 0.17 : 0.215), (W / this.aspect) * (portrait ? 0.25 : 0.15)) * sz;
+    let ch = Math.min(H * (portrait ? 0.17 : H < 520 ? 0.25 : 0.215), (W / this.aspect) * (portrait ? 0.25 : 0.15)) * sz;
     ch = clamp(ch, 64, 230);
     const cw = ch * this.aspect, pad = Math.max(8, Math.min(W, H) * 0.02);
     const os = portrait ? 0.5 : 0.56; // opponents' card scale
@@ -80,7 +80,7 @@ export class CardTable {
       if (r === 'b') return { x: W - cw * s * 0.5 - pad - 4, y: H - ch * s * 0.5 - pad, rot: 0, scale: s };
       if (r === 'r') return { x: W - cw * s * 0.6 - pad, y: M.C.y + ch * s * 0.5, rot: -90, scale: s };
       if (r === 't' || r === 'tl' || r === 'tr') return { x: (r === 'tr' ? W * 0.73 + ocw * 2.2 : r === 'tl' ? W * 0.27 - ocw * 2.2 : cw * s * 0.5 + pad + 4), y: ch * s * 0.5 + pad, rot: 180, scale: s };
-      return { x: cw * s * 0.6 + pad, y: H - ch * 1.3 - pad, rot: 90, scale: s };
+      return { x: cw * s * 0.6 + pad, y: Math.min(H - ch * s * 0.6 - pad - 50, H * 0.44 + H * 0.21 + ch * s * 0.6), rot: 90, scale: s };
     }
     if (slot === 'meld') { // a row in front of the seat (melds, a personal tableau)
       const d = 0.62;
@@ -245,10 +245,10 @@ export class CardTable {
       if (s.color) el.style.setProperty('--sc', s.color);
       el.innerHTML = `<b>${s.name || ''}</b>${s.sub ? `<span>${s.sub}</span>` : ''}${s.think ? '<i class="ct-dots"><i></i><i></i><i></i></i>' : ''}`;
       let x, y;
-      if (r === 'b') { x = M.pad; y = M.H - M.ch - M.pad * 2.2 - 34; if (M.portrait) { x = M.pad; y = M.C.y + M.C.h - 4; } }
-      else if (r === 't' || r === 'tl' || r === 'tr') { x = a.x + M.ocw * 1.6; y = M.pad * 0.5; if (r === 't' && M.portrait) { x = M.pad; } }
-      else if (r === 'l') { x = M.pad * 0.5; y = a.y + M.ocw * 2.6; }
-      else { x = M.W - M.pad * 0.5; y = a.y - M.ocw * 2.6 - 40; }
+      if (r === 'b') { x = M.pad; y = M.H - M.pad - 42; }
+      else if (r === 't' || r === 'tl' || r === 'tr') { x = Math.min(M.W - 170, a.x + M.ocw * 1.5); y = M.pad * 0.5; }
+      else if (r === 'l') { x = M.pad * 0.5; y = a.y - 22; }
+      else { x = M.W - M.pad * 0.5; y = a.y - 22; }
       el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)${r === 'r' ? ' translateX(-100%)' : ''}`;
     });
     for (const [p, el] of this.seatEls) if (!keep.has(p)) { el.remove(); this.seatEls.delete(p); }
