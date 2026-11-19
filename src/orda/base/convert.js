@@ -16,7 +16,7 @@ import { GRID, BUILDINGS, REVENGE_BONUS } from './data.js';
 import { rng, hash } from './logic.js';
 
 const W = 16, COLW = 1.65;
-export let HP_K = 1.1; // raid bases are sturdier than campaign levels of the same rank (walls and traps are gentler than pits and saws)
+export let HP_K = 1.5; // raid bases are sturdier than campaign levels of the same rank (walls and traps are gentler than pits and saws)
 export const setHpK = (k) => { HP_K = k; };
 export const colX = (c) => +((c + 0.5 - GRID / 2) * COLW).toFixed(2);
 // campaign level the rival matches (1..30) and the campaign's base HP curve for non-boss levels
@@ -25,7 +25,8 @@ export const hpCurve = (n) => Math.round((30 + 38 * n + 1.6 * n * n) / 10) * 10;
 const WORLD_OF = (n) => Math.min(5, Math.floor((n - 1) / 5));
 
 export function layoutToLevel(rival, opts = {}) {
-  const L = rival.layout, n = eqLevel(rival.diff), R = rng(hash('lvl', rival.seed, n));
+  // n: campaign rank (1..30) for the arena, nx: the same but open-ended so late rivals keep scaling
+  const L = rival.layout, n = eqLevel(rival.diff), nx = Math.max(n, rival.diff * 2.8), R = rng(hash('lvl', rival.seed, n));
   const len = Math.round(62 + Math.min(12, n * 0.45));
   const y0 = Math.round(len * 0.52), y1 = len - 5;
   const rowY = (r) => +(y0 + (r / (GRID - 1)) * (y1 - y0)).toFixed(1);
@@ -75,14 +76,14 @@ export function layoutToLevel(rival, opts = {}) {
     else if (b.t === 'caserma') spawners.push({ x, rate: +(0.25 + 0.1 * l).toFixed(2), count: 1 + Math.floor(l / 2), spread: 1.4 });
   }
   // the base itself always defends like a campaign base of the same rank; barracks add on top
-  const core = +(0.45 + n * 0.032).toFixed(2), cc = n >= 12 ? 2 : 1;
+  const core = +(0.45 + nx * 0.032).toFixed(2), cc = nx >= 12 ? 2 : 1;
   spawners.unshift({ x: -3, rate: core, count: cc }, { x: 3, rate: core, count: cc });
 
   // HQ + shield
   const hq = L.b.find((b) => b.t === 'hq');
   const shield = L.b.filter((b) => b.t === 'scudo').reduce((a, b) => Math.max(a, b.l), 0);
   const hqL = hq?.l || 1;
-  const hp = Math.round(hpCurve(n) * HP_K * (0.9 + hqL * 0.04) * (1 + (shield ? BUILDINGS.scudo.hqBoost(shield) : 0)) / 10) * 10;
+  const hp = Math.round(hpCurve(nx) * HP_K * (0.9 + hqL * 0.04) * (1 + (shield ? BUILDINGS.scudo.hqBoost(shield) : 0)) / 10) * 10;
   if (n >= 8) phases.push({ at: 0.5, wave: 8 + n });
   if (shield) phases.push({ at: 0.75, shield: +(1.5 + shield * 0.5).toFixed(1) });
   if (n >= 16) phases.push({ at: 0.25, wave: 12 + n, brute: 1 + (n >= 24 ? 1 : 0), rate: 1.15 });
@@ -98,7 +99,7 @@ export function layoutToLevel(rival, opts = {}) {
     gates: gates.slice(0, 32), obstacles,
     base: {
       hp, w: hqL >= 4 ? 11 : 10, name: rival.name, raid: true,
-      spawners, waves: { every: Math.max(8, 13 - Math.floor(n / 6)), count: 6 + Math.round(n * 0.45) }, towers, ...(phases.length ? { phases } : {}),
+      spawners, waves: { every: Math.max(7, 13 - Math.floor(nx / 6)), count: 6 + Math.round(nx * 0.45) }, towers, ...(phases.length ? { phases } : {}),
     },
     raid: { seed: rival.seed, diff: rival.diff, leader: rival.leader, color: rival.color, revenge: !!opts.revenge, loot: rival.loot },
   };

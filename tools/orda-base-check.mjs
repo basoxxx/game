@@ -100,8 +100,8 @@ if (process.argv[2] === 'raids') {
   for (const P of [3, 8, 14, 20, 26, 30]) {
     const hq = Math.min(6, 1 + Math.floor(P / 6)), up = Object.fromEntries(UPGRADES.map((u) => [u.id, Math.min(u.max, Math.round(P / 4))]));
     const base = playerDiff({ lvl: P }, hq);
-    const row = [-1.2, -0.3, 0.6, 1.6, 2.4].map((dd) => {
-      const diff = Math.max(1, Math.min(10, base + dd)); let w = 0, pc = 0;
+    const row = [-1.2, -0.3, 0.7, 1.8, 2.8].map((dd) => {
+      const diff = Math.max(1, Math.min(12, base + dd)); let w = 0, pc = 0;
       for (let s = 1; s <= 2; s++) { const rv = genRival(1000 * P + s * 17 + Math.round(dd * 10), diff), L = layoutToLevel(rv), r = play(L, up, s); w += r.win ? 1 : 0; pc += destroyedPct(r, L); }
       return `d${diff.toFixed(1)} ${w}/2 ${Math.round(pc * 50)}%`;
     });

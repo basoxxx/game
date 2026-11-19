@@ -11,7 +11,7 @@ const COLORS = ['#ef4444', '#f97316', '#e11d48', '#dc2626', '#be123c', '#ea580c'
 const STYLES = ['anello', 'linee', 'labirinto', 'sparso'];
 export const STYLE_NAMES = { anello: 'Anello di mura', linee: 'Doppia linea', labirinto: 'Labirinto', sparso: 'Avamposti sparsi' };
 
-export const DIFF_LABEL = (d) => (d <= 2 ? 'Facile' : d <= 4 ? 'Media' : d <= 7 ? 'Difficile' : 'Leggendaria');
+export const DIFF_LABEL = (d) => (d <= 2 ? 'Facile' : d <= 4.5 ? 'Media' : d <= 8 ? 'Difficile' : 'Leggendaria');
 
 // diff: 1..10 (fractional ok)
 export function genRival(seed, diff, opts = {}) {
@@ -84,9 +84,10 @@ export function genRival(seed, diff, opts = {}) {
 }
 
 // Difficulty that matches the player: campaign progress + own HQ, three bands (easy / fair / hard)
-export function playerDiff(prog, hq) { return Math.max(1, Math.min(10, 0.6 + (prog?.lvl || 0) * 0.22 + (hq - 1) * 0.6)); }
+export const DIFF_MAX = 12;
+export function playerDiff(prog, hq) { return Math.max(1, Math.min(DIFF_MAX - 2, 0.6 + (prog?.lvl || 0) * 0.22 + (hq - 1) * 0.6)); }
 export function rivalList(state, prog, hq, n = 4) {
   const base = playerDiff(prog, hq), R = rng(hash('list', state.seed, state.raids.listN));
-  const bands = [-1.2, -0.3, 0.6, 1.6, 2.4].slice(0, n);
-  return bands.map((d, i) => ({ seed: (hash('rv', state.seed, state.raids.listN, i) % 1e9) + 1, diff: +Math.max(1, Math.min(10, base + d + (R() - 0.5) * 0.5)).toFixed(1) }));
+  const bands = [-1.2, -0.3, 0.7, 1.8, 2.8].slice(0, n);
+  return bands.map((d, i) => ({ seed: (hash('rv', state.seed, state.raids.listN, i) % 1e9) + 1, diff: +Math.max(1, Math.min(DIFF_MAX, base + d + (R() - 0.5) * 0.5)).toFixed(1) }));
 }

@@ -126,7 +126,7 @@ function rivalCard(rv, now) {
   const lootK = (rv.kind === 'revenge' ? REVENGE_BONUS : 1) * Math.max(0, 1 - (done?.taken || 0));
   return `<div class="ob-rv ${on ? 'on' : ''} ${rv.kind} ${done ? 'done' : ''}" data-a="ob-rival" data-seed="${rv.seed}" tabindex="0" style="--c:${rv.color}">
     <div class="ob-rv-h"><i class="ob-flag"></i><div><b>${esc(rv.name)}</b><span>${esc(rv.leader)} · ${esc(STYLE_NAMES[rv.style] || '')}</span></div>
-      <em class="ob-diff d${Math.min(4, Math.ceil(rv.diff / 2.5))}">${rv.kind === 'revenge' ? 'Vendetta' : DIFF_LABEL(rv.diff)}</em></div>
+      <em class="ob-diff d${rv.diff <= 2 ? 1 : rv.diff <= 4.5 ? 2 : rv.diff <= 8 ? 3 : 4}">${rv.kind === 'revenge' ? 'Vendetta' : DIFF_LABEL(rv.diff)}</em></div>
     <div class="ob-rv-s"><span title="Forza della base">${icon('shield')} ${fmt(rv.power)}</span><span title="QG">QG ${rv.hq}</span><span title="Bottino ancora nel deposito">${BRICK}${fmt(rv.loot.bricks * lootK)} ${icon('coin')}${fmt(rv.loot.coins * lootK)}</span>
       ${done ? `<span class="ob-stars">${'★'.repeat(done.stars)}${'☆'.repeat(3 - done.stars)} ${Math.round(done.pct * 100)}%</span>${done.taken >= 0.999 ? '<span class="ob-ttl">Deposito vuoto</span>' : ''}` : ''}
       ${rv.kind === 'revenge' ? `<span class="ob-ttl">${icon('hourglass')} ${fmtDur(rv.until - now)}</span>` : ''}</div>
