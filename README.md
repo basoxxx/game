@@ -323,6 +323,28 @@ Semaforo (riflessi), Ritmo Baso e Memoria a colori.
   `node tools/festa-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/festa-cover.mjs <url>` (copertina),
   `node tools/festa-bank.mjs` (rigenera gli ingorghi del minigioco con il generatore di Ingorgo).
 
+## Rompicapo (Baso Hub · Puzzle)
+
+Una scatola di quattro rompicapo veloci, in verticale e in orizzontale, su telefono, tablet e PC. Ognuno ha il suo
+menu, livelli o difficoltà, statistiche e una **sfida del giorno** uguale per tutti; il «Rompicapo del giorno» le
+raccoglie (monete doppie per il gioco in vetrina, bonus per tutte e quattro, serie di giorni, risultato da copiare).
+Le monete sbloccano **8 temi** che ricolorano tutti i giochi. Niente pubblicità, niente acquisti.
+- **Sudoku**: generatore con soluzione unica garantita (contatore a bitmask) e difficoltà graduate dalle tecniche
+  necessarie (singoli · candidati bloccati e coppie · triple, X-Wing, Y-Wing, Swordfish); note, evidenziazioni,
+  annulla, errori (limite di 3 facoltativo), aiuti che spiegano la tecnica, 100 livelli per difficoltà, partita salvata.
+- **Unisci**: fai scorrere e unisci i numeri (4×4, 5×5, 6×6), un passo indietro, record, partita salvata.
+- **Mattoncini**: 7 pezzi a sacchetto, rotazioni con wall kick (tabelle SRS), tieni, 5 prossimi, ombra, caduta
+  morbida/istantanea, ritardo di blocco, T-spin, combo, consecutive; Maratona (150 linee), Sprint 40, Ultra 2 minuti,
+  Infinita. Tastiera con auto-ripetizione, gesti touch, tasti a schermo, controller.
+- **Mahjong solitario**: 6 disposizioni a strati (da 56 a 144 tessere) con tessere disegnate in codice; smazzate
+  risolvibili per costruzione (la partita giocata al contrario), aiuto che mantiene la partita risolvibile, annulla,
+  mescola con soluzione garantita.
+- Codice: logica pura in `src/rompicapo/` (`sudoku.js`, `merge.js`, `blocks.js`, `mahjong.js`), viste
+  `*-ui.js`, schermata `src/screens/rompicapo.js`, voce del Baso Hub `src/hub/games/rompicapo.js`.
+- `node tools/rompicapo-test.mjs` (500 sudoku unici, 300 smazzate risolvibili, rotazioni/kick/linee, regole di Unisci),
+  `node tools/rompicapo-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni, si gioca dalla UI),
+  `node tools/rompicapo-cover.mjs <url>` (copertina `public/covers/rompicapo.webp`).
+
 ## Quiz e Parole (Baso Hub · Quiz)
 
 Raccolta di quattro giochi in italiano in un'unica tessera del Baso Hub (modalità: Quiz, Quiz del giorno, Parolina,
