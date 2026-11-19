@@ -21,7 +21,7 @@ function seg(a, cur, opts, extra = '') { return `<div class="ovs-seg" ${extra}>$
 function playerCard(p, P) {
   const coop = P.variant === 'coop', c = COLORS[coop ? 'coop' : 'versus'][p];
   const name = coop ? `Giocatore ${p + 1}` : p ? 'Rosso' : 'Blu';
-  const keys = p === 0 ? '<kbd>A</kbd><kbd>D</kbd> muovi · <kbd>W</kbd> spara · <kbd>S</kbd> campione · 1° controller' : '<kbd>←</kbd><kbd>→</kbd> muovi · <kbd>↑</kbd> spara · <kbd>↓</kbd> campione · 2° controller';
+  const keys = p === 0 ? '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> · <kbd>Spazio</kbd> spara · <kbd>E</kbd> campione · 1° controller' : '<kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> · <kbd>Invio</kbd> spara · <kbd>0</kbd> campione · 2° controller';
   return `<div class="ovs-pl" style="--pc:${c}">
     <h4><i></i>${name}</h4>
     <div class="keys">${keys}</div>
@@ -48,7 +48,7 @@ function setup() {
         <div class="ovs-row"><span>Tempo per round</span>${seg('ovs-time', P.time, [[60, '1:00'], [90, '1:30'], [120, '2:00']])}</div>
         <div class="ovs-row"><span>Tablet in piano (Rosso capovolto)</span>${seg('ovs-flat', P.flat ? 1 : 0, [[1, 'Sì'], [0, 'No']])}</div>`}
       </div>
-      <p class="ovs-keys">${coop ? 'Fine del tempo: la fortezza resiste e avete perso. ' : 'Fine del tempo: vince chi ha più vita alla base; in parità si va alla <b>morte improvvisa</b> (porte raddoppiate, il primo colpo alla base vince). '}Touch: ogni giocatore usa la propria metà dello schermo, trascina per spostare il cannone e tieni premuto per sparare. Il pulsante tondo lancia il campione quando l’anello è pieno.</p></section>
+      <p class="ovs-keys">${coop ? 'Fine del tempo: la fortezza resiste e avete perso. ' : 'Fine del tempo: vince chi ha più vita alla base; in parità si va alla <b>morte improvvisa</b> (porte raddoppiate, il primo colpo alla base vince). '}Tastiera: i tasti seguono lo schermo, le due direzioni lungo il binario muovono il cannone, quella verso l’avversario spara e quella opposta lancia il campione (con Blu in basso: A/D, W, S). Touch: ogni giocatore usa la propria metà dello schermo, trascina per spostare il cannone e tieni premuto per sparare. Il pulsante tondo lancia il campione quando l’anello è pieno.</p></section>
       <div class="ovs-go"><span class="ovs-keys"><kbd>Esc</kbd> / <kbd>P</kbd> / Start pausa</span><button class="btn primary big" data-a="ovs-play">${icon('play')} Gioca</button></div>
     </div>
   </div>`;

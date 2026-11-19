@@ -313,7 +313,12 @@ export class OrdaVersus {
         const a = this.toScreen(c.x, c.z), b = this.toScreen(c.x + 1, c.z), dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1;
         return { x: dx / l, y: dy / l, px: l };
       });
-      this.input.setLayout({ split: this.coop || !this.portrait ? 'v' : 'h', rail, px: (rail[0].px + rail[1].px) / 2 / 1.25 });
+      const fwd = this.cannons.slice(0, 2).map((c) => {
+        const a = this.toScreen(c.x, c.z), b = this.toScreen(c.x, c.z + (c.side === 0 ? -1 : 1)), dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1;
+        return { x: dx / l, y: dy / l };
+      });
+      this.input.setLayout({ split: this.coop || !this.portrait ? 'v' : 'h', rail, fwd, px: (rail[0].px + rail[1].px) / 2 / 1.25 });
+      this.showHelp();
     }
   }
   toScreen(x, z, y = 0) {
@@ -371,7 +376,7 @@ export class OrdaVersus {
       const touch = matchMedia?.('(pointer: coarse)').matches;
       el.innerHTML = touch
         ? '<div class="h1"><b>Giocatore 1</b>trascina per spostare il cannone · tieni premuto per sparare</div><div class="h2"><b>Giocatore 2</b>trascina per spostare il cannone · tieni premuto per sparare</div>'
-        : `<div class="h1"><b>${this.names[0]}</b><kbd>A</kbd><kbd>D</kbd> muovi · <kbd>W</kbd> spara · <kbd>S</kbd> campione</div><div class="h2"><b>${this.names[1]}</b><kbd>←</kbd><kbd>→</kbd> muovi · <kbd>↑</kbd> spara · <kbd>↓</kbd> campione</div>`;
+        : [0, 1].map((p) => { const k = this.input?.describe(p) || {}; return `<div class="h${p + 1}"><b>${this.names[p]}</b><kbd>${k.left}</kbd><kbd>${k.right}</kbd> muovi · <kbd>${k.fire}</kbd> spara · <kbd>${k.champ}</kbd> campione</div>`; }).join('');
       el.classList.add('on');
     } else el.classList.remove('on');
   }

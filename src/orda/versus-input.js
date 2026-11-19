@@ -1,6 +1,10 @@
 // Orda · 2 giocatori — input for two people on one device.
-//   Keyboard: P1 A/D move the cannon, W fires (hold), S or E calls the champion.
-//             P2 ←/→ move, ↑ fires, ↓ or Invio calls the champion.  Esc / P pauses.
+//   Keyboard: P1 uses W A S D, P2 the arrows. Keys follow the screen: the two keys along the
+//             cannon's rail move it, the key pointing at the opponent fires (hold), the key pointing
+//             back calls the champion. With P1 at the bottom that is A/D move · W fire · S champion
+//             and ←/→ · ↑ · ↓ for P2 at the top; with P1 left / P2 right (landscape) it is W/S move ·
+//             D fire · A champion and ↑/↓ · ← · →. Space (P1) and Invio / Shift destro (P2) also fire
+//             and E (P1) / 0 del tastierino (P2) also call the champion. Esc / P pauses.
 //   Gamepads: the first pad drives P1, the second P2 (with one pad and the keyboard, the pad is P2
 //             so the keyboard keeps P1). Stick / d-pad move, A or RT fires, X / Y / RB champion,
 //             Start pauses.
@@ -12,9 +16,15 @@
 // fire, champ (edge), any }. Screen geometry (zones and rail directions) is supplied by the game
 // through setLayout(), so the input module knows nothing about cameras.
 
-const K1 = { left: ['KeyA'], right: ['KeyD'], fire: ['KeyW', 'Space'], champ: ['KeyS', 'KeyE'] };
-const K2 = { left: ['ArrowLeft'], right: ['ArrowRight'], fire: ['ArrowUp'], champ: ['ArrowDown', 'Enter', 'NumpadEnter', 'Numpad0', 'ShiftRight'] };
-const ALL = new Set([...Object.values(K1).flat(), ...Object.values(K2).flat()]);
+// direction keys as screen vectors (x right, y down) + fixed extra keys
+const DIRS = [
+  { KeyW: [0, -1], KeyS: [0, 1], KeyA: [-1, 0], KeyD: [1, 0] },
+  { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] },
+];
+const FIRE = [['Space'], ['Enter', 'NumpadEnter', 'ShiftRight']];
+const CHAMP = [['KeyE'], ['Numpad0', 'Insert']];
+const LABEL = { KeyW: 'W', KeyA: 'A', KeyS: 'S', KeyD: 'D', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' };
+const ALL = new Set([...DIRS.flatMap((d) => Object.keys(d)), ...FIRE.flat(), ...CHAMP.flat()]);
 
 export class VersusInput {
   constructor(el, { onPause, players = 2 } = {}) {
@@ -22,7 +32,7 @@ export class VersusInput {
     this.keys = new Set(); this.edge = new Set();
     this.touch = [null, null]; // per player: { id, x, y, lx, ly, acc }
     this.pad = [{}, {}];
-    this.layout = { split: 'h', rail: [{ x: 1, y: 0 }, { x: -1, y: 0 }], px: 40, swap: false };
+    this.layout = { split: 'h', rail: [{ x: 1, y: 0 }, { x: 1, y: 0 }], fwd: [{ x: 0, y: -1 }, { x: 0, y: 1 }], px: 40, swap: false };
     this.mirror = false; // P2 rail inverted for hot-seat on a flat tablet
     this.onKD = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -68,9 +78,24 @@ export class VersusInput {
     el.addEventListener('contextmenu', this.noMenu);
   }
   // layout: { split: 'h' (P1 bottom / P2 top) | 'v' (P1 left / P2 right), rail: [{x,y},{x,y}] screen
-  // unit vectors of each cannon's +lateral direction, px: screen pixels per rail unit }
+  // unit vectors of each cannon's +lateral direction, fwd: screen unit vectors toward the opponent,
+  // px: screen pixels per rail unit }
   setLayout(L) { Object.assign(this.layout, L); }
   rail(p) { return this.layout.rail[p] || { x: 1, y: 0 }; }
+  fwd(p) { return this.layout.fwd?.[p] || { x: 0, y: p ? 1 : -1 }; }
+  // what each direction key does for player p right now: 'move-' | 'move+' | 'fire' | 'champ'
+  keyRole(p, code) {
+    const d = DIRS[p][code]; if (!d) return null;
+    const r = this.rail(p), f = this.fwd(p), dr = d[0] * r.x + d[1] * r.y, df = d[0] * f.x + d[1] * f.y;
+    if (Math.abs(dr) >= Math.abs(df)) return dr < 0 ? 'move-' : 'move+';
+    return df > 0 ? 'fire' : 'champ';
+  }
+  // labels for the help line: { left, right, fire, champ }
+  describe(p) {
+    const out = {};
+    for (const code of Object.keys(DIRS[p])) { const role = this.keyRole(p, code); out[{ 'move-': 'left', 'move+': 'right', fire: 'fire', champ: 'champ' }[role]] = LABEL[code]; }
+    return out;
+  }
   zoneOf(x, y) {
     if (this.n < 2) return 0;
     const r = this.el.getBoundingClientRect();
@@ -89,7 +114,10 @@ export class VersusInput {
     const pads = this.padsFor();
     for (let p = 0; p < 2; p++) {
       const g = pads[p], P = this.pad[p], b = (i) => !!(g?.buttons[i]?.pressed || (g?.buttons[i]?.value || 0) > 0.5);
-      const ax = g ? (Math.abs(g.axes[0] || 0) > 0.2 ? g.axes[0] : 0) + (b(15) ? 1 : 0) - (b(14) ? 1 : 0) : 0;
+      // stick and d-pad in screen terms, projected on the rail
+      const sx = g ? (Math.abs(g.axes[0] || 0) > 0.2 ? g.axes[0] : 0) + (b(15) ? 1 : 0) - (b(14) ? 1 : 0) : 0;
+      const sy = g ? (Math.abs(g.axes[1] || 0) > 0.2 ? g.axes[1] : 0) + (b(13) ? 1 : 0) - (b(12) ? 1 : 0) : 0;
+      const r = this.rail(p), ax = sx * r.x + sy * r.y;
       const champ = b(2) || b(3) || b(5), start = b(9);
       P.move = Math.max(-1, Math.min(1, ax)); P.fire = b(0) || b(7) || b(1);
       P.champE = champ && !P.champ; P.champ = champ;
@@ -98,13 +126,20 @@ export class VersusInput {
     }
   }
   state(p) {
-    const K = p === 0 ? K1 : K2, has = (a) => a.some((c) => this.keys.has(c)), ed = (a) => a.some((c) => this.edge.has(c));
+    const has = (a) => a.some((c) => this.keys.has(c)), ed = (a) => a.some((c) => this.edge.has(c));
     const T = this.touch[p], P = this.pad[p] || {};
-    let move = (has(K.right) ? 1 : 0) - (has(K.left) ? 1 : 0);
+    let move = 0, kfire = false, kchamp = false;
+    for (const code of Object.keys(DIRS[p])) {
+      const down = this.keys.has(code); if (!down) continue;
+      const role = this.keyRole(p, code);
+      if (role === 'move-') move -= 1; else if (role === 'move+') move += 1;
+      else if (role === 'fire') kfire = true;
+      else if (role === 'champ' && this.edge.has(code)) kchamp = true;
+    }
     if (!move && P.move) move = P.move;
     const drag = T ? T.acc : 0; if (T) T.acc = 0;
-    const fire = has(K.fire) || !!P.fire || !!T;
-    const champ = ed(K.champ) || !!P.champE;
+    const fire = kfire || has(FIRE[p]) || !!P.fire || !!T;
+    const champ = kchamp || ed(CHAMP[p]) || !!P.champE;
     return { move, drag, fire, champ, any: !!(move || drag || fire || champ) };
   }
   endFrame() { this.edge.clear(); }
