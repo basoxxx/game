@@ -9,7 +9,7 @@ import { createHost } from './link.js';
 import { COMPOUNDS } from '../data/categories.js';
 import { sectorFracs } from '../engine/session.js';
 import { tyreModel } from '../engine/tyres.js';
-import { referenceProfile, trackGeometry } from '../engine/trackphys.js';
+import { referenceProfile, trackGeometry, sampleAtTimeFrac } from '../engine/trackphys.js';
 import { STAGE_STYLE } from '../ui/trackview.js';
 
 const RATE = 250; // ms between snapshots
@@ -303,9 +303,11 @@ function rallySnap(L) {
   const ranked = crews.slice().sort((a, b) => (b.done ? 1 : 0) - (a.done ? 1 : 0) || (a.done && b.done ? tOf(a) - tOf(b) : (b.progress || 0) - (a.progress || 0)));
   const done = ranked.filter((c) => c.done && tOf(c) != null);
   const bestT = done.length ? Math.min(...done.map(tOf)) : null;
+  // where the crew is along the road (progress is a time fraction: the stage's speed profile turns it into distance, as on the rally screen's map)
+  const along = (p) => { const g = X.geo; if (!g?.profile || !g.N) return p; try { return Math.min(g.N - 1, sampleAtTimeFrac(g.profile, Math.min(0.9999, Math.max(0, p)))) / g.N; } catch { return p; } };
   const spl = (c) => Object.entries(c.splitTimes || {}).filter(([k]) => +k < 1).sort((a, b) => +a[0] - +b[0]).map(([, v]) => r1(v));
   const cars = ranked.map((c, i) => ({
-    k: c.key, p: i + 1, st: c.status === 'out' || c.retiredLeg ? 'dnf' : c.done ? 'fin' : 'run', d: r3(c.progress || 0), el: r1(c.stageT ?? null), time: r1(tOf(c)),
+    k: c.key, p: i + 1, st: c.status === 'out' || c.retiredLeg ? 'dnf' : c.done ? 'fin' : 'run', d: r3(c.progress || 0), f: r3(along(c.progress || 0)), el: r1(c.stageT ?? null), time: r1(tOf(c)),
     gap: c.done && bestT != null ? r1(tOf(c) - bestT) : null, splits: spl(c), ty: c.tyre || null, me: c.isPlayer ? 1 : 0, total: r1(c.total ?? null), pace: c.pace || null,
     dmg: r3(Math.max(0, ...Object.values(c.damage || {}))), road: (c.roadPos ?? 0) + 1,
   }));

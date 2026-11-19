@@ -478,7 +478,7 @@ function draw() {
       let q;
       const pose = !R.r3d && sim.hl?.livePose(sim.cars.indexOf(car));
       if (car.inPit > 0 && v.pitPos && !pose) q = v.pitPos(pitIdx++);
-      else q = v.pointAt(arcFrac(sim.cat, sim.track.cid, pose ? pose.u : car.status === 'finished' ? car.finishLap : car.dist, sim.track.lap));
+      else q = v.pointAt(arcFrac(sim.cat, sim.track.cid, pose ? pose.u : car.status === 'finished' ? (sim.hl?.carU(car) ?? car.finishLap) : car.dist, sim.track.lap)); // finished: the cool-down lap, as in 3D
       if (pose) { const off = pose.lat * 1.1; q = { x: q.x - Math.sin(q.ang) * off, y: q.y + Math.cos(q.ang) * off, ang: q.ang - pose.yaw }; }
       const d = sim.driver(car);
       v.drawCar(q.x, q.y, q.ang, L.primary, L.secondary, { style, glow: car.isPlayer ? L.primary : null, outline: car.isPlayer, label: car.isPlayer || car.pos <= 3 ? `${car.pos} ${shortName(d.name)}` : null, num: R.r3d ? null : car.pos, dot: !(car.isPlayer || car.pos <= 3), labelBg: car.isPlayer ? L.primary : 'rgba(0,0,0,0.75)' });

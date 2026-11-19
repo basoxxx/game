@@ -1654,6 +1654,7 @@ export class CircuitSim {
   }
 
   deploySC() {
+    if (this.leaderFinished) return; // after the chequered flag nobody neutralises the race
     this.sc = { laps: randInt(2, 4), startLap: Math.floor(this.progress * this.laps) };
     this.scCount++;
     this.log('🚨 SAFETY CAR in pista!', 'sc', null, true);
@@ -1674,8 +1675,8 @@ export class CircuitSim {
     const lap = Math.max(0, Math.floor(this.progress * this.laps));
     const plan = this.weather.plan;
     switch (type) {
-      case 'sc': if (this.sc) return false; this.deploySC(); return true;
-      case 'vsc': if (this.sc || this.vsc) return false; this.deployVSC(); return true;
+      case 'sc': if (this.sc || this.leaderFinished) return false; this.deploySC(); return true;
+      case 'vsc': if (this.sc || this.vsc || this.leaderFinished) return false; this.deployVSC(); return true;
       case 'red': if (this.sc?.red) return false; this.redFlag(o.why || 'incidente'); return true;
       case 'rain': { const lv = o.level ?? 0.7; for (let l = lap + 1; l < Math.min(plan.length, lap + 1 + (o.laps ?? 4)); l++) plan[l] = lv; this.weather.isRain = true; return true; }
       case 'dry': { for (let l = lap + 1; l < plan.length; l++) plan[l] = 0; return true; }
@@ -1695,6 +1696,7 @@ export class CircuitSim {
     return false;
   }
   deployVSC() {
+    if (this.leaderFinished) return;
     this.vsc = { until: this.time + rand(50, 110) };
     this.log(this.endurance ? '🟡 FULL COURSE YELLOW: 80 km/h su tutto il tracciato, pit lane aperta' : '🟡 VIRTUAL SAFETY CAR', 'sc', null, true);
     this.pushTV({ kind: 'vsc', title: this.endurance ? 'Full course yellow' : 'Virtual safety car', text: 'Velocità limitata in tutto il circuito' });

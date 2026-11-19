@@ -618,11 +618,14 @@ function paintLiveBtns() {
 }
 function drawRallyMap() {
   const v = V.map, s = V.s; if (!v || !s?.live) return;
+  // snapshots come 4 times a second: ease each crew towards its last known spot along the road
+  const now = performance.now(), k = Math.min(1, ((now - (V._rfT || now)) / 1000) * 6); V._rfT = now; V.rf ||= {};
+  for (const c of s.cars) { const f = c.f ?? c.d ?? 0; const p = V.rf[c.k]; V.rf[c.k] = p == null || Math.abs(f - p) > 0.05 ? f : p + (f - p) * k; }
   v.frame(() => {
-    const cars = s.cars.filter((c) => c.st === 'run').sort((a, b) => (a.me ? 1 : 0) - (b.me ? 1 : 0) || (a.k === V.focus ? 1 : 0) - (b.k === V.focus ? 1 : 0));
+    const cars = s.cars.filter((c) => c.st === 'run' && (c.d > 0 || c.me)).sort((a, b) => (a.me ? 1 : 0) - (b.me ? 1 : 0) || (a.k === V.focus ? 1 : 0) - (b.k === V.focus ? 1 : 0));
     for (const c of cars) {
       const cm = carM(c.k); if (!cm) continue;
-      const q = v.pointAt(Math.max(0, Math.min(1, V.disp[c.k] ?? c.d ?? 0)));
+      const q = v.pointAt(Math.max(0, Math.min(1, V.rf[c.k] ?? c.f ?? c.d ?? 0)));
       const lab = c.me || c.k === V.focus;
       v.drawCar(q.x, q.y, q.ang, cm.c1, cm.c2, { style: 'rally', len: 16, glow: c.me ? cm.c1 : c.k === V.focus ? '#ffffff' : null, outline: lab, label: lab ? cm.code : null, labelBg: c.me ? cm.c1 : 'rgba(0,0,0,0.75)' });
     }
@@ -674,5 +677,5 @@ function paintHud(states) {
 function paintMini() {
   const el = document.getElementById('pw-mini'); const s = V.s; if (!el || !s?.live || V.holding) return;
   const race = V.meta?.kind === 'race';
-  el.innerHTML = `<div class="pw-mh">${race ? 'Classifica' : 'Tempi'}<span class="tiny muted">tocca per seguire</span></div>` + s.cars.map((c) => `<div class="pw-mrow ${c.me ? 'me' : ''} ${c.k === V.focus ? 'focus' : ''} ${c.st}" ${rowStyle(c)} data-a="pw-focus" data-key="${esc(c.k)}"><span class="pw-pos p${c.p}">${c.p}</span><i class="pw-tcol"></i><b>${esc(code3(c.k))}</b><span class="pw-mg">${c.st === 'dnf' ? 'RIT' : c.st === 'pit' ? 'PIT' : c.st === 'garage' ? 'BOX' : race ? (c.p === 1 ? 'Leader' : gapTxt(c.int ?? c.gap)) : V.meta?.kind === 'rally' ? (c.st === 'fin' && c.time != null ? fmtTime(c.time) : c.el != null ? fmtTime(c.el) : '—') : c.best != null ? fmtTime(c.best) : '—'}</span>${tyre(c.ty)}</div>`).join('');
+  el.innerHTML = `<div class="pw-mh">${race ? 'Classifica' : 'Tempi'}<span class="tiny muted">tocca per seguire</span></div>` + s.cars.map((c) => `<div class="pw-mrow ${c.me ? 'me' : ''} ${c.k === V.focus ? 'focus' : ''} ${c.st}" ${rowStyle(c)} data-a="pw-focus" data-key="${esc(c.k)}"><span class="pw-pos p${c.p}">${c.p}</span><i class="pw-tcol"></i><b>${esc(code3(c.k))}</b><span class="pw-mg">${c.st === 'dnf' ? 'RIT' : c.st === 'pit' ? 'PIT' : c.st === 'garage' ? 'BOX' : race ? (c.p === 1 ? 'Leader' : gapTxt(c.int ?? c.gap)) : V.meta?.kind === 'rally' ? (c.st === 'fin' && c.time != null ? fmtTime(c.time) : c.el > 0 ? fmtTime(c.el) : '—') : c.best != null ? fmtTime(c.best) : '—'}</span>${tyre(c.ty)}</div>`).join('');
 }
