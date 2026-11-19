@@ -27,6 +27,7 @@ lazyScreens({
   derby: () => import('./screens/derby.js'),
   voragine: () => import('./screens/voragine.js'),
   orda: () => import('./screens/orda.js'),
+  'orda-base': () => import('./orda/base/screen.js'),
   'orda-versus': () => import('./screens/orda-versus.js'), // Orda · 2 giocatori
   weekend: () => import('./screens/weekend.js'),
   rally: () => import('./screens/rallyweekend.js'),
