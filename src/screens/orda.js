@@ -11,6 +11,7 @@ import { ordaLoad, ordaSave, ordaStars } from '../orda/store.js';
 import { LEVELS, levelById } from '../orda/levels.js';
 import { UPGRADES, upCost, upEffects, CHAMPIONS, CHAMP_MAX, champCost, champById, SKINS, CANNONS, WORLDS } from '../orda/meta.js';
 import '../orda/orda.css';
+import { baseDesc, baseSummary } from '../orda/base/badge.js';
 
 const V = { playing: false, game: null, from: 'launcher', tab: 'gioca', run: null, result: null };
 const fmt = (n) => Math.round(n).toLocaleString('it-IT');
@@ -29,6 +30,8 @@ export const ORDA_TABS = [];
 export function addOrdaTab(t, before = 'opzioni') { if (ORDA_TABS.some((x) => x.id === t.id)) return; const i = ORDA_TABS.findIndex((x) => x.id === before); if (i < 0) ORDA_TABS.push(t); else ORDA_TABS.splice(i, 0, t); }
 // start a game with any level object (campaign, generated, raid…). onEnd(result, store) may return
 // extra html for the results card; return value false skips the campaign bookkeeping.
+// Base e razzie (src/orda/base): its own screen, listed with the other modes
+addOrdaMode({ id: 'base', name: 'Base e razzie', icon: 'home', desc: () => baseDesc(), get tag() { return baseSummary().unread ? 'Attaccata!' : ''; }, go: () => App.go('orda-base', { from: 'orda' }) });
 export function playOrda({ level, mode = 'level', onEnd = null, label = '', seed } = {}) {
   V.run = { level, mode, onEnd, label, seed }; V.playing = true; V.result = null;
   if (App.cur === 'orda') App.refresh(); else App.go('orda', { from: V.from || 'launcher' });

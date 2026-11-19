@@ -5,7 +5,7 @@
 import { App, registerScreen, hasScreen } from '../../app.js';
 import { icon } from '../../ui/icons.js';
 import { esc } from '../../ui/dom.js';
-import { sfx } from '../../ui/audio.js';
+import { sfx, music } from '../../ui/audio.js';
 import { gfxTier } from '../../ui/quality.js';
 import { getSettings } from '../../engine/state.js';
 import { ordaLoad, ordaSave, ordaStars } from '../store.js';
@@ -16,6 +16,7 @@ import { checkAttacks, shielded } from './defense.js';
 import { genRival, rivalList, DIFF_LABEL, STYLE_NAMES } from './rivals.js';
 import { layoutToLevel, destroyedPct, raidLoot, raidStars } from './convert.js';
 import { defenceRating } from './sim.js';
+import '../orda.css'; // the game's HUD (raids run OrdaGame inside this screen)
 import './base.css';
 // the Orda game chunk (glob: resolves to nothing instead of failing the build if it is ever missing)
 const GAME = import.meta.glob('../game.js');
@@ -339,8 +340,9 @@ async function attack() {
   stopView();
   const ov = document.getElementById('ob-play');
   ov.hidden = false;
-  ov.innerHTML = `<div class="ob-play-root" id="ob-play-root"><div class="ob-loading">L’orda si prepara…</div></div><div class="ob-play-over" id="ob-play-over"></div>`;
+  ov.innerHTML = `<div class="ob-play-root or-root" id="ob-play-root"><div class="ob-loading">L’orda si prepara…</div></div><div class="ob-play-over" id="ob-play-over"></div>`;
   const root = document.getElementById('ob-play-root');
+  try { music.setMood?.('orda'); } catch {}
   try {
     const load = GAME['../game.js']; if (!load) throw new Error('il gioco Orda non è incluso in questa versione');
     const mod = await load();
@@ -348,8 +350,9 @@ async function attack() {
     const p = ordaLoad(), s = getSettings();
     const g = V.game = new mod.OrdaGame(root, {
       level, mode: 'raid', seed: rv.seed % 100000, players: 1,
-      upgrades: p.up, skin: p.skin, cannon: p.cannon, champions: { id: p.champ, lvl: (p.clv || {})[p.champ] || 0, owned: p.champs }, champ: p.champ, champLvl: (p.clv || {})[p.champ] || 0,
+      upgrades: p.up, skin: p.skin, cannon: p.cannon, champion: p.champ, champLvl: (p.clv || {})[p.champ] || 0, prevStars: 0,
       tier: gfxTier(), volume: s.sound === false ? 0 : 0.6 * (s.volume ?? 0.5) / 0.5,
+      autofire: !!p.opt?.autofire, shake: p.opt?.shake !== false && !document.documentElement.classList.contains('reduce-motion'), numbers: p.opt?.numbers !== false,
       onPause: (on) => {
         const o = document.getElementById('ob-play-over'); if (!o) return;
         o.innerHTML = on ? `<div class="ob-pause" role="dialog" aria-label="Pausa"><h2>Pausa</h2><p>${esc(rv.name)}</p><button class="btn primary" data-a="ob-resume">${icon('play')} Riprendi</button><button class="btn ghost" data-a="ob-retreat">${icon('left')} Ritirata</button></div>` : '';
@@ -496,7 +499,7 @@ registerScreen({
     'ob-retreat'() {
       // retreat: the damage done so far counts
       const g = V.game; let r = null;
-      try { r = g?.result?.() || g?.sim?.result?.() || null; } catch {}
+      try { r = g?.result || g?.sim?.result?.() || null; } catch {}
       raidEnd({ ...(r || {}), win: false });
       V.game?.destroy?.(); V.game = null;
     },

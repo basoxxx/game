@@ -8,6 +8,7 @@ import { listSaves } from '../engine/state.js';
 import { introSeen } from './intro-flag.js';
 import { vgLoad, vgBestOverall } from '../voragine/store.js';
 import { ordaLoad, ordaStars } from '../orda/store.js';
+import { baseDesc, baseSummary } from '../orda/base/badge.js';
 import '../styles/launcher.css';
 
 const LAST = 'sala_last_game';
@@ -100,6 +101,7 @@ export const GAMES = [
       { id: 'gioca', icon: 'play', name: 'Gioca', desc: () => { const p = ordaLoad(); return p.next > 30 ? 'Campagna completata: rigioca per le stelle.' : `Livello ${p.next}: continua la campagna.`; }, go: () => App.go('orda', { from: 'launcher', quick: 1 }), tag: 'Via!' },
       { id: 'livelli', icon: 'map', name: 'Livelli', desc: '6 mondi, 30 livelli e una fortezza ogni cinque.', go: () => App.go('orda', { from: 'launcher', tab: 'livelli' }) },
       { id: 'potenziamenti', icon: 'wrench', name: 'Potenziamenti', desc: 'Cadenza, raffica, campioni e colori dell’orda.', go: () => App.go('orda', { from: 'launcher', tab: 'potenziamenti' }) },
+      { id: 'base', icon: 'home', name: 'Base e razzie', desc: () => baseDesc(), get tag() { return baseSummary().unread ? 'Attaccata!' : ''; }, go: () => App.go('orda-base', { from: 'launcher' }) },
     ],
   },
 ];

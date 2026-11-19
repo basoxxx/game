@@ -60,8 +60,9 @@ export function layoutToLevel(rival, opts = {}) {
   // trap gates (÷) on their cell; the −n variants get a 'sub' gate right behind
   for (const b of L.b.filter((q) => q.t === 'porta')) {
     const g = BUILDINGS.porta.op(b.l), y = rowY(b.y);
-    gates.push({ x: colX(b.x), y, w: 3, type: 'div', value: g.v, trap: true });
-    if (g.sub) gates.push({ x: colX(b.x), y: +(y + 1.6).toFixed(1), w: 3, type: 'sub', value: g.sub * 2, trap: true });
+    const gw = 2.8, gx = Math.max(-W / 2 + gw / 2, Math.min(W / 2 - gw / 2, colX(b.x)));
+    gates.push({ x: gx, y, w: gw, type: 'div', value: g.v, trap: true });
+    if (g.sub) gates.push({ x: gx, y: +(y + 1.6).toFixed(1), w: gw, type: 'sub', value: g.sub * 2, trap: true });
   }
 
   // towers: the base's red towers (hp, rate, count), with hints for renderers that know the type
