@@ -45,3 +45,6 @@ art (Orda figures, Serpentone hats and heads, Kart Baso karts, Scontro Totale ba
 Rompicapo (src/rompicapo): no external assets. Boards, tiles (original Mahjong faces: suns, drops, leaves,
 winds, gems, flowers, seasons), bricks, effects and sounds are drawn and synthesised in code; the cover
 (covers/rompicapo.webp) is rendered from the games by tools/rompicapo-cover.mjs.
+
+Carte Baso (src/carte): no external assets. Card faces (Napoletane, Piacentine, French + jokers), backs, felts and
+the cover (covers/carte.webp, tools/carte-cover.mjs) are original procedural SVG/CSS; sounds are synthesised (Web Audio).
