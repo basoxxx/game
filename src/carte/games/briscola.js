@@ -135,7 +135,8 @@ function monteCarlo(s, p, r, iters) {
   const unseen = makeDeck('it40').filter((c) => !known.has(c));
   const sig = s.segnali ? s.teams[my].filter((q) => q !== p).map((q) => [q, signalOf(s, q).id]) : [];
   const total = Object.fromEntries(h.map((c) => [c, 0]));
-  for (let it = 0; it < iters; it++) {
+  const end = Date.now() + 260; // time budget: phones stay responsive
+  for (let it = 0; it < iters && (it < 6 || Date.now() < end); it++) {
     const pool = shuffle(unseen, r);
     const w = clone(s);
     // determinise: hands of the others, then the stock (trump card stays at the bottom)
@@ -168,7 +169,7 @@ function ai(s, p, level, r = Math.random) {
 function view(s, viewer, ctx = {}) {
   const piles = [];
   const reveal = s.over;
-  const P = ctx.portrait, dx = P ? 0.1 : 0.08, dy = P ? 0.12 : 0.5, sc = P ? 0.72 : 0.9;
+  const P = ctx.portrait, dx = P ? 0.1 : s.n === 4 ? 0.2 : 0.08, dy = P ? 0.12 : 0.5, sc = P ? 0.72 : 0.9;
   piles.push({ id: 'deck', x: dx, y: dy, scale: sc, z: 10, layout: 'stack', up: false, source: true, cards: s.deck.slice(1).map((c) => ({ id: c })), label: s.deck.length ? String(s.deck.length) : '' });
   if (s.deck.length) piles.push({ id: 'trump', x: dx, y: dy, ox: 0.55, scale: sc, layout: 'stack', rot: 90, cards: [{ id: s.trump, up: true }], z: 0 });
   for (let p = 0; p < s.n; p++) {

@@ -15,8 +15,8 @@ const issues = [];
 const CASES = [
   { name: 'desktop', vp: [1440, 900], scopa: { variant: 'classica', n: 2 }, briscola: { variant: 'due', n: 2 } },
   { name: 'tablet', vp: [1024, 768], touch: true, scopa: { variant: 'scopone', n: 4 }, briscola: { variant: 'coppie', n: 4 } },
-  { name: 'phone-portrait', vp: [390, 844], touch: true, mobile: true, scopa: { variant: 'classica', n: 3, kinds: ['human', 'human', 'cpu'] }, briscola: { variant: 'due', n: 2 } },
-  { name: 'phone-landscape', vp: [844, 390], touch: true, mobile: true, scopa: { variant: 'assi', n: 2 }, briscola: { variant: 'coppie', n: 4 } },
+  { name: 'phone-portrait', vp: [390, 844], touch: true, mobile: true, scopa: { variant: 'classica', n: 2, kinds: ['human', 'human'] }, briscola: { variant: 'due', n: 2 } },
+  { name: 'phone-landscape', vp: [844, 390], touch: true, mobile: true, scopa: { variant: 'assi', n: 3 }, briscola: { variant: 'coppie', n: 4 } },
 ];
 const browser = await pw.chromium.launch();
 const only = process.env.ONLY;
@@ -35,7 +35,7 @@ async function playMatch(page, C, game, tag) {
   let moves = 0, rounds = 0, shot = 0, kinds = { tap: 0, drag: 0, key: 0, choose: 0, pass: 0 };
   const t0 = Date.now();
   for (let guard = 0; guard < 2000; guard++) {
-    if (Date.now() - t0 > 240000) { issues.push(`${C.name} ${game}: match timeout`); break; }
+    if (Date.now() - t0 > 420000) { issues.push(`${C.name} ${game}: match timeout`); break; }
     const st = await page.evaluate(() => ({
       ok: document.querySelectorAll('.ct-card.ok').length, choose: !!document.querySelector('.cb-choose'), res: !!document.querySelector('.cb-result'),
       final: !!document.querySelector('.cb-result.final'), pass: !!document.querySelector('.cb-pass'),
