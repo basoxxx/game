@@ -322,3 +322,24 @@ Semaforo (riflessi), Ritmo Baso e Memoria a colori.
 - `node tools/festa-test.mjs` (ogni minigioco con 2/3/4 giocatori CPU, determinismo, tabellone e torneo completi),
   `node tools/festa-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/festa-cover.mjs <url>` (copertina),
   `node tools/festa-bank.mjs` (rigenera gli ingorghi del minigioco con il generatore di Ingorgo).
+
+## Arcade Baso (Baso Hub · Arcade)
+
+Raccolta di **4 giochi arcade originali** in stile neon 2.5D/3D (three.js), una sola voce nel Baso Hub con una
+casella per gioco più la **Sfida del giorno** (un gioco a rotazione, seme e variante uguali per tutti, bonus monete).
+- **Astro Baso** — sparatutto verticale: 3 settori × 8 ondate generate dal seme, 6 tipi di nemici, 3 boss con fasi
+  (Granchio Quasar, Medusa Ionica, Occhio del Vuoto), 5 potenziamenti, bombe, cristalli, moltiplicatore combo fino a x8.
+  2 giocatori in cooperativa (due navi).
+- **Rimbalzo** — spaccamattoni: 48 quadri (12 disegnati a mano + 36 dal generatore, tutti verificati risolvibili),
+  modalità infinita, mattoni duri/metallo/esplosivi/oro, 8 capsule (multipalla, laser, colla, fuoco…).
+- **Corri Baso** — corsa infinita a 3 corsie: salto, scivolata, tram, monete, 4 potenziamenti, velocità crescente,
+  3 missioni a rotazione che alzano il moltiplicatore.
+- **Labirinto Goloso** — Gnam e le quattro vespe (impronte, pattuglia, guardia, specchio) in labirinti simmetrici
+  generati senza vicoli ciechi, peperoncino, dolci bonus, allarme «Sciame!».
+- Record (migliori 10 per gioco), monete, colori e scie in comune ai 4 giochi (niente pubblicità).
+- Comandi: tastiera, 2 controller, mouse, touch (trascina, scorri, tocca, tasti virtuali) in verticale e orizzontale;
+  2 giocatori a turno sullo stesso seme (o in cooperativa in Astro Baso). Qualità a livelli + FrameGuard.
+- Codice: `src/arcade/` (simulazioni pure `astro.js`, `rimbalzo.js`, `corri.js`, `labirinto.js`; viste `*-view.js`;
+  `host.js` input/loop/HUD; `stage.js`), schermata `src/screens/arcade.js`, voce `src/hub/games/arcade.js`.
+- `node tools/arcade-test.mjs` (collisioni, punteggi, livelli risolvibili e completabili), `node tools/arcade-e2e.mjs <url> [cartella]`
+  (Playwright, 4 risoluzioni), `node tools/arcade-cover.mjs <url>` (copertina `public/covers/arcade.webp`).

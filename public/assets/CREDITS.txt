@@ -41,3 +41,7 @@ cars are Apex Dynasty's own procedural models (src/ui/cars). Cover rendered from
 Festa Baso (src/festa): no external assets. The board, minigame arenas, effects and the cover
 (covers/festa.webp, rendered by tools/festa-cover.mjs) are procedural; it reuses the Baso Hub's own procedural
 art (Orda figures, Serpentone hats and heads, Kart Baso karts, Scontro Totale bangers, Bastione buildings).
+
+Arcade Baso (src/arcade): no external assets. Ships, bosses, bricks, the runner, Gnam and the wasps, mazes,
+levels, card art (inline SVG) and the cover (covers/arcade.webp, rendered by tools/arcade-cover.mjs) are
+procedural and original; sounds come from the hub's procedural audio engine (src/ui/audio.js).
