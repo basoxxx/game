@@ -122,7 +122,7 @@ export class View {
     for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
       const d = sim.dots[y * MW + x]; if (!d) continue;
       if (d === 1) this.dots.add(X(x), Y(y), 1.2, 1, 1, 1.25, t * 0.5 + x, DOTC[(x * 3 + y) % DOTC.length], 1.2, 0, x + y);
-      else { const s = 1 + Math.sin(t * 6) * 0.12; this.chili.add(X(x), Y(y), 1.6, s, s, s, Math.PI + Math.sin(t * 2) * 0.3, '#ff3b1f', 1.8); this.chiliTop.add(X(x) - Math.sin(Math.sin(t * 2) * 0.3) * 1.8, Y(y) + 1.8, 1.6, 1, 1, 1, 0, '#2fb04a'); }
+      else { const s = 1 + Math.sin(t * 6) * 0.12; this.chili.add(X(x), Y(y), 1.6, s, s, s, Math.PI + Math.sin(t * 2) * 0.3, '#e8101e', 1.25); this.chiliTop.add(X(x) - Math.sin(Math.sin(t * 2) * 0.3) * 1.8, Y(y) + 1.8, 1.6, 1, 1, 1, 0, '#2fb04a'); }
     }
     this.dots.end(); this.chili.end(); this.chiliTop.end();
     this.bonus.begin(); this.bonusTop.begin();

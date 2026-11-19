@@ -170,6 +170,7 @@ export class ArcadeHost {
     if (this.over) return;
     this.paused = force ?? !this.paused;
     this.I.keys.clear(); this.I.vb.clear();
+    this.root.classList.toggle('dz-root', !this.paused); // paused: the controller drives the menu focus again
     this.o.onPause?.(this.paused);
   }
   loop(now) {
@@ -215,6 +216,7 @@ export class ArcadeHost {
       return;
     }
     this.over = true;
+    this.root.classList.remove('dz-root');
     this.snd.play(r.win ? 'win' : 'lose');
     const res = { game: this.o.game, daily: this.o.daily?.key || null, players: this.o.players, mode2: this.mode2, results: this.results, score: Math.max(...this.results.map((q) => q.score)), win: this.results.some((q) => q.win), main: this.results[0] };
     this.o.onEnd?.(res);

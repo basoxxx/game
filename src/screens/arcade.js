@@ -134,7 +134,7 @@ function resultsHTML(r, p, extra) {
 function record(r) {
   const p = arLoad(), g = r.game, extra = { coins: 0 };
   p.games++; p.plays[g] = (p.plays[g] || 0) + 1;
-  const ranks = r.results.map((q, i) => { extra.coins += GAMES[g].coins(q.score); return addScore(p, g, q.score, r.results.length > 1 ? `G${i + 1}` : 'G1'); }).filter(Boolean);
+  const ranks = r.results.map((q, i) => { extra.coins += GAMES[g].coins(q.score) + (g === 'corri' ? Math.floor((q.coins || 0) / 4) : 0); return addScore(p, g, q.score, r.results.length > 1 ? `G${i + 1}` : 'G1'); }).filter(Boolean);
   extra.rank = ranks.length ? Math.min(...ranks) : 0;
   const m = r.main;
   if (!r.daily) {

@@ -78,7 +78,7 @@
 .ar-rec { color: var(--text2); display: flex; align-items: center; gap: 6px; } .ar-rec .ico { width: 16px; height: 16px; color: var(--gold); } .ar-rec b { color: var(--gold); }
 @media (max-width: 1100px) { .ar-games { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 860px) { .ar-row2 { grid-template-columns: 1fr; } }
-@media (max-width: 520px) { .ar-card-t b { font-size: 18px; } .ar-card-t span { display: none; } .ar-games { gap: 8px; } .ar-wallet b { font-size: 24px; } .ar-go .btn.big { width: 100%; } .ar-daily-art { width: 100%; } .ar-items { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .ar-card-t b { font-size: 18px; } .ar-card-t span { display: none; } .ar-games { gap: 8px; } .ar-wallet b { font-size: 24px; } .ar-go .btn.big { width: 100%; } .ar-daily-art { width: 100%; max-width: 240px; } .ar-items { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
 /* ---- live game */
 .ar-stage-full { position: fixed; inset: 0; background: #000; }

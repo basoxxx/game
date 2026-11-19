@@ -5,7 +5,7 @@ import { hashStr, rng, todayKey } from './rng.js';
 export const GAMES = {
   astro: { id: 'astro', name: 'Astro Baso', genre: 'Sparatutto verticale', icon: 'target', accent: '#36e0ff', sub: 'Tre settori di nebulose, ondate di droni e tre boss giganti. Bombe, potenziamenti e moltiplicatore combo.', two: 'coop', coins: (s) => Math.floor(s / 400) },
   rimbalzo: { id: 'rimbalzo', name: 'Rimbalzo', genre: 'Spaccamattoni', icon: 'burst', accent: '#ff4fd8', sub: 'Racchetta, pallina e 48 quadri di mattoni al neon: multipalla, laser, palla di fuoco e un generatore infinito.', two: 'alt', coins: (s) => Math.floor(s / 250) },
-  corri: { id: 'corri', name: 'Corri Baso', genre: 'Corsa infinita', icon: 'speed', accent: '#ffb21f', sub: 'Tre corsie nella città notturna: salta le barriere, scivola sotto le travi, raccogli monete e completa le missioni.', two: 'alt', coins: (s) => Math.floor(s / 300) },
+  corri: { id: 'corri', name: 'Corri Baso', genre: 'Corsa infinita', icon: 'speed', accent: '#ffb21f', sub: 'Tre corsie nella città notturna: salta le barriere, scivola sotto le travi, raccogli monete (una ogni quattro va nel salvadanaio) e completa le missioni.', two: 'alt', coins: (s) => Math.floor(s / 300) },
   labirinto: { id: 'labirinto', name: 'Labirinto Goloso', genre: 'Labirinto e inseguimento', icon: 'compass', accent: '#7dff5a', sub: 'Gnam divora i confetti nel labirinto della pasticceria, schiva le quattro vespe e col peperoncino le mette in fuga.', two: 'alt', coins: (s) => Math.floor(s / 250) },
 };
 export const GAME_IDS = Object.keys(GAMES);
