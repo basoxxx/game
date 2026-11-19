@@ -40,5 +40,40 @@ for (const a of ARENAS) {
   if (!ok) fail++;
   console.log(`${ok ? 'ok' : '!!'} human: still ${still} moving ${moving} (${k.fwd.toFixed(1)} m/s) turbo used ${k.uses === 2}`);
 }
+// drift: hold drift + steer at speed, release → mini-turbo; falling off the sky road / into lava respawns
+{
+  // open ground (battle arena) so the circle never meets a wall
+  const sim = new Sim({ mode: 'battle', track: 'cortile', cls: 'normale', karts: [{ char: 'baso', human: 0 }], seed: 1 });
+  const k = sim.karts[0]; let tiers = 0, boosts = 0;
+  while (sim.state === 'count') sim.step(1 / 60);
+  k.x = -10; k.z = -48; k.h = Math.PI / 2; k.vx = 22; k.vz = 0;
+  k.input.thr = 1; k.input.steer = 1; k.input.drift = 1; for (let i = 0; i < 120; i++) { sim.step(1 / 60); for (const e of sim.popEvents()) if (e.t === 'tier') tiers = Math.max(tiers, e.tier); }
+  const drifting = k.drift !== 0;
+  k.input.drift = 0; k.input.steer = 0; sim.step(1 / 60); for (const e of sim.popEvents()) if (e.t === 'boost') boosts++;
+  const ok = drifting && tiers >= 2 && boosts === 1 && k.boostT > 0;
+  if (!ok) fail++;
+  console.log(`${ok ? 'ok' : '!!'} drift: held ${drifting}, tier ${tiers}, mini-turbo ${boosts === 1} (${k.boostT.toFixed(2)} s)`);
+}
+for (const [track, lat] of [['cometa', 14], ['vulcano', 13]]) {
+  const sim = new Sim({ mode: 'tt', track, laps: 3, cls: 'normale', karts: [{ char: 'baso', human: 0 }], seed: 1 });
+  const k = sim.karts[0];
+  while (sim.state === 'count') sim.step(1 / 60);
+  const p = sim.world.main.pointAt(120, lat); k.x = p.x; k.z = p.z; k.lastP = 120; k.dist = 120; k.ni = -1;
+  let resp = false; for (let i = 0; i < 240 && !resp; i++) { sim.step(1 / 60); for (const e of sim.popEvents()) if (e.t === 'respawn') resp = true; }
+  for (let i = 0; i < 120; i++) sim.step(1 / 60);
+  const back = sim.world.probe(k.x, k.z, -1, {}).excess < 0;
+  if (!(resp && back)) fail++;
+  console.log(`${resp && back ? 'ok' : '!!'} ${track}: off the edge → respawned on the road (${resp}, ${back})`);
+}
+// laps: driving backwards over the line never counts
+{
+  const sim = new Sim({ mode: 'tt', track: 'neve', laps: 3, cls: 'normale', karts: [{ char: 'baso', human: 0 }], seed: 1 });
+  const k = sim.karts[0]; while (sim.state === 'count') sim.step(1 / 60);
+  k.h += Math.PI; k.input.thr = 1; let wrong = 0; for (let i = 0; i < 600; i++) { sim.step(1 / 60); wrong = Math.max(wrong, k.wrongT); }
+  k.wrongT = wrong;
+  const ok = k.maxLap === 0 && k.dist < 0 && wrong > 1;
+  if (!ok) fail++;
+  console.log(`${ok ? 'ok' : '!!'} wrong way: no lap counted (dist ${k.dist.toFixed(0)}, wrongT ${k.wrongT.toFixed(1)})`);
+}
 console.log(fail ? `${fail} FAILED` : 'all ok');
 process.exitCode = fail ? 1 : 0;

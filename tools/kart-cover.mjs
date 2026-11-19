@@ -1,5 +1,5 @@
 // Kart Baso — renders the Baso Hub cover (public/covers/kart.webp, 1600x900) from the game itself:
-// an all-AI pack on Spiaggia Bassa is raced into the first bend, frozen, dressed up (drift sparks,
+// an all-AI pack on Fabbrica Biscotti is raced into the first bend, frozen, dressed up (drift sparks,
 // turbo flames, a Super Moka, a Ricciolo on its way and a bomb going off) and framed low in front of
 // the leaders. Needs a running preview:  npx vite preview --port 4660   then   node tools/kart-cover.mjs [baseUrl]
 // Tweak with KC_TRACK, KC_T (seconds of racing), KC_DIST, KC_SIDE, KC_UP, KC_FOV.
@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
 let pw; try { pw = require('playwright'); } catch { pw = require(execSync('npm root -g').toString().trim() + '/playwright'); }
 const BASE = (process.argv[2] || 'http://127.0.0.1:4660/').replace(/\/?$/, '/');
 const W = 1600, H = 900;
-const E = { track: process.env.KC_TRACK || 'prato', t: +(process.env.KC_T || 7.2), dist: +(process.env.KC_DIST || 10), side: +(process.env.KC_SIDE || 3.4), up: +(process.env.KC_UP || 1.5), fov: +(process.env.KC_FOV || 46), look: +(process.env.KC_LOOK || 2.6) };
+const E = { track: process.env.KC_TRACK || 'biscotti', t: +(process.env.KC_T || 4.8), dist: +(process.env.KC_DIST || 11), side: +(process.env.KC_SIDE || 4.5), up: +(process.env.KC_UP || 3.6), fov: +(process.env.KC_FOV || 42), look: +(process.env.KC_LOOK || 1.5) };
 mkdirSync('public/covers', { recursive: true });
 const browser = await pw.chromium.launch({ args: ['--use-gl=angle', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: W, height: H } });
