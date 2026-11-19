@@ -8,9 +8,10 @@ import { sfx, music } from '../ui/audio.js';
 import { getSettings } from '../engine/state.js';
 import { gfxTier } from '../ui/quality.js';
 import { ordaLoad, ordaSave, ordaStars } from '../orda/store.js';
-import { LEVELS, levelById } from '../orda/levels.js';
-import { UPGRADES, upCost, upEffects, CHAMPIONS, CHAMP_MAX, champCost, champById, SKINS, CANNONS, WORLDS } from '../orda/meta.js';
+import { LEVELS, levelById, bonusLevel, MAIN_LEVELS } from '../orda/levels.js';
+import { UPGRADES, upCost, upEffects, CHAMPIONS, CHAMP_MAX, champCost, champById, SKINS, CANNONS, WORLDS, WORLD_STARS, CHEST_EVERY, LOGIN_REWARDS, rollChest, openChest } from '../orda/meta.js';
 import '../orda/orda.css';
+import '../orda/hooks.css';
 import { registerOrdaModes } from '../orda/modes-entries.js';
 import { baseDesc, baseSummary } from '../orda/base/badge.js';
 
@@ -18,8 +19,36 @@ const V = { playing: false, game: null, from: 'launcher', tab: 'gioca', run: nul
 const fmt = (n) => Math.round(n).toLocaleString('it-IT');
 const CH_ICON = { colosso: '💪', grillo: '🦗', matrioska: '🪆', testuggine: '🛡️' };
 const starRow = (n, max = 3) => `<span class="or-stars">${Array.from({ length: max }, (_, i) => `<i class="${i < n ? 'on' : ''}">★</i>`).join('')}</span>`;
-const nextLevel = (p) => levelById(Math.min(p.next, LEVELS.length)) || LEVELS[0];
-const unlocked = (p, l) => l.id <= p.next;
+const nextLevel = (p) => levelById(Math.min(p.next, p.next > MAIN_LEVELS && worldOpen(p, 6) ? LEVELS.length : MAIN_LEVELS)) || LEVELS[0];
+// a world opens when the one before is cleared AND enough stars were collected (WORLD_STARS)
+const worldOpen = (p, w) => ordaStars(p) >= (WORLD_STARS[w] || 0);
+const unlocked = (p, l) => l.id <= p.next && worldOpen(p, l.world);
+const todayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const yesterdayKey = () => { const d = new Date(); d.setDate(d.getDate() - 1); return todayKey(d); };
+// daily login calendar: claimable today? which day of the 7 is it?
+function loginState(p) {
+  const L = p.login || { last: '', day: -1 }, today = todayKey();
+  if (L.last === today) return { claimable: false, day: L.day };
+  const day = L.last === yesterdayKey() ? (L.day + 1) % LOGIN_REWARDS.length : 0;
+  return { claimable: true, day };
+}
+// the closest thing to unlock: a champion, a world, a star cosmetic → { icon, name, how, f (0..1) }
+function nextUnlock(p) {
+  const stars = ordaStars(p), cleared = Math.min(p.next - 1, LEVELS.length), out = [];
+  for (const C of CHAMPIONS) if (C.unlock && !p.champs.includes(C.id)) out.push({ icon: CH_ICON[C.id], name: C.name, how: `supera il livello ${C.unlock}`, f: cleared / C.unlock });
+  WORLD_STARS.forEach((n, w) => { if (n > stars && WORLDS[w]) out.push({ icon: '🌍', name: WORLDS[w].name, how: `★ ${stars}/${n}`, f: stars / n }); });
+  for (const s of [...SKINS, ...CANNONS]) if (s.stars && s.stars > stars) out.push({ icon: '🎨', name: s.name, how: `★ ${stars}/${s.stars}`, f: stars / s.stars });
+  return out.sort((a, b) => b.f - a.f)[0] || null;
+}
+const unlockBar = (p) => { const u = nextUnlock(p); return u ? `<div class="or-unl"><span class="or-unl-ic">${u.icon}</span><div><div class="or-k">Prossimo sblocco</div><b>${esc(u.name)}</b><div class="or-unl-bar"><i style="width:${Math.round(Math.min(1, u.f) * 100)}%"></i></div><small>${esc(u.how)}</small></div></div>` : ''; };
+const chestBar = (p) => `<div class="or-unl or-chestbar"><span class="or-unl-ic">🎁</span><div><div class="or-k">Forziere</div><b>${p.chests ? `${p.chests} da aprire!` : `${p.chestN || 0} / ${CHEST_EVERY} livelli`}</b><div class="or-unl-bar"><i style="width:${p.chests ? 100 : Math.round(((p.chestN || 0) / CHEST_EVERY) * 100)}%"></i></div>${p.chests ? `<button class="btn primary" data-a="or-chest">Apri</button>` : '<small>un premio ogni 3 livelli nuovi</small>'}</div></div>`;
+function loginCard(p) {
+  const L = loginState(p);
+  return `<section class="or-card or-login ${L.claimable ? 'can' : ''}"><div class="or-k">Premio di ogni giorno</div><div class="or-cal">${LOGIN_REWARDS.map((r, i) => {
+    const done = L.claimable ? i < L.day : i <= L.day, today = L.claimable && i === L.day;
+    return `<div class="${done ? 'done' : ''} ${today ? 'today' : ''}"><small>G${i + 1}</small><b>${r.chest ? '🎁' : '🪙'}</b><span>${r.coins ? r.coins : ''}${r.coins && r.chest ? '+🎁' : r.chest ? 'forziere' : ''}</span></div>`;
+  }).join('')}</div>${L.claimable ? `<button class="btn primary" data-a="or-login">${icon('coin')} Riscuoti il premio di oggi</button>` : '<span class="or-login-ok">Torna domani per il prossimo premio!</span>'}</section>`;
+}
 
 // ───────── extension registries
 // a play mode on the home tab: { id, name, icon, desc, tag?, when?(p), go() } — go() usually calls
@@ -47,6 +76,7 @@ function homeTab(p) {
   const l = nextLevel(p), w = WORLDS[l.world], done = p.next > LEVELS.length;
   const C = champById(p.champ);
   const modes = ORDA_MODES.filter((m) => !m.when || m.when(p));
+  const lockedW = !done && !worldOpen(p, l.world);
   return `<div class="or-home">
     <section class="or-hero" style="--sky:${w.sky};--gr:${w.ground};--rim:${w.rim}">
       <div class="or-hero-art" aria-hidden="true"><div class="or-hero-base"></div>${Array.from({ length: 16 }, (_, i) => { const red = i % 5 === 4; return `<i class="or-bean ${red ? 'r' : ''}" style="--i:${i};left:${(red ? 40 : 34) + ((i * 37) % (red ? 20 : 32))}%;${red ? `top:${44 + (i % 3) * 5}%` : `bottom:${4 + ((i * 13) % 30)}%`}"></i>`; }).join('')}<div class="or-hero-gate">×${l.gates.find((g) => g.type === 'mul')?.value || 2}</div></div>
@@ -55,9 +85,13 @@ function homeTab(p) {
         <h2>${done ? 'Campagna completata!' : esc(l.name)}</h2>
         <p>${done ? 'Hai espugnato tutte le fortezze. Rigioca i livelli per le stelle mancanti, potenzia l’orda e prova le altre modalità.' : esc(l.tip || w.sub)}</p>
         <div class="or-hero-row">${starRow(p.stars[l.id] || 0)}<span>${l.time}s · ${l.gates.length} porte${l.obstacles.length ? ` · ${l.obstacles.length} trappole` : ''}${l.base.towers.length ? ` · ${l.base.towers.length} torri` : ''}</span></div>
-        <button class="btn primary big" data-a="or-play" data-id="${l.id}">${icon('play')} ${done ? 'Rigioca' : 'Gioca'} livello ${l.id}</button>
+        ${lockedW ? `<p class="or-need">🔒 Per entrare in <b>${esc(w.name)}</b> servono <b>★ ${WORLD_STARS[l.world]}</b> (ne hai ${ordaStars(p)}): rigioca i livelli per le stelle mancanti.</p><button class="btn primary big" data-a="or-tab" data-id="livelli">${icon('map')} Livelli</button>`
+          : `<button class="btn primary big" data-a="or-play" data-id="${l.id}">${icon('play')} ${done ? 'Rigioca' : 'Gioca'} livello ${l.id}</button>`}
+        ${p.bonus ? `<button class="btn big or-bonus-btn" data-a="or-bonus">🎁 Livello bonus!</button>` : ''}
       </div>
     </section>
+    <div class="or-home-row or-hooks">${unlockBar(p)}${chestBar(p)}</div>
+    ${loginCard(p)}
     <div class="or-home-row">
       <section class="or-card or-champ-now" data-a="or-tab" data-id="campioni" tabindex="0" style="--c:${C.color}"><div class="or-cface">${CH_ICON[C.id]}</div><div><div class="or-k">Campione nel cannone</div><b>${esc(C.name)}</b><span>${esc(C.role)} · livello ${(p.clv[C.id] || 0) + 1}</span></div></section>
       <section class="or-card" data-a="or-tab" data-id="potenziamenti" tabindex="0"><div class="or-k">Potenziamenti</div><b>${UPGRADES.reduce((a, u) => a + (p.up[u.id] || 0), 0)} / ${UPGRADES.reduce((a, u) => a + u.max, 0)}</b><span>Cadenza ${upEffects(p.up).rate.toFixed(1)}/s · ${upEffects(p.up).shot.toFixed(1)} per colpo</span></section>
@@ -77,9 +111,9 @@ function mapTab(p) {
   return `<div class="or-map">${WORLDS.map((w, wi) => {
     const lv = LEVELS.filter((l) => l.world === wi);
     if (!lv.length) return '';
-    const open = unlocked(p, lv[0]), got = lv.reduce((a, l) => a + (p.stars[l.id] || 0), 0);
+    const open = unlocked(p, lv[0]), got = lv.reduce((a, l) => a + (p.stars[l.id] || 0), 0), need = WORLD_STARS[wi] || 0, starLock = !worldOpen(p, wi);
     return `<section class="or-world ${open ? '' : 'locked'}" style="--sky:${w.sky};--gr:${w.ground};--gr2:${w.ground2};--rim:${w.rim}">
-      <div class="or-world-h"><div><div class="or-k">Mondo ${wi + 1}</div><b>${esc(w.name)}</b><span>${esc(w.sub)}</span></div><em>★ ${got}/${lv.length * 3}</em></div>
+      <div class="or-world-h"><div><div class="or-k">Mondo ${wi + 1}${wi >= 6 ? ' · segreto' : ''}</div><b>${esc(w.name)}</b><span>${esc(w.sub)}</span></div><em>${starLock ? `🔒 ★ ${ordaStars(p)}/${need}` : `★ ${got}/${lv.length * 3}`}</em></div>
       <div class="or-path">${lv.map((l, i) => { const st = p.stars[l.id] || 0, on = unlocked(p, l), cur = l.id === p.next; return `<button class="or-node ${l.base.boss ? 'boss' : ''} ${on ? '' : 'locked'} ${cur ? 'cur' : ''} ${st ? 'done' : ''}" style="--i:${i}" data-a="or-play" data-id="${l.id}" ${on ? '' : 'aria-disabled="true"'} title="${esc(l.name)}"><i>${on ? (l.base.boss ? '👑' : l.id) : '🔒'}</i><small>${esc(l.name)}</small>${starRow(st)}</button>`; }).join('')}</div>
     </section>`;
   }).join('')}</div>`;
@@ -120,6 +154,7 @@ function optTab(p) {
     ${tog('autofire', 'Fuoco automatico', 'Il cannone spara sempre: devi solo mirare. Comodo su telefono.')}
     ${tog('shake', 'Scossoni dello schermo', 'La visuale trema negli impatti e nei crolli.')}
     ${tog('numbers', 'Numeri a comparsa', 'Mostra +N sulle porte e i danni sulla base.')}
+    ${tog('autonext', 'Livello successivo automatico', 'Dopo una vittoria il livello dopo parte da solo in pochi secondi (tocca lo schermo per fermarlo).')}
     <div class="or-opt-row"><button class="btn" data-a="nav" data-to="settings" data-back="orda">${icon('settings')} Audio, grafica e comandi</button><button class="btn ghost" data-a="or-reset">${icon('trash')} Azzera i progressi di Orda</button></div>
     <p class="or-note">Orda è un gioco originale: niente pubblicità, niente acquisti. Le monete si guadagnano solo giocando.</p>
   </div>`;
@@ -143,25 +178,31 @@ function menu(p) {
 
 function results(r, p, extra = '') {
   const L = V.run?.level, campaign = V.run?.mode === 'level';
-  const nx = campaign && r.win ? levelById((L?.id || 0) + 1) : null;
-  const title = r.win ? (L?.base?.boss ? 'Fortezza espugnata!' : 'Vittoria!') : r.why === 'time' ? 'Tempo scaduto' : 'Cannone travolto';
+  let nx = campaign && r.win ? levelById((L?.id || 0) + 1) : null;
+  if (nx && !unlocked(p, nx)) nx = null;
+  const title = r.bonus ? 'Caveau svaligiato!' : r.win ? (L?.base?.boss ? 'Fortezza espugnata!' : 'Vittoria!') : r.why === 'time' ? 'Tempo scaduto' : 'Cannone travolto';
   return `<div class="or-res" role="dialog" aria-label="Risultati">
     <div class="or-res-card ${r.win ? 'win' : 'lose'}">
       <div class="or-k">${campaign ? `Livello ${L.id} · ${esc(L.name)}` : esc(V.run?.label || L?.name || '')}</div>
       <h2>${title}</h2>
-      ${r.win ? `<div class="or-res-stars">${[1, 2, 3].map((i) => `<i class="${i <= r.stars ? 'on' : ''}" style="--d:${i * 0.25}s">★</i>`).join('')}</div>` : `<p class="or-res-why">${r.why === 'time' ? 'La base ha resistito: prova una porta diversa o potenzia la cadenza.' : 'Troppi rossi hanno raggiunto il cannone: spostati per intercettarli.'}</p>`}
+      ${r.bonus ? `<p class="or-res-why">La tua orda ha portato <b>${fmt(r.baseDmg)}</b> figure nel caveau.</p>` : r.win ? `<div class="or-res-stars">${[1, 2, 3].map((i) => `<i class="${i <= r.stars ? 'on' : ''}" style="--d:${i * 0.25}s">★</i>`).join('')}</div>` : `<p class="or-res-why">${r.why === 'time' ? 'La base ha resistito: prova una porta diversa o potenzia la cadenza.' : 'Troppi rossi hanno raggiunto il cannone: spostati per intercettarli.'}</p>`}
       ${r.win && L?.stars ? `<ul class="or-res-goals"><li class="on">★ Base distrutta</li><li class="${r.timeMs / 1000 <= L.stars.par ? 'on' : ''}">★ Entro ${L.stars.par}s <em>${(r.timeMs / 1000).toFixed(0)}s</em></li><li class="${r.left >= L.stars.crowd ? 'on' : ''}">★ Orda finale ≥ ${L.stars.crowd} <em>${fmt(r.left)}</em></li></ul>` : ''}
       <div class="or-res-stats">
         <div><b>${fmt(r.figuresSent)}</b><span>sparate</span></div>
         <div><b>${fmt(r.cloned || 0)}</b><span>dalle porte</span></div>
         <div><b>${fmt(r.kills)}</b><span>rossi battuti</span></div>
         <div><b>${r.champions}</b><span>campioni</span></div>
-        <div><b>+${fmt(r.coins)}</b><span>monete</span></div>
+        <div class="or-res-coins"><b data-count="${r.coins}">+0</b><span>monete</span></div>
       </div>
+      ${r.combo >= 2 ? `<div class="or-res-combo">🔥 Valanga x${r.combo}: +${(r.combo - 1) * 10}% monete</div>` : ''}
+      ${p.chests ? `<button class="or-res-chest" data-a="or-chest">🎁 <b>Forziere!</b> <span>Tocca per aprirlo</span></button>` : ''}
+      ${p.bonus && r.win ? `<button class="or-res-chest or-res-bonus" data-a="or-bonus">💰 <b>Livello bonus!</b> <span>Solo porte, monete a pioggia</span></button>` : ''}
+      <div class="or-res-hooks">${unlockBar(p)}${p.chests ? '' : chestBar(p)}</div>
       ${r.unlock ? `<div class="or-res-unl">${CH_ICON[r.unlock.id]} Nuovo campione: <b>${esc(r.unlock.name)}</b> (${esc(r.unlock.role)})</div>` : ''}
+      ${r.world ? `<div class="or-res-unl">🌍 Nuovo mondo: <b>${esc(r.world)}</b></div>` : ''}
       ${extra}
       <div class="or-res-btns">
-        ${nx ? `<button class="btn primary" data-a="or-play" data-id="${nx.id}">${icon('play')} Livello ${nx.id}</button>` : ''}
+        ${nx ? `<button class="btn primary or-next" data-a="or-play" data-id="${nx.id}">${icon('play')} Livello ${nx.id} <em class="or-auto"></em></button>` : ''}
         <button class="btn ${nx ? '' : 'primary'}" data-a="or-again">${icon('replay')} ${r.win ? 'Rigioca' : 'Riprova'}</button>
         ${!r.win ? `<button class="btn" data-a="or-shop">${icon('wrench')} Potenziamenti</button>` : ''}
         <button class="btn ghost" data-a="or-back">${icon('map')} Menu Orda</button>
@@ -175,9 +216,16 @@ function record(r, run) {
   const st = ordaLoad();
   st.games++; st.sent += r.figuresSent; st.kills += r.kills; st.coins += r.coins;
   if (r.win) st.wins++;
+  if (run.mode === 'bonus') st.bonus = Math.max(0, (st.bonus || 0) - 1);
   if (run.mode === 'level' && r.win && run.level.id) {
     const id = run.level.id;
+    if (!st.stars[id]) { // a new level: towards the next chest and the next bonus level
+      st.chestN = (st.chestN || 0) + 1; if (st.chestN >= CHEST_EVERY) { st.chestN = 0; st.chests = (st.chests || 0) + 1; }
+      st.bonusN = (st.bonusN || 0) + 1; if (st.bonusN >= 4) { st.bonusN = 0; st.bonus = (st.bonus || 0) + 1; }
+    }
+    const before = ordaStars(st);
     st.stars[id] = Math.max(st.stars[id] || 0, r.stars);
+    WORLD_STARS.forEach((n, w) => { if (before < n && ordaStars(st) >= n && w > 0 && LEVELS.some((l) => l.world === w)) r.world = WORLDS[w].name; });
     st.best[id] = Math.min(st.best[id] || 1e9, +(r.timeMs / 1000).toFixed(1));
     st.next = Math.max(st.next, id + 1);
     for (const C of CHAMPIONS) if (C.unlock && C.unlock <= id && !st.champs.includes(C.id)) { st.champs.push(C.id); st.clv[C.id] = 0; r.unlock = C; }
@@ -190,10 +238,22 @@ function record(r, run) {
   return st;
 }
 
-function stopGame() { V.game?.destroy(); V.game = null; if (window.__orda) window.__orda.game = null; }
+// results: the coins count up; after a win the next level starts by itself (option, any tap stops it)
+function resultsFx(ov, st) {
+  const c = ov.querySelector('[data-count]');
+  if (c) { const n = +c.dataset.count, t0 = performance.now(); const tick = () => { const f = Math.min(1, (performance.now() - t0) / 700); c.textContent = `+${fmt(n * f)}`; if (f < 1 && c.isConnected) requestAnimationFrame(tick); }; requestAnimationFrame(tick); }
+  const nx = ov.querySelector('.or-next');
+  clearInterval(V.autoT);
+  if (!nx || !st.opt.autonext || st.chests || V.run?.mode !== 'level') return;
+  let left = 4; const lab = nx.querySelector('.or-auto'); lab.textContent = `(${left})`;
+  const stop = () => { clearInterval(V.autoT); lab.textContent = ''; ov.removeEventListener('pointerdown', stop, true); window.removeEventListener('keydown', stop, true); };
+  V.autoT = setInterval(() => { left--; if (!nx.isConnected) return stop(); if (left <= 0) { stop(); nx.click(); } else lab.textContent = `(${left})`; }, 1000);
+  setTimeout(() => { ov.addEventListener('pointerdown', stop, true); window.addEventListener('keydown', stop, true); }, 300);
+}
+function stopGame() { clearInterval(V.autoT); V.game?.destroy(); V.game = null; if (window.__orda) window.__orda.game = null; }
 function startLevel(id) {
   const l = levelById(+id); if (!l) return;
-  const p = ordaLoad(); if (!unlocked(p, l)) { sfx.bad?.(); App.toast('Livello bloccato', `Supera il livello ${p.next} per proseguire.`, 'bad'); return; }
+  const p = ordaLoad(); if (!unlocked(p, l)) { sfx.bad?.(); App.toast('Livello bloccato', l.id <= p.next ? `Per «${WORLDS[l.world].name}» servono ★ ${WORLD_STARS[l.world]} (ne hai ${ordaStars(p)}).` : `Supera il livello ${p.next} per proseguire.`, 'bad'); return; }
   playOrda({ level: l, mode: 'level' });
 }
 
@@ -216,8 +276,9 @@ registerScreen({
     if (!V.playing || !root.isConnected) return;
     const s = getSettings();
     const g = V.game = new OrdaGame(root, {
-      level: run.level, mode: run.mode, seed: run.seed, upgrades: p.up, skin: p.skin, cannon: p.cannon, champion: p.champ, champLvl: p.clv[p.champ] || 0,
+      level: run.level, mode: run.mode, seed: run.seed, label: run.label, upgrades: p.up, skin: p.skin, cannon: p.cannon, champion: p.champ, champLvl: p.clv[p.champ] || 0,
       prevStars: run.mode === 'level' ? p.stars[run.level.id] || 0 : 0,
+      onRestart: () => { stopGame(); V.playing = true; App.refresh(); },
       tier: gfxTier(), volume: s.sound === false ? 0 : 0.6 * (s.volume ?? 0.5) / 0.5, autofire: p.opt.autofire, shake: p.opt.shake && !document.documentElement.classList.contains('reduce-motion'), numbers: p.opt.numbers,
       onPause: (on) => {
         const ov = document.getElementById('or-over'); if (!ov) return;
@@ -236,8 +297,9 @@ registerScreen({
         for (const f of ORDA_END_HOOKS) { try { f(r, run); } catch (e) { console.warn(e); } }
         const ov = document.getElementById('or-over'); if (!ov || !V.playing) return;
         ov.innerHTML = results(r, st, extra);
-        try { r.win ? sfx.win() : sfx.bad?.(); if (r.unlock) setTimeout(() => sfx.levelup?.(), 700); } catch {}
+        try { r.win ? sfx.win() : sfx.bad?.(); if (r.unlock || r.world) setTimeout(() => sfx.levelup?.(), 700); } catch {}
         requestAnimationFrame(() => ov.querySelector('.btn.primary')?.focus({ preventScroll: true }));
+        resultsFx(ov, st);
       },
     });
     window.__orda = Object.assign(window.__orda || {}, { game: g });
@@ -274,6 +336,25 @@ function ORDA_ACTIONS() {
     'or-opt'(el) { const p = ordaLoad(); p.opt[el.dataset.k] = el.checked; ordaSave(p); },
     'or-reset'() { App.confirm('Azzerare Orda?', 'Livelli, stelle, monete, potenziamenti e campioni di Orda torneranno all’inizio. Gli altri giochi non vengono toccati.', () => { ordaSave({}); localStorage.removeItem('sala_orda_v1'); refresh(); }, 'Azzera', true); },
     'or-resume'() { V.game?.togglePause(false); },
+    'or-chest'(el) {
+      const p = ordaLoad(); if (!p.chests) return;
+      const rw = openChest(p, rollChest((p.games + 1) * 7919 + (p.wins || 0) * 31 + p.coins, p)); p.chests--; ordaSave(p);
+      try { sfx.levelup?.(); } catch {}
+      const host = el.closest('.or-res-card, .or-home') || document.body;
+      const pop = document.createElement('div'); pop.className = 'or-chest-pop'; pop.setAttribute('role', 'dialog');
+      pop.innerHTML = `<div class="or-chest-box"><div class="or-chest-ic">${rw.icon}</div><div class="or-k">Dal forziere</div><h3>${rw.kind === 'up' ? `${esc(rw.name)} +1` : rw.kind === 'coins' ? `+${fmt(rw.n)} monete` : `${rw.kind === 'skin' ? 'Colore' : 'Cannone'} «${esc(rw.name)}»`}</h3><button class="btn primary" data-a="or-chest-ok">Fantastico!</button></div>`;
+      host.appendChild(pop); requestAnimationFrame(() => pop.querySelector('.btn')?.focus());
+    },
+    'or-chest-ok'(el) { el.closest('.or-chest-pop')?.remove(); if (!V.playing) refresh(); else { const b = document.querySelector('[data-a=or-chest]'); if (b && !ordaLoad().chests) b.remove(); } },
+    'or-login'() {
+      const p = ordaLoad(), L = loginState(p); if (!L.claimable) return;
+      const rw = LOGIN_REWARDS[L.day]; p.login = { last: todayKey(), day: L.day };
+      if (rw.coins) p.coins += rw.coins; if (rw.chest) p.chests = (p.chests || 0) + 1;
+      ordaSave(p); try { sfx.coin?.(); } catch {}
+      App.toast('Premio del giorno', `${rw.coins ? `+${rw.coins} monete` : ''}${rw.coins && rw.chest ? ' e ' : ''}${rw.chest ? 'un forziere' : ''}!`, 'ok');
+      refresh();
+    },
+    'or-bonus'() { const p = ordaLoad(); if (!p.bonus) return; stopGame(); playOrda({ level: bonusLevel(p.wins + p.games), mode: 'bonus', label: 'Livello bonus' }); },
     'or-again'() { stopGame(); V.playing = true; refresh(); },
     'or-quit'() { stopGame(); V.playing = false; refresh(); },
     'or-back'() { stopGame(); V.playing = false; refresh(); },

@@ -41,13 +41,16 @@ import { pixelRatio } from '../ui/quality.js';
 import { FrameGuard } from '../ui/perfguard.js';
 import { osfx } from '../ui/audio.js';
 import { Sim, CANNON_Z, BASE_DEPTH, unitScale, gateLabel, gateGood, autopilot } from './sim.js';
-import { WORLDS, SKINS, CANNONS, champById, starsFor, coinsFor } from './meta.js';
+import { WORLDS, SKINS, CANNONS, champById, starsFor, coinsFor, bonusCoins, PACE } from './meta.js';
+import './juice.css';
 
 const STEP = 1 / 60;
 const FIG = 1.3; // drawn size of a figure vs its collision size: chunkier reads better from afar
 const CAPS = { high: 1600, med: 900, low: 450 };
 const TC = new THREE.Color(), TC2 = new THREE.Color();
 const RED = new THREE.Color('#ff3b4e'), RED_D = new THREE.Color('#c8102e');
+const fmtN = (n) => Math.round(n).toLocaleString('it-IT');
+const MILESTONES = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000];
 const fmtT = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const CHAMP_ICON = { colosso: '💪', grillo: '🦗', matrioska: '🪆', testuggine: '🛡️' };
 
@@ -169,21 +172,39 @@ class Particles {
 // gate panel art: a big glowing number on a candy-coloured board
 function drawGate(cv, g) {
   const c = cv.getContext('2d'), W = cv.width, H = cv.height;
-  const good = gateGood(g.type);
+  const good = gateGood(g.type), kind = gateKind(g);
   c.clearRect(0, 0, W, H);
-  const gr = c.createLinearGradient(0, 0, 0, H);
-  if (good) { gr.addColorStop(0, 'rgba(90,200,255,.85)'); gr.addColorStop(1, 'rgba(40,110,255,.55)'); } else { gr.addColorStop(0, 'rgba(255,110,120,.85)'); gr.addColorStop(1, 'rgba(220,30,60,.55)'); }
+  let gr = c.createLinearGradient(0, 0, 0, H);
+  if (kind === 'rainbow') { gr = c.createLinearGradient(0, 0, W, 0); ['#ff4d6d', '#ffb000', '#ffe066', '#2ee6a6', '#2f80ff', '#8b5cff'].forEach((col, i) => gr.addColorStop(i / 5, col)); }
+  else if (kind === 'split') { gr.addColorStop(0, 'rgba(190,140,255,.9)'); gr.addColorStop(1, 'rgba(120,60,255,.6)'); }
+  else if (kind === 'rec') { gr.addColorStop(0, 'rgba(120,240,170,.9)'); gr.addColorStop(1, 'rgba(20,170,110,.6)'); }
+  else if (good) { gr.addColorStop(0, 'rgba(90,200,255,.85)'); gr.addColorStop(1, 'rgba(40,110,255,.55)'); } else { gr.addColorStop(0, 'rgba(255,110,120,.85)'); gr.addColorStop(1, 'rgba(220,30,60,.55)'); }
   c.fillStyle = gr; c.beginPath(); c.roundRect(6, 6, W - 12, H - 12, 26); c.fill();
   c.lineWidth = 8; c.strokeStyle = 'rgba(255,255,255,.9)'; c.stroke();
   c.font = `900 ${Math.round(H * 0.62)}px "Exo 2", system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
   const txt = gateLabel(g.type, g.value, g);
-  c.lineWidth = 14; c.strokeStyle = good ? '#0b3a8f' : '#7a0618'; c.strokeText(txt, W / 2, H * 0.55);
+  c.lineWidth = 14; c.strokeStyle = ({ rainbow: '#5a1a8f', split: '#3b1a8f', rec: '#0b5a3a' })[kind] || (good ? '#0b3a8f' : '#7a0618'); c.strokeText(txt, W / 2, H * 0.55);
   c.shadowColor = good ? '#bff4ff' : '#ffd0d6'; c.shadowBlur = 24; c.fillStyle = '#fff'; c.fillText(txt, W / 2, H * 0.55); c.shadowBlur = 0;
   if (g.toggle) { // the swap countdown: a small pie in the corner
     const f = Math.max(0, Math.min(1, g.tt / (g.toggle.every || 3)));
     c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.arc(W - 40, 40, 24, 0, Math.PI * 2); c.fill();
     c.fillStyle = '#ffe066'; c.beginPath(); c.moveTo(W - 40, 40); c.arc(W - 40, 40, 22, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2); c.closePath(); c.fill();
   }
+}
+const gateKind = (g) => (g.rainbow && g.type === 'mul' ? 'rainbow' : g.type === 'split' || g.type === 'rec' ? g.type : gateGood(g.type) ? 'good' : 'bad');
+const STRIP = { rainbow: '#ffe066', split: '#b98cff', rec: '#5ff0a8', good: '#5ad1ff', bad: '#ff5a6e' };
+// a pad on the floor: chevrons (jump: yellow, pointing forward · push: blue, pointing sideways)
+function padTex(kind, dir = 1) {
+  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64; const c = cv.getContext('2d');
+  c.fillStyle = kind === 'jump' ? '#ffcf3a' : '#3aa8ff'; c.beginPath(); c.roundRect(2, 2, 124, 60, 14); c.fill();
+  c.strokeStyle = '#ffffff'; c.lineWidth = 9; c.lineCap = 'round'; c.lineJoin = 'round';
+  for (let i = 0; i < 3; i++) {
+    c.beginPath();
+    if (kind === 'jump') { const y = 50 - i * 16; c.moveTo(34, y); c.lineTo(64, y - 12); c.lineTo(94, y); }
+    else { const x = 64 + (i - 1) * 30 * dir; c.moveTo(x - 8 * dir, 16); c.lineTo(x + 8 * dir, 32); c.lineTo(x - 8 * dir, 48); }
+    c.stroke();
+  }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 function stripes(a, b, n = 8, w = 128, h = 32) {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const c = cv.getContext('2d');
@@ -202,6 +223,8 @@ export class OrdaGame {
     this.keys = new Set(); this.ptr = null; this.firing = false; this.auto = false;
     this.popAgg = new Map(); this.sfxT = {};
     this.uTime = { value: 0 };
+    // juice: slow motion (timeScale for slowT real seconds), a camera focus, crowd milestones
+    this.timeScale = 1; this.slowT = 0; this.focus = null; this.milestone = 0; this.megaT = -99; this.shown = 0; this.bump = 0; this.coinsShown = 0;
   }
 
   async start() {
@@ -213,11 +236,16 @@ export class OrdaGame {
     root.innerHTML = `<canvas class="or-cv"></canvas><div class="or-hud">
       <div class="or-top">
         <button class="or-pausebtn" id="or-pausebtn" aria-label="Pausa">II</button>
-        <div class="or-boss"><div class="or-boss-n"><span id="or-bname">${L.base?.boss ? '👑 ' : ''}${L.base?.name || 'Base rossa'}</span><b id="or-bhp"></b></div><div class="or-bar"><i id="or-bbar"></i><em id="or-bshield"></em></div></div>
+        <button class="or-pausebtn or-restart" id="or-restart" aria-label="Ricomincia (R)">↻</button>
+        <div class="or-boss ${L.bonus ? 'vault' : ''}"><div class="or-boss-n"><span id="or-bname">${L.bonus ? '💰 Caveau' : `${L.base?.boss ? '👑 ' : ''}${L.base?.name || 'Base rossa'}`}</span><b id="or-bhp"></b></div><div class="or-bar"><i id="or-bbar"></i><em id="or-bshield"></em></div></div>
         <div class="or-timer" id="or-timer">0:00</div>
       </div>
-      <div class="or-goals" id="or-goals"><span id="or-g1">⏱ ${L.stars?.par ?? 60}s</span><span id="or-g2">👥 ${L.stars?.crowd ?? 30}</span><span class="or-lv">${o.label || (o.mode === 'level' ? `Livello ${L.id}` : ({ raid: 'Razzia', endless: 'Infinita', daily: 'Sfida del giorno', versus: '2 giocatori' })[o.mode] || o.mode)} · ${L.name || ''}</span></div>
-      <div class="or-crowd" id="or-crowd"><b id="or-cn">0</b><span>in campo</span></div>
+      <div class="or-goals" id="or-goals">${L.bonus ? '<span>🎁 Livello bonus: raccogli più orda che puoi!</span>' : `<span id="or-g1">⏱ ${L.stars?.par ?? 60}s</span><span id="or-g2">👥 ${L.stars?.crowd ?? 30}</span>`}<span class="or-lv">${o.label || (o.mode === 'level' ? `Livello ${L.id}` : ({ raid: 'Razzia', endless: 'Infinita', daily: 'Sfida del giorno', versus: '2 giocatori' })[o.mode] || o.mode)} · ${L.name || ''}</span></div>
+      <div class="or-crowd" id="or-crowd"><b id="or-cn">0</b><span>la tua orda</span></div>
+      <div class="or-combo" id="or-combo"><b id="or-combo-t">Valanga</b><i><em id="or-combo-f"></em></i></div>
+      <div class="or-coins" id="or-coins"><span>🪙</span><b id="or-coins-n">0</b></div>
+      <div class="or-teach" id="or-teach"></div>
+      <div class="or-skip" id="or-skip">Tocca per continuare</div>
       <div class="or-can" id="or-can"><span>Cannone</span><div class="or-bar or-bar-s"><i id="or-cbar"></i></div></div>
       <button class="or-champ" id="or-champ" aria-label="Lancia il campione" style="--c:${C.color}"><i id="or-ring"></i><span class="or-champ-ic">${CHAMP_ICON[C.id] || '★'}</span><b>${C.name}</b><small id="or-champ-t">Carica…</small></button>
       <div class="or-pops" id="or-pops"></div>
@@ -251,8 +279,11 @@ export class OrdaGame {
     this.loop = this.loop.bind(this);
     this.raf = requestAnimationFrame(this.loop);
     document.activeElement?.blur?.();
-    setTimeout(() => this.$('or-tip')?.classList.add('off'), 7000);
-    setTimeout(() => this.$('or-help')?.classList.add('off'), 9000);
+    setTimeout(() => this.$('or-tip')?.classList.add('off'), 4500);
+    setTimeout(() => this.$('or-help')?.classList.add('off'), 5000);
+    // a fortress opens with a fly-by: the camera starts on the walls and pulls back as the fight starts
+    if (L.base?.boss && !L.bonus) { this.focus = { x: 0, z: this.sim.L + 2, t: 0, dur: 1.8, k: 0.62, hold: 0.7, start: true }; this.banner(L.base.name || 'Fortezza', 'phase'); this.snd('boss', 0, () => osfx.alarm()); }
+    this.teachInit();
   }
 
   // ---------- scene
@@ -336,7 +367,7 @@ export class OrdaGame {
       const postM = new THREE.MeshLambertMaterial({ color: '#ffffff' });
       const posts = [-1, 1].map((s) => { const pst = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 1.3 + g.w * 0.5, 10), postM); pst.position.set(s * g.w / 2, (1.3 + g.w * 0.5) / 2, 0); pst.castShadow = true; return pst; });
       // a glowing strip on the ground where the gate counts
-      const strip = new THREE.Mesh(new THREE.PlaneGeometry(g.w, 0.5), new THREE.MeshBasicMaterial({ color: gateGood(g.type) ? '#5ad1ff' : '#ff5a6e', transparent: true, opacity: 0.55, depthWrite: false }));
+      const strip = new THREE.Mesh(new THREE.PlaneGeometry(g.w, 0.5), new THREE.MeshBasicMaterial({ color: STRIP[gateKind(g)], transparent: true, opacity: 0.55, depthWrite: false }));
       strip.rotation.x = -Math.PI / 2; strip.position.y = 0.03;
       grp.add(panel, ...posts, strip); grp.position.set(g.cx, 0, g.z);
       this.scene.add(grp);
@@ -374,7 +405,12 @@ export class OrdaGame {
         const track = new THREE.Mesh(new THREE.PlaneGeometry(2 * (ob.amp ?? 3) + 2 * r, 0.3), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.18, depthWrite: false })); track.rotation.x = -Math.PI / 2; track.position.set(0, 0.025, 0);
         mesh.add(blade, hub); mesh.userData.blade = blade; mesh.userData.track = track; this.scene.add(track); track.position.set(ob.x, 0.025, ob.z);
       }
-      if (mesh.isMesh) { mesh.castShadow = true; mesh.receiveShadow = true; }
+      else if (ob.type === 'jump' || ob.type === 'push') {
+        const dir = ob.type === 'push' ? Math.sign((ob.to ?? 0) - ob.x) || 1 : 1;
+        mesh = new THREE.Mesh(new THREE.BoxGeometry(ob.w, 0.16, ob.d), [0, 1, 2, 3, 4, 5].map((i) => (i === 2 ? new THREE.MeshBasicMaterial({ map: padTex(ob.type, dir), toneMapped: false }) : new THREE.MeshLambertMaterial({ color: ob.type === 'jump' ? '#e0a400' : '#1f6fd1' }))));
+        mesh.position.set(ob.x, 0.08, ob.z); mesh.rotation.y = Math.PI; mesh.userData.pad = true;
+      }
+      if (mesh.isMesh) { mesh.castShadow = !mesh.userData.pad; mesh.receiveShadow = true; }
       this.scene.add(mesh);
       return { ob, mesh };
     });
@@ -478,7 +514,8 @@ export class OrdaGame {
     const cv = this.cv;
     const game = new Set(['ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD', 'Space', 'ArrowUp', 'KeyW', 'KeyE', 'KeyQ', 'ShiftLeft', 'ShiftRight', 'Enter']);
     this.onKD = (e) => {
-      if (this.over) return;
+      if (this.over) { if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); this.onSkip(); } return; }
+      if (e.code === 'KeyR' && this.o.onRestart) { e.preventDefault(); e.stopPropagation(); this.o.onRestart(); return; }
       if (e.code === 'Escape' || e.code === 'KeyP') { e.preventDefault(); e.stopPropagation(); this.togglePause(); return; }
       if (!game.has(e.code)) return;
       e.preventDefault(); e.stopPropagation();
@@ -506,6 +543,10 @@ export class OrdaGame {
     this.onVis = () => { if (document.hidden && !this.paused && !this.over) this.togglePause(true); };
     document.addEventListener('visibilitychange', this.onVis);
     this.$('or-pausebtn').addEventListener('click', () => this.togglePause());
+    this.$('or-restart').addEventListener('click', () => this.o.onRestart?.());
+    // the end of a match can be skipped with a tap / key
+    this.onSkip = () => { if (this.over && this.result && !this.skipped) { this.skipped = true; clearTimeout(this._endT); this.o.onEnd?.(this.result); } };
+    this.root.addEventListener('pointerdown', this.onSkip);
     const cb = this.$('or-champ');
     cb.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); this.launchChampion(); });
     this.padPrev = {};
@@ -596,9 +637,22 @@ export class OrdaGame {
     const sx = (this.sim.cannon.x || 0) * 0.08;
     let ox = 0, oy = 0;
     if (this.shakeT > 0 && this.o.shake !== false) { this.shakeT = Math.max(0, this.shakeT - dt); const k = this.shakeT * this.shakeAmp; ox = (Math.random() - 0.5) * k; oy = (Math.random() - 0.5) * k; }
-    cam.position.set(sx + ox, Math.sin(B.pitch) * B.d + oy, B.tz - Math.cos(B.pitch) * B.d);
-    cam.lookAt(sx * 0.5 + ox * 0.5, 0, B.tz);
+    let d = B.d, tz = B.tz, lx = sx * 0.5, pitch = B.pitch;
+    const F = this.focus;
+    if (F) {
+      // ease in, hold, ease out: k is how far the camera pulls in towards the focus point
+      F.t += dt;
+      const ein = Math.min(1, F.t / 0.35), eout = F.t > F.dur - 0.5 ? Math.max(0, (F.dur - F.t) / 0.5) : 1, w = F.start ? Math.max(0, 1 - Math.max(0, F.t - F.hold) / (F.dur - F.hold)) : Math.min(ein, eout);
+      const e = w * w * (3 - 2 * w) * F.k;
+      d = B.d * (1 - e * 0.62); tz = B.tz + ((F.track?.() ?? F.z) - B.tz) * e; lx += ((F.x ?? 0) - lx) * e; pitch = B.pitch - e * 0.12;
+      if (F.t >= F.dur) this.focus = null;
+    }
+    cam.position.set(lx + ox, Math.sin(pitch) * d + oy, tz - Math.cos(pitch) * d);
+    cam.lookAt(lx + ox * 0.5, 0, tz);
   }
+  // slow motion for `real` seconds of real time
+  slowmo(scale, real) { this.timeScale = Math.min(this.timeScale, scale); this.slowT = Math.max(this.slowT, real); }
+  focusOn(o) { if (this.o.shake === false && !o.start) return; this.focus = { t: 0, hold: 0, ...o }; }
   shake(amp, t = 0.35) { if (this.o.shake === false) return; this.shakeAmp = Math.max(this.shakeAmp || 0, amp); this.shakeT = Math.max(this.shakeT, t); if (this.shakeT === t) this.shakeAmp = amp; }
 
   // ---------- frame
@@ -613,6 +667,7 @@ export class OrdaGame {
   step(dt, live = false) {
     if (this.paused) return;
     this.clock += dt; this.uTime.value = this.clock;
+    if (this.slowT > 0) { this.slowT -= dt; dt *= this.timeScale; if (this.slowT <= 0) this.timeScale = 1; }
     if (this.freeze > 0) { this.freeze -= dt; dt = 0; } // hit-stop
     this.acc += dt;
     let n = 0;
@@ -635,10 +690,32 @@ export class OrdaGame {
     const fx = this.fx, blue = this.blueCol;
     switch (e.t) {
       case 'go': this.banner('Via!', 'go'); this.snd('go', 0, () => osfx.go()); this.$('or-count').textContent = ''; break;
+      case 'combo': {
+        const el = this.$('or-combo'); el.classList.add('on'); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+        this.$('or-combo-t').textContent = `Valanga x${e.n}`;
+        if (e.n >= 3) this.snd('combo', 300, () => osfx.ready());
+        if (e.n === 5) { this.banner('Valanga x5!', 'champ'); this.shake(0.3, 0.25); }
+        break;
+      }
+      case 'comboEnd': this.$('or-combo')?.classList.remove('on'); break;
+      case 'minus': { const a = this.popAgg.get(`m${e.g}`) || { n: 0, x: e.x, z: e.z, t: 0 }; a.n -= e.n; this.popAgg.set(`m${e.g}`, a); this.snd('eaten', 90, () => osfx.minus()); break; }
+      case 'giant': this.banner('Gigante!', 'phase'); this.shake(0.5, 0.4); this.snd('giant', 0, () => osfx.wave()); this.popup(`${fmtN(e.hp)} PV`, e.x, 5, this.sim.L - 2, 'bad'); break;
+      case 'giantDown': {
+        this.freeze = 0.09; this.shake(0.9, 0.45); this.slowmo(0.4, 0.35);
+        this.popup('Gigante abbattuto!', e.x, 4, e.z, 'huge');
+        for (let i = 0; i < 60; i++) fx.emit(e.x, 1 + Math.random() * 3, e.z, (Math.random() - 0.5) * 12, 4 + Math.random() * 9, (Math.random() - 0.5) * 12, i % 3 ? RED_D : TC.set('#ffe066'), 0.55, 1.1);
+        this.snd('giantDown', 0, () => osfx.boom());
+        break;
+      }
+      case 'jump': this.snd('jump', 120, () => osfx.swat()); for (let i = 0; i < 2; i++) fx.emit(e.x, 0.3, e.z, (Math.random() - 0.5) * 2, 4 + Math.random() * 2, 2, TC.set('#ffe066'), 0.3, 0.4); break;
+      case 'push': this.snd('push', 250, () => osfx.toggle()); break;
+      case 'save': if (this.clock - (this._saveT || -9) > 6) { this._saveT = this.clock; this.popup('Per un pelo!', e.x, 2.5, e.z + 1, 'big'); this.snd('save', 0, () => osfx.ready()); } break;
       case 'fire': this.cannonKick = 1; this.snd('fire', 70, () => osfx.shoot()); for (let i = 0; i < 3; i++) fx.emit(e.x, 1.4, CANNON_Z + 1.2, (Math.random() - 0.5) * 2, 1 + Math.random(), 2 + Math.random() * 2, TC.set('#ffffff'), 0.35, 0.35, 2); break;
       case 'clone': {
         const go = this.gateObjs[e.g]; if (go) go.pulse = 1;
-        const k = `g${e.g}`, a = this.popAgg.get(k) || { n: 0, x: e.x, z: e.z, t: 0 }; a.n += e.n; a.x = e.x; a.z = e.z; this.popAgg.set(k, a);
+        const k = `g${e.g}`, a = this.popAgg.get(k) || { n: 0, x: e.x, z: e.z, t: 0, v: e.v }; a.n += e.n; a.x = e.x; a.z = e.z; this.popAgg.set(k, a);
+        // one big blob through a ×n gate: the "MEGA" moment
+        if (e.v >= 3 && e.n >= 120 && this.clock - this.megaT > 5) { this.megaT = this.clock; this.banner('Mega moltiplicazione!', 'mega'); this.shake(0.35, 0.3); this.freeze = 0.05; this.snd('mega', 0, () => osfx.burst()); }
         for (let i = 0; i < Math.min(6, 1 + e.n); i++) fx.emit(e.x + (Math.random() - 0.5) * 1.2, 0.8, e.z, (Math.random() - 0.5) * 3, 3 + Math.random() * 3, Math.random() * 2, TC.copy(blue).lerp(TC2.set('#ffffff'), 0.5), 0.3, 0.5);
         const g = this.sim.gates[e.g];
         this.snd('gate', 55, () => osfx.gate(g?.type === 'mul' ? g.value : 1.5));
@@ -664,18 +741,24 @@ export class OrdaGame {
       }
       case 'shield': this.shieldFlash = 1; break;
       case 'tower': {
-        this.freeze = 0.07; this.shake(0.7, 0.4);
+        this.freeze = 0.09; this.shake(0.8, 0.45); this.slowmo(0.5, 0.25);
         for (let i = 0; i < 40; i++) fx.emit(e.x, 1 + Math.random() * 3, e.z, (Math.random() - 0.5) * 10, 3 + Math.random() * 8, (Math.random() - 0.5) * 10, i % 3 ? RED_D : TC.set('#ffffff'), 0.5, 1.2);
         this.popup('Torre giù!', e.x, 3, e.z, 'big');
         this.snd('tower', 0, () => osfx.crash());
         break;
       }
-      case 'champ': this.banner(`${champById(e.id).name}!`, 'champ'); this.snd('champ', 0, () => osfx.champ()); break;
-      case 'champHit': this.freeze = 0.12; this.shake(1.2, 0.5); this.popup(`-${Math.round(e.n)}`, e.x, 4, this.sim.L, 'huge'); this.snd('champHit', 0, () => osfx.boom()); for (let i = 0; i < 50; i++) fx.emit(e.x, 1.5, this.sim.L - 0.5, (Math.random() - 0.5) * 14, 4 + Math.random() * 9, -Math.random() * 8, i % 2 ? TC.set('#ffd23f') : TC.set('#ffffff'), 0.55, 1.1); break;
+      case 'champ': {
+        this.banner(`${champById(e.id).name}!`, 'champ'); this.snd('champ', 0, () => osfx.champ());
+        // cinematic: the camera rides along with the champion for a moment, the world slows down
+        const ch = this.sim.champs[this.sim.champs.length - 1];
+        this.focusOn({ x: e.x * 0.6, track: () => (ch ? Math.min(this.sim.L - 6, ch.z + 10) : this.sim.L * 0.5), dur: 1.5, k: 0.5 }); this.slowmo(0.45, 0.5);
+        break;
+      }
+      case 'champHit': this.freeze = 0.14; this.shake(1.3, 0.55); this.slowmo(0.35, 0.4); this.popup(`-${Math.round(e.n)}`, e.x, 4, this.sim.L, 'huge'); this.snd('champHit', 0, () => osfx.boom()); for (let i = 0; i < 50; i++) fx.emit(e.x, 1.5, this.sim.L - 0.5, (Math.random() - 0.5) * 14, 4 + Math.random() * 9, -Math.random() * 8, i % 2 ? TC.set('#ffd23f') : TC.set('#ffffff'), 0.55, 1.1); break;
       case 'champDown': this.popup('K.O.', e.x, 2.5, e.z, 'bad'); this.snd('champDown', 0, () => osfx.minus()); for (let i = 0; i < 24; i++) fx.emit(e.x, 1.2, e.z, (Math.random() - 0.5) * 8, 3 + Math.random() * 5, (Math.random() - 0.5) * 8, TC.set(champById(e.id).color), 0.5, 0.9); break;
       case 'slam': this.shake(0.35, 0.18); for (let i = 0; i < 26; i++) { const a = (i / 26) * Math.PI * 2; fx.emit(e.x + Math.cos(a) * 0.5, 0.3, e.z + Math.sin(a) * 0.5, Math.cos(a) * e.r * 4, 1.5, Math.sin(a) * e.r * 4, TC.set('#d9fff4'), 0.45, 0.45, 2); } this.snd('slam', 100, () => osfx.slam()); break;
       case 'burst': this.popup(`×${e.n}!`, e.x, 3.5, e.z, 'big'); for (let i = 0; i < 40; i++) fx.emit(e.x, 2, e.z, (Math.random() - 0.5) * 9, 4 + Math.random() * 6, (Math.random() - 0.5) * 9, i % 2 ? TC.set('#ff8a1f') : blue, 0.45, 1); this.snd('burst', 0, () => osfx.burst()); break;
-      case 'phase': this.banner(`Fase ${e.n + 1}!`, 'phase'); this.shake(0.6, 0.6); this.snd('phase', 0, () => osfx.alarm()); break;
+      case 'phase': this.banner(`Fase ${e.n + 1}!`, 'phase'); this.shake(0.6, 0.6); this.freeze = 0.1; this.snd('phase', 0, () => osfx.alarm()); this.focusOn({ x: 0, z: this.sim.L, dur: 1.1, k: 0.35 }); break;
       case 'wave': this.snd('wave', 400, () => osfx.wave()); break;
       case 'hurt': this.hurtFlash = 1; this.shake(0.4, 0.2); this.snd('hurt', 120, () => osfx.hurt()); break;
       case 'toggle': { const go = this.gateObjs[e.g]; if (go) go.pulse = 1; this.snd('toggle', 200, () => osfx.toggle()); break; }
@@ -724,14 +807,16 @@ export class OrdaGame {
       const s = unitScale(B.u[i]) * FIG, a = B.age[i], pop = a < 0.3 ? 1 + Math.sin((a / 0.3) * Math.PI) * 0.55 : 1;
       if (rainbow) TC.setHSL(((B.ph[i] + t * 0.1) % 1), 0.75, 0.55); else TC.copy(bc);
       if (a < 0.12) TC.lerp(TC2.set('#ffffff'), 0.7);
-      this.blueC.set(n++, B.x[i], won ? Math.abs(Math.sin(t * 8 + B.ph[i] * 6)) * 0.5 : 0, B.z[i], 0, s * pop, TC.r, TC.g, TC.b, B.ph[i], won ? 0 : 1);
+      const air = B.air[i] > 0 ? Math.sin(Math.PI * Math.min(1, B.air[i])) * 2.6 : 0;
+      this.blueC.set(n++, B.x[i], won ? Math.abs(Math.sin(t * 8 + B.ph[i] * 6)) * 0.5 : air, B.z[i], air ? -0.5 : 0, s * pop, TC.r, TC.g, TC.b, B.ph[i], won || air ? 0 : 1);
     }
     this.blueC.commit(n);
     n = 0;
     for (let i = 0; i < R.n && n < this.redC.cap; i++) {
-      const s = unitScale(R.u[i]) * FIG * (R.kind[i] ? 1.15 : 1), a = R.age[i], pop = a < 0.25 ? 0.4 + (a / 0.25) * 0.6 : 1;
-      TC.copy(R.kind[i] ? RED_D : RED);
-      this.redC.set(n++, R.x[i], 0, R.z[i], Math.PI, s * pop, TC.r, TC.g, TC.b, R.ph[i], R.kind[i] ? 0.6 : 1);
+      const giant = R.kind[i] === 2;
+      const s = giant ? FIG * (2.6 + 0.22 * Math.log2(Math.max(2, R.u[i]))) : unitScale(R.u[i]) * FIG * (R.kind[i] ? 1.15 : 1), a = R.age[i], pop = a < 0.25 ? 0.4 + (a / 0.25) * 0.6 : 1;
+      TC.copy(R.kind[i] ? RED_D : RED); if (giant) TC.lerp(TC2.set('#5a0716'), 0.35 + 0.25 * Math.sin(t * 5));
+      this.redC.set(n++, R.x[i], 0, R.z[i], Math.PI, s * pop, TC.r, TC.g, TC.b, R.ph[i], giant ? 0.45 : R.kind[i] ? 0.6 : 1);
     }
     this.redC.commit(n);
     n = 0;
@@ -743,14 +828,24 @@ export class OrdaGame {
       go.grp.position.x = g.cx;
       go.grp.visible = !g.broken || go.pulse > 0;
       const lab = gateLabel(g.type, g.value, g) + (g.toggle ? `:${Math.ceil(g.tt * 4)}` : '');
-      if (lab !== go.label) { go.label = lab; drawGate(go.cv, g); go.tex.needsUpdate = true; go.strip.material.color.set(gateGood(g.type) ? '#5ad1ff' : '#ff5a6e'); }
+      if (lab !== go.label) { go.label = lab; drawGate(go.cv, g); go.tex.needsUpdate = true; go.strip.material.color.set(STRIP[gateKind(g)]); }
       go.pulse = Math.max(0, go.pulse - dt * 4);
-      const k = 1 + go.pulse * 0.12; go.panel.scale.set(g.w * k, g.w * 0.5 * k, 1);
+      const k = 1 + go.pulse * 0.22; go.panel.scale.set(g.w * k, g.w * 0.5 * k, 1);
+      go.panel.material.color.setScalar(1 + go.pulse * 0.6);
+      if (g.rainbow) { go.panel.position.y = 1.15 + g.w * 0.25 + Math.sin(t * 6) * 0.12; go.strip.material.color.setHSL((t * 0.6) % 1, 0.9, 0.6); }
       go.strip.material.opacity = 0.4 + go.pulse * 0.5 + Math.sin(t * 4) * 0.08;
       if (g.broken) { go.grp.scale.setScalar(Math.max(0.01, go.pulse)); }
     }
     // gate number pop-ups, aggregated
-    for (const [k, a] of this.popAgg) { a.t += dt; if (a.t > 0.28 || k === 'base' && a.t > 0.2) { if (a.n) this.popup(k === 'base' ? `-${Math.round(a.n)}` : (a.n > 0 ? `+${a.n}` : `${a.n}`), a.x, k === 'base' ? 5 : 2.6, a.z, k === 'base' ? 'dmg' : 'gain'); this.popAgg.delete(k); } }
+    for (const [k, a] of this.popAgg) {
+      a.t += dt;
+      if (a.t > 0.28 || (k === 'base' && a.t > 0.2)) {
+        if (a.n && k === 'base') this.popup(`-${fmtN(a.n)}`, a.x, 5, a.z, 'dmg');
+        else if (a.n > 0) { this.popup(`+${fmtN(a.n)}`, a.x, 2.6, a.z, a.n >= 200 ? 'gain huge' : a.n >= 40 ? 'gain big' : 'gain'); if (a.v >= 2 && a.n >= 20) this.popup(`×${a.v}`, a.x + 1.2, 4.2, a.z, 'mul'); }
+        else if (a.n < 0) this.popup(`${fmtN(a.n)}`, a.x, 2.6, a.z, 'bad');
+        this.popAgg.delete(k);
+      }
+    }
     // obstacles
     for (const { ob, mesh } of this.obsObjs) {
       if (ob.type === 'barrier') mesh.position.x = ob.cx;
@@ -806,7 +901,20 @@ export class OrdaGame {
     $('or-bshield').classList.toggle('on', b.shieldT > 0);
     const tl = Math.max(0, S.time);
     const te = $('or-timer'); te.textContent = fmtT(tl); te.classList.toggle('hot', tl < 15 && S.state === 'play');
-    $('or-cn').textContent = S.blueUnits().toLocaleString('it-IT');
+    const crowd = S.blueUnits(); if (crowd > (this.peakCrowd || 0)) this.peakCrowd = crowd;
+    // the counter rolls towards the real number and bounces when it jumps
+    const prevShown = this.shown;
+    this.shown = crowd > this.shown ? Math.ceil(this.shown + (crowd - this.shown) * 0.45) : crowd;
+    $('or-cn').textContent = fmtN(this.shown);
+    if (this.shown - prevShown >= Math.max(8, prevShown * 0.08)) { const el = $('or-crowd'); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+    while (this.milestone < MILESTONES.length && crowd >= MILESTONES[this.milestone]) {
+      const m = MILESTONES[this.milestone++];
+      if (S.state === 'play' && m >= 250) { this.banner(`Orda da ${fmtN(m)}!`, 'mega'); this.snd('mile', 0, () => osfx.burst()); this.shake(0.25, 0.2); }
+    }
+    $('or-crowd').classList.toggle('hot', S.comboTier >= 3);
+    const cf = $('or-combo-f'); if (cf) cf.style.width = `${(S.combo % 1) * 100}%`;
+    $('or-combo')?.style.setProperty('--tier', S.comboTier);
+    this.teachTick();
     $('or-cbar').style.width = `${Math.max(0, S.cannon.hp / S.cannon.max) * 100}%`;
     $('or-can').classList.toggle('low', S.cannon.hp / S.cannon.max < 0.35);
     const ch = Math.min(1, S.charge / S.chargeNeed), btn = $('or-champ');
@@ -814,23 +922,79 @@ export class OrdaGame {
     $('or-champ-t').textContent = ch >= 1 ? 'Pronto! (E)' : `${Math.floor(ch * 100)}%`;
     if (ch >= 1 && !this._readyOnce) { this._readyOnce = true; this.snd('ready', 0, () => osfx.ready()); }
     if (ch < 1) this._readyOnce = false;
-    $('or-g1').classList.toggle('miss', S.t > (this.level.stars?.par ?? 60));
-    $('or-g2').classList.toggle('ok', S.blueUnits() >= (this.level.stars?.crowd ?? 30));
-    if (S.state === 'count') { const k = Math.ceil(S.count), el = $('or-count'); if (String(k) !== el.textContent && k > 0) { el.textContent = k; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); this.snd('beep', 0, () => osfx.beep()); } }
+    $('or-g1')?.classList.toggle('miss', S.t > (this.level.stars?.par ?? 60));
+    $('or-g2')?.classList.toggle('ok', crowd >= (this.level.stars?.crowd ?? 30));
+    if (this.level.bonus) { $('or-bhp').textContent = `${fmtN(S.stats.baseDmg)} 💰`; $('or-bbar').style.width = `${Math.max(0, S.time / (this.level.time || 1)) * 100}%`; }
+    // a short "pronti…" instead of a 3-2-1
+    if (S.state === 'count') { const el = $('or-count'); if (!el.textContent) { el.textContent = 'Pronti…'; el.classList.add('pop', 'ready'); this.snd('beep', 0, () => osfx.beep()); } }
     this.hurtFlash = Math.max(0, (this.hurtFlash || 0) - 0.066 * 3);
     $('or-hurt').style.opacity = this.hurtFlash;
   }
 
+  // ---------- teaching by doing: no text walls, a hint that goes away as soon as it is done
+  teachInit() {
+    const T = this.level.teach; if (!T) return;
+    const el = this.$('or-teach'); this.teach = { kind: T, done: false, t: 0, x0: this.sim.cannon.x };
+    if (T === 'drag') el.innerHTML = '<i class="hand">👆</i><b>Trascina</b>';
+    else if (T === 'choose') el.innerHTML = '<b>Scegli la porta migliore</b>';
+    else el.innerHTML = '<b>Tocca il campione!</b><i class="arrow">➜</i>';
+    el.className = `or-teach ${T}`;
+  }
+  teachTick() {
+    const T = this.teach; if (!T || T.done) return;
+    const S = this.sim, el = this.$('or-teach');
+    if (T.kind === 'drag') {
+      el.classList.toggle('on', S.state !== 'won');
+      if (Math.abs(S.cannon.x - T.x0) > 0.8) { T.done = true; el.classList.remove('on'); this.popup('Così!', S.cannon.x, 3, 4, 'big'); }
+    } else if (T.kind === 'choose') {
+      // point at the best gate of the first row: the screen position of its panel
+      const g = this.sim.gates.filter((x) => x.z === this.sim.gates[0].z).sort((a, b) => (b.type === 'mul' ? b.value * 3 : b.value) - (a.type === 'mul' ? a.value * 3 : a.value))[0];
+      const v = new THREE.Vector3(g.cx, 3.6, g.z).project(this.cam);
+      el.style.left = `${(v.x * 0.5 + 0.5) * 100}%`; el.style.top = `${(-v.y * 0.5 + 0.5) * 100}%`;
+      el.classList.toggle('on', S.t < 9 && S.state !== 'won');
+      if (g.passed > 30) { T.done = true; el.classList.remove('on'); }
+    } else {
+      el.classList.toggle('on', S.ready() && S.state === 'play');
+      if (S.stats.champs > 0) { T.done = true; el.classList.remove('on'); }
+    }
+  }
+
   // ---------- the end
+  // coins fly from the fallen base into the counter in the corner
+  coinRain(n, total) {
+    const box = this.$('or-pops'), tgt = this.$('or-coins'); if (!box || !tgt) return;
+    tgt.classList.add('on');
+    const v = new THREE.Vector3(0, 3, this.sim.L).project(this.cam), x0 = (v.x * 0.5 + 0.5) * box.clientWidth, y0 = (-v.y * 0.5 + 0.5) * box.clientHeight;
+    const tr = tgt.getBoundingClientRect(), br = box.getBoundingClientRect(), x1 = tr.left - br.left + 22, y1 = tr.top - br.top + tr.height / 2;
+    const k = Math.min(18, Math.max(6, Math.round(n / 8)));
+    for (let i = 0; i < k; i++) {
+      const c = document.createElement('i'); c.className = 'or-coin'; c.textContent = '🪙';
+      c.style.left = `${x0 + (Math.random() - 0.5) * 80}px`; c.style.top = `${y0 + (Math.random() - 0.5) * 40}px`;
+      c.style.setProperty('--dx', `${x1 - x0}px`); c.style.setProperty('--dy', `${y1 - y0}px`); c.style.animationDelay = `${0.25 + i * 0.05}s`;
+      box.appendChild(c); setTimeout(() => c.remove(), 1600 + i * 50);
+    }
+    const t0 = performance.now(), dur = 900 + k * 50;
+    const tick = () => { if (!this.root.isConnected) return; const f = Math.min(1, (performance.now() - t0 - 400) / dur); const el = this.$('or-coins-n'); if (el) el.textContent = fmtN(Math.max(0, f) * total); if (f < 1) requestAnimationFrame(tick); else { tgt.classList.remove('pop'); void tgt.offsetWidth; tgt.classList.add('pop'); } };
+    requestAnimationFrame(tick);
+    for (let i = 0; i < Math.min(8, k); i++) setTimeout(() => this.snd(`coin${i}`, 0, () => osfx.gate(2 + i * 0.4)), 450 + i * 90);
+  }
   finish(win) {
     if (this.over) return;
     this.over = true; this.firing = false;
     const S = this.sim, r = S.result(), L = this.level;
-    const stars = starsFor(L, r);
-    const coins = coinsFor(L, stars, this.o.prevStars || 0, win);
-    if (win) {
+    const stars = L.bonus ? 3 : starsFor(L, r);
+    const coins = L.bonus ? bonusCoins(r.baseDmg) : coinsFor(L, stars, this.o.prevStars || 0, win, r.comboMax);
+    if (L.bonus) {
+      this.banner('Caveau pieno!', 'win'); this.snd('win', 0, () => osfx.win());
+      for (let i = 0; i < 120; i++) this.fx.emit((Math.random() - 0.5) * S.base.w, 2 + Math.random() * 4, S.L + Math.random() * 3, (Math.random() - 0.5) * 14, 6 + Math.random() * 10, (Math.random() - 0.5) * 10, TC.setHSL(0.12 + Math.random() * 0.05, 0.95, 0.6), 0.45, 2.2, 9);
+      this.coinRain(coins, coins);
+    } else if (win) {
       this.collapse = { t: 0, parts: this.baseParts.map((m) => ({ m, vx: (Math.random() - 0.5) * 6, vy: 4 + Math.random() * 8, vz: (Math.random() - 0.3) * 6, rx: (Math.random() - 0.5) * 5, rz: (Math.random() - 0.5) * 5 })) };
-      this.freeze = 0.25; this.shake(1.6, 1.1);
+      // the big moment: hit-stop, slow motion, the camera dives at the ruins, confetti and coins
+      this.freeze = 0.18; this.shake(1.6, 1.1); this.slowmo(0.3, 0.9);
+      this.focusOn({ x: 0, z: S.L + 1, dur: 2.2, k: 0.55 });
+      this.coinRain(coins, coins);
+      for (let i = 0; i < 90; i++) this.fx.emit((Math.random() - 0.5) * 3, 3, S.L + 2, (Math.random() - 0.5) * 22, 8 + Math.random() * 14, (Math.random() - 0.5) * 16, TC.set(i % 3 ? '#ffb000' : '#ffffff'), 0.7, 1.2, 14);
       this.banner(L.base?.boss ? 'Fortezza espugnata!' : 'Base distrutta!', 'win');
       this.snd('win', 0, () => { osfx.collapse(); setTimeout(() => osfx.win(), 500); });
       for (let i = 0; i < 160; i++) this.fx.emit((Math.random() - 0.5) * S.base.w, 2 + Math.random() * 4, S.L + Math.random() * BASE_DEPTH, (Math.random() - 0.5) * 16, 6 + Math.random() * 12, (Math.random() - 0.5) * 12, TC.setHSL(Math.random(), 0.85, 0.6), 0.45, 2.4, 9);
@@ -841,10 +1005,12 @@ export class OrdaGame {
     const result = {
       win, why: r.why, stars, coins, figuresSent: r.sent, timeMs: Math.round(r.time * 1000), kills: Math.round(r.kills), champions: r.champs, mode: this.o.mode, levelId: L.id ?? null,
       left: r.left, towers: r.towers, baseDmg: Math.round(r.baseDmg), baseHp: r.baseHp, baseMax: r.baseMax, cannonHp: Math.max(0, Math.round(r.cannonHp)), cannonMax: r.cannonMax, cloned: r.cloned, peak: r.peak, bricks: 0,
+      combo: r.comboMax, maxCrowd: this.peakCrowd || r.left, giants: r.giants, recycled: r.recycled, bonus: !!L.bonus,
     };
     this.result = result;
     this.o.hooks?.onEnd?.(S, result);
-    this._endT = setTimeout(() => this.o.onEnd?.(result), win ? 1900 : 1400);
+    setTimeout(() => this.$('or-skip')?.classList.add('on'), 350);
+    this._endT = setTimeout(() => { if (!this.skipped) { this.skipped = true; this.o.onEnd?.(result); } }, 1000 * (win ? PACE.endDelayWin + 0.6 : PACE.endDelayLose));
   }
   animateCollapse(dt) {
     const C = this.collapse; C.t += dt;
@@ -860,6 +1026,7 @@ export class OrdaGame {
     window.removeEventListener('keydown', this.onKD, true); window.removeEventListener('keyup', this.onKU, true);
     window.removeEventListener('pointerup', this.onPU); window.removeEventListener('pointercancel', this.onPU);
     document.removeEventListener('visibilitychange', this.onVis);
+    this.root.removeEventListener('pointerdown', this.onSkip);
     this.ro?.disconnect();
     this.scene?.traverse((x) => { x.geometry?.dispose?.(); const m = x.material; (Array.isArray(m) ? m : m ? [m] : []).forEach((y) => { y.map?.dispose?.(); y.dispose?.(); }); });
     this.scene?.background?.dispose?.();
