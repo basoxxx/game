@@ -1,5 +1,6 @@
 /* Orda — extra modes: daily challenge, endless, missions (menu, overlays, sketches) */
-.om-menu { --ob: #2f80ff; --or: #ff4d6d; --oy: #ffd23f; --og: #20d6a0; background: radial-gradient(900px 520px at 90% -10%, rgba(47,128,255,.2), transparent 60%), radial-gradient(700px 420px at -10% 110%, rgba(255,77,109,.14), transparent 60%), var(--bg); }
+.om-menu, .om-in-orda, .om-stage { --ob: #2f80ff; --or: #ff4d6d; --oy: #ffd23f; --og: #20d6a0; }
+.om-menu { background: radial-gradient(900px 520px at 90% -10%, rgba(47,128,255,.2), transparent 60%), radial-gradient(700px 420px at -10% 110%, rgba(255,77,109,.14), transparent 60%), var(--bg); }
 .om-wallet { text-align: right; }
 .om-wallet .w-k { font-family: var(--display); font-weight: 700; letter-spacing: .2em; text-transform: uppercase; font-size: 12px; color: var(--muted); }
 .om-wallet b { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); font-size: 30px; font-style: italic; color: var(--gold); }

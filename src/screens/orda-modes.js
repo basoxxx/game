@@ -7,15 +7,16 @@ import { icon } from '../ui/icons.js';
 import { esc, pageHead } from '../ui/dom.js';
 import { sfx } from '../ui/audio.js';
 import { gfxTier } from '../ui/quality.js';
+import { getSettings } from '../engine/state.js';
 import { Sim, autopilot } from '../orda/sim.js';
 import { starsFor as coreStars } from '../orda/meta.js';
 import { useCore, GOOD, gateText } from '../orda/gen.js';
 import {
   dailySpec, dailyReady, dayKey, parseDay, streakBonus, shareText, DAILY_LOADOUT,
   newRun, endlessWave, prepareWave, rollPerks, perkById, PERKS, perkUps, runScore, waveDifficulty,
-  omLoad, omSave, normResult, recordMatch, recordDaily, recordEndless, achState, ACHIEVEMENTS,
+  omLoad, omSave, normResult, recordMatch, recordDaily, recordEndless,
 } from '../orda/modes.js';
-import { dailyStatus, claimable, diffName } from '../orda/modes-entries.js';
+import { dailyStatus, claimable, diffName, missionsPanel, claimMission } from '../orda/modes-entries.js';
 import { wallet } from '../orda/modes-bridge.js';
 import '../orda/modes.css';
 
@@ -133,16 +134,6 @@ function tabEndless(s) {
   </div>`;
 }
 
-// ---------------------------------------------------------------- tab: Missioni (also embeddable in the Orda menu)
-export function missionsPanel(s = omLoad(), { compact = false } = {}) {
-  const list = achState(s).sort((a, b) => (b.done && !b.claimed) - (a.done && !a.claimed) || a.claimed - b.claimed || b.pct - a.pct);
-  const shown = compact ? list.slice(0, 4) : list;
-  const got = list.filter((a) => a.claimed).length;
-  return `<section class="om-card om-miss ${compact ? 'compact' : ''}"><div class="om-miss-h"><h3>Missioni Orda</h3><span>${got}/${ACHIEVEMENTS.length} completate</span>${compact ? `<button class="btn ghost sm" data-a="om-open" data-tab="missioni">Tutte ${icon('right')}</button>` : ''}</div>
-    <ul>${shown.map((a) => `<li class="${a.claimed ? 'claimed' : a.done ? 'ready' : ''}">${icon(a.icon)}<div><b>${esc(a.name)}</b><span>${esc(a.desc)}</span>${a.goal > 1 && !a.done ? `<div class="om-bar"><i style="width:${(a.pct * 100).toFixed(1)}%"></i></div><small>${fmt(a.have)} / ${fmt(a.goal)}</small>` : ''}</div>
-      ${a.claimed ? `<em class="om-ok">${icon('check')}</em>` : a.done ? `<button class="btn primary sm" data-a="om-claim" data-id="${a.id}">${icon('coin')} +${a.coins}</button>` : `<em>${icon('coin')} ${a.coins}</em>`}</li>`).join('')}</ul></section>`;
-}
-
 // ---------------------------------------------------------------- menu
 function menu() {
   const s = omLoad(), n = claimable(s);
@@ -187,17 +178,18 @@ async function startMatch() {
   // the daily is played with the same cannon by everybody; Infinita with your own + the run's perks
   const lo = P.kind === 'daily' ? DAILY_LOADOUT : { up: perkUps(P.run.perks, prof.up), champ: prof.champ, champLvl: prof.champLvl };
   V.crowd = 0;
+  let frames = 0;
   const g = V.game = new OrdaGame(root, {
-    level, mode: P.kind === 'daily' ? 'daily' : 'endless', seed: level.gen?.seed ?? 1, players: 1,
-    upgrades: lo.up, champ: lo.champ, champLvl: lo.champLvl, champions: { id: lo.champ, lvl: lo.champLvl },
-    skin: prof.skin, cannon: prof.cannon, tier: gfxTier(),
+    level, mode: P.kind === 'daily' ? 'daily' : 'endless', label: P.kind === 'daily' ? `Sfida #${dailyStatus().info.num}` : `Ondata ${P.run.wave}`,
+    seed: (level.gen?.seed ?? 1) + (P.kind === 'endless' ? P.run.wave : 0), players: 1,
+    upgrades: lo.up, champion: lo.champ, champLvl: lo.champLvl,
+    skin: prof.skin, cannon: prof.cannon, tier: gfxTier(), volume: getSettings().sound === false ? 0 : 0.6 * (getSettings().volume ?? 0.5) / 0.5, autofire: prof.autofire, shake: prof.shake, numbers: prof.numbers,
     onPause: (on) => setOver(on ? pauseHtml() : ''),
     onEnd: (r) => { if (V.game === g) onEnd(r, level); },
-    hooks: {},
+    // biggest crowd on the field (missions "Moltiplica la tua orda…")
+    hooks: { onFrame: (G) => { if (++frames % 8) return; const u = G.sim?.blueUnits?.() || 0; if (u > V.crowd) V.crowd = u; } },
   });
   window.__ordaModes = { game: g, level, play: P };
-  // biggest crowd on the field (missions "Moltiplica la tua orda…")
-  V.poll = setInterval(() => { try { const u = g.sim?.blueUnits?.(); if (u > V.crowd) V.crowd = u; } catch {} }, 250);
   try { await g.start?.(); } catch (e) { console.error(e); root.innerHTML = `<div class="om-loading">Impossibile avviare la partita: ${esc(e.message || String(e))}<br><button class="btn mt16" data-a="om-quit">Indietro</button></div>`; }
 }
 function pauseHtml() {
@@ -334,9 +326,7 @@ registerScreen({
       startMatch();
     },
     'om-claim'(el) {
-      const s = omLoad(), a = achState(s).find((x) => x.id === el.dataset.id);
-      if (!a?.done || a.claimed) return;
-      s.claimed[a.id] = Date.now(); s.coinsEarned += a.coins; omSave(s); wallet.add(a.coins);
+      const a = claimMission(el.dataset.id); if (!a) return;
       try { sfx.coin?.(); } catch {}
       App.toast(`Missione: ${a.name}`, `+${a.coins} monete`, 'good');
       App.refresh();
@@ -346,7 +336,7 @@ registerScreen({
     'om-restart'() { startMatch(); },
     'om-quit'() {
       const P = V.play, g = V.game;
-      const live = g && !(g.ended || g.sim?.state === 'won' || g.sim?.state === 'lost');
+      const live = g && !(g.over || g.sim?.state === 'won' || g.sim?.state === 'lost');
       // leaving an official daily mid-match spends the attempt
       if (P?.kind === 'daily' && P.official && live) {
         const s = omLoad(), info = dailyStatus(s).info;

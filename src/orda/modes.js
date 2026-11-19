@@ -166,11 +166,11 @@ export function omSave(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); 
 export function normResult(raw = {}, L = {}) {
   const won = !!(raw.won ?? raw.win);
   const baseMax = raw.baseMax || L.base?.hp || 1;
-  const figures = raw.figures ?? (raw.sent || 0) + (raw.cloned || 0);
+  const figures = raw.figures ?? (raw.sent ?? raw.figuresSent ?? 0) + (raw.cloned || 0);
   return {
-    won, why: raw.why || '', time: raw.time || 0, left: raw.left || 0, stars: raw.stars ?? 0,
+    won, why: raw.why || '', time: raw.time ?? (raw.timeMs ? raw.timeMs / 1000 : 0), left: raw.left || 0, stars: raw.stars ?? 0,
     figures, maxCrowd: Math.max(raw.maxCrowd || 0, raw.left || 0), kills: Math.round(raw.kills || 0), towers: raw.towers || 0,
-    champs: raw.champs || 0, cannonHp: raw.cannonHp ?? 0, cannonMax: raw.cannonMax ?? 0,
+    champs: raw.champs ?? raw.champions ?? 0, cannonHp: raw.cannonHp ?? 0, cannonMax: raw.cannonMax ?? 0,
     baseHpPct: clamp((raw.baseHp ?? (won ? 0 : baseMax)) / baseMax, 0, 1), coins: raw.coins || 0, quit: !!raw.quit,
   };
 }
