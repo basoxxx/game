@@ -2,15 +2,21 @@
 // screen, the launcher and the headless balance script all read it.
 
 // ---- cannon / crowd upgrades (levels 0..max). eff(l) is what the simulation reads.
+// Cheap first steps (the first upgrade is affordable after level 1), steeper later on.
 export const UPGRADES = [
-  { id: 'rate', name: 'Cadenza', icon: 'speed', desc: 'Il cannone spara più figure al secondo.', max: 10, base: 40, eff: (l) => 4.5 + 0.4 * l, fmt: (v) => `${v.toFixed(1)} colpi/s` },
-  { id: 'shot', name: 'Raffica', icon: 'users', desc: 'Più figure per ogni colpo.', max: 6, base: 90, eff: (l) => 1 + 0.2 * l, fmt: (v) => `${v.toFixed(2)} per colpo` },
-  { id: 'hp', name: 'Tempra', icon: 'shield', desc: 'Le tue figure resistono di più negli scontri.', max: 8, base: 60, eff: (l) => 1 + 0.12 * l, fmt: (v) => `forza ×${v.toFixed(2)}` },
-  { id: 'speed', name: 'Passo', icon: 'flag', desc: 'Le figure corrono più veloci verso la base.', max: 8, base: 45, eff: (l) => 6 + 0.4 * l, fmt: (v) => `${v.toFixed(1)} m/s` },
-  { id: 'charge', name: 'Carica', icon: 'bolt', desc: 'Il campione si carica prima.', max: 8, base: 55, eff: (l) => 1 - 0.06 * l, fmt: (v) => `carica ×${(1 / v).toFixed(2)}` },
-  { id: 'armor', name: 'Bastione', icon: 'wrench', desc: 'Il cannone regge più nemici prima di cadere.', max: 6, base: 50, eff: (l) => 1 + 0.2 * l, fmt: (v) => `difesa ×${v.toFixed(1)}` },
+  { id: 'rate', name: 'Cadenza', icon: 'speed', desc: 'Il cannone spara più figure al secondo.', max: 10, base: 25, eff: (l) => 8 + 0.7 * l, fmt: (v) => `${v.toFixed(1)} colpi/s` },
+  { id: 'shot', name: 'Raffica', icon: 'users', desc: 'Più figure per ogni colpo.', max: 6, base: 60, eff: (l) => 1 + 0.2 * l, fmt: (v) => `${v.toFixed(2)} per colpo` },
+  { id: 'hp', name: 'Tempra', icon: 'shield', desc: 'Le tue figure resistono di più negli scontri.', max: 8, base: 35, eff: (l) => 1 + 0.12 * l, fmt: (v) => `forza ×${v.toFixed(2)}` },
+  { id: 'speed', name: 'Passo', icon: 'flag', desc: 'Le figure corrono più veloci verso la base.', max: 8, base: 30, eff: (l) => 10 + 0.6 * l, fmt: (v) => `${v.toFixed(1)} m/s` },
+  { id: 'charge', name: 'Carica', icon: 'bolt', desc: 'Il campione si carica prima.', max: 8, base: 35, eff: (l) => 1 - 0.06 * l, fmt: (v) => `carica ×${(1 / v).toFixed(2)}` },
+  { id: 'armor', name: 'Bastione', icon: 'wrench', desc: 'Il cannone regge più nemici prima di cadere.', max: 6, base: 30, eff: (l) => 1 + 0.2 * l, fmt: (v) => `difesa ×${v.toFixed(1)}` },
 ];
-export const upCost = (u, l) => Math.round((u.base * Math.pow(1.47, l)) / 5) * 5;
+export const upCost = (u, l) => Math.round((u.base * Math.pow(1.5, l)) / 5) * 5;
+// pace of a match outside the simulation (seconds): countdown, end-of-match delay before the
+// results, a tap. The metrics tool (tools/orda-metrics.mjs) adds them to the play time.
+export const PACE = { countdown: 1, endDelayWin: 1.1, endDelayLose: 0.8, overhead: 1 + 1.1 + 0.6 };
+// champion charge: the crowd is big now, so the meter needs more hits (champion every ~10-15 s)
+export const CHARGE_K = 6;
 export const upEffects = (up = {}) => Object.fromEntries(UPGRADES.map((u) => [u.id, u.eff(Math.min(u.max, up[u.id] || 0))]));
 
 // ---- champions: big characters launched when the charge meter is full
@@ -53,7 +59,13 @@ export const WORLDS = [
   { id: 'ghiaccio', name: 'Ghiacciaio Menta', sub: 'Barre rotanti e lame di ghiaccio.', sky: '#bfe9ff', fog: '#ecfbff', ground: '#cdf3ee', ground2: '#b9ebe4', lane: '#ffffff', rim: '#62b6d9', deco: ['#9be7ff', '#ffffff', '#5ec8e5'] },
   { id: 'fabbrica', name: 'Fabbrica Ingranaggi', sub: 'Tutto si muove, tutto taglia.', sky: '#c7c9ff', fog: '#e7e8ff', ground: '#b9bfd0', ground2: '#a8afc2', lane: '#ffe066', rim: '#5d6878', deco: ['#ffb000', '#5d6878', '#2f80ff'] },
   { id: 'vulcano', name: 'Vulcano Lampone', sub: 'L’ultima cittadella rossa.', sky: '#ffb3c1', fog: '#ffd9e0', ground: '#8f6a7a', ground2: '#806070', lane: '#ffc2d1', rim: '#ff4d6d', deco: ['#ff4d6d', '#ffb000', '#3a2a35'] },
+  { id: 'nuvole', name: 'Nuvole di Zucchero', sub: 'Il mondo segreto: tutte le porte nuove, giganti e trampolini.', sky: '#d9c4ff', fog: '#fbefff', ground: '#fff0fa', ground2: '#f3dcf5', lane: '#ffffff', rim: '#b98cff', deco: ['#ff9de2', '#9be7ff', '#fff3a8'] },
+  { id: 'tesoro', name: 'Caveau d’Oro', sub: 'Livello bonus: solo porte, raccogli più monete che puoi.', sky: '#ffe9a8', fog: '#fff6d6', ground: '#ffd75e', ground2: '#f4c542', lane: '#fff8dc', rim: '#e0a400', deco: ['#ffd23f', '#ffffff', '#ffb000'], bonus: true },
 ];
+// stars needed to open each world (on top of clearing the world before it). Lenient on purpose:
+// about 1.3 stars a level is enough; the secret world wants a real collector.
+export const WORLD_STARS = [0, 6, 15, 26, 38, 50, 70];
+export const BONUS_WORLD = 7;
 
 // ---- rewards
 export function starsFor(level, r) {
@@ -62,11 +74,36 @@ export function starsFor(level, r) {
   return 1 + (r.time <= (S.par ?? 60) ? 1 : 0) + (r.left >= (S.crowd ?? 30) ? 1 : 0);
 }
 // coins: replays pay half; new stars always pay their bonus
-export function coinsFor(level, stars, prevStars, win) {
+// combo: the best "Valanga" tier reached (x1…x5) adds 10% per tier
+export function coinsFor(level, stars, prevStars, win, combo = 1) {
   const n = Number.isFinite(+level.id) && +level.id > 0 ? +level.id : 10, boss = !!level.base?.boss;
+  if (level.bonus) return 0; // bonus levels pay what the crowd carried into the vault (see bonusCoins)
   if (!win) return 5 + Math.floor(n / 2);
   let c = 12 + n * 3 + stars * 5;
   if (prevStars > 0) c = Math.round(c / 2); else c += boss ? 40 : 10;
   c += Math.max(0, stars - prevStars) * 8;
-  return c;
+  return Math.round(c * (1 + 0.1 * (Math.max(1, Math.min(5, combo)) - 1)));
+}
+export const bonusCoins = (units) => Math.round(Math.min(250, 15 + units / 100));
+
+// ---- hooks: a chest every 3 new levels, a 7-day login calendar
+export const CHEST_EVERY = 3;
+export const LOGIN_REWARDS = [{ coins: 40 }, { coins: 60 }, { coins: 90 }, { chest: 1 }, { coins: 150 }, { coins: 200 }, { coins: 300, chest: 1 }];
+// a chest: a free upgrade level, a cosmetic or a bag of coins (seeded, so a reload can't re-roll it)
+export function rollChest(seed, p) {
+  let a = (seed >>> 0) || 1; const r = () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const ups = UPGRADES.filter((u) => (p.up?.[u.id] || 0) < u.max);
+  const skins = SKINS.filter((s) => s.cost && !p.skins?.includes(s.id)), cans = CANNONS.filter((s) => s.cost && !p.cannons?.includes(s.id));
+  const k = r();
+  if (k < 0.45 && ups.length) { const u = ups[(r() * ups.length) | 0]; return { kind: 'up', id: u.id, name: u.name, icon: '⬆️' }; }
+  if (k < 0.7 && (skins.length || cans.length)) { const pickSkin = skins.length && (!cans.length || r() < 0.6); const s = pickSkin ? skins[(r() * skins.length) | 0] : cans[(r() * cans.length) | 0]; return { kind: pickSkin ? 'skin' : 'cannon', id: s.id, name: s.name, icon: pickSkin ? '🎨' : '💥' }; }
+  const n = 60 + Math.round(r() * 8) * 15; return { kind: 'coins', n, name: `${n} monete`, icon: '🪙' };
+}
+// apply a chest to the store (returns the reward, mutates p)
+export function openChest(p, rw) {
+  if (rw.kind === 'up') p.up[rw.id] = Math.min(UPGRADES.find((u) => u.id === rw.id).max, (p.up[rw.id] || 0) + 1);
+  else if (rw.kind === 'skin') { if (!p.skins.includes(rw.id)) p.skins.push(rw.id); p.skin = rw.id; }
+  else if (rw.kind === 'cannon') { if (!p.cannons.includes(rw.id)) p.cannons.push(rw.id); p.cannon = rw.id; }
+  else p.coins += rw.n;
+  return rw;
 }

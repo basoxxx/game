@@ -15,7 +15,7 @@ export const dayNumber = (d = new Date()) => Math.round((new Date(d.getFullYear(
 export function addDays(key, n) { const d = parseDay(key); d.setDate(d.getDate() + n); return dayKey(d); }
 // weekday ramp: Monday gentle, Sunday spicy
 const WEEK_D = [0.85, 0.35, 0.45, 0.5, 0.6, 0.65, 0.75]; // Sun … Sat
-export const GEN_VERSION = 2;
+export const GEN_VERSION = 3;
 // a standard loadout for the daily: everyone plays it with the same cannon (and it is tuned for it)
 export const DAILY_LOADOUT = { up: { rate: 2, shot: 1, hp: 2, speed: 2, charge: 2, armor: 2 }, champ: 'colosso', champLvl: 1 }; // bump when the generator changes (invalidates cached dailies)
 const _dailyCache = new Map();

@@ -25,8 +25,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const pick = (r, arr) => arr[(r() * arr.length) | 0];
 const r1 = (v) => Math.round(v * 10) / 10, r2 = (v) => Math.round(v * 100) / 100;
 
-export const GOOD = { mul: true, add: true, sub: false, div: false };
-export const gateText = (g) => (g.type === 'mul' ? `×${g.value}` : g.type === 'add' ? `+${g.value}` : g.type === 'sub' ? `−${g.value}` : `÷${g.value}`);
+export const GOOD = { mul: true, add: true, sub: false, div: false, split: true, rec: true };
+export const gateText = (g) => (g.type === 'mul' ? `×${g.value}` : g.type === 'add' ? `+${g.value}` : g.type === 'sub' ? `−${g.value}` : g.type === 'split' ? `⇆×${g.value}` : g.type === 'rec' ? `♻+${g.value}` : `÷${g.value}`);
 
 // ---------------------------------------------------------------- difficulty knobs
 // d: 0 (gentle) … 1 (hard); d > 1 keeps scaling (Infinita)
@@ -34,7 +34,7 @@ export function knobs(d) {
   const e = clamp(d, 0, 1), x = Math.max(0, d - 1);
   return {
     e, x,
-    len: Math.round(lerp(60, 72, e) + Math.min(6, x * 4)),
+    len: Math.round(lerp(52, 62, e) + Math.min(6, x * 4)),
     rows: Math.round(lerp(2, 4, e)) + (x > 0.5 ? 1 : 0),
     badShare: lerp(0.15, 0.42, e) + Math.min(0.1, x * 0.05),
     moveChance: e < 0.25 ? 0 : lerp(0.08, 0.35, e),
@@ -42,12 +42,13 @@ export function knobs(d) {
     obstacles: Math.round(lerp(0, 3, e) + Math.min(2, x * 1.5)),
     kinds: e < 0.25 ? ['wall'] : e < 0.5 ? ['wall', 'pit', 'barrier'] : e < 0.75 ? ['wall', 'pit', 'barrier', 'saw', 'spin'] : ['pit', 'barrier', 'saw', 'spin', 'spin', 'saw'],
     spawners: 1 + (e > 0.3 ? 1 : 0) + (e > 0.8 || x > 0.3 ? 1 : 0),
-    redFrac: lerp(0.18, 0.34, e) + Math.min(0.12, x * 0.06),   // reds per second, share of the blue throughput
+    redFrac: lerp(0.1, 0.22, e) + Math.min(0.1, x * 0.05),   // reds per second, share of the blue throughput
     waves: e > 0.35,
     towers: e < 0.3 ? 0 : Math.round(lerp(0, 2.4, e)) + (x > 0.6 ? 1 : 0),
     phases: e < 0.5 ? 0 : e < 0.8 ? 1 : 2,
-    targetRatio: lerp(0.4, 0.68, e) + Math.min(0.1, x * 0.05), // clock share a decent player needs
-    time: Math.round(lerp(90, 130, e) / 5) * 5,
+    targetRatio: lerp(0.27, 0.55, e) + Math.min(0.1, x * 0.05), // clock share a decent player needs
+    time: Math.round(lerp(75, 85, e) / 5) * 5, // generous: a wobbly aim multiplies far less
+    rainbow: lerp(0.15, 0.35, e), giants: e > 0.6,
     cannonHp: Math.round(lerp(26, 44, e) + Math.min(10, x * 8)),
   };
 }
@@ -75,15 +76,20 @@ function makeRow(r, y, k, late) {
     if (i === P.xs.length - 1 && goods === 0) bad = false; // every row offers at least one good gate
     let type, value;
     if (bad) {
-      if (r() < 0.6) { type = 'sub'; value = pick(r, late > 0.5 ? [15, 20, 25, 30, 40] : [6, 8, 10, 12, 15]); }
+      if (r() < 0.6) { type = 'sub'; value = pick(r, late > 0.5 ? [60, 80, 100, 120] : [20, 30, 40, 50]); }
       else { type = 'div'; value = 2; }
     } else {
       goods++;
-      if (r() < 0.62) { type = 'mul'; value = pick(r, late > 0.5 ? [2, 2, 3, 3, 4] : [2, 2, 2, 3]); }
-      else { type = 'add'; value = pick(r, late > 0.5 ? [2, 3, 4, 5] : [1, 2, 3]); }
+      if (r() < 0.62) { type = 'mul'; value = pick(r, late > 0.5 ? [2, 3, 3, 4, 4] : [2, 3, 3, 4]); }
+      else if (late > 0.5 && r() < 0.15) { type = 'rec'; value = pick(r, [60, 100, 150]); }
+      else { type = 'add'; value = pick(r, late > 0.5 ? [5, 10, 15, 20] : [5, 8, 10]); }
     }
     let w = r1(lerp(P.w[0], P.w[1], r()));
+    if (k.e < 0.2 && P.xs.length === 2) w = Math.max(w, 5.8); // the gentlest levels forgive a wobbly aim
     const g = { x, y: r1(y), w, type, value };
+    // a single gate across the lane may be the quick rainbow ×5, or a split into two lanes
+    if (P.single && r() < k.rainbow) { g.type = 'mul'; g.value = 5; g.rainbow = true; g.w = w = 3.2; g.move = { amp: r1(4 + r() * 1.8), speed: r2(0.45 + r() * 0.25), phase: r2(r() * 6.28) }; out.push(g); return; }
+    if (P.single && r() < 0.2) { g.type = 'split'; g.value = 2; g.w = w = 5; g.to = 4; out.push(g); return; }
     if (r() < k.moveChance) {
       // sway inside its own slot (never into a neighbour or the wall)
       const slot = P.single ? W - 2 : P.xs.length === 3 ? 5.2 : 8;
@@ -130,6 +136,7 @@ function layout(seed, d) {
     const s = slots.splice((r() * slots.length) | 0, 1)[0];
     const o = makeObstacle(r, pick(r, k.kinds), lerp(s[0], s[1], 0.3 + r() * 0.4));
     if (o) obstacles.push(o);
+    if (o?.type === 'pit' && o.y - 3.4 > s[0] && r() < 0.5) obstacles.push({ type: 'jump', x: o.x, y: r1(o.y - 3.4), w: r1(Math.min(5, o.w)), d: 1.4, air: 1 });
   }
   const spawners = [];
   for (let i = 0; i < k.spawners; i++) spawners.push({ x: k.spawners === 1 ? 0 : r1(lerp(-3.5, 3.5, i / (k.spawners - 1))), rate: r2(1 + r() * 0.6), count: 1 });
@@ -143,7 +150,7 @@ function layout(seed, d) {
     id: `gen-${seed}`, name: `${pick(r, NOUN)} ${pick(r, ADJ)}`, world, gen: { seed, d: r2(d) },
     w: W, len, time: k.time, stars: { par: 0, crowd: 0 }, charge: Math.round(30 + k.e * 30),
     cannon: { hp: k.cannonHp }, gates, obstacles,
-    base: { hp: 100, w: 9 + (k.phases ? 1 : 0), boss: k.phases >= 2, name: k.phases >= 2 ? 'Cittadella' : '', spawners, waves: k.waves ? { every: Math.round(lerp(14, 10, k.e)), count: 0 } : null, towers, phases },
+    base: { hp: 100, w: 9 + (k.phases ? 1 : 0), boss: k.phases >= 2, name: k.phases >= 2 ? 'Cittadella' : '', spawners, waves: k.waves ? { every: Math.round(lerp(10, 7, k.e)), count: 0 } : null, towers, phases, ...(k.giants ? { giants: { every: Math.round(lerp(16, 11, k.e)), hp: 0, first: 8 } } : {}) },
   };
 }
 
@@ -153,7 +160,7 @@ function layout(seed, d) {
 export const PLAYERS = ['novice', 'decent', 'sharp'];
 export function play(level, { player = 'decent', seed = 1, up = {}, champ = 'colosso', champLvl = 0, maxTime, probe = false, onStep } = {}) {
   const { Sim, autopilot } = CORE;
-  const s = new Sim(level, { up, champ, champLvl, seed, countdown: 0 });
+  const s = new Sim(level, { up, champ, champLvl, seed, countdown: 0, cap: 150, redCap: 120 }); // small pool: same maths (clones fold into units), much faster
   s.state = 'play';
   const r = rng(seed * 31 + 7), dt = 1 / 30, T = maxTime ?? level.time + 1;
   let off = 0, hold = true, frames = 0, maxCrowd = 0;
@@ -176,8 +183,8 @@ export function play(level, { player = 'decent', seed = 1, up = {}, champ = 'col
 export function probe(level, o = {}) {
   const L = { ...level, time: 999, base: { ...level.base, hp: 1e9, spawners: [], waves: null, towers: [], phases: [] } };
   let d0 = 0;
-  const s = play(L, { ...o, probe: true, maxTime: 34, onStep: (x) => { if (Math.abs(x.t - 12) < 1e-3 || (!d0 && x.t >= 12)) d0 = x.stats.baseDmg; } });
-  return (s.stats.baseDmg - d0) / 22;
+  const s = play(L, { ...o, probe: true, maxTime: 22, onStep: (x) => { if (Math.abs(x.t - 8) < 1e-3 || (!d0 && x.t >= 8)) d0 = x.stats.baseDmg; } });
+  return (s.stats.baseDmg - d0) / 14;
 }
 
 // lane choice: the autopilot's own scoring of every lane (no Sim needed) → best vs median
@@ -187,9 +194,10 @@ export function laneSpread(level) {
     let u = 10;
     for (const g of [...level.gates].sort((a, b) => a.y - b.y)) {
       if (Math.abs(x - g.x) > (g.w || 4.5) / 2 - 0.3) continue;
-      u = g.type === 'mul' ? u * g.value : g.type === 'add' ? u + g.value * 10 : g.type === 'sub' ? Math.max(0, u - Math.min(g.value, 25)) : u / g.value;
+      u = g.type === 'mul' || g.type === 'split' ? u * g.value : g.type === 'add' ? u + g.value * 10 : g.type === 'rec' ? u + 20 : g.type === 'sub' ? Math.max(0, u - Math.min(g.value, 25)) : u / g.value;
     }
     for (const ob of level.obstacles) {
+      if (ob.type === 'jump' || ob.type === 'push') continue;
       const span = ob.type === 'spin' ? ob.len : ob.type === 'saw' ? ob.r + ob.amp : ob.type === 'barrier' ? ob.w / 2 + ob.amp * 0.5 : ob.w / 2;
       const dx = Math.abs(x - ob.x);
       if (ob.type === 'pit') { if (dx < span + 0.4) u *= 0.02; } else if (dx < span + 0.3) u *= ob.type === 'wall' ? 0.85 : ob.type === 'spin' ? 0.6 : ob.type === 'barrier' ? 0.8 : 0.45;
@@ -221,8 +229,8 @@ export function validate(L) {
     if (!row.some((g) => GOOD[g.type])) e.push('row without a good gate');
   }
   for (const o of L.obstacles || []) {
-    if (!['wall', 'barrier', 'pit', 'spin', 'saw'].includes(o.type)) e.push(`obstacle ${o.type}`);
-    if (L.gates.some((g) => Math.abs(g.y - o.y) < 2.5)) e.push('obstacle on a gate line');
+    if (!['wall', 'barrier', 'pit', 'spin', 'saw', 'jump', 'push'].includes(o.type)) e.push(`obstacle ${o.type}`);
+    if (L.gates.some((g) => Math.abs(g.y - o.y) < (o.type === 'jump' ? 1.2 : 2.5))) e.push('obstacle on a gate line');
     if (o.y < 6 || o.y > L.len - 9) e.push(`obstacle y ${o.y}`);
   }
   const b = L.base || {};
@@ -255,7 +263,10 @@ export function generateLevel(seed, difficulty = 0.5, { endless = false, why = n
     // throughput of a decent player → red pressure, towers, base
     const P = probe(L, { seed: s, ...LO });
     if (!(P > 2)) { no('no-flow'); continue; }
-    let redPs = Math.max(0.6, P * k.redFrac);
+    // reds are a share of the multiplied flow, but never more than a share of the raw fire rate: a
+    // wobbly aim multiplies far less, and must not be overrun by reds sized on a sharp one
+    const raw = (8 + 0.7 * (LO.up.rate || 0)) * (1 + 0.2 * (LO.up.shot || 0));
+    let redPs = Math.max(0.6, Math.min(P * k.redFrac, raw * lerp(0.3, 1.1, k.e)));
     const setReds = () => {
       const share = L.base.waves ? 0.7 : 1, perSp = (redPs * share) / L.base.spawners.length;
       L.base.spawners.forEach((sp) => { sp.count = Math.max(1, Math.round(perSp / 1.3)); sp.rate = r2(perSp / sp.count); });
@@ -264,16 +275,17 @@ export function generateLevel(seed, difficulty = 0.5, { endless = false, why = n
     };
     setReds();
     L.base.towers.forEach((t) => { t.hp = Math.max(20, Math.round(P * lerp(1.5, 3.5, k.e))); });
-    const travel = (L.len / 6) + 2;
+    if (L.base.giants) L.base.giants.hp = Math.max(20, Math.round(P * 1.0));
+    const travel = (L.len / 10) + 1.5;
     L.base.hp = Math.max(60, Math.round(((P - redPs) * 0.8 * (L.time * k.targetRatio - travel)) / 10) * 10);
     // calibrate on full matches: too many reds → thin them out; then size the base to the target time
     const target = L.time * k.targetRatio;
     let dec = null;
     for (let i = 0; i < 6; i++) {
-      dec = play(L, { player: 'decent', seed: s, ...LO, maxTime: L.time * 2.5 });
+      dec = play(L, { player: 'decent', seed: s, ...LO, maxTime: L.time * 1.6 });
       // overrun, or won with the cannon nearly down: too many reds → thin them out
       if ((!dec.won && dec.why === 'overrun') || (dec.won && dec.cannonHp < dec.cannonMax * 0.35)) { redPs *= dec.won ? 0.85 : 0.72; setReds(); L.base.towers.forEach((t) => { t.rate = r2(t.rate * 0.85); }); continue; }
-      if (dec.won && Math.abs(dec.time - target) < L.time * 0.05) break;
+      if (dec.won && Math.abs(dec.time - target) < L.time * 0.07) break;
       const done = L.base.hp - (dec.won ? 0 : dec.baseHp);
       const rate = done / Math.max(1, dec.time - travel);
       if (!(rate > 0.2)) break;
@@ -284,7 +296,7 @@ export function generateLevel(seed, difficulty = 0.5, { endless = false, why = n
     L.gen.redPs = r2(redPs);
     if (!dec?.won || dec.time > L.time * 0.9) { no(dec?.won ? 'decent-slow' : `decent-${dec?.why}`); continue; }
     const dec2 = play(L, { player: 'decent', seed: s + 101, ...LO });
-    if (!dec2.won || dec2.cannonHp < dec2.cannonMax * 0.2) { no(`decent2-${dec2.why || 'close'}`); continue; }
+    if (!dec2.won || dec2.cannonHp < dec2.cannonMax * 0.35) { no(`decent2-${dec2.why || 'close'}`); continue; }
     const sharp = play(L, { player: 'sharp', seed: s + 202, ...LO });
     if (!sharp.won || sharp.time > L.time * 0.85) { no('sharp'); continue; }
     // stars: 2nd for finishing about as fast as a decent player, 3rd for a big crowd left at the win

@@ -12,6 +12,18 @@
 
 ![Scontro Totale](site-src/shots/cover-derby.webp)
 
+## Novità della versione 6.3
+Sei nuovi giochi nel Baso Hub (ora 10):
+- **Kart Baso** – corse arcade di kart con derapate e mini-turbo, 8 piloti, 8 piste in 4 coppe, oggetti originali, Gran Premio, prova a tempo con fantasma, battaglia e schermo diviso fino a 4 giocatori.
+- **Bastione** – tower defense con le figurine di Orda: 9 torri con specializzazioni, 4 eroi, incantesimi, 24 livelli, infinita e sfida del giorno.
+- **Ingorgo** – puzzle del traffico in 6 mondi con risolutore che garantisce soluzioni ottime, 60 livelli, 400 generati, puzzle del giorno e zen.
+- **Minigolf Baso** – 5 percorsi da 9 buche con fisica precisa, multigiocatore a turni, buca del giorno ed editor di buche condivisibili.
+- **Serpentone** – serpenti in arena che crescono e si eliminano, 4 arene, battaglia reale, 2 giocatori, missioni e cappelli.
+- **Territorio** – conquista il terreno chiudendo la scia, 5 arene, squadre, 2–4 giocatori e arena del giorno.
+
+## Novità della versione 6.2.1
+- **Orda più veloce e coinvolgente**: cannone a 8 colpi/s e omini più rapidi (centinaia in pochi secondi), livelli di 20–50 s, nessun tempo morto (ripartenza istantanea, prossimo livello automatico); numeri e porte che esplodono, contatore che rimbalza, misuratore Valanga, rallentatori e crolli spettacolari; forziere ogni 3 livelli, calendario dei premi giornalieri, livelli bonus "Caveau d'oro", mondo segreto; nuove porte (arcobaleno ×5, sdoppia, riciclo), trampolini, giganti rossi; tutorial giocato nei primi livelli.
+
 ## Novità della versione 6.2
 - **Orda (nuovo gioco)**: spara la tua orda di omini blu attraverso porte ×, +, −, ÷ fino alla base rossa. 30 livelli in 6 mondi con boss ogni 5, 4 campioni (Colosso, Grillo, Matrioska, Testuggine), potenziamenti e skin con monete, niente pubblicità.
 - **Base e razzie**: costruisci la tua base 3D (mura, torri, caserme, trappole, miniere, scudi), razzia basi rivali per monete e mattoni, rapporti degli attacchi subiti mentre sei via e Vendetta.
@@ -238,6 +250,34 @@ Le build desktop vengono create automaticamente da GitHub Actions (`.github/work
 Tecnologie: JavaScript, Vite, Three.js, Canvas/SVG, Web Audio, Electron, electron-builder.
 
 Geometria dei circuiti: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT License).
+
+## Territorio (Arcade)
+Gioco di conquista del territorio: guidi un piccolo veicolo su un'arena colorata, esci dal tuo terreno lasciando una scia e la richiudi per prenderti tutto ciò che hai racchiuso. Se un rivale tocca la tua scia sei fuori (e viceversa).
+- **Modalità**: Classica (una vita, conquista il 50%), Battaglia a tempo (3 minuti, si rinasce), Squadre (Rossi contro Blu, 4 contro 4), Ultimo in piedi, **Arena del giorno** uguale per tutti.
+- **2–4 giocatori** sullo stesso dispositivo: schermo diviso o condiviso, tastiera (WASD, frecce, IJKL, tastierino), controller e tocco a zone.
+- Rivali con personalità (Prudente, Avido, Cacciatore, Furbo, Scheggia), potenziamenti (Turbo, Scudo, Gelo), 5 arene con ostacoli, missioni, colori/veicoli/scie da sbloccare con le monete: niente pubblicità, niente acquisti.
+- Link diretto `?game=territorio`. Test della logica: `node tools/territorio-test.mjs`; controllo nel browser: `node tools/territorio-shots.mjs <url>`; copertina: `node tools/territorio-cover.mjs <url>`.
+## Serpentone (Arcade)
+Serpenti cartoon in quattro arene (Giardino, Spiaggia, Città neon, Stazione spaziale): mangia le palline luminose per allungarti, scatta spendendo lunghezza, fai schiantare le rivali contro il tuo corpo e raccogli il loro cibo. Modalità **Classica** (3 minuti, vince chi chiude in testa), **Sopravvivenza** (una vita sola), **Battaglia reale** (l'arena si stringe, nessuna rinascita), **2 giocatori** a schermo diviso e **Arena del giorno** con una variante diversa ogni giorno. Rivali con personalità (goloso, cacciatore, prudente, spericolato, avvolgente) e tre difficoltà, potenziamenti (Calamita, Fantasma, Turbo, Cibo x2), missioni, colori, motivi e cappelli sbloccabili con le monete guadagnate giocando (niente pubblicità, niente acquisti). Mouse, tastiera, controller, joystick o sterzo touch; telefono e tablet in verticale e orizzontale. Link diretto: `?game=serpentone`. Test: `node tools/serpentone-test.mjs` (simulazione) e `node tools/serpentone-e2e.mjs` (browser); copertina: `node tools/serpentone-cover.mjs`.
+## Minigolf Baso
+Minigolf 3D con fisica vera (`?game=minigolf`): 5 percorsi a tema (Giardino, Spiaggia, Castello, Luna Park, Spazio) da 9 buche con rampe, trampolini, giri della morte, mulini, cancelli mobili, respingenti, nastri, teletrasporti, acqua, lava, sabbia, ghiaccio e gravità bassa. Mira a fionda (mouse/touch) o tastiera/controller con anteprima della traiettoria, par, stelle e scorecard, multigiocatore a turno da 2 a 4 giocatori, buca del giorno, editor di buche con codici da condividere e palline/cappelli/scie da sbloccare con le monete (niente pubblicità).
+La fisica della pallina è deterministica (passi fissi a 240 Hz, sotto-passi anti-tunnelling): `node tools/minigolf-check.mjs` verifica con una ricerca di tiri che ogni buca (e le varianti specchiate della buca del giorno) si chiuda entro il par; `node tools/minigolf-e2e.mjs` prova menu, partita, multigiocatore ed editor nel browser; `node tools/minigolf-cover.mjs` genera la copertina.
+## Bastione (Strategia · tower defense)
+Mappe 3D in stile cartone dove ondate di fagiolini rossi (fanti, lesti, scudati, bruti, volanti, gemelli che si dividono, sciamani guaritori e 4 capi) marciano verso il tuo castello. 9 torri originali (Balestra, Cannone, Gelo, Tesla, Mortaio, Cecchino, Veleno, Caserma con difensori blu, Miniera d'oro) con 3 livelli e 2 specializzazioni ciascuna, 4 eroi con due abilità, 3 incantesimi. 24 livelli in 4 mondi con 3 stelle, Infinita, Sfida del giorno, tre difficoltà, velocità x1/x2/x3, pausa per pianificare; monete e gemme si guadagnano solo giocando (albero dei potenziamenti, eroi). Tocco, mouse, tastiera e controller; PC, tablet e telefono in verticale e orizzontale.
+- `src/bastione/` – dati, mappe, simulazione deterministica, autopilota, grafica three.js; `src/screens/bastione.js` – menu e risultati
+- `node tools/bastione-balance.mjs check` – ogni livello vinto dall'autopilota, stelle sensate (anche `tune`, `casual`, `endless`)
+- `node tools/bastione-e2e.mjs <url> [cartella]` – prova nel browser; `node tools/bastione-cover.mjs <url>` – copertina
+## Kart Baso
+Corse arcade di kart cartoon nel Baso Hub (`?game=kart`, categoria Corse): derapata con mini-turbo a tre livelli, partenza a razzo, acrobazie sui trampolini, monete che aumentano la velocità e scatole oggetto con power-up originali (Peperoncino e Tris, Chiazza d'olio, Bomba Rimbalzina, Ricciolo a ricerca, Scudo Bolla, Calamita, Super Moka, Sacchetto di monete).
+- **8 piloti** (Baso, Lella Lampo, Pina Pomodoro, Tito Tartufo, Gino Granito, Mimì Micia, Rocco Robot, Nonna Turbo) con statistiche diverse, 4 telai, 4 tipi di ruote e 12 vernici da sbloccare con le monete (nessuna pubblicità).
+- **8 piste in 4 coppe** (ogni coppa: due piste e le loro versioni al rovescio) con salti, scorciatoie, mucche, palloni, casse, presse, geyser, lava e una strada sospesa tra le stelle; 2 arene per la **Battaglia** a palloncini.
+- **Gran Premio** (3 cilindrate, trofei che sbloccano coppe e piloti), **Gara singola**, **Prova a tempo** con fantasma del record e medaglie, **Battaglia**, **Multigiocatore** a schermo diviso da 2 a 4 (tastiera WASD + frecce e controller); touch con comandi a schermo su telefono e tablet, in verticale e in orizzontale.
+- Codice in `src/kart/` (simulazione deterministica in `sim.js`, testabile senza browser), schermata `src/screens/kart.js`. Prove: `node tools/kart-tracks.mjs`, `node tools/kart-sim.mjs`, `node tools/kart-e2e.mjs <url>`; copertina: `node tools/kart-cover.mjs <url>`.
+### Ingorgo (Baso Hub · Puzzle)
+Puzzle di traffico in 3D cartoon: sposta auto, furgoni e autobus per liberare l’uscita. 60 livelli in 6 mondi (parcheggio classico, «tutti fuori», sensi unici, semafori, traghetto, ora di punta a tempo), 400 sfide generate, puzzle del giorno condivisibile e modalità Zen. Un generatore con seme e un risolutore A*/BFS garantiscono che ogni livello sia risolvibile e ne misurano la difficoltà (mosse minime).
+- `src/ingorgo/` – regole e risolutore (`core.js`), generatore (`gen.js`), gioco 3D (`game.js`), suoni, progressi
+- `node tools/ingorgo-gen-test.mjs` – 1000 semi: validità, ottimo del risolutore verificato da BFS, determinismo
+- `node tools/ingorgo-levels.mjs` – rigenera i 60 livelli della campagna · `node tools/ingorgo-e2e.mjs` – risolve livelli dalla UI con Playwright · `node tools/ingorgo-cover.mjs` – copertina
 
 ## Officina (Baso Hub · Gestionali)
 

@@ -23,5 +23,17 @@ Voragine facades (voragine/f_*.webp, 1k webp; *_e = night window emission, partl
 ambientCG (https://ambientcg.com) - CC0 1.0 Public Domain: Facade001, Facade003, Facade006, Facade017, Facade018A.
 Road grain reuses tex/asphalt_02 (Poly Haven, CC0).
 
+Territorio (src/territorio): no external assets. Board, vehicles, obstacles and effects are procedural
+(three.js primitives and shaders); the cover public/covers/territorio.webp is rendered from the game.
+Serpentone: no third-party assets. Arenas, snakes, hats, food and the cover (covers/serpentone.webp) are procedural, rendered by the game itself.
+Minigolf Baso (src/minigolf/): all course geometry, props, textures (canvas) and sounds are procedural - no external assets.
+Bastione: no external assets. Models, maps, icons, effects and sounds are procedural (three.js primitives,
+canvas, inline SVG, Web Audio); the bean figures reuse Orda's procedural geometry.
+Kart Baso (src/kart): no third-party assets. Karts, drivers, items, tracks, props and textures are built
+procedurally in code (three.js primitives and canvas textures); sounds come from the hub's procedural
+audio engine (src/ui/audio.js). Characters, tracks and items are original creations.
+Ingorgo (src/ingorgo): no external assets. Vehicles, city, textures (windows, water, chequers) and
+all sounds (horns, engines) are generated in code; levels come from the seeded generator + solver.
+
 Officina: no external assets. Garage, track, parts, crates and the kart are procedural (three.js); the race
 cars are Apex Dynasty's own procedural models (src/ui/cars). Cover rendered from the game (tools/officina-cover.mjs).
