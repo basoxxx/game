@@ -21,7 +21,7 @@ export function toon(color, o = {}) {
   if (!o.unique) matCache.set(key, m);
   return m;
 }
-export function disposeModelCaches() { for (const m of matCache.values()) m.dispose(); matCache.clear(); gradTex?.dispose(); gradTex = null; for (const g of Object.values(G)) g?.dispose?.(); for (const k in G) delete G[k]; }
+export function disposeModelCaches() { vcM?.dispose(); vcM = null; for (const m of matCache.values()) m.dispose(); matCache.clear(); gradTex?.dispose(); gradTex = null; for (const g of Object.values(G)) g?.dispose?.(); for (const k in G) delete G[k]; }
 
 const G = {}; // shared geometries
 const geo = (k, f) => (G[k] ||= f());
@@ -164,6 +164,7 @@ export function makeKart(ch, { body = 'classico', wheels = 'standard', paint = n
   const d = driver(ch); d.name = 'driver'; tilt.add(d);
   // fewer draw calls: bake the static parts (chassis, driver body, head) into one mesh per material
   bake(k, (o) => o.name === 'sw' || o.name === 'flames' || W.some((x) => x.piv === o));
+  for (const x of W) bake(x.w, () => false);
   bake(d, (o) => o.name === 'head');
   bake(d.getObjectByName('head'), () => false);
   root.userData ={ tilt, wheels: W, driver: d, flames: fl, sw, head: d.getObjectByName('head') };
@@ -172,6 +173,9 @@ export function makeKart(ch, { body = 'classico', wheels = 'standard', paint = n
 }
 // merge the meshes directly inside `group` (and their static sub-groups) by material; `keep(o)`
 // marks children that animate and must stay separate
+const WHITE = new THREE.Color(1, 1, 1);
+let vcM = null;
+const vcMat = () => (vcM ||= new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGrad() }));
 function bake(group, keep) {
   if (!group) return;
   group.updateMatrixWorld(true);
@@ -185,8 +189,14 @@ function bake(group, keep) {
         for (const n of Object.keys(g.attributes)) if (n !== 'position' && n !== 'normal' && n !== 'uv') g.deleteAttribute(n);
         if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
         g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, c.matrixWorld));
-        if (!by.has(c.material)) by.set(c.material, []);
-        by.get(c.material).push(g); drop.push(c);
+        // plain toon colours become vertex colours: they all share one material (one draw call)
+        const m = c.material, plain = m.isMeshToonMaterial && !m.map && !m.transparent && m.emissive.getHex() === 0 && !m.vertexColors;
+        const n = g.attributes.position.count, col = new Float32Array(n * 3);
+        const cc = plain ? m.color : WHITE; for (let i = 0; i < n; i++) { col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b; }
+        g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+        const key = plain ? vcMat() : m;
+        if (!by.has(key)) by.set(key, []);
+        by.get(key).push(g); drop.push(c);
       }
       if (!c.isMesh && c.children.length) visit(c);
       else if (c.isMesh && c.children.length) visit(c);

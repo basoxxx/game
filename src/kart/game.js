@@ -164,7 +164,7 @@ export class KartGame {
     if (this.o.ghost && v.ghost) this.placeGhost();
     if (this.camOverride) this.camOverride(v);
     else if (!this.players.length) v.updateCamera(0, S.order?.[0] || S.karts[0], dt);
-    else this.players.forEach((p, i) => v.updateCamera(i, S.karts[p.kart], dt));
+    else this.players.forEach((p, i) => { const k = S.karts[p.kart]; v.updateCamera(i, k.out && S.t - (k.outT || 0) > 1.5 ? (S.order || S.karts).find((x) => !x.out) || k : k, dt); }); // knocked out: watch the leader
     v.render();
     this.hud.update(dt);
     this.touch?.update(S.state !== 'done' && !this.paused);
