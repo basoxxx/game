@@ -418,7 +418,8 @@ export class BaseView {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
     const dt = Math.min(0.05, (now - this.last) / 1000);
-    if (this.tier === 'low' && now - this.last < 30) return;
+    // a base is mostly still: 30 fps is plenty below the top tier (battery on phones and tablets)
+    if (this.tier !== 'high' && now - this.last < 30) return;
     this.last = now; this.t += dt;
     if (document.hidden) return;
     const T = this.t;
