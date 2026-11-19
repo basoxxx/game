@@ -92,7 +92,7 @@ export const THEMES = {
   porto: { sky: ['#2a3a8a', '#ff9a6a'], fog: '#c2779a', ground: '#4c5866', ground2: '#5c6878', road: '#3c414c', line: '#ffd23f', kerb: ['#ffd23f', '#222222'], wall: ['#ffd23f', '#222222'], off: 'grass', props: 'harbor', sea: '#164a7a', sun: '#ffb38a', hemi: ['#ffb8c8', '#2a3550'], dusk: true },
   neve: { sky: ['#7cc8ff', '#f0f8ff'], fog: '#e6f2ff', ground: '#f4f8ff', ground2: '#ffffff', road: '#7d8aa0', line: '#ffffff', kerb: ['#ff3b6b', '#ffffff'], wall: ['#3b82f6', '#ffffff'], off: 'snow', props: 'snow', sun: '#ffffff', hemi: ['#ffffff', '#9fb4d0'] },
   biscotti: { sky: ['#ff9ed2', '#ffe6f4'], fog: '#ffd6ec', ground: '#8a4a2a', ground2: '#a35a34', road: '#f0d2a8', line: '#ff5fa2', kerb: ['#ff5fa2', '#ffffff'], wall: ['#ffffff', '#ff5fa2'], off: 'choco', props: 'candy', sun: '#fff0f8', hemi: ['#fff0fa', '#8a4a2a'] },
-  vulcano: { sky: ['#2a0f1f', '#ff5a2a'], fog: '#7a2a1a', ground: '#3a2a2a', ground2: '#4a3030', road: '#2c2a30', line: '#ff9a3c', kerb: ['#ff9a3c', '#2a2a2a'], wall: ['#4a3a3a', '#ff6a2a'], off: 'lava', props: 'volcano', sun: '#ffb070', hemi: ['#ff9a6a', '#3a1010'], dusk: true },
+  vulcano: { sky: ['#3a1428', '#ff6a3a'], fog: '#8a3a2a', ground: '#5a4040', ground2: '#6a4a44', road: '#4a4048', line: '#ff9a3c', kerb: ['#ff9a3c', '#2a2a2a'], wall: ['#4a3a3a', '#ff6a2a'], off: 'lava', props: 'volcano', sun: '#ffb070', hemi: ['#ffb08a', '#5a2a20'], dusk: true },
   cometa: { sky: ['#06061a', '#2a1a6a'], fog: '#1a1440', ground: '#000000', road: '#1a1a3a', line: '#5ef2ff', kerb: ['#ff4dd2', '#5ef2ff'], wall: ['#5ef2ff', '#ff4dd2'], off: 'void', props: 'space', sun: '#c8b8ff', hemi: ['#8a7aff', '#1a1040'], night: true },
 };
 

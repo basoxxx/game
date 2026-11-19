@@ -110,7 +110,7 @@ export class Hud {
         if (v.laps) { const s = k.lapTimes.map((x, j) => `<div><span>G${j + 1}</span>${fmtT(x)}</div>`).join(''); if (L.lt !== s) { L.lt = s; v.laps.innerHTML = s; } }
       }
       if (L.coins !== k.coins) { L.coins = k.coins; v.coins.textContent = k.coins; v.coins.parentElement.classList.toggle('max', k.coins >= 10); }
-      const kmh = Math.round(Math.max(0, k.fwd) * 3.6); if (L.kmh !== kmh) { L.kmh = kmh; v.speed.textContent = kmh; }
+      const kmh = Math.round(Math.max(0, k.fwd) * 5.4); if (L.kmh !== kmh) { L.kmh = kmh; v.speed.textContent = kmh; }
     });
     if (slow && this.map) {
       const g = this.mapG; g.clearRect(0, 0, 180, 180); g.drawImage(this.mapBase, 0, 0);

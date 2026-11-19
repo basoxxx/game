@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
 let pw; try { pw = require('playwright'); } catch { pw = require(execSync('npm root -g').toString().trim() + '/playwright'); }
 const BASE = (process.argv[2] || 'http://127.0.0.1:4660/').replace(/\/?$/, '/');
 const W = 1600, H = 900;
-const E = { track: process.env.KC_TRACK || 'prato', t: +(process.env.KC_T || 7.2), dist: +(process.env.KC_DIST || 10), side: +(process.env.KC_SIDE || 3.4), up: +(process.env.KC_UP || 1.5), fov: +(process.env.KC_FOV || 46) };
+const E = { track: process.env.KC_TRACK || 'prato', t: +(process.env.KC_T || 7.2), dist: +(process.env.KC_DIST || 10), side: +(process.env.KC_SIDE || 3.4), up: +(process.env.KC_UP || 1.5), fov: +(process.env.KC_FOV || 46), look: +(process.env.KC_LOOK || 2.6) };
 mkdirSync('public/covers', { recursive: true });
 const browser = await pw.chromium.launch({ args: ['--use-gl=angle', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: W, height: H } });
@@ -43,7 +43,7 @@ const info = await page.evaluate((E) => {
   const cx = L.x + fx * E.dist + rx * E.side, cz = L.z + fz * E.dist + rz * E.side;
   const q = S.world.probe(cx, cz, -1, {});
   const cy = Math.max(L.y, q.gy > -1e6 ? q.gy : L.y) + E.up;
-  g.camOverride = (view) => view.lookFrom(0, cx, cy, cz, L.x - fx * 6 - rx * 0.8, L.y + 1.3, L.z - fz * 6 - rz * 0.8, E.fov);
+  g.camOverride = (view) => view.lookFrom(0, cx, cy, cz, L.x - fx * 6 + rx * E.look, L.y + 1.3, L.z - fz * 6 + rz * E.look, E.fov);
   g.render(0); g.render(0);
   return { leader: L.name, t: S.t.toFixed(1), x: L.x.toFixed(1), z: L.z.toFixed(1) };
 }, E);

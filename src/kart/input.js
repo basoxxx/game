@@ -95,13 +95,13 @@ export class TouchControls {
     this.knob = knob; this.base = base;
     let stick = null; const R = 52;
     const move = (e) => { const r = base.getBoundingClientRect(); const cx = r.left + r.width / 2; let dx = e.clientX - cx; dx = Math.max(-R, Math.min(R, dx)); knob.style.transform = `translateX(${dx}px)`; this.s.steer = Math.abs(dx) < 6 ? 0 : dx / R; };
-    zone.addEventListener('pointerdown', (e) => { e.preventDefault(); if (stick != null) return; stick = e.pointerId; base.classList.add('on'); zone.setPointerCapture?.(e.pointerId); move(e); });
+    zone.addEventListener('pointerdown', (e) => { e.preventDefault(); if (stick != null) return; stick = e.pointerId; base.classList.add('on'); try { zone.setPointerCapture?.(e.pointerId); } catch {} move(e); });
     zone.addEventListener('pointermove', (e) => { if (e.pointerId !== stick) return; e.preventDefault(); move(e); });
     const end = (e) => { if (e.pointerId !== stick) return; stick = null; this.s.steer = 0; knob.style.transform = ''; base.classList.remove('on'); };
     zone.addEventListener('pointerup', end); zone.addEventListener('pointercancel', end); zone.addEventListener('lostpointercapture', end);
     for (const b of el.querySelectorAll('.ktt-b[data-k]')) {
       const k = b.dataset.k, ids = new Set();
-      b.addEventListener('pointerdown', (e) => { e.preventDefault(); ids.add(e.pointerId); b.setPointerCapture?.(e.pointerId); this.s[k] = 1; b.classList.add('on'); try { navigator.vibrate?.(8); } catch {} });
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); ids.add(e.pointerId); try { b.setPointerCapture?.(e.pointerId); } catch {} this.s[k] = 1; b.classList.add('on'); try { navigator.vibrate?.(8); } catch {} });
       const off = (e) => { ids.delete(e.pointerId); if (!ids.size) { this.s[k] = 0; b.classList.remove('on'); } };
       b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
     }

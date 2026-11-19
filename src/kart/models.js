@@ -162,9 +162,43 @@ export function makeKart(ch, { body = 'classico', wheels = 'standard', paint = n
   }
   // driver
   const d = driver(ch); d.name = 'driver'; tilt.add(d);
-  root.userData = { tilt, wheels: W, driver: d, flames: fl, sw, head: d.getObjectByName('head') };
+  // fewer draw calls: bake the static parts (chassis, driver body, head) into one mesh per material
+  bake(k, (o) => o.name === 'sw' || o.name === 'flames' || W.some((x) => x.piv === o));
+  bake(d, (o) => o.name === 'head');
+  bake(d.getObjectByName('head'), () => false);
+  root.userData ={ tilt, wheels: W, driver: d, flames: fl, sw, head: d.getObjectByName('head') };
   root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return root;
+}
+// merge the meshes directly inside `group` (and their static sub-groups) by material; `keep(o)`
+// marks children that animate and must stay separate
+function bake(group, keep) {
+  if (!group) return;
+  group.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
+  const by = new Map(), drop = [];
+  const visit = (o) => {
+    for (const c of o.children) {
+      if (keep(c)) continue;
+      if (c.isMesh && !Array.isArray(c.material)) {
+        const g = c.geometry.index ? c.geometry.toNonIndexed() : c.geometry.clone();
+        for (const n of Object.keys(g.attributes)) if (n !== 'position' && n !== 'normal' && n !== 'uv') g.deleteAttribute(n);
+        if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+        g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, c.matrixWorld));
+        if (!by.has(c.material)) by.set(c.material, []);
+        by.get(c.material).push(g); drop.push(c);
+      }
+      if (!c.isMesh && c.children.length) visit(c);
+      else if (c.isMesh && c.children.length) visit(c);
+    }
+  };
+  visit(group);
+  if (drop.length < 2) return;
+  for (const c of drop) c.parent.remove(c);
+  for (const [m, gs] of by) { const g = mergeGeometries(gs); for (const x of gs) x.dispose(); if (!g) continue; const mm = new THREE.Mesh(g, m); mm.castShadow = true; group.add(mm); }
+  // empty helper groups left behind
+  const empty = []; group.traverse((o) => { if (o !== group && !o.isMesh && !o.isSprite && o.children.length === 0 && !keep(o)) empty.push(o); });
+  for (const e of empty) e.parent?.remove(e);
 }
 let rainbow = null;
 function rainbowMat() {

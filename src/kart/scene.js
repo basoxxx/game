@@ -174,7 +174,7 @@ function buildTrack(W, out, R, tier) {
   if (W.void) { roadMat.emissive = new THREE.Color('#1a1040'); roadMat.transparent = true; roadMat.opacity = 0.95; }
   const groundMat = new THREE.MeshLambertMaterial({ map: groundTexture(T) });
   const off = W.off;
-  const shoulderMat = off === 'lava' ? new THREE.MeshLambertMaterial({ map: groundTexture(T, '#3a2a2a', '#4a3434') }) : groundMat;
+  const shoulderMat = off === 'lava' ? new THREE.MeshLambertMaterial({ map: groundTexture(T, '#5e4842', '#6e5248') }) : groundMat;
   // road ribbons (main + shortcuts)
   for (const p of W.paths) {
     const surfMat = p.isMain ? roadMat : new THREE.MeshLambertMaterial({ map: groundTexture(T, p.surf === 'choco' ? '#6a3a1a' : p.surf === 'snow' ? '#e8f0ff' : '#b8885a', p.surf === 'choco' ? '#7a4a2a' : p.surf === 'snow' ? '#ffffff' : '#c89a6a'), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
