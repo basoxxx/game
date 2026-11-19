@@ -64,6 +64,21 @@ export const SEASON_LENGTH = {
   endurance: { short: 6, normal: 8, full: 8 },
 };
 
+// stage names per rally (the stages of an event are drawn from its own country, never from another rally's)
+export const RALLY_STAGES = {
+  mc: ['Col de Turini', 'La Bollène-Vésubie', 'Sisteron', 'Lantosque', 'Col de Braus', 'Entrevaux', 'Puget-Théniers'],
+  swe: ['Vargåsen', 'Torsby', 'Hagfors', 'Rämmen', 'Lesjöfors', 'Sävsnäs', 'Brattfors'],
+  ken: ['Soysambu', 'Hell’s Gate', 'Kanga', 'Sleeping Warrior', 'Elmenteita', 'Loldia', 'Malewa'],
+  cro: ['Platak', 'Kostanjevac', 'Vodice', 'Trakošćan', 'Ravna Gora', 'Stojdraga', 'Krašić'],
+  por: ['Fafe', 'Ponte de Lima', 'Arganil', 'Amarante', 'Vieira do Minho', 'Cabeceiras de Basto', 'Lousã'],
+  ita: ['Monte Lerno', 'Tempio Pausania', 'Coiluna', 'Tula', 'Castelsardo', 'Monti di Alà', 'Osilo'],
+  gre: ['Loutraki', 'Elinikos', 'Bauxites', 'Pissia', 'Tarzan', 'Gravia', 'Eleftherochori'],
+  fin: ['Ouninpohja', 'Ruuhimäki', 'Laukaa', 'Lehto', 'Kakaristo', 'Mustalampi', 'Pirttiperä', 'Ratkojärvi', 'Lempää', 'Kaitjärvi'],
+  chi: ['Pulpería', 'Rere', 'María Las Cruces', 'Lircay', 'Yumbel', 'San Rosendo', 'Florida'],
+  eur: ['Panzerplatte', 'Bilstein', 'Rüdesheim', 'Tiergarten', 'Grand Duchy', 'Šumava', 'Klatovy'],
+  jpn: ['Isusako', 'Nukata', 'Nakatsugawa', 'Kanpa', 'Ena', 'Shitara', 'Okazaki'],
+  gbr: ['Sweet Lamb', 'Hafren', 'Brenig', 'Dyfi', 'Gartheiniog', 'Myherin', 'Dyfnant'],
+};
 export const STAGE_NAMES = ['Col de Turini', 'Vargåsen', 'Ouninpohja', 'Monte Lerno', 'Fafe', 'Sweet Lamb', 'Kakaristo', 'Tempio', 'Loutraki', 'Sleeping Warrior', 'Malaga Plateau', 'Hella Vista', 'Isusako', 'Ruuhimäki', 'Ponte Fafe', 'Arganil', 'Hafren', 'Brenig', 'Ratkojärvi', 'Lempää', 'Sisteron', 'La Bollène', 'Panzerplatte', 'Bilstein', 'Lehto', 'Laukaa', 'Mustalampi', 'Pirttiperä', 'Kaitjärvi', 'Rüdesheim', 'Kanpa', 'Nukata', 'Lago Bianco', 'Elinikos', 'Pajares', 'Viscondes', 'Tavara', 'Bosco Selene', 'Kanga', 'Soysambu', 'Hell’s Gate', 'Malè', 'Loukko', 'Kiidjärve', 'Sardinia Coast', 'Grand Duchy', 'Tiergarten', 'Nakatsugawa'];
 
 export const SPONSORS = [

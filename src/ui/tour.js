@@ -126,6 +126,7 @@ export const TOURS = {
   ],
 };
 
+let raceWait = null;
 // Called by the router after every screen change
 export function maybeTour(screen) {
   if (active) { if (active.opts.screen && active.opts.screen !== screen) endTour(false); else return; }
@@ -141,14 +142,16 @@ export function maybeTour(screen) {
       startTour('tour_career', TOURS.career(), { screen: 'hub', label: 'Primi passi', finish: 'Iniziamo' });
     }, 500);
   }
-  if (screen === 'weekend' && !s.tour_race && !s.race) {
-    const t0 = performance.now();
-    const wait = setInterval(() => {
-      if (window.__apex?.App?.cur !== 'weekend' || performance.now() - t0 > 60000) { clearInterval(wait); return; }
-      if (!document.querySelector('.race-board') || document.querySelector('.modal-wrap, .tour-mask')) return;
-      clearInterval(wait);
+  // the race tour is about the Grand Prix of a career: not practice / qualifying (same board), not a quick race, not a rally
+  const isRace = () => { const st = S(); return !!st && !st.quick && st.category !== 'rally' && st.weekend?.phase === 'race' && window.__apex?.App?.cur === 'weekend'; };
+  // (practice and qualifying can last long on the same screen: wait for the race as long as the weekend screen is open)
+  if (screen === 'weekend' && !s.tour_race && !s.race && !raceWait) {
+    const wait = raceWait = setInterval(() => {
+      if (window.__apex?.App?.cur !== 'weekend' || seen().race) { clearInterval(wait); raceWait = null; return; }
+      if (!isRace() || !document.querySelector('.race-board') || document.querySelector('.modal-wrap, .tour-mask')) return;
+      clearInterval(wait); raceWait = null;
       mark('race'); // replaces the single coach tip of the race screen
-      setTimeout(() => window.__apex?.App?.cur === 'weekend' && startTour('tour_race', TOURS.race(), { screen: 'weekend', passive: true, label: 'In gara' }), 5500);
+      setTimeout(() => isRace() && startTour('tour_race', TOURS.race(), { screen: 'weekend', passive: true, label: 'In gara' }), 5500);
     }, 600);
   }
 }

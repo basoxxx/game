@@ -512,9 +512,9 @@ export class CircuitSim {
     const need = (gap - OVL * 0.6) * lt / tLeft - (a.lapTarget / b.lapTarget - 1);
     // can it get alongside before the braking point? (or a late lunge into one of the big stops)
     if (need > boostMax * 1.15 && !(z.dv > 38 && gap < MIN_GAP * 1.05)) return;
-    let pA = (0.03 + clamp(q - 0.04, -0.3, 1.2) * 1.6 + (drs ? 0.22 : 0) + (b.ersMode === 'deploy' ? 0.1 : 0) + (b.mode === 'push' ? 0.08 : 0) + (b.attackUntil > this.time ? 0.3 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.15 : 0) + (db.attrs.race - 75) / 250 + (b.conf || 0) * 0.04 + duel.heat / 400) * z.w * (0.05 + 1.2 * this.track.ovt ** 1.3);
+    let pA = (0.03 + clamp(q - 0.04, -0.3, 1.2) * 1.6 + (drs ? 0.22 : 0) + (b.ersMode === 'deploy' ? 0.1 : 0) + (b.mode === 'push' ? 0.08 : 0) + (b.attackUntil > this.time ? 0.3 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.15 : 0) + (db.attrs.race - 75) / 250 + (b.conf || 0) * 0.04 + duel.heat / 400) * z.w * (0.02 + 1.2 * this.track.ovt ** 1.3);
     if (!chance(clamp(pA, 0, 0.9))) return;
-    const pOk = clamp(duel.pBonus + 0.1 + this.track.ovt * 0.3 + q * 0.8 + (db.attrs.race - da.attrs.race) / 110 + (drs ? 0.1 : 0) + (b.mode === 'push' ? 0.05 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.08 : 0) - (a.ersMode === 'deploy' ? 0.06 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.1 : 0) + (b.attackUntil > this.time ? 0.1 : 0) - (a.defendUntil > this.time ? 0.18 : 0) + (b.conf || 0) * 0.04 - (a.conf || 0) * 0.03 - (z.w < 0.15 ? 0.15 : 0), 0.04, 0.92) * (0.3 + 0.7 * Math.min(1, this.track.ovt / 0.55)); // tight tracks: even a much quicker car rarely makes it stick
+    const pOk = clamp(duel.pBonus + 0.1 + this.track.ovt * 0.3 + q * 0.8 + (db.attrs.race - da.attrs.race) / 110 + (drs ? 0.1 : 0) + (b.mode === 'push' ? 0.05 : 0) - (a.mode === 'push' ? 0.04 : 0) + (b.ersMode === 'deploy' ? 0.08 : 0) - (a.ersMode === 'deploy' ? 0.06 : 0) + (!b.isPlayer ? (this.realism.aiAggr - 1) * 0.1 : 0) + (b.attackUntil > this.time ? 0.1 : 0) - (a.defendUntil > this.time ? 0.18 : 0) + (b.conf || 0) * 0.04 - (a.conf || 0) * 0.03 - (z.w < 0.15 ? 0.15 : 0), 0.04, 0.92) * (0.15 + 0.85 * Math.min(1, this.track.ovt / 0.55)); // tight tracks: even a much quicker car rarely makes it stick
     b.att = { def: a.key, ph: 'close', z, t0: this.time, gap0: Math.max(gap, OVL), boostMax, pOk, pos: i, drs, blow: drs && q > 0.3 && chance(0.4), cover: chance(0.5 + (a.defendUntil > this.time ? 0.4 : 0)) };
     a._defBy = b.key;
     // covering the inside costs the defender a little on the straight
@@ -604,7 +604,7 @@ export class CircuitSim {
   // a mistake under pressure at a braking point: lock-up / runs wide, the car behind goes through
   pressureError(a, b, i, k) {
     const da = this.driver(a), db = this.driver(b);
-    const errP = 0.0045 * 14 / Math.max(10, this._corners.length) * (1.35 - da.attrs.cons / 100) * (a.wear > 0.75 ? 2 : 1) * (this.rain > 0.3 ? 1.6 : 1) * (a.defendUntil > this.time ? 1.4 : 1) * (a.mode === 'push' ? 1.3 : 1) * this.nerves(a) * Math.min(1.6, k.w / 1.1);
+    const errP = 0.0045 * 14 / Math.max(10, this._corners.length) * (1.35 - da.attrs.cons / 100) * (a.wear > 0.75 ? 2 : 1) * (this.rain > 0.3 ? 1.6 : 1) * (a.defendUntil > this.time ? 1.4 : 1) * (a.mode === 'push' ? 1.3 : 1) * this.nerves(a) * Math.min(1.6, k.w / 1.1) * (0.12 + 0.88 * Math.min(1, (this.track.ovt ?? 0.4) / 0.3)); // a mistake in a street-circuit queue rarely opens the door
     if (!chance(errP)) return false;
     const loss = rand(0.6, 2.2);
     const how = pick(['bloccaggio in staccata', 'va lungo in curva', 'sbaglia la cambiata in uscita', 'finisce sul cordolo e perde trazione']);
@@ -1196,7 +1196,9 @@ export class CircuitSim {
       let comp;
       if (c.isPlayer && !c.auto) { const v = c.redTyre ?? 'auto'; comp = v === 'keep' ? null : v === 'auto' ? (wetNow || this.dryChoice(c, left)) : v; c.redTyre = null; }
       else comp = wetNow && !COMPOUNDS[c.tyre].wet ? wetNow : (c.wear > 0.12 || (COMPOUNDS[c.tyre].wet && !wetNow) ? (wetNow || this.dryChoice(c, left)) : null);
-      c.damage = 0; c.inPit = 0; c.pitReq = null;
+      // a box call still pending: the free change during the suspension serves it, and the engineer says so
+      if (c.pitReq && comp && c.isPlayer && !c.auto) this.log(`📻 Ingegnere a ${this.driver(c).name.split(' ')[0]}: «Gomme cambiate durante la bandiera rossa: la sosta prevista è annullata.»`, 'pit', c.key, true);
+      c.damage = 0; c.inPit = 0; if (comp) c.pitReq = null;
       if (comp) {
         const from = c.tyre, fromAge = c.stintLap;
         if (c.isPlayer && !c.auto) this.planAfterStop(c, comp); else c.plan = null;
@@ -1686,7 +1688,7 @@ export class CircuitSim {
       }
       case 'puncture': {
         const c = this.cars.find((x) => x.key === o.key && x.status === 'running'); if (!c) return false;
-        c.damage += 0.6; c.pitReq = c.pitReq || { compound: this.dryChoice(c, this.laps - c.dist), fuel: true }; { const pl = 0.15 * this.track.lap; this.noteIncident(c, 'limp', { loss: pl, pf: this.lose(c, pl, 0.55, 0.6) }); }
+        c.damage += 0.6; c._flat = true; c.pitReq = c.pitReq || { compound: this.dryChoice(c, this.laps - c.dist), fuel: true }; { const pl = 0.15 * this.track.lap; this.noteIncident(c, 'limp', { loss: pl, pf: this.lose(c, pl, 0.55, 0.6) }); }
         this.log(`💥 Foratura per ${this.driver(c).name}!`, 'warn', c.key, true); return true;
       }
     }
@@ -1782,7 +1784,7 @@ export class CircuitSim {
     if (is.risk && chance(is.risk)) {
       const d = this.driver(c);
       if (is.fail === 'retire' || (is.fail === 'mixed' && chance(0.35))) { c.issue = null; this.retire(c, is.name, false); return; }
-      if (is.fail === 'tyre') { const lt = rand(12, 20); this.noteIncident(c, 'limp', { loss: lt, pf: this.lose(c, lt, 0.6, 0.6) }); c.damage += 0.3; c.issue = null; c.pitReq = c.pitReq || { compound: this.dryChoice(c, this.laps - c.dist), fuel: true }; this.log(`💥 La gomma di ${d.name} cede del tutto! Rientro lentissimo ai box.`, 'warn', c.key, true); this.pushTV({ kind: 'retire', key: c.key, title: 'Foratura', text: d.name }); return; }
+      if (is.fail === 'tyre') { const lt = rand(12, 20); this.noteIncident(c, 'limp', { loss: lt, pf: this.lose(c, lt, 0.6, 0.6) }); c.damage += 0.3; c.issue = null; c._flat = true; c.pitReq = c.pitReq || { compound: this.dryChoice(c, this.laps - c.dist), fuel: true }; this.log(`💥 La gomma di ${d.name} cede del tutto! Rientro lentissimo ai box.`, 'warn', c.key, true); this.pushTV({ kind: 'retire', key: c.key, title: 'Foratura', text: d.name }); return; }
       const loss = rand(3, 7); this.noteIncident(c, is.type === 'brakes' ? 'off' : 'limp', { loss, pf: is.type === 'brakes' ? this.lose(c, loss, 0.85, 0.7, 0.3) : this.lose(c, loss, 0.45, 0.6) }); c.ledger.err += loss; c.damage += rand(0.2, 0.45); is.risk *= 0.5; if (is.type === 'brakes') this.flatSpot(c);
       this.log(`⚠ ${d.name}: ${is.type === 'brakes' ? 'bloccaggio in staccata e lungo nella via di fuga' : 'perdita di potenza'}! Perde ${loss.toFixed(0)}s.`, 'warn', c.key, true);
     }
@@ -2132,7 +2134,7 @@ export class CircuitSim {
       c.damage += rand(0.2, 0.7); this.log(`🔧 Problema tecnico per ${d.name}: perde potenza.`, 'warn', c.key, c.isPlayer);
       if (compEnabled(this.state)) this.compDamage[c.key] = (this.compDamage[c.key] || 0) + 0.18;
     }
-    if (wear > 1.12 && !comp.wet && chance(0.25)) { this.noteIncident(c, 'limp', { loss: 0.15 * this.track.lap, pf: this.lose(c, 0.15 * this.track.lap, 0.55, 0.6) }); this.hlMark({ type: 'puncture', keys: [c.key], title: `Foratura per ${d.name}`, text: 'Gomme oltre il limite', score: this.hlScore(3.5, c), pre: 3, post: 8 }); c.damage += 0.6; c.pitReq = c.pitReq || { compound: this.dryChoice(c, this.laps - c.dist), fuel: true }; this.log(`💥 Foratura per ${d.name}! Gomme oltre il limite.`, 'warn', c.key, true); }
+    if (wear > 1.12 && !comp.wet && chance(0.25)) { this.noteIncident(c, 'limp', { loss: 0.15 * this.track.lap, pf: this.lose(c, 0.15 * this.track.lap, 0.55, 0.6) }); this.hlMark({ type: 'puncture', keys: [c.key], title: `Foratura per ${d.name}`, text: 'Gomme oltre il limite', score: this.hlScore(3.5, c), pre: 3, post: 8 }); c.damage += 0.6; c._flat = true; c.pitReq = c.pitReq || { compound: this.dryChoice(c, this.laps - c.dist), fuel: true }; this.log(`💥 Foratura per ${d.name}! Gomme oltre il limite.`, 'warn', c.key, true); }
     this.stewardsLap(c, d);
     if (!this.sc && !this.vsc) this.lapTraffic(c);
     if (c.issue) { this.issueLap(c); if (c.status !== 'running') return; }
@@ -2162,6 +2164,9 @@ export class CircuitSim {
     }
     // a box call deferred to a later lap must never run the tank dry: the engineer brings it forward
     if (this.endurance && c.pitReq?.minLap > c.lap && c.fuel < 1.05) { c.pitReq.minLap = 0; if (c.isPlayer) this.log(`⛽ Ingegnere a ${d.name.split(' ')[0]}: «Non arriviamo a fine giro prossimo con questa benzina: box adesso, anticipiamo la sosta.»`, 'pit', c.key, true); }
+    // ...nor leave the car on tyres past the cliff (or a puncture) waiting for the promised lap
+    else if (c.pitReq?.minLap > c.lap && (c._flat || (wear > 1.12 && !comp.wet)) && this.laps - c.dist > 1) { c.pitReq.minLap = 0; if (c.isPlayer) this.log(`📻 Ingegnere a ${d.name.split(' ')[0]}: «${c._flat ? 'Foratura' : 'Le gomme sono finite'}: box adesso, anticipiamo la sosta.»`, 'pit', c.key, true); }
+    c._flat = false;
     if (c.isPlayer && !c.auto && this.endurance && c.fuel < 1.05 && !c.pitReq) { c.pitReq = this.endPitReq(c); this.log(`⛽ Ingegnere: ${d.name} chiamato ai box per carburante${c.pitReq.compound ? ' e gomme ' + COMPOUNDS[c.pitReq.compound].name : ''} (come da piano).`, 'pit', c.key, true); }
     if (c.isPlayer && !c.auto && wear > 1.1 && !c.pitReq && this.laps - c.dist > 2) this.log(`📻 Ingegnere a ${d.name.split(' ')[0]}: «Le gomme sono finite, dobbiamo fermarci!»`, 'radio', c.key, true);
     if (c.isPlayer && !c.auto) { this.maybeRadio(c); this.checkMoments(); this.fatigueMoment(c); this.nurseMoment(c); this.engineerBrief(c); }
@@ -2241,6 +2246,8 @@ export class CircuitSim {
       if (c.isPlayer && ((c.attackUntil && this.time > c.attackUntil) || (c.defendUntil && this.time > c.defendUntil) || (c.yieldUntil && this.time > c.yieldUntil))) { c.attackUntil = c.defendUntil = c.yieldUntil = 0; if (c.mode !== 'normal' || c.ersMode === 'deploy') { c.mode = 'normal'; c.ersMode = 'balanced'; c.lapTarget = this.computeLap(c); } }
       if (c._inc && c.dist >= c._inc.at) { const x = c._inc; c._inc = null; if (!this.sc && !this.vsc && c.status === 'running') { this.runIncident(c, x); if (c.status !== 'running') continue; } }
       if (Math.floor(c.dist) > c.lap && Math.floor(c.dist) >= 1) this.onLapComplete(c, this.time - (c.dist - Math.floor(c.dist)) * lt);
+      // the flag: the cool-down lap starts from where and how fast the car was SHOWN (the limited motion), not from the raw step
+      if (c.status === 'finished' && !c.finU) c.finU = { t: this.time - dt, u: prev, v: c.us ?? 1 / lt };
     }
     // GT traffic
     if (this.traffic.length) {
