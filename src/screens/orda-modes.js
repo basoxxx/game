@@ -197,8 +197,6 @@ async function startMatch() {
   window.__ordaModes = { game: g, level, play: P };
   try {
     await g.start?.();
-    // the core HUD prints the raw mode next to the level name: show ours
-    const lv = root.querySelector('.or-lv'); if (lv) lv.textContent = `${P.kind === 'daily' ? `Sfida #${dailyStatus().info.num}` : `Ondata ${P.run.wave}`} · ${level.name}`;
   } catch (e) { console.error(e); root.innerHTML = `<div class="om-loading">Impossibile avviare la partita: ${esc(e.message || String(e))}<br><button class="btn mt16" data-a="om-quit">Indietro</button></div>`; }
 }
 function pauseHtml() {

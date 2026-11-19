@@ -28,6 +28,7 @@ lazyScreens({
   voragine: () => import('./screens/voragine.js'),
   orda: () => import('./screens/orda.js'),
   'orda-modes': () => import('./screens/orda-modes.js'),
+  'orda-base': () => import('./orda/base/screen.js'),
   weekend: () => import('./screens/weekend.js'),
   rally: () => import('./screens/rallyweekend.js'),
   pitwall: () => import('./screens/pitwall.js'),
