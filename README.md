@@ -323,6 +323,7 @@ Semaforo (riflessi), Ritmo Baso e Memoria a colori.
   `node tools/festa-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/festa-cover.mjs <url>` (copertina),
   `node tools/festa-bank.mjs` (rigenera gli ingorghi del minigioco con il generatore di Ingorgo).
 
+<<<<<<< HEAD
 ## Rompicapo (Baso Hub · Puzzle)
 
 Una scatola di quattro rompicapo veloci, in verticale e in orizzontale, su telefono, tablet e PC. Ognuno ha il suo
@@ -344,3 +345,19 @@ Le monete sbloccano **8 temi** che ricolorano tutti i giochi. Niente pubblicità
 - `node tools/rompicapo-test.mjs` (500 sudoku unici, 300 smazzate risolvibili, rotazioni/kick/linee, regole di Unisci),
   `node tools/rompicapo-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni, si gioca dalla UI),
   `node tools/rompicapo-cover.mjs <url>` (copertina `public/covers/rompicapo.webp`).
+=======
+## Carte Baso (Baso Hub · Carte)
+
+Raccolta di giochi di carte in un'unica voce del Baso Hub, con un framework a plug-in in cui ogni gioco è un file
+in `src/carte/games/` (API documentata in `src/carte/README.md`).
+- **Scopa** (classica in 2, 3 o 4 a coppie, **Scopone scientifico** con Napola facoltativa, **Scopa d'assi**) e
+  **Briscola** (in 2 o 4 a coppie, con segnali tra compagni): regole e punteggi italiani completi (carte, denari,
+  settebello, primiera, scope; 120 punti in Briscola), CPU Facile / Normale / Difficile (conta le carte e simula le
+  mani possibili con playout Monte Carlo), partite a 11/21/31 punti o al meglio di 3/5.
+- Carte disegnate in modo procedurale (SVG originali): Napoletane, Piacentine, Francesi con jolly; dorsi e tavoli da
+  sbloccare con le monete vinte (niente soldi veri, niente pubblicità); statistiche e record per gioco.
+- Tavolo 2D/2.5D animato (distribuzione, giocata, girata, presa), tocca o trascina le carte, tastiera e controller,
+  verticale e orizzontale; da 1 a 4 umani a turno con schermata «passa il dispositivo»; partita salvata e ripresa.
+- `node tools/carte-test.mjs` (regole, punteggi e migliaia di partite IA contro IA), `node tools/carte-e2e.mjs <url> [cartella]`
+  (Playwright, partite complete di Scopa e Briscola a 4 risoluzioni), `node tools/carte-cover.mjs` (copertina).
+>>>>>>> worktree-agent-a25fab64f228f0b7b
