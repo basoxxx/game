@@ -12,6 +12,9 @@
 
 ![Scontro Totale](site-src/shots/cover-derby.webp)
 
+## Novità della versione 6.4
+- **Festa Baso** – party game per 2–4 giocatori sullo stesso schermo: tabellone 3D con dadi, monete e stelle, torneo e allenamento, 15 minigiochi costruiti con i pezzi degli altri giochi (tiro alla fune e corsa delle porte con Orda, sprint e palloncini con Kart Baso, autoscontro, mini voragine, arena dei serpenti, pittura del territorio, Bastione unito, più vicino alla buca, Ingorgo lampo, corsa all'officina, semaforo, ritmo e memoria). Tastiera a zone, fino a 4 controller e touch diviso anche con tablet sul tavolo. Il Baso Hub ora ha 12 giochi.
+
 ## Novità della versione 6.3
 Sette nuovi giochi nel Baso Hub (ora 11):
 - **Kart Baso** – corse arcade di kart con derapate e mini-turbo, 8 piloti, 8 piste in 4 coppe, oggetti originali, Gran Premio, prova a tempo con fantasma, battaglia e schermo diviso fino a 4 giocatori.
@@ -297,3 +300,25 @@ Comandi: mouse, touch, tastiera (frecce + Invio, B compra, P ricambi, M unisci, 
 - `node tools/officina-econ.mjs 14 [--away]` — simulazione headless dell'economia (progressione senza stalli)
 - `node tools/officina-e2e.mjs http://127.0.0.1:4665/ <cartella>` — prova nel browser (unioni a trascinamento, gare, schermate)
 - `node tools/officina-cover.mjs http://127.0.0.1:4665/` — copertina `public/covers/officina.webp`
+
+## Festa Baso (Baso Hub · Party)
+
+Party game locale per 2-4 giocatori sullo stesso schermo (la CPU prende i posti liberi), costruito con l'arte e il
+codice degli altri giochi del Baso Hub: gli ospiti sono i piloti di Kart Baso disegnati come gli omini di Orda, con i
+cappelli di Serpentone. **15 minigiochi da 30-60 s**: Tiro alla fune e Corsa delle porte (Orda), Sprint kart e
+Battaglia dei palloncini (Kart Baso), Autoscontro (Scontro Totale), Mini voragine (Voragine), Arena dei serpenti
+(Serpentone), Pittura del territorio (Territorio), Bastione unito cooperativo (Bastione), Più vicino alla buca
+(fisica di Minigolf Baso), Ingorgo lampo (generatore e risolutore di Ingorgo), Corsa all'officina (Officina),
+Semaforo (riflessi), Ritmo Baso e Memoria a colori.
+- **Tabellone**: isola 3D con caselle blu/rosse/evento/bonus, dado, monete e stelle (20 monete), un minigioco a ogni
+  turno, premi finali (Re dei minigiochi, delle monete, della sfortuna) e podio del «Re della festa».
+- **Torneo** (scegli i minigiochi, il primo a 3/5/7 vittorie), **Allenamento** (qualsiasi minigioco anche da soli),
+  **Personaggi** e cappelli da sbloccare con le monete della festa guadagnate giocando (niente pubblicità), statistiche.
+- Comandi: tastiera divisa in zone (WASD+Spazio, frecce+Invio, IJKL+U/O, tastierino 8456+0), fino a 4 controller,
+  touch diviso in una zona per giocatore (verticale, orizzontale o «tablet sul tavolo» con i posti lontani girati).
+- Un solo renderer WebGL per tabellone, minigiochi e podio, livelli di qualità + FrameGuard, tutto rilasciato all'uscita.
+- Codice: `src/festa/` (simulazioni pure in `mini/`, regole del tabellone e del torneo in `party.js`, viste 3D in
+  `views/`, sessione in `session.js`), schermata `src/screens/festa.js`.
+- `node tools/festa-test.mjs` (ogni minigioco con 2/3/4 giocatori CPU, determinismo, tabellone e torneo completi),
+  `node tools/festa-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/festa-cover.mjs <url>` (copertina),
+  `node tools/festa-bank.mjs` (rigenera gli ingorghi del minigioco con il generatore di Ingorgo).

@@ -37,3 +37,7 @@ all sounds (horns, engines) are generated in code; levels come from the seeded g
 
 Officina: no external assets. Garage, track, parts, crates and the kart are procedural (three.js); the race
 cars are Apex Dynasty's own procedural models (src/ui/cars). Cover rendered from the game (tools/officina-cover.mjs).
+
+Festa Baso (src/festa): no external assets. The board, minigame arenas, effects and the cover
+(covers/festa.webp, rendered by tools/festa-cover.mjs) are procedural; it reuses the Baso Hub's own procedural
+art (Orda figures, Serpentone hats and heads, Kart Baso karts, Scontro Totale bangers, Bastione buildings).
