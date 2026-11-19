@@ -235,8 +235,10 @@ export function validate(L) {
 }
 
 // ---------------------------------------------------------------- generate
-const LOADOUT = {}; // generated levels are tuned for a bare cannon; upgrades make them easier
-export function generateLevel(seed, difficulty = 0.5, { endless = false, why = null } = {}) {
+// lo: the loadout the level is tuned for ({ up, champ, champLvl }); a bare cannon by default, so any
+// upgrade the player owns makes it easier
+export function generateLevel(seed, difficulty = 0.5, { endless = false, why = null, lo = {} } = {}) {
+  const LO = { up: lo.up || {}, champ: lo.champ || 'colosso', champLvl: lo.champLvl || 0 };
   if (!CORE) throw new Error('Orda gen: core Sim not loaded (useCore)');
   const no = (k) => { if (why) why[k] = (why[k] || 0) + 1; };
   const k = knobs(difficulty);
@@ -251,7 +253,7 @@ export function generateLevel(seed, difficulty = 0.5, { endless = false, why = n
     if (ls.spread < 1.5) { no('no-choice'); continue; }
     if (ls.best < 20) { no('weak-best'); continue; }
     // throughput of a decent player → red pressure, towers, base
-    const P = probe(L, { seed: s, up: LOADOUT });
+    const P = probe(L, { seed: s, ...LO });
     if (!(P > 2)) { no('no-flow'); continue; }
     let redPs = Math.max(0.6, P * k.redFrac);
     const setReds = () => {
@@ -268,7 +270,7 @@ export function generateLevel(seed, difficulty = 0.5, { endless = false, why = n
     const target = L.time * k.targetRatio;
     let dec = null;
     for (let i = 0; i < 6; i++) {
-      dec = play(L, { player: 'decent', seed: s, up: LOADOUT, maxTime: L.time * 2.5 });
+      dec = play(L, { player: 'decent', seed: s, ...LO, maxTime: L.time * 2.5 });
       // overrun, or won with the cannon nearly down: too many reds → thin them out
       if ((!dec.won && dec.why === 'overrun') || (dec.won && dec.cannonHp < dec.cannonMax * 0.35)) { redPs *= dec.won ? 0.85 : 0.72; setReds(); L.base.towers.forEach((t) => { t.rate = r2(t.rate * 0.85); }); continue; }
       if (dec.won && Math.abs(dec.time - target) < L.time * 0.05) break;
@@ -281,9 +283,9 @@ export function generateLevel(seed, difficulty = 0.5, { endless = false, why = n
     }
     L.gen.redPs = r2(redPs);
     if (!dec?.won || dec.time > L.time * 0.9) { no(dec?.won ? 'decent-slow' : `decent-${dec?.why}`); continue; }
-    const dec2 = play(L, { player: 'decent', seed: s + 101, up: LOADOUT });
+    const dec2 = play(L, { player: 'decent', seed: s + 101, ...LO });
     if (!dec2.won || dec2.cannonHp < dec2.cannonMax * 0.2) { no(`decent2-${dec2.why || 'close'}`); continue; }
-    const sharp = play(L, { player: 'sharp', seed: s + 202, up: LOADOUT });
+    const sharp = play(L, { player: 'sharp', seed: s + 202, ...LO });
     if (!sharp.won || sharp.time > L.time * 0.85) { no('sharp'); continue; }
     // stars: 2nd for finishing about as fast as a decent player, 3rd for a big crowd left at the win
     const tAvg = (dec.time + dec2.time) / 2;
@@ -296,7 +298,7 @@ export function generateLevel(seed, difficulty = 0.5, { endless = false, why = n
   const L = last;
   L.gates.forEach((g) => { if (!GOOD[g.type]) { g.type = 'add'; g.value = 2; } delete g.toggle; });
   L.obstacles = [];
-  const P = probe(L, { seed: 1 });
+  const P = probe(L, { seed: 1, ...LO });
   L.base.hp = Math.max(60, Math.round((P * 0.5 * L.time * 0.4) / 10) * 10);
   L.stars = { par: Math.round(L.time * 0.6), crowd: 10 };
   L.check = { fallback: true };

@@ -190,7 +190,11 @@ async function startMatch() {
     hooks: { onFrame: (G) => { if (++frames % 8) return; const u = G.sim?.blueUnits?.() || 0; if (u > V.crowd) V.crowd = u; } },
   });
   window.__ordaModes = { game: g, level, play: P };
-  try { await g.start?.(); } catch (e) { console.error(e); root.innerHTML = `<div class="om-loading">Impossibile avviare la partita: ${esc(e.message || String(e))}<br><button class="btn mt16" data-a="om-quit">Indietro</button></div>`; }
+  try {
+    await g.start?.();
+    // the core HUD prints the raw mode next to the level name: show ours
+    const lv = root.querySelector('.or-lv'); if (lv) lv.textContent = `${P.kind === 'daily' ? `Sfida #${dailyStatus().info.num}` : `Ondata ${P.run.wave}`} · ${level.name}`;
+  } catch (e) { console.error(e); root.innerHTML = `<div class="om-loading">Impossibile avviare la partita: ${esc(e.message || String(e))}<br><button class="btn mt16" data-a="om-quit">Indietro</button></div>`; }
 }
 function pauseHtml() {
   const off = V.play?.kind === 'daily' && V.play.official;
@@ -251,12 +255,13 @@ function dailyResult(info, r, x) {
 }
 function perkPick(run) {
   // build the next wave while the player reads the cards
-  setTimeout(() => { if (V.play?.run === run) { try { prepareWave(run.seed, run.wave + 1); } catch (e) { console.warn(e); } } }, 120);
+  setTimeout(() => { if (V.play?.run === run) { try { prepareWave(run.seed, run.wave + 1, run.lo || {}); } catch (e) { console.warn(e); } } }, 120);
   return `<div class="om-dlg om-pick" role="dialog" aria-label="Scegli un potenziamento">
     <div class="om-k">Ondata ${run.wave} superata · cannone ${fmt(run.line)}/${fmt(run.lineMax)}</div>
     <h2>Scegli un potenziamento</h2>
     <div class="om-pick-row">${run.offer.map((id, i) => { const p = perkById(id), n = run.perks.filter((x) => x === id).length; return `<button class="om-perk" data-a="om-perk" data-id="${id}"><span class="kbd">${i + 1}</span>${icon(p.icon)}<b>${esc(p.name)}</b><span>${esc(p.desc)}</span>${n ? `<em>già ${n}</em>` : ''}</button>`; }).join('')}</div>
     <p class="om-note">Prossima: ondata ${run.wave + 1} · minaccia ${Math.round(waveDifficulty(run.wave + 1) * 100)}%</p>
+    <div class="om-btns"><button class="btn ghost sm" data-a="om-quit">${icon('left')} Salva ed esci</button></div>
   </div>`;
 }
 function endlessOver(run, res) {
@@ -283,7 +288,7 @@ registerScreen({
   render(params) {
     if (params?.from) V.from = params.from;
     if (params?.tab && TABS.some((t) => t.id === params.tab)) { V.tab = params.tab; delete params.tab; }
-    if (V.play) return `<div class="om-stage"><div class="om-root" id="om-root"><div class="om-loading">L’orda si prepara…</div></div><div class="om-tag" id="om-tag">${hudTag()}</div><div class="om-over" id="om-over"></div></div>`;
+    if (V.play) return `<div class="om-stage om-${V.play.kind}"><div class="om-root" id="om-root"><div class="om-loading">L’orda si prepara…</div></div><div class="om-tag" id="om-tag">${hudTag()}</div><div class="om-over" id="om-over"></div></div>`;
     return menu();
   },
   mount() {
@@ -313,7 +318,7 @@ registerScreen({
       const resume = el.dataset.resume && s.run;
       if (!resume && s.run) { s.run = null; omSave(s); }
       stopGame();
-      V.play = { kind: 'endless', run: resume ? { ...s.run, offer: null } : newRun() };
+      V.play = { kind: 'endless', run: resume ? { ...s.run, offer: null } : newRun(undefined, wallet.profile().up) };
       App.refresh();
     },
     'om-perk'(el) {

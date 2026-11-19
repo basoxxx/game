@@ -15,7 +15,9 @@ export const dayNumber = (d = new Date()) => Math.round((new Date(d.getFullYear(
 export function addDays(key, n) { const d = parseDay(key); d.setDate(d.getDate() + n); return dayKey(d); }
 // weekday ramp: Monday gentle, Sunday spicy
 const WEEK_D = [0.85, 0.35, 0.45, 0.5, 0.6, 0.65, 0.75]; // Sun … Sat
-export const GEN_VERSION = 1; // bump when the generator changes (invalidates cached dailies)
+export const GEN_VERSION = 2;
+// a standard loadout for the daily: everyone plays it with the same cannon (and it is tuned for it)
+export const DAILY_LOADOUT = { up: { rate: 2, shot: 1, hp: 2, speed: 2, charge: 2, armor: 2 }, champ: 'colosso', champLvl: 1 }; // bump when the generator changes (invalidates cached dailies)
 const _dailyCache = new Map();
 const CACHE_KEY = 'sala_orda_daily_cache';
 // The daily level is the same for everybody: seed from the date, difficulty from the weekday. The
@@ -37,7 +39,7 @@ export function dailySpec(d = new Date()) {
   let level = null;
   try { const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); if (c?.key === info.key && c.v === GEN_VERSION && c.level) level = c.level; } catch {}
   if (!level) {
-    level = generateLevel(info.seed, info.difficulty);
+    level = generateLevel(info.seed, info.difficulty, { lo: DAILY_LOADOUT });
     level.id = `daily-${info.key}`; level.daily = info.num;
     try { localStorage.setItem(CACHE_KEY, JSON.stringify({ key: info.key, v: GEN_VERSION, level })); } catch {}
   }
@@ -45,8 +47,6 @@ export function dailySpec(d = new Date()) {
   _dailyCache.set(info.key, spec);
   return spec;
 }
-// a standard loadout for the daily: everyone plays it with the same cannon
-export const DAILY_LOADOUT = { up: { rate: 2, shot: 1, hp: 2, speed: 2, charge: 2, armor: 2 }, champ: 'colosso', champLvl: 1 };
 export const streakBonus = (streak) => Math.min(100, Math.max(0, streak - 1) * 10);
 const fmtIt = (n) => Math.round(n).toLocaleString('it-IT');
 export function shareText(spec, r) {
@@ -73,7 +73,7 @@ export const PERKS = [
   { id: 'porte', name: 'Porte d’oro', desc: 'Porte buone più generose: +1 alle somme, +0,5 ai moltiplicatori.', icon: 'star', max: 3, lvl: (L) => { for (const g of L.gates) { if (g.type === 'mul') g.value = Math.round((g.value + 0.5) * 10) / 10; else if (g.type === 'add') g.value += 1; } } },
   { id: 'smussate', name: 'Porte smussate', desc: 'Le porte che tolgono omini ne tolgono la metà.', icon: 'scales', max: 1, lvl: (L) => { for (const g of L.gates) { if (g.type === 'sub') g.value = Math.max(1, Math.round(g.value / 2)); if (g.toggle?.type === 'sub') g.toggle.value = Math.max(1, Math.round(g.toggle.value / 2)); } } },
   { id: 'campione', name: 'Campione pronto', desc: 'Il campione si carica il 25% prima.', icon: 'medal', max: 3, lvl: (L) => { L.charge = Math.max(8, Math.round((L.charge || 40) * 0.75)); } },
-  { id: 'bastione', name: 'Barricata', desc: 'La linea recupera 15 punti e ne guadagna 10 massimi.', icon: 'wrench', max: 99, now: (run) => { run.lineMax += 10; run.line = Math.min(run.lineMax, run.line + 15); } },
+  { id: 'bastione', name: 'Barricata', desc: 'Il cannone recupera 15 punti di resistenza e ne guadagna 10 massimi.', icon: 'wrench', max: 99, now: (run) => { run.lineMax += 10; run.line = Math.min(run.lineMax, run.line + 15); } },
   { id: 'fango', name: 'Fango', desc: 'Meno omini rossi dalla base (−15%).', icon: 'rain', max: 2, lvl: (L) => { L.base.spawners.forEach((s) => { s.rate = Math.round(s.rate * 85) / 100; }); if (L.base.waves) L.base.waves.count = Math.round(L.base.waves.count * 0.85); } },
   { id: 'demolitore', name: 'Demolitore', desc: 'Torri e mura nemiche più fragili (−30%).', icon: 'burst', max: 2, lvl: (L) => { L.base.towers.forEach((t) => { t.hp = Math.max(5, Math.round(t.hp * 0.7)); }); } },
   { id: 'bottino', name: 'Bottino', desc: '+25% monete alla fine della corsa.', icon: 'coin', max: 4 },
@@ -98,19 +98,22 @@ export function perkUps(perks = [], playerUp = {}) {
 }
 export const coinMul = (perks = []) => 1 + 0.25 * perks.filter((x) => x === 'bottino').length;
 export const ENDLESS_LINE = 40;
-export function newRun(seed = (Math.random() * 1e9) | 0) { return { seed, wave: 1, perks: [], line: ENDLESS_LINE, lineMax: ENDLESS_LINE, figures: 0, maxCrowd: 0, kills: 0, startedAt: Date.now(), cleared: 0 }; }
+export function newRun(seed = (Math.random() * 1e9) | 0, playerUp = {}) { return { seed, lo: endlessLoadout(playerUp), wave: 1, perks: [], line: ENDLESS_LINE, lineMax: ENDLESS_LINE, figures: 0, maxCrowd: 0, kills: 0, startedAt: Date.now(), cleared: 0 }; }
 export const waveDifficulty = (w) => 0.12 + (w - 1) * 0.08;
 // level for the run's current wave: fresh seed (gates reshuffle), stronger base, perks baked in
 const _waves = new Map();
 // the raw generated wave (memoised: the screen builds the next one while the perk cards are shown)
-export function prepareWave(seed, wave) {
-  const k = `${seed}:${wave}`;
-  if (!_waves.has(k)) { if (_waves.size > 6) _waves.clear(); _waves.set(k, JSON.stringify(generateLevel(hashStr(`orda-endless:${seed}:${wave}`), waveDifficulty(wave), { endless: true }))); }
+// Waves are tuned for half of the player's own upgrade levels: upgrades still help, but a maxed
+// cannon doesn't turn the run into a stroll. The run fixes that loadout when it starts.
+export const endlessLoadout = (up = {}) => ({ up: Object.fromEntries(Object.entries(up).map(([k, v]) => [k, Math.floor((v || 0) / 2)])) });
+export function prepareWave(seed, wave, lo = {}) {
+  const k = `${seed}:${wave}:${JSON.stringify(lo.up || {})}`;
+  if (!_waves.has(k)) { if (_waves.size > 6) _waves.clear(); _waves.set(k, JSON.stringify(generateLevel(hashStr(`orda-endless:${seed}:${wave}`), waveDifficulty(wave), { endless: true, lo }))); }
   return JSON.parse(_waves.get(k));
 }
 export function endlessWave(run) {
   const d = waveDifficulty(run.wave);
-  const L = prepareWave(run.seed, run.wave);
+  const L = prepareWave(run.seed, run.wave, run.lo || {});
   // past the generator's ceiling the base keeps growing
   const grow = 1 + Math.max(0, d - 1) * 0.8 + (run.wave - 1) * 0.04;
   L.base.hp = Math.round((L.base.hp * grow) / 10) * 10;
@@ -135,7 +138,7 @@ export const ACHIEVEMENTS = [
   A('vittoria', 'Prima breccia', 'Distruggi una base nemica', 25, 'flag', 1, (s) => s.wins),
   A('nochamp', 'Solo fanteria', 'Vinci senza usare campioni', 80, 'shield', 1, (s) => s.winsNoChamp),
   A('trestelle', 'Tre stelle', 'Vinci un livello con 3 stelle', 60, 'star', 1, (s) => s.threeStars),
-  A('pulita', 'Linea intatta', 'Vinci senza che un rosso tocchi la tua linea', 90, 'shield', 1, (s) => s.cleanWins),
+  A('pulita', 'Cannone intatto', 'Vinci senza che un rosso tocchi il tuo cannone', 90, 'shield', 1, (s) => s.cleanWins),
   A('torri', 'Abbattitorri', 'Abbatti 3 torri nemiche in una sola partita', 70, 'target', 3, (s) => s.bestTowers),
   A('lampo', 'Lampo', 'Vinci con più di metà del tempo ancora sul timer', 90, 'bolt', 1, (s) => s.fastWins),
   A('giorno1', 'Sfidante', 'Completa una Sfida del giorno', 40, 'calendar', 1, (s) => s.dailyDone),

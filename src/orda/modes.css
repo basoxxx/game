@@ -103,14 +103,14 @@
 .om-chips i { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 8px; background: var(--ob, #2f80ff); color: #fff; }
 .om-chips i .ico { width: 15px; height: 15px; }
 .om-chips i b { position: absolute; right: -5px; bottom: -5px; min-width: 15px; height: 15px; border-radius: 8px; background: #fff; color: #1b5fd1; font-size: 10px; line-height: 15px; text-align: center; }
-.om-hs { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.om-hs { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .om-hs li { display: grid; grid-template-columns: 26px auto 1fr auto; align-items: baseline; gap: 10px; padding: 7px 10px; border-radius: 10px; background: rgba(255,255,255,.035); }
 .om-hs li:first-child { background: rgba(255,210,63,.12); }
 .om-hs li > span { font-family: var(--display); color: var(--muted); }
 .om-hs li b { font-family: var(--display); font-size: 19px; font-style: italic; }
 .om-hs li em { font-style: normal; font-size: 12.5px; color: var(--text2); min-width: 0; }
 .om-hs li small { color: var(--muted); font-size: 12px; }
-.om-perks { list-style: none; display: grid; gap: 8px; }
+.om-perks { list-style: none; padding: 0; display: grid; gap: 8px; }
 .om-perks li { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 10px; }
 .om-perks li > .ico { width: 30px; height: 30px; padding: 6px; border-radius: 9px; background: rgba(47,128,255,.18); color: var(--ob); }
 .om-perks b { display: block; font-size: 14px; }
@@ -121,7 +121,7 @@
 .om-miss-h { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
 .om-miss-h h3 { margin: 0; }
 .om-miss-h > span { color: var(--muted); font-size: 13px; margin-right: auto; }
-.om-miss ul { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px; margin-top: 10px; }
+.om-miss ul { list-style: none; padding: 0; margin-left: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px; margin-top: 10px; }
 .om-miss.compact ul { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
 .om-miss li { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,.035); border: 1px solid var(--line2); }
 .om-miss li > .ico { width: 34px; height: 34px; padding: 7px; border-radius: 10px; background: rgba(255,255,255,.07); color: var(--text2); }
@@ -142,7 +142,7 @@
 .om-stage { position: fixed; inset: 0; background: #9fe3ff; overflow: hidden; }
 .om-root { position: absolute; inset: 0; }
 .om-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; color: #fff; font-family: var(--display); font-size: 22px; text-transform: uppercase; letter-spacing: .08em; background: linear-gradient(180deg, #2f80ff, #1b4fb8); }
-.om-tag { position: absolute; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; background: rgba(10,20,50,.55); color: #fff; font-size: 13px; font-weight: 700; pointer-events: none; white-space: nowrap; z-index: 4; backdrop-filter: blur(4px); }
+.om-tag { position: absolute; left: max(12px, env(safe-area-inset-left)); top: 64px; display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; background: rgba(10,20,50,.55); color: #fff; font-size: 13px; font-weight: 700; pointer-events: none; white-space: nowrap; z-index: 4; backdrop-filter: blur(4px); }
 .om-tag .ico { width: 14px; height: 14px; }
 .om-tag .om-chips i { width: 20px; height: 20px; border-radius: 6px; }
 .om-tag .om-chips i .ico { width: 12px; height: 12px; }
@@ -203,3 +203,5 @@
   .om-res-stats b { font-size: 18px; }
   .om-share { font-size: 13px; padding: 8px 10px; }
 }
+/* Infinita has no clock and no star goals: hide those bits of the core HUD */
+.om-stage.om-endless .or-timer, .om-stage.om-endless .or-goals > span:not(.or-lv) { display: none !important; }

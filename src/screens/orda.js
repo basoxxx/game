@@ -11,6 +11,7 @@ import { ordaLoad, ordaSave, ordaStars } from '../orda/store.js';
 import { LEVELS, levelById } from '../orda/levels.js';
 import { UPGRADES, upCost, upEffects, CHAMPIONS, CHAMP_MAX, champCost, champById, SKINS, CANNONS, WORLDS } from '../orda/meta.js';
 import '../orda/orda.css';
+import { registerOrdaModes } from '../orda/modes-entries.js';
 
 const V = { playing: false, game: null, from: 'launcher', tab: 'gioca', run: null, result: null };
 const fmt = (n) => Math.round(n).toLocaleString('it-IT');
@@ -286,3 +287,6 @@ window.__orda = Object.assign(window.__orda || {}, {
   play: (id) => startLevel(id), state: () => V.game?.debugInfo() || null, store: ordaLoad, save: ordaSave, levels: LEVELS,
   get result() { return V.result; },
 });
+
+// extra modes — Sfida del giorno, Infinita, Missioni (src/orda/modes-entries.js, screen orda-modes)
+registerOrdaModes({ App, addOrdaMode, addOrdaTab, actions: ORDA_ACTIONS(), refresh: () => App.refresh() });

@@ -4,7 +4,7 @@
 //   node tools/orda-gen-test.mjs [seeds=500]
 import { Sim, autopilot } from '../src/orda/sim.js';
 import { useCore, generateLevel, validate, play, hardness, laneSpread } from '../src/orda/gen.js';
-import { dailySpec, dailyInfo, endlessWave, newRun, rollPerks, perkById, perkUps, shareText, dayNumber, recordDaily, omLoad, addDays, liveStreak, waveDifficulty, GEN_VERSION } from '../src/orda/modes.js';
+import { dailySpec, dailyInfo, endlessWave, newRun, rollPerks, perkById, perkUps, shareText, dayNumber, recordDaily, omLoad, addDays, liveStreak, waveDifficulty, GEN_VERSION, DAILY_LOADOUT } from '../src/orda/modes.js';
 
 globalThis.localStorage ??= { _m: {}, getItem(k) { return this._m[k] ?? null; }, setItem(k, v) { this._m[k] = String(v); }, removeItem(k) { delete this._m[k]; } };
 useCore({ Sim, autopilot });
@@ -51,7 +51,7 @@ stat.forEach((st, i) => {
 // ---- daily: same day → same level (also through the cache), different days differ, numbering
 const a = dailySpec(new Date(2026, 10, 19, 8)), b = dailySpec(new Date(2026, 10, 19, 23, 59)), c = dailySpec(new Date(2026, 10, 20));
 if (JSON.stringify(a.level) !== JSON.stringify(b.level)) bad('daily not stable within a day');
-const fresh = generateLevel(dailyInfo(new Date(2026, 10, 19)).seed, dailyInfo(new Date(2026, 10, 19)).difficulty);
+const fresh = generateLevel(dailyInfo(new Date(2026, 10, 19)).seed, dailyInfo(new Date(2026, 10, 19)).difficulty, { lo: DAILY_LOADOUT });
 if (JSON.stringify(fresh.gates) !== JSON.stringify(a.level.gates) || fresh.base.hp !== a.level.base.hp) bad('daily differs from a fresh generation');
 if (JSON.stringify(a.level.gates) === JSON.stringify(c.level.gates)) bad('daily identical on two days');
 if (a.num !== 19 || dayNumber(new Date(2026, 10, 1)) !== 1 || GEN_VERSION < 1) bad(`daily numbering ${a.num}`);

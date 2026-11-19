@@ -63,3 +63,8 @@ export function registerOrdaModes({ App, addOrdaMode, addOrdaTab, actions, refre
     actions['om-open'] = (el) => App.go('orda-modes', { from: 'orda', tab: el.dataset.tab || 'sfida' });
   }
 }
+
+// tiles for the Orda entry of the Baso Hub (src/screens/launcher.js GAMES)
+export function launcherModes(App) {
+  return ORDA_EXTRA_MODES.filter((m) => m.id !== 'missioni').map((m) => ({ id: m.id, icon: m.icon, name: m.name, desc: () => esc(m.desc()), get tag() { return m.tag?.() || ''; }, go: () => m.go(App, 'launcher') }));
+}
