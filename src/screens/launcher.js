@@ -160,6 +160,7 @@ registerScreen({
     </div>`;
   },
   mount() {
+    document.querySelector('.bh-tab.on')?.scrollIntoView({ inline: 'center', block: 'nearest' });
     requestAnimationFrame(() => (document.querySelector('.bh-mode') || document.querySelector('.bh-play'))?.focus({ preventScroll: true }));
     if (keyH) window.removeEventListener('keydown', keyH, true);
     keyH = (e) => {

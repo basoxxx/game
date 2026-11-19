@@ -12,6 +12,15 @@
 
 ![Scontro Totale](site-src/shots/cover-derby.webp)
 
+## Novità della versione 6.3
+Sei nuovi giochi nel Baso Hub (ora 10):
+- **Kart Baso** – corse arcade di kart con derapate e mini-turbo, 8 piloti, 8 piste in 4 coppe, oggetti originali, Gran Premio, prova a tempo con fantasma, battaglia e schermo diviso fino a 4 giocatori.
+- **Bastione** – tower defense con le figurine di Orda: 9 torri con specializzazioni, 4 eroi, incantesimi, 24 livelli, infinita e sfida del giorno.
+- **Ingorgo** – puzzle del traffico in 6 mondi con risolutore che garantisce soluzioni ottime, 60 livelli, 400 generati, puzzle del giorno e zen.
+- **Minigolf Baso** – 5 percorsi da 9 buche con fisica precisa, multigiocatore a turni, buca del giorno ed editor di buche condivisibili.
+- **Serpentone** – serpenti in arena che crescono e si eliminano, 4 arene, battaglia reale, 2 giocatori, missioni e cappelli.
+- **Territorio** – conquista il terreno chiudendo la scia, 5 arene, squadre, 2–4 giocatori e arena del giorno.
+
 ## Novità della versione 6.2.1
 - **Orda più veloce e coinvolgente**: cannone a 8 colpi/s e omini più rapidi (centinaia in pochi secondi), livelli di 20–50 s, nessun tempo morto (ripartenza istantanea, prossimo livello automatico); numeri e porte che esplodono, contatore che rimbalza, misuratore Valanga, rallentatori e crolli spettacolari; forziere ogni 3 livelli, calendario dei premi giornalieri, livelli bonus "Caveau d'oro", mondo segreto; nuove porte (arcobaleno ×5, sdoppia, riciclo), trampolini, giganti rossi; tutorial giocato nei primi livelli.
 
