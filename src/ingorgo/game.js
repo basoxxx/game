@@ -56,7 +56,7 @@ export class IngorgoGame {
     const root = this.root, L = this.L;
     const [a3, b2] = starLimits(L.opt);
     root.innerHTML = `<canvas class="ig-cv" aria-label="Parcheggio: trascina i veicoli"></canvas>
-    <div class="ig-hud">
+    <div class="ig-hud ${this.o.mode === 'zen' ? 'ig-zenhud' : ''}">
       <div class="ig-top">
         <button class="ig-b" data-k="pause" aria-label="Pausa (Esc)">${icon('pause')}</button>
         <div class="ig-title"><b>${this.o.title || 'Ingorgo'}</b><span>${this.o.sub || ''}</span></div>
@@ -359,7 +359,7 @@ export class IngorgoGame {
         add(kit.rbox(0.62, 0.05, 0.62, 0.02), glass, 0.8, 0.52, 0, false).scale.set(0.05, 4, 1);
         add(kit.rbox(1.0, 0.26, Wd, 0.04), kit.mat('#8a96a8'), -0.32, 0.36, 0); // bed
         add(kit.rbox(0.9, 0.1, 0.7, 0.03), kit.mat('#ffcf6a'), -0.32, 0.53, 0); // crate
-        wheelsAt([0.6, -0.5], 0.12); eyeX = 0.8; eyeY = 0.5; topY = 0.7;
+        wheelsAt([0.6, -0.5], 0.12); eyeX = 0.8; eyeY = 0.5; topY = 0.58;
       } else {
         const h0 = low ? 0.26 : model === 'bolla' || kind === 'mini' ? 0.36 : 0.32;
         add(kit.rbox(Lx, h0, Wd, model === 'bolla' || kind === 'mini' ? 0.15 : 0.09), bm, 0, 0.12 + h0 / 2, 0);
@@ -429,7 +429,7 @@ export class IngorgoGame {
     // a slightly bigger low box helps fingers hit thin parts (wheels, bumpers), below the bodies
     const pick2 = new THREE.Mesh(kit.geo(`pick${len}`, () => new THREE.BoxGeometry(len - 0.06, 0.3, 0.9)), new THREE.MeshBasicMaterial({ visible: false })); pick2.position.y = 0.15; g.add(pick2);
     this.scene.add(g);
-    const v = { i, c, g, body, eyes, eyeS, eyeZ, pupils, lids, brows, star: g.userData.star, wheels: g.userData.wheels || [], pick: pick2, vp: this.s[i], vel: 0, prevVel: 0, blink: 1 + hashI(seed + 3) * 4, angry: 0, hop: 0, exitT: -1, shake: 0, look: 0, color };
+    const v = { i, c, g, body, topY, eyes, eyeS, eyeZ, pupils, lids, brows, star: g.userData.star, wheels: g.userData.wheels || [], pick: pick2, vp: this.s[i], vel: 0, prevVel: 0, blink: 1 + hashI(seed + 3) * 4, angry: 0, hop: 0, exitT: -1, shake: 0, look: 0, color };
     g.rotation.y = c.ax === 0 ? (c.dir > 0 ? 0 : Math.PI) : (c.dir > 0 ? -Math.PI / 2 : Math.PI / 2);
     this.placeVehicle(v);
     return v;
@@ -1014,10 +1014,10 @@ export class IngorgoGame {
   info() { return { moves: this.moves, opt: this.L.opt, done: this.done, time: this.time, state: Array.from(this.s), goal: this.B.goal, n: this.B.n, hinted: this.hinted, pr: this.renderer.getPixelRatio(), guard: this.guard.log, sel: this.sel }; }
   toScreen(x, y, z) { const v = new THREE.Vector3(x, y, z).project(this.cam), r = this.cv.getBoundingClientRect(); return { x: r.left + (v.x * 0.5 + 0.5) * r.width, y: r.top + (-v.y * 0.5 + 0.5) * r.height }; }
   cellScreen(x, y) { const [cx, cz] = this.cellPos(x, y); return this.toScreen(cx, 0.3, cz); }
-  carScreen(i) { const v = this.vs[i], g = v.g.position, top = new THREE.Box3().setFromObject(v.body).max.y; return this.toScreen(g.x, top - 0.03, g.z); }
+  carScreen(i) { const v = this.vs[i], g = v.g.position; return this.toScreen(g.x, g.y + v.topY - 0.04, g.z); }
   ferryScreen() { const p = this.ferry.position; return this.toScreen(p.x, 0.1, p.z); }
   // pixels per cell along a car's axis at its position (for drags in tests)
-  axisScreen(i) { const c = this.B.cars[i], g = this.vs[i].g.position; const y = new THREE.Box3().setFromObject(this.vs[i].body).max.y - 0.03; const a = this.toScreen(g.x, y, g.z), b = this.toScreen(g.x + (c.ax === 0 ? 1 : 0), y, g.z + (c.ax === 1 ? 1 : 0)); return { x: b.x - a.x, y: b.y - a.y }; }
+  axisScreen(i) { const c = this.B.cars[i], g = this.vs[i].g.position; const y = g.y + this.vs[i].topY - 0.04; const a = this.toScreen(g.x, y, g.z), b = this.toScreen(g.x + (c.ax === 0 ? 1 : 0), y, g.z + (c.ax === 1 ? 1 : 0)); return { x: b.x - a.x, y: b.y - a.y }; }
   doMove(m) { return this.commit(m); }
   solveNow() { const r = solve(this.B, this.s, 300000); return r ? r.moves : null; }
 

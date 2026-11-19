@@ -227,3 +227,4 @@
   .ig-rule { bottom: 10px; left: 50%; width: min(420px, 50%); font-size: 13px; }
   .ig-msg { top: auto; bottom: 12px; }
 }
+.ig-zenhud #ig-tmw, .ig-zenhud .ig-stars { display: none; }

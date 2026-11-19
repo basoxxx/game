@@ -66,7 +66,7 @@ async function solveViaUI(page, max = 80) {
   if (n >= max) console.log('  gave up after', n, 'moves');
   return n;
 }
-const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png`, timeout: 120000 });
+const shot = async (page, name) => { await page.waitForTimeout(900); return page.screenshot({ path: `${OUT}/${name}.png`, timeout: 120000 }); };
 
 // ---- 1. desktop: menu, level 1-1 solved via UI, results, next level
 if (!ONLY || ONLY === 'desk') {
