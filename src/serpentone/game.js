@@ -350,7 +350,8 @@ export class SerpentoneGame {
       if ([...this.touches.values()].some((t) => t.v === vi)) return;
       if (this.o.touch === 'steer' && !duo) return;
       this.touches.set(e.pointerId, { v: vi, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY });
-      cv.setPointerCapture?.(e.pointerId); this.drawJoy();
+      try { cv.setPointerCapture?.(e.pointerId); } catch {}
+      this.drawJoy();
     };
     this.onPM = (e) => {
       if (e.pointerType === 'mouse') { this.mouse = { x: e.clientX, y: e.clientY }; this.mouseOn = true; return; }
