@@ -278,3 +278,21 @@ Puzzle di traffico in 3D cartoon: sposta auto, furgoni e autobus per liberare l�
 - `src/ingorgo/` – regole e risolutore (`core.js`), generatore (`gen.js`), gioco 3D (`game.js`), suoni, progressi
 - `node tools/ingorgo-gen-test.mjs` – 1000 semi: validità, ottimo del risolutore verificato da BFS, determinismo
 - `node tools/ingorgo-levels.mjs` – rigenera i 60 livelli della campagna · `node tools/ingorgo-e2e.mjs` – risolve livelli dalla UI con Playwright · `node tools/ingorgo-cover.mjs` – copertina
+
+## Officina (Baso Hub · Gestionali)
+
+Gioco "merge & upgrade" a tema motorsport nell'universo di Apex Dynasty. Trascina un'auto su un'auto identica
+(o tocca l'una e poi l'altra) per ottenerne una del livello successivo: 30 modelli dal kart alla Formula,
+passando per Formula Junior, Rally, GT, prototipi e hypercar, con le livree delle scuderie di Apex Dynasty.
+Motore, aerodinamica, gomme e telaio si uniscono allo stesso modo e si montano sulle auto. Le auto migliori
+girano sulla pista di prova attorno all'officina e incassano monete e telemetria (anche offline, con un limite
+di ore). Gare in 3D (accelerazione con i cambi di marcia, giro secco, testa a testa con il boost ibrido) danno
+medaglie e trofei che aprono 7 garage; albero di ricerca, missioni del giorno, boost con gettoni guadagnati
+giocando (niente pubblicità né acquisti) e nuove stagioni con punti dinastia permanenti.
+Comandi: mouse, touch, tastiera (frecce + Invio, B compra, P ricambi, M unisci, A adrenalina, X rottama, G gare).
+
+- Regole: `src/officina/core.js`, `data.js`, `race.js` (puri, senza DOM); 3D: `garage3d.js`, `race3d.js`, `models.js`
+- `node tools/officina-test.mjs` — regole di unione, economia, guadagni offline, gare, stagioni
+- `node tools/officina-econ.mjs 14 [--away]` — simulazione headless dell'economia (progressione senza stalli)
+- `node tools/officina-e2e.mjs http://127.0.0.1:4665/ <cartella>` — prova nel browser (unioni a trascinamento, gare, schermate)
+- `node tools/officina-cover.mjs http://127.0.0.1:4665/` — copertina `public/covers/officina.webp`

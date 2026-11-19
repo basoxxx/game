@@ -34,3 +34,6 @@ procedurally in code (three.js primitives and canvas textures); sounds come from
 audio engine (src/ui/audio.js). Characters, tracks and items are original creations.
 Ingorgo (src/ingorgo): no external assets. Vehicles, city, textures (windows, water, chequers) and
 all sounds (horns, engines) are generated in code; levels come from the seeded generator + solver.
+
+Officina: no external assets. Garage, track, parts, crates and the kart are procedural (three.js); the race
+cars are Apex Dynasty's own procedural models (src/ui/cars). Cover rendered from the game (tools/officina-cover.mjs).
