@@ -1,0 +1,131 @@
+# Storia
+1|Secondo la tradizione, in che anno fu fondata Roma?|753 a.C.|509 a.C.|1000 a.C.|476 d.C.|La tradizione fissa la fondazione al 21 aprile 753 a.C.
+1|Chi fu, secondo la leggenda, il primo re di Roma?|Romolo|Remo|Numa Pompilio|Tarquinio il Superbo|Romolo diede il nome alla città.
+1|Chi scoprì l'America nel 1492?|Cristoforo Colombo|Amerigo Vespucci|Marco Polo|Ferdinando Magellano|Colombo partì dalla Spagna con tre caravelle.
+1|Come si chiamavano le tre caravelle di Colombo?|Niña, Pinta e Santa María|Victoria, Trinidad e Concepción|Santa Fe, Pinta e Niña|Santa Lucia, Niña e Pinta|La Santa María era in realtà una caracca, la nave ammiraglia.
+1|Da chi prende il nome il continente americano?|Amerigo Vespucci|Cristoforo Colombo|Giovanni Caboto|Hernán Cortés|Il navigatore fiorentino capì che si trattava di un nuovo continente.
+1|Quale veneziano raccontò il suo viaggio in Cina nel «Milione»?|Marco Polo|Niccolò Polo|Giovanni da Pian del Carpine|Odorico da Pordenone|Il racconto fu scritto in carcere a Genova con Rustichello da Pisa.
+1|In che anno è stata proclamata l'Unità d'Italia?|1861|1848|1870|1918|Il Regno d'Italia fu proclamato il 17 marzo 1861.
+1|Chi guidò la Spedizione dei Mille?|Giuseppe Garibaldi|Giuseppe Mazzini|Camillo Cavour|Vittorio Emanuele II|I Mille partirono da Quarto nel 1860.
+1|Chi fu il primo re d'Italia?|Vittorio Emanuele II|Umberto I|Carlo Alberto|Vittorio Emanuele III|Vittorio Emanuele II è chiamato «padre della patria».
+1|In che anno è nata la Repubblica Italiana con il referendum?|1946|1945|1948|1950|Il referendum si tenne il 2 giugno 1946.
+1|In che anno è entrata in vigore la Costituzione italiana?|1948|1946|1947|1950|È in vigore dal 1° gennaio 1948.
+1|In che anno è iniziata la Prima guerra mondiale?|1914|1915|1918|1939|L'Italia entrò in guerra nel 1915.
+1|In che anno è finita la Seconda guerra mondiale?|1945|1944|1946|1939|In Europa finì a maggio, in Asia a settembre 1945.
+1|In che anno cadde il Muro di Berlino?|1989|1991|1985|1961|Il Muro cadde il 9 novembre 1989.
+1|Chi fu il primo uomo a camminare sulla Luna?|Neil Armstrong|Buzz Aldrin|Jurij Gagarin|Michael Collins|Armstrong scese sulla Luna il 20 luglio 1969.
+1|Chi fu il primo uomo nello spazio?|Jurij Gagarin|Neil Armstrong|Valentina Tereškova|Alan Shepard|Gagarin volò il 12 aprile 1961 sulla Vostok 1.
+1|Chi era Giulio Cesare?|Un generale e dittatore romano|Il primo imperatore cinese|Un faraone egizio|Un filosofo greco|Cesare conquistò la Gallia e fu ucciso nel 44 a.C.
+1|Quale imperatore romano fu il primo, con il titolo di Augusto?|Ottaviano|Giulio Cesare|Nerone|Traiano|Ottaviano ricevette il titolo di Augusto nel 27 a.C.
+1|Quale città fu distrutta dall'eruzione del Vesuvio nel 79 d.C.?|Pompei|Paestum|Ostia|Cuma|Anche Ercolano e Stabia furono sepolte.
+1|Quale popolo costruì le piramidi di Giza?|Gli antichi Egizi|I Romani|I Greci|I Maya|Le piramidi furono costruite oltre 4.500 anni fa.
+1|Come si chiamavano i re dell'antico Egitto?|Faraoni|Sultani|Zar|Imperatori|Tra i più noti ci sono Cheope, Ramses II e Tutankhamon.
+1|In quale città si svolsero le prime Olimpiadi antiche?|Olimpia|Atene|Sparta|Delfi|Si disputavano in onore di Zeus dal 776 a.C.
+1|In quale città si svolsero le prime Olimpiadi moderne nel 1896?|Atene|Parigi|Londra|Roma|Le Olimpiadi moderne furono volute da Pierre de Coubertin.
+1|Chi era Napoleone Bonaparte?|Un generale e imperatore francese|Un re di Spagna|Un papa|Un esploratore portoghese|Napoleone fu imperatore dei francesi dal 1804.
+1|Dove morì in esilio Napoleone?|Isola di Sant'Elena|Isola d'Elba|Corsica|Malta|Napoleone morì a Sant'Elena nel 1821.
+1|Quale nave affondò nel 1912 dopo aver urtato un iceberg?|Titanic|Lusitania|Andrea Doria|Britannic|Il Titanic era al viaggio inaugurale.
+1|Chi inventò la stampa a caratteri mobili in Europa?|Johannes Gutenberg|Leonardo da Vinci|Galileo Galilei|Aldo Manuzio|La Bibbia di Gutenberg è degli anni 1450.
+1|Quale civiltà costruì Machu Picchu?|Gli Inca|Gli Aztechi|I Maya|Gli Olmechi|Machu Picchu fu costruita nel XV secolo.
+1|Quale muraglia fu costruita per proteggere la Cina dalle invasioni?|La Grande Muraglia|Il Vallo di Adriano|Il Muro di Berlino|La Linea Maginot|Fu costruita e ricostruita nel corso di molti secoli.
+1|Quale data segna convenzionalmente la fine dell'Impero romano d'Occidente?|476 d.C.|410 d.C.|1453|800 d.C.|Nel 476 Odoacre depose Romolo Augusto.
+1|Chi fu incoronato imperatore la notte di Natale dell'800?|Carlo Magno|Ottone I|Federico Barbarossa|Clodoveo|Carlo Magno fu incoronato a Roma da papa Leone III.
+1|Chi scoprì la penicillina nel 1928?|Alexander Fleming|Louis Pasteur|Robert Koch|Edward Jenner|Fleming notò che una muffa uccideva i batteri.
+2|In che anno cadde Costantinopoli in mano agli Ottomani?|1453|1492|1204|1517|La caduta segnò la fine dell'Impero bizantino.
+2|Quale battaglia del 1815 segnò la sconfitta definitiva di Napoleone?|Waterloo|Austerlitz|Lipsia|Marengo|Waterloo si trova in Belgio.
+2|In che anno scoppiò la Rivoluzione francese con la presa della Bastiglia?|1789|1776|1799|1815|La Bastiglia fu presa il 14 luglio 1789.
+2|In che anno gli Stati Uniti proclamarono l'indipendenza?|1776|1789|1783|1812|La Dichiarazione fu firmata il 4 luglio 1776.
+2|Chi fu il primo presidente degli Stati Uniti?|George Washington|Thomas Jefferson|Abraham Lincoln|John Adams|Washington fu presidente dal 1789 al 1797.
+2|Quale presidente americano abolì la schiavitù durante la guerra civile?|Abraham Lincoln|George Washington|Ulysses Grant|Theodore Roosevelt|Lincoln firmò il Proclama di emancipazione nel 1863.
+2|Quale città divenne capitale d'Italia nel 1871?|Roma|Firenze|Torino|Napoli|Prima di Roma furono capitali Torino e poi Firenze.
+2|Quale fu la seconda capitale del Regno d'Italia, dal 1865?|Firenze|Torino|Roma|Milano|Firenze fu capitale dal 1865 al 1871.
+2|In quale data i bersaglieri entrarono a Roma attraverso la breccia di Porta Pia?|20 settembre 1870|17 marzo 1861|2 giugno 1946|4 novembre 1918|La presa di Roma pose fine al potere temporale dei papi.
+2|Chi fu il primo presidente del Consiglio del Regno d'Italia?|Camillo Benso di Cavour|Francesco Crispi|Giovanni Giolitti|Bettino Ricasoli|Cavour morì pochi mesi dopo, nel giugno 1861.
+2|Chi fondò la «Giovine Italia» nel 1831?|Giuseppe Mazzini|Giuseppe Garibaldi|Carlo Pisacane|Silvio Pellico|Mazzini sognava un'Italia unita e repubblicana.
+2|Da dove partirono i Mille di Garibaldi nel 1860?|Quarto, vicino a Genova|Napoli|Livorno|Civitavecchia|Sbarcarono a Marsala, in Sicilia.
+2|Dove sbarcarono i Mille in Sicilia?|Marsala|Palermo|Messina|Trapani|Lo sbarco avvenne l'11 maggio 1860.
+2|Come si chiama l'incontro di Teano del 1860?|L'incontro tra Garibaldi e Vittorio Emanuele II|La firma della pace con l'Austria|L'elezione del primo Parlamento|L'arresto di Mazzini|A Teano Garibaldi consegnò il Sud al re.
+2|In che anno l'Italia entrò nella Prima guerra mondiale?|1915|1914|1916|1917|L'Italia entrò in guerra il 24 maggio 1915.
+2|In quale battaglia del 1917 l'esercito italiano subì una pesante sconfitta?|Caporetto|Vittorio Veneto|Piave|Isonzo|Dopo Caporetto il fronte si spostò sul Piave.
+2|Quale battaglia del 1918 segnò la vittoria italiana nella Grande Guerra?|Vittorio Veneto|Caporetto|Monte Grappa|Asiago|L'armistizio di Villa Giusti entrò in vigore il 4 novembre 1918.
+2|In che anno avvenne la Marcia su Roma?|1922|1919|1925|1929|Dopo la Marcia, Mussolini fu incaricato di formare il governo.
+2|Cosa avvenne l'8 settembre 1943 in Italia?|Fu annunciato l'armistizio|Fu proclamata la Repubblica|Cadde il fascismo|Sbarcarono gli Alleati in Sicilia|L'armistizio di Cassibile fu reso pubblico l'8 settembre.
+2|Dove sbarcarono gli Alleati in Italia nel luglio 1943?|Sicilia|Anzio|Salerno|Calabria|L'operazione Husky iniziò il 10 luglio 1943.
+2|Chi fu il primo presidente della Repubblica Italiana?|Enrico De Nicola|Luigi Einaudi|Giovanni Gronchi|Sandro Pertini|De Nicola fu capo provvisorio dello Stato e poi presidente nel 1948.
+2|Quale presidente della Repubblica era stato partigiano ed è ricordato come «il presidente più amato»?|Sandro Pertini|Luigi Einaudi|Carlo Azeglio Ciampi|Francesco Cossiga|Pertini fu presidente dal 1978 al 1985.
+2|In quale città fu firmato nel 1957 il trattato che istituì la Comunità economica europea?|Roma|Parigi|Maastricht|Bruxelles|I Trattati di Roma furono firmati il 25 marzo 1957.
+2|Quale trattato del 1992 istituì l'Unione europea?|Maastricht|Lisbona|Roma|Nizza|Il trattato di Maastricht entrò in vigore nel 1993.
+2|Quale famiglia governò Firenze nel Rinascimento?|Medici|Sforza|Este|Gonzaga|Lorenzo il Magnifico fu il più celebre dei Medici.
+2|Quale famiglia governò Milano dopo i Visconti?|Sforza|Medici|Gonzaga|Borgia|Francesco Sforza divenne duca di Milano nel 1450.
+2|Quale famiglia governò Mantova per quasi quattro secoli?|Gonzaga|Este|Medici|Farnese|I Gonzaga governarono Mantova dal 1328 al 1708.
+2|Quale famiglia governò Ferrara nel Rinascimento?|Este|Gonzaga|Malatesta|Montefeltro|Alla corte estense lavorò Ludovico Ariosto.
+2|Come era chiamata la Repubblica di Venezia?|La Serenissima|La Superba|La Dotta|La Grassa|«La Superba» è Genova; «la Dotta» e «la Grassa» sono Bologna.
+2|Quali erano le quattro Repubbliche marinare?|Venezia, Genova, Pisa e Amalfi|Venezia, Genova, Napoli e Livorno|Pisa, Lucca, Siena e Firenze|Ancona, Bari, Venezia e Trieste|Le loro bandiere compaiono nella bandiera della Marina militare.
+2|Chi fu l'imperatore romano che fece costruire un vallo nel nord della Britannia?|Adriano|Traiano|Augusto|Costantino|Il Vallo di Adriano fu iniziato nel 122 d.C.
+2|Quale imperatore concesse la libertà di culto ai cristiani nel 313?|Costantino|Teodosio|Diocleziano|Nerone|L'editto di Milano fu emanato nel 313.
+2|Quale condottiero cartaginese attraversò le Alpi con gli elefanti?|Annibale|Amilcare|Asdrubale|Scipione|Annibale invase l'Italia durante la seconda guerra punica.
+2|Quale generale romano sconfisse Annibale a Zama?|Scipione l'Africano|Fabio Massimo|Gaio Mario|Pompeo|La battaglia di Zama si combatté nel 202 a.C.
+2|Chi era Cleopatra?|L'ultima regina dell'Egitto tolemaico|Una regina di Cartagine|Una moglie di Nerone|Una dea greca|Cleopatra fu alleata di Cesare e poi di Marco Antonio.
+2|In che anno fu ucciso Giulio Cesare?|44 a.C.|27 a.C.|49 a.C.|14 d.C.|Fu ucciso alle Idi di marzo, il 15 marzo.
+2|Quale fiume attraversò Cesare pronunciando «Il dado è tratto»?|Rubicone|Tevere|Po|Arno|Attraversare il Rubicone in armi significava sfidare il Senato.
+2|Quale esploratore portoghese raggiunse l'India via mare nel 1498?|Vasco da Gama|Bartolomeu Dias|Ferdinando Magellano|Pedro Álvares Cabral|Vasco da Gama doppiò il Capo di Buona Speranza.
+2|Quale spedizione compì la prima circumnavigazione del globo?|Quella di Magellano|Quella di Colombo|Quella di Cook|Quella di Drake|Magellano morì nelle Filippine; la spedizione fu completata da Elcano nel 1522.
+2|Quale vicentino partecipò e raccontò il viaggio di Magellano?|Antonio Pigafetta|Giovanni da Verrazzano|Sebastiano Caboto|Alvise Cadamosto|Pigafetta fu uno dei pochi superstiti.
+2|Chi era Martin Lutero?|Il promotore della Riforma protestante|Un papa del Rinascimento|Un re di Prussia|Un pittore tedesco|Nel 1517 pubblicò le sue 95 tesi.
+2|In che anno iniziò la Seconda guerra mondiale?|1939|1938|1940|1941|La Germania invase la Polonia il 1° settembre 1939.
+2|Quale evento del 1941 portò gli Stati Uniti nella Seconda guerra mondiale?|L'attacco a Pearl Harbor|Lo sbarco in Normandia|L'invasione della Polonia|La battaglia d'Inghilterra|Il Giappone attaccò la base hawaiana il 7 dicembre 1941.
+2|Come si chiama lo sbarco alleato in Normandia del 6 giugno 1944?|D-Day|Operazione Husky|Operazione Barbarossa|Operazione Market Garden|Fu la più grande operazione anfibia della storia.
+2|Quale muro divideva Berlino dal 1961 al 1989?|Il Muro di Berlino|La Cortina di ferro|La Linea Sigfrido|Il Vallo Atlantico|Il Muro separava Berlino Est da Berlino Ovest.
+2|In che anno si dissolse l'Unione Sovietica?|1991|1989|1993|1985|L'URSS si dissolse il 26 dicembre 1991.
+2|Chi fu il leader della lotta non violenta per l'indipendenza dell'India?|Mahatma Gandhi|Jawaharlal Nehru|Indira Gandhi|Subhas Chandra Bose|L'India divenne indipendente nel 1947.
+2|Chi pronunciò il discorso «I have a dream» nel 1963?|Martin Luther King|Malcolm X|John F. Kennedy|Nelson Mandela|Il discorso si tenne a Washington.
+2|Quale leader sudafricano, dopo 27 anni di carcere, divenne presidente nel 1994?|Nelson Mandela|Desmond Tutu|Frederik de Klerk|Thabo Mbeki|Mandela fu premio Nobel per la pace nel 1993.
+2|Chi era Lorenzo il Magnifico?|Signore di Firenze e mecenate|Un papa del Cinquecento|Un doge di Venezia|Un re di Napoli|Lorenzo de' Medici protesse artisti come Botticelli.
+2|Quale scienziato fu processato dall'Inquisizione nel 1633?|Galileo Galilei|Giordano Bruno|Niccolò Copernico|Tommaso Campanella|Galileo dovette abiurare le sue tesi copernicane.
+3|In quale anno avvenne la battaglia di Legnano, vinta dalla Lega Lombarda sul Barbarossa?|1176|1237|1095|1250|La Lega Lombarda sconfisse Federico Barbarossa il 29 maggio 1176.
+3|Quale rivolta del 1282 cacciò gli Angioini dalla Sicilia?|I Vespri siciliani|Le Cinque giornate|I moti del 1820|La rivolta di Masaniello|La rivolta iniziò a Palermo il lunedì di Pasqua.
+3|In quale anno si svolsero le Cinque giornate di Milano?|1848|1821|1859|1831|I milanesi cacciarono gli austriaci di Radetzky.
+3|Quale battaglia del 1859 dette origine all'idea della Croce Rossa?|Solferino|Magenta|Custoza|Novara|Henry Dunant restò colpito dai feriti abbandonati.
+3|Con quale trattato del 1866 il Veneto passò all'Italia?|Pace di Vienna|Pace di Zurigo|Trattato di Londra|Congresso di Berlino|Al termine della terza guerra d'indipendenza.
+3|Quale accordo del 1929 regolò i rapporti tra Stato italiano e Chiesa?|Patti Lateranensi|Concordato di Worms|Legge delle Guarentigie|Statuto Albertino|Con i Patti nacque lo Stato della Città del Vaticano.
+3|Come si chiamava la costituzione del Regno di Sardegna poi estesa al Regno d'Italia?|Statuto Albertino|Codice Napoleonico|Carta di Carnaro|Statuto di Torino|Fu concesso da Carlo Alberto nel 1848.
+3|Chi fu il primo presidente del Consiglio della Repubblica, alla guida di vari governi del dopoguerra?|Alcide De Gasperi|Palmiro Togliatti|Ferruccio Parri|Pietro Nenni|De Gasperi guidò otto governi tra il 1945 e il 1953.
+3|Chi guidò il primo governo dell'Italia liberata nel 1945, prima di De Gasperi?|Ferruccio Parri|Ivanoe Bonomi|Pietro Badoglio|Alcide De Gasperi|Il governo Parri durò da giugno a dicembre 1945.
+3|In quale anno le donne italiane ottennero il diritto di voto con un decreto?|1945|1946|1948|1919|Il decreto è del 1° febbraio 1945; il primo voto fu nel 1946.
+3|Quale imperatore romano era nato in Spagna e portò l'impero alla massima estensione?|Traiano|Adriano|Marco Aurelio|Vespasiano|Sotto Traiano, nel 117 d.C., l'impero raggiunse la massima estensione.
+3|Quale imperatore filosofo scrisse i «Pensieri»?|Marco Aurelio|Seneca|Adriano|Giuliano|Marco Aurelio scrisse in greco le sue riflessioni stoiche.
+3|Quale imperatore divise l'Impero tra i figli nel 395?|Teodosio|Costantino|Diocleziano|Valentiniano|Arcadio ebbe l'Oriente, Onorio l'Occidente.
+3|Chi saccheggiò Roma nel 410 d.C.?|I Visigoti di Alarico|Gli Unni di Attila|I Vandali di Genserico|Gli Ostrogoti di Teodorico|Fu il primo sacco di Roma dopo otto secoli.
+3|Quale re ostrogoto governò l'Italia da Ravenna dal 493?|Teodorico|Odoacre|Alboino|Totila|Teodorico fece costruire il suo mausoleo a Ravenna.
+3|Quale popolo invase l'Italia nel 568 guidato da Alboino?|Longobardi|Franchi|Goti|Normanni|I Longobardi diedero il nome alla Lombardia.
+3|Quale papa indisse la prima crociata nel 1095?|Urbano II|Gregorio VII|Innocenzo III|Bonifacio VIII|L'appello fu lanciato al concilio di Clermont.
+3|Quale papa proclamò il primo Giubileo nel 1300?|Bonifacio VIII|Celestino V|Clemente V|Giovanni XXII|Il Giubileo del 1300 attirò a Roma moltissimi pellegrini.
+3|Quale papa rinunciò al pontificato nel 1294, ricordato da Dante?|Celestino V|Bonifacio VIII|Gregorio XII|Benedetto XVI|Dante lo indicò come colui «che fece per viltade il gran rifiuto», secondo l'interpretazione più diffusa.
+3|In quale città si trasferì la sede papale tra il 1309 e il 1377?|Avignone|Lione|Parigi|Vienna|Fu la cosiddetta «cattività avignonese».
+3|Quale pace del 1559 sancì il predominio spagnolo in Italia?|Cateau-Cambrésis|Lodi|Aquisgrana|Utrecht|La pace chiuse le guerre d'Italia tra Francia e Spagna.
+3|Quale pace del 1454 portò equilibrio tra gli Stati italiani?|Pace di Lodi|Pace di Bologna|Pace di Costanza|Pace di Venezia|La pace di Lodi aprì un periodo di relativa stabilità.
+3|Quale battaglia navale del 1571 vide la Lega Santa sconfiggere gli Ottomani?|Lepanto|Prevesa|Trafalgar|Azio|Vi partecipò anche Miguel de Cervantes.
+3|In quale battaglia del 31 a.C. Ottaviano sconfisse Antonio e Cleopatra?|Azio|Farsalo|Filippi|Canne|Azio si trova sulla costa occidentale della Grecia.
+3|In quale battaglia del 216 a.C. Annibale inflisse a Roma una delle sue peggiori sconfitte?|Canne|Trasimeno|Zama|Trebbia|Canne si trova in Puglia.
+3|Quale ammiraglio britannico vinse a Trafalgar nel 1805?|Horatio Nelson|Francis Drake|James Cook|Arthur Wellesley|Nelson morì durante la battaglia.
+3|Quale congresso ridisegnò l'Europa dopo Napoleone nel 1814-15?|Congresso di Vienna|Congresso di Berlino|Conferenza di Parigi|Congresso di Aquisgrana|Fu guidato dal principe di Metternich.
+3|Quale trattato del 1919 chiuse la Prima guerra mondiale con la Germania?|Trattato di Versailles|Trattato di Saint-Germain|Trattato di Brest-Litovsk|Trattato di Rapallo|Il trattato fu firmato nella Galleria degli Specchi.
+3|Quale evento del 1914 a Sarajevo scatenò la Prima guerra mondiale?|L'assassinio di Francesco Ferdinando|L'invasione del Belgio|L'affondamento del Lusitania|La rivoluzione russa|L'arciduca fu ucciso il 28 giugno 1914.
+3|In quale anno avvenne la Rivoluzione d'ottobre in Russia?|1917|1905|1918|1921|Secondo il calendario gregoriano avvenne a novembre.
+3|Come si chiamava il piano americano di aiuti all'Europa del dopoguerra?|Piano Marshall|Piano Truman|Piano Schuman|Piano Monnet|Il piano fu avviato nel 1948.
+3|Quale crisi del 1962 portò USA e URSS sull'orlo della guerra nucleare?|Crisi dei missili di Cuba|Crisi di Suez|Blocco di Berlino|Guerra di Corea|La crisi durò tredici giorni a ottobre.
+3|Quale città giapponese fu colpita dalla prima bomba atomica il 6 agosto 1945?|Hiroshima|Nagasaki|Tokyo|Kyoto|Tre giorni dopo fu colpita Nagasaki.
+3|In quale anno l'uomo arrivò sulla Luna con l'Apollo 11?|1969|1967|1971|1965|L'allunaggio avvenne il 20 luglio 1969.
+3|Quale satellite sovietico fu il primo in orbita, nel 1957?|Sputnik 1|Vostok 1|Lunik 2|Mir|Lo Sputnik aprì la corsa allo spazio.
+3|Chi fu la prima donna nello spazio, nel 1963?|Valentina Tereškova|Sally Ride|Samantha Cristoforetti|Svetlana Savitskaja|Volò a bordo della Vostok 6.
+3|Chi fu il primo astronauta italiano a volare nello spazio?|Franco Malerba|Umberto Guidoni|Luca Parmitano|Paolo Nespoli|Malerba volò sullo Space Shuttle Atlantis nel 1992.
+3|Chi è stata la prima donna italiana nello spazio?|Samantha Cristoforetti|Valentina Tereškova|Margherita Hack|Fabiola Gianotti|Cristoforetti partì per la Stazione spaziale nel 2014.
+3|Quale re di Francia fu ghigliottinato nel 1793?|Luigi XVI|Luigi XIV|Luigi XV|Carlo X|Anche la regina Maria Antonietta fu giustiziata quello stesso anno.
+3|Quale re era chiamato «Re Sole»?|Luigi XIV|Luigi XVI|Enrico IV|Francesco I|Luigi XIV regnò per 72 anni e fece costruire Versailles.
+3|Quale regina regnò in Inghilterra durante la sconfitta dell'Invincibile Armata?|Elisabetta I|Maria Stuarda|Vittoria|Anna|La flotta spagnola fu sconfitta nel 1588.
+3|Quale regina britannica regnò per 70 anni, dal 1952 al 2022?|Elisabetta II|Vittoria|Elisabetta I|Anna|È il regno più lungo della storia britannica.
+3|In quale città fu proclamato l'Impero tedesco nel 1871?|Versailles|Berlino|Francoforte|Vienna|Fu proclamato nella Galleria degli Specchi dopo la guerra franco-prussiana.
+3|Chi fu il cancelliere che unificò la Germania nel 1871?|Otto von Bismarck|Guglielmo I|Federico il Grande|Klemens von Metternich|Bismarck era detto il «Cancelliere di ferro».
+3|Quale città italiana fu capitale dell'Impero romano d'Occidente dal 402?|Ravenna|Milano|Roma|Aquileia|L'imperatore Onorio vi trasferì la corte.
+3|Quale popolo antico abitava l'Etruria, tra Toscana, Lazio e Umbria?|Etruschi|Sanniti|Liguri|Piceni|Gli Etruschi influenzarono molto la Roma arcaica.
+3|Quale colonia greca della Sicilia ebbe come cittadino Archimede?|Siracusa|Agrigento|Selinunte|Gela|Archimede morì durante l'assedio romano del 212 a.C.
