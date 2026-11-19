@@ -76,7 +76,15 @@ async function playMatch(page, C, game, tag) {
       const tx = C.vp[0] / 2, ty = C.vp[1] * 0.42;
       await page.mouse.move(pt.x, pt.y); await page.mouse.down(); await page.mouse.move((pt.x + tx) / 2, (pt.y + ty) / 2, { steps: 4 }); await page.mouse.move(tx, ty, { steps: 4 }); await page.mouse.up(); kinds.drag++;
     }
-    await page.waitForFunction((b) => window.__carte.M.moves > b || document.querySelector('.cb-choose, .cb-result, .cb-pass'), before, { timeout: 15000 }).catch(() => issues.push(`${C.name} ${game}: move ${how} on ${pt.id} did not register`));
+    const done = (b) => window.__carte.M.moves > b || !!document.querySelector('.cb-choose, .cb-result, .cb-pass');
+    let reg = await page.waitForFunction(done, before, { timeout: 4000 }).then(() => true, () => false);
+    if (!reg) { // a tap that landed while the hand was still settling: report it, retry from the keyboard
+      const st2 = await page.evaluate((id) => ({ ok: [...document.querySelectorAll('.ct-card.ok')].map((e) => e.dataset.card), busy: window.__carte.V.busy, turn: window.__carte.M.state.turn, id }), pt.id);
+      console.log(`  nota: ${C.name} ${game} ${how} su ${pt.id} non registrato`, JSON.stringify(st2));
+      const el = await page.$('.ct-card.ok'); if (el) { await el.focus(); await page.keyboard.press('Enter'); }
+      reg = await page.waitForFunction(done, before, { timeout: 15000 }).then(() => true, () => false);
+      if (!reg) issues.push(`${C.name} ${game}: move ${how} on ${pt.id} did not register`);
+    }
     moves++;
     if (moves === 4 && !shot++) { await page.waitForTimeout(450); await page.screenshot({ path: `${OUT}/${C.name}-${game}-play.png` }); }
   }

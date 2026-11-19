@@ -150,7 +150,7 @@ function draw(state = V.M.state, { instant = false, legal = [] } = {}) {
 function persist() {
   const M = V.M, g = G(); if (!M || !g) return;
   const p = cbLoad();
-  p.saved = M.over ? null : { gameId: M.gameId, M, viewer: V.viewer, label: `${variantOf(g, M.cfg.variant)?.name || ''} · ${M.teams.map((_, i) => `${sideName(M, i)} ${M.totals[i]}`).join(' – ')}` };
+  p.saved = M.over ? null : { gameId: M.gameId, M: { ...M, undo: M.undo.slice(-4) }, viewer: V.viewer, label: `${variantOf(g, M.cfg.variant)?.name || ''} · ${M.teams.map((_, i) => `${sideName(M, i)} ${M.totals[i]}`).join(' – ')}` };
   cbSave(p);
 }
 function startMatch(game, M) {
@@ -250,9 +250,11 @@ function roundOver() {
   const mult = solo ? levelOf(M.cfg.level).mult : 1;
   let coins = solo ? Math.round((res.coins || 0) * mult) : 0, matchCoins = 0;
   const p = cbLoad(), st = gameStats(p, g.id);
-  st.rounds++;
+  const fresh = M.awarded !== M.round; M.awarded = M.round; // a resumed match never pays a round twice
+  if (!fresh) coins = 0;
+  if (fresh) st.rounds++;
   for (const [k, v] of Object.entries(res.records || {})) if (typeof v === 'number' && (st.rec[k] == null || v > st.rec[k])) st.rec[k] = v;
-  if (M.over) {
+  if (M.over && fresh) {
     const won = M.winner === humanSide, draw2 = M.winner === 'draw';
     st.played++; p.total.played++;
     if (won) { st.won++; p.total.won++; st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak); } else { st.streak = 0; if (draw2) st.drawn++; else st.lost++; }
