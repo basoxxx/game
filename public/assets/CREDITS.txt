@@ -25,3 +25,4 @@ Road grain reuses tex/asphalt_02 (Poly Haven, CC0).
 
 Territorio (src/territorio): no external assets. Board, vehicles, obstacles and effects are procedural
 (three.js primitives and shaders); the cover public/covers/territorio.webp is rendered from the game.
+Serpentone: no third-party assets. Arenas, snakes, hats, food and the cover (covers/serpentone.webp) are procedural, rendered by the game itself.
