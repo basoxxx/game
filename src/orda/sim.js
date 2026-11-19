@@ -123,6 +123,7 @@ export class Sim {
     this.spawnRed(dt);
     this.moveBlue(dt);
     this.moveRed(dt);
+    this.spread(dt);
     this.buildGrid();
     this.clash();
     this.moveChamps(dt);
@@ -373,6 +374,27 @@ export class Sim {
     }
   }
 
+  // the blue stream fans out into a crowd: neighbours in the same cell nudge each other sideways
+  // (x only, so the forward flow and the gate maths are untouched). Cheap: one counting sort.
+  spread(dt) {
+    const B = this.blue, n = B.n; if (n < 2) return;
+    const cs = 0.7, x0 = -this.W / 2 - 1, cols = Math.ceil((this.W + 2) / cs), rows = Math.ceil((this.L + 10) / cs), nc = cols * rows;
+    if (!this._sp || this._sp.nc !== nc || this._sp.cap !== B.cap) this._sp = { nc, cap: B.cap, st: new Int32Array(nc + 1), fill: new Int32Array(nc + 1), cell: new Int32Array(B.cap), idx: new Int32Array(B.cap) };
+    const S = this._sp; S.st.fill(0);
+    for (let i = 0; i < n; i++) { const c = clamp(((B.x[i] - x0) / cs) | 0, 0, cols - 1) + clamp(((B.z[i] + 2) / cs) | 0, 0, rows - 1) * cols; S.cell[i] = c; S.st[c + 1]++; }
+    for (let k = 0; k < nc; k++) S.st[k + 1] += S.st[k];
+    S.fill.set(S.st); for (let i = 0; i < n; i++) S.idx[S.fill[S.cell[i]]++] = i;
+    const lim = this.W / 2 - 0.3, k = Math.min(1, dt * 9);
+    for (let c = 0; c < nc; c++) {
+      const a = S.st[c], b = S.st[c + 1]; if (b - a < 2) continue;
+      for (let p = a; p < b; p++) for (let q = p + 1; q < Math.min(b, p + 8); q++) {
+        const i = S.idx[p], j = S.idx[q], dx = B.x[j] - B.x[i], dz = B.z[j] - B.z[i], r = 0.26 * (unitScale(B.u[i]) + unitScale(B.u[j]));
+        const d2 = dx * dx + dz * dz; if (d2 >= r * r) continue;
+        const push = (r - Math.sqrt(d2)) * 0.5 * k * (dx === 0 ? (B.ph[i] > B.ph[j] ? 1 : -1) : Math.sign(dx));
+        B.x[i] = clamp(B.x[i] - push, -lim, lim); B.x[j] = clamp(B.x[j] + push, -lim, lim);
+      }
+    }
+  }
   buildGrid() {
     const R = this.red, cs = this.cs, cols = this.gcols, rows = this.grows, nc = cols * rows, st = this.cellStart;
     st.fill(0);
