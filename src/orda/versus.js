@@ -644,14 +644,14 @@ export class OrdaVersus {
     const pi = f.own[i], pj = f.own[j];
     if (f.hp[i] <= 0.001) this.kill(i, pj);
     if (f.hp[j] <= 0.001) this.kill(j, pi);
-    if (this.rand() < 0.5) this.fx.burst(x, 0.7, z, this.rand() < 0.5 ? this.cols[pi].body.getStyle() : this.cols[pj].body.getStyle(), 3, 3.5, 0.28, 0.45, this.rand);
+    if (this.rand() < 0.5) this.fx.burst(x, 0.7, z, this.rand() < 0.5 ? this.cols[pi].body : this.cols[pj].body, 3, 3.5, 0.28, 0.45, this.rand);
   }
   gateHit(g) { const o = this.gateObjs[g.i]; if (o) o.flash = 0.25; }
   hitBase(s, dmg, p, x) {
     const B = this.bases[s]; if (!B || B.hp <= 0) return;
     B.hp = Math.max(0, B.hp - dmg); B.shake = Math.min(1, B.shake + 0.08 + dmg * 0.02);
     this.stats[p].dmg += dmg;
-    this.fx.burst(x, 1.6, B.z0 + (s === 0 ? -1 : 1), dmg > 3 ? '#ffd23a' : this.cols[p].body.getStyle(), dmg > 3 ? 24 : 3, dmg > 3 ? 7 : 4, 0.32, 0.5, this.rand);
+    this.fx.burst(x, 1.6, B.z0 + (s === 0 ? -1 : 1), dmg > 3 ? '#ffd23a' : this.cols[p].body, dmg > 3 ? 24 : 3, dmg > 3 ? 7 : 4, 0.32, 0.5, this.rand);
     if (dmg > 3) this.shake = Math.max(this.shake || 0, 0.35);
     const t = this.clock; this._hit ||= [0, 0];
     if (this.o.volume > 0 && t - this._hit[s] > 0.35) { this._hit[s] = t; try { sfx.click(); } catch {} }

@@ -26,7 +26,7 @@
 .ovs-ch.on { border-color: var(--pc); box-shadow: inset 0 3px 0 var(--pc); }
 .ovs-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13.5px; color: var(--text2); }
 .ovs-seg { display: inline-flex; border: 1px solid var(--line2); }
-.ovs-seg button { background: transparent; border: 0; padding: 8px 13px; cursor: pointer; font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text2); min-height: 38px; }
+.ovs-seg button { white-space: nowrap; background: transparent; border: 0; padding: 8px 13px; cursor: pointer; font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text2); min-height: 38px; }
 .ovs-seg button.on { background: var(--pc, var(--ov)); color: #fff; }
 .ovs-rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; }
 .ovs-rules .ovs-row { padding: 10px 14px; background: var(--s1); border: 1px solid var(--line2); }
