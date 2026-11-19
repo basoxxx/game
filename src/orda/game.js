@@ -514,7 +514,8 @@ export class OrdaGame {
   screenToArena(px) {
     const rect = this.cv.getBoundingClientRect();
     const a = this.projX(-this.sim.W / 2), b = this.projX(this.sim.W / 2);
-    const t = (px - rect.left - a) / Math.max(1, b - a);
+    const d = b - a; // negative when the view mirrors the arena (camera looking down +z): handled both ways
+    const t = (px - rect.left - a) / (Math.abs(d) < 1 ? 1 : d);
     return -this.sim.W / 2 + t * this.sim.W;
   }
   projX(x) { const v = new THREE.Vector3(x, 0, CANNON_Z + 2).project(this.cam); return (v.x * 0.5 + 0.5) * this.cv.clientWidth; }
@@ -536,9 +537,12 @@ export class OrdaGame {
       this.padPrev = { ch, st };
       break;
     }
+    // screen-relative controls: "right" always moves the cannon to the right of the SCREEN
+    const mir = Math.sign(this.projX(this.sim.W / 2) - this.projX(-this.sim.W / 2)) || 1;
+    inp.dx *= mir;
     if (this.ptr && !inp.dx) {
       if (this.ptr.abs) inp.x = this.screenToArena(this.ptr.x);
-      else { const k = this.sim.W / Math.max(80, this.projX(this.sim.W / 2) - this.projX(-this.sim.W / 2)); inp.x = this.ptr.cx0 + (this.ptr.x - this.ptr.x0) * k * 1.25; }
+      else { const span = this.projX(this.sim.W / 2) - this.projX(-this.sim.W / 2); const k = this.sim.W / Math.max(80, Math.abs(span)) * mir; inp.x = this.ptr.cx0 + (this.ptr.x - this.ptr.x0) * k * 1.25; }
     }
     if (this.autoplay) { const a = autopilot(this.sim); inp.x = a.x; fire = true; if (a.champ) this.launchChampion(); }
     inp.fire = fire;
