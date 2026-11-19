@@ -63,7 +63,7 @@ export function starsFor(level, r) {
 }
 // coins: replays pay half; new stars always pay their bonus
 export function coinsFor(level, stars, prevStars, win) {
-  const n = level.id || 1, boss = !!level.base?.boss;
+  const n = Number.isFinite(+level.id) && +level.id > 0 ? +level.id : 10, boss = !!level.base?.boss;
   if (!win) return 5 + Math.floor(n / 2);
   let c = 12 + n * 3 + stars * 5;
   if (prevStars > 0) c = Math.round(c / 2); else c += boss ? 40 : 10;

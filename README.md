@@ -12,6 +12,12 @@
 
 ![Scontro Totale](site-src/shots/cover-derby.webp)
 
+## Novità della versione 6.2
+- **Orda (nuovo gioco)**: spara la tua orda di omini blu attraverso porte ×, +, −, ÷ fino alla base rossa. 30 livelli in 6 mondi con boss ogni 5, 4 campioni (Colosso, Grillo, Matrioska, Testuggine), potenziamenti e skin con monete, niente pubblicità.
+- **Base e razzie**: costruisci la tua base 3D (mura, torri, caserme, trappole, miniere, scudi), razzia basi rivali per monete e mattoni, rapporti degli attacchi subiti mentre sei via e Vendetta.
+- **2 giocatori**: sfida o cooperativa sullo stesso schermo con tastiera, due controller o touch diviso (tablet anche in piano).
+- **Sfida del giorno, Infinita e Missioni**: un livello al giorno uguale per tutti con serie e risultato da condividere, ondate infinite con potenziamenti a scelta e classifica, 18 missioni.
+
 ## Novità della versione 6.1
 - **Dinamiche di gara (Formula, Formula Apex 2, Endurance)**: niente più auto che si "teletrasportano" dietro a quella che le ha superate: le posizioni sono sempre continue, il tempo perso si traduce in rallentamenti veri. I sorpassi nascono in scia e in staccata (zone DRS e frenate forti ricavate da ogni pista): l'attaccante si affianca all'interno, il difensore copre, il sorpasso riesce o fallisce. Meno sorpassi casuali (es. da ~185 a ~15 a Monaco), nessuno a metà curva. Incidenti fisici: uscita per la tangente, via di fuga, impatto con le barriere con detriti, testacoda con fumo e rientro.
 - **Muretto box (secondo schermo)**: durante prove, qualifiche, gara e prove rally apri il muretto su un secondo monitor (nuova finestra) o su tablet/telefono/altro PC (QR o codice): tempi e settori, strategia, telemetria, mappa live e diretta 3D; da lì rispondi alle chiamate, richiami ai box e cambi ritmo. Puoi anche spostare la diretta sul secondo schermo e tenere i dati sul PC.
