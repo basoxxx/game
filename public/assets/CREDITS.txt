@@ -45,3 +45,7 @@ art (Orda figures, Serpentone hats and heads, Kart Baso karts, Scontro Totale ba
 Arcade Baso (src/arcade): no external assets. Ships, bosses, bricks, the runner, Gnam and the wasps, mazes,
 levels, card art (inline SVG) and the cover (covers/arcade.webp, rendered by tools/arcade-cover.mjs) are
 procedural and original; sounds come from the hub's procedural audio engine (src/ui/audio.js).
+
+Rompicapo (src/rompicapo): no external assets. Boards, tiles (original Mahjong faces: suns, drops, leaves,
+winds, gems, flowers, seasons), bricks, effects and sounds are drawn and synthesised in code; the cover
+(covers/rompicapo.webp) is rendered from the games by tools/rompicapo-cover.mjs.
