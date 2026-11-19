@@ -186,7 +186,7 @@ async function startMatch() {
   V.crowd = 0;
   let frames = 0;
   const g = V.game = new OrdaGame(root, {
-    level, mode: P.kind === 'daily' ? 'daily' : 'endless', label: P.kind === 'daily' ? `Sfida #${dailyStatus().info.num}` : `Ondata ${P.run.wave}`,
+    level, mode: P.kind === 'daily' ? 'daily' : 'endless', label: P.kind === 'daily' ? `Sfida #${dailyStatus().info.num}` : 'Infinita', // the level is already named «Ondata n»
     seed: (level.gen?.seed ?? 1) + (P.kind === 'endless' ? P.run.wave : 0), players: 1,
     upgrades: lo.up, upBonus: lo.upBonus, champion: lo.champ, champLvl: lo.champLvl,
     skin: prof.skin, cannon: prof.cannon, tier: gfxTier(), volume: getSettings().sound === false ? 0 : 0.6 * (getSettings().volume ?? 0.5) / 0.5, autofire: prof.autofire, shake: prof.shake, numbers: prof.numbers,
