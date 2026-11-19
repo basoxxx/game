@@ -13,11 +13,14 @@ const OUT = process.argv[3] || 'tavolo-shots';
 mkdirSync(OUT, { recursive: true });
 const IGNORE = /GPU stall|AudioContext|favicon|ReadPixels|WebGL: CONTEXT_LOST|WebGL: INVALID|GL_INVALID|Automatic fallback to software|GL Driver/i;
 const issues = [];
+
 const fail = (m) => { issues.push(m); console.log('  FAIL', m); };
 const browser = await pw.chromium.launch({ args: ['--use-gl=angle', '--ignore-gpu-blocklist'] });
 
 const CASES = [
-  { name: 'desktop', vp: [1440, 900], tier: 'high', keyboard: true, drag: true, puzzles: true },
+  { name: 'desktop', vp: [1440, 900], tier: 'med', keyboard: true, drag: true, puzzles: true },
+  // Alta in headless WebGL is very slow (software rendering): only load each game and take a picture
+  { name: 'desktop-alta', vp: [1440, 900], tier: 'high', showcase: true },
   { name: 'tablet', vp: [1024, 768], tier: 'med', touch: true, twoP: true },
   { name: 'phone', vp: [390, 844], tier: 'low', touch: true, mobile: true },
   { name: 'phone-land', vp: [844, 390], tier: 'med', touch: true, mobile: true, navale2p: true },
@@ -35,7 +38,7 @@ async function open(page, game, opts = {}) {
 }
 async function tapCell(page, C, id) {
   const sel = `.tv-cell[data-id="${id}"]`;
-  await page.waitForSelector(sel, { timeout: 8000 });
+  await page.waitForSelector(sel, { timeout: 45000 });
   if (C.touch) await page.tap(sel); else await page.click(sel);
 }
 async function idle(page, ms = 60000) {
@@ -179,7 +182,7 @@ for (const C of CASES) {
   if (only && !only.split(',').includes(C.name)) continue;
   console.log(`▸ ${C.name} ${C.vp.join('x')} (${C.tier})`);
   const ctx = await browser.newContext({ viewport: { width: C.vp[0], height: C.vp[1] }, hasTouch: !!C.touch, isMobile: !!C.mobile, deviceScaleFactor: 1 });
-  const page = await ctx.newPage();
+  const page = await ctx.newPage(); page.setDefaultTimeout(60000);
   page.on('pageerror', (e) => fail(`${C.name} pageerror: ${e.message}`));
   page.on('console', (m) => { if ((m.type() === 'error' || (m.type() === 'warning' && /errore intercettato/.test(m.text()))) && !IGNORE.test(m.text())) fail(`${C.name} console: ${m.text().slice(0, 300)}`); });
   await page.addInitScript((t) => { if (!sessionStorage.getItem('tv-init')) { sessionStorage.setItem('tv-init', '1'); localStorage.clear(); localStorage.setItem('apexdynasty_settings', JSON.stringify({ gfxTier: t, gfx: t === 'low' ? 'low' : 'high', sound: false, music: false })); } }, C.tier);
@@ -188,10 +191,16 @@ for (const C of CASES) {
   await page.screenshot({ path: `${OUT}/${C.name}-home.png` });
   const ov = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
   if (ov) fail(`${C.name}: scorrimento orizzontale nel menu`);
-  for (const [fn, on] of [[chess, true], [chess2p, C.twoP], [dama, true], [four, true], [navale, true], [navale2p, C.navale2p], [puzzles, C.puzzles]]) {
+  if (C.showcase) {
+    for (const g of ['chess', 'dama', 'four', 'navale']) {
+      try { await open(page, g, { mode: 'cpu', level: 1, clock: 0 }); await page.waitForTimeout(2500); await page.screenshot({ path: `${OUT}/${C.name}-${g}.png`, timeout: 120000 }); await backToMenu(page); }
+      catch (e) { fail(`${C.name} ${g}: ${e.message.split('\n')[0]}`); }
+    }
+  }
+  else for (const [fn, on] of [[chess, true], [chess2p, C.twoP], [dama, true], [four, true], [navale, true], [navale2p, C.navale2p], [puzzles, C.puzzles]]) {
     if (!on) continue;
     const t0 = Date.now();
-    try { await fn(page, C); } catch (e) { fail(`${C.name} ${fn.name}: ${e.message.split('\n')[0]}`); await page.screenshot({ path: `${OUT}/${C.name}-${fn.name}-error.png` }); await backToMenu(page).catch(() => {}); }
+    try { await fn(page, C); } catch (e) { fail(`${C.name} ${fn.name}: ${e.message.split('\n')[0]}`); await page.screenshot({ path: `${OUT}/${C.name}-${fn.name}-error.png`, timeout: 120000 }).catch(() => {}); await backToMenu(page).catch(() => {}); }
     console.log(`  ${fn.name} ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   }
   const crash = await page.evaluate(() => !!document.querySelector('.modal-wrap .crash'));

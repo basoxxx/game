@@ -149,6 +149,8 @@ export class Sea3D {
   }
   update(dt) {
     this.t += dt;
+    // gentle motion only: about 24 frames a second is plenty and spares the battery
+    this.acc = (this.acc || 0) + dt; if (this.acc < 0.042) return false; this.acc = 0;
     let live = false;
     for (const gi of [0, 1]) for (const g of this.ships[gi].values()) { if (!g.visible || g.userData.sunk) continue; g.position.y = 0.02 + Math.sin(this.t * 1.4 + g.userData.x + g.userData.y * 1.7) * 0.025; live = true; }
     for (const m of this.pegs[1].values()) if (m.children[0].material === this.pegMats[2]) { this.pegMats[2].emissiveIntensity = 0.35 + Math.sin(this.t * 5) * 0.2; live = true; break; }

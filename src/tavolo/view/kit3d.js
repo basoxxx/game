@@ -178,6 +178,8 @@ export class Stage3D {
     if (r.shadowMap.enabled) { key.castShadow = true; key.shadow.mapSize.set(2048, 2048); const c = key.shadow.camera; c.left = c.bottom = -10; c.right = c.top = 10; c.near = 2; c.far = 40; key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02; key.shadow.radius = 4; }
     sc.add(key); sc.add(key.target);
     const fill = new THREE.DirectionalLight('#c9dcff', 0.45); fill.position.set(8, 6, -6); sc.add(fill);
+    // a warm lamp over the table: a pool of light that fades into the room
+    if (tier !== 'low') { const lamp = this.lamp = new THREE.SpotLight('#ffd9a8', 520, 46, 0.62, 0.85, 2); lamp.position.set(1.5, 17, 3); lamp.target.position.set(0, 0, 0); sc.add(lamp); sc.add(lamp.target); key.intensity = 1.5; this.hemi.intensity = 0.65; }
     // the table
     this.table = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.7 }));
     this.table.rotation.x = -Math.PI / 2; this.table.position.y = -0.36; this.table.receiveShadow = true; sc.add(this.table);

@@ -37,7 +37,7 @@ export class Four2D {
   draw() {
     const g = this.g, { s, ox, oy } = this.geo(), th = this.theme;
     g.fillStyle = th.table; g.fillRect(0, 0, this.w, this.h);
-    const disc = (x, y, col, a = 1, glow = 0) => { g.globalAlpha = a; const r = s * 0.42; const gr = g.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r); gr.addColorStop(0, '#ffffff55'); gr.addColorStop(0.25, col); gr.addColorStop(1, col); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r * (1 + glow * 0.05), 0, Math.PI * 2); g.fill(); if (glow) { g.strokeStyle = '#fff'; g.lineWidth = 3; g.stroke(); } g.globalAlpha = 1; };
+    const disc = (x, y, col, a = 1, glow = 0) => { g.globalAlpha = a; const r = s * 0.42; const gr = g.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,.55)'); gr.addColorStop(0.45, col); gr.addColorStop(1, col); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r * (1 + glow * 0.05), 0, Math.PI * 2); g.fill(); g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = Math.max(1, s * 0.03); g.beginPath(); g.arc(x, y, r * 0.72, 0, Math.PI * 2); g.stroke(); if (glow) { g.strokeStyle = '#fff'; g.lineWidth = 3; g.stroke(); } g.globalAlpha = 1; };
     if (this.ghost) { const [x] = this.pos(this.ghost.col, 0); disc(x, oy - s * 0.6, this.set.discs[this.ghost.p - 1], 0.5); }
     for (const q of this.discs.values()) { const [x] = this.pos(q.c, 0), y = oy + (5 - q.y + 0.5) * s; const w = this.win?.includes(`${q.c},${q.r}`); disc(x, y, this.set.discs[q.p - 1], 1, w ? 1 + Math.sin(this.t * 6) : 0); }
     // the frame with holes drawn over the discs
