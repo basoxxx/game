@@ -29,3 +29,6 @@ Serpentone: no third-party assets. Arenas, snakes, hats, food and the cover (cov
 Minigolf Baso (src/minigolf/): all course geometry, props, textures (canvas) and sounds are procedural - no external assets.
 Bastione: no external assets. Models, maps, icons, effects and sounds are procedural (three.js primitives,
 canvas, inline SVG, Web Audio); the bean figures reuse Orda's procedural geometry.
+Kart Baso (src/kart): no third-party assets. Karts, drivers, items, tracks, props and textures are built
+procedurally in code (three.js primitives and canvas textures); sounds come from the hub's procedural
+audio engine (src/ui/audio.js). Characters, tracks and items are original creations.
