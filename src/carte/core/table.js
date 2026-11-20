@@ -151,7 +151,7 @@ export class CardTable {
       const cols = pile.cols || 4;
       items.forEach((it, i) => P(it, a.x + ((i % cols) - (cols - 1) / 2) * cw * 1.08, a.y + Math.floor(i / cols) * ch * 1.06, rot0, i));
     }
-    const hit = { x: a.x, y: a.y, w: Math.max(cw, ...out.map((o) => Math.abs(o.x - a.x) * 2 + cw)), h: Math.max(ch, ...out.map((o) => Math.abs(o.y - a.y) * 2 + ch)), rot: rot0 };
+    const hit = { x: a.x, y: a.y, w: Math.max(cw, ...out.map((o) => Math.abs(o.x - a.x) * 2 + cw)), h: Math.max(ch, ...out.map((o) => Math.abs(o.y - a.y) * 2 + ch)), rot: rot0, ch };
     return { cards: out, anchor: a, hit, cw, ch };
   }
 
@@ -342,7 +342,7 @@ export class CardTable {
     for (const [id, el] of this.pileEls) {
       const h = el._hit; if (!h) continue;
       const rot = Math.abs(((h.rot || 0) % 180)) === 90, hw = (rot ? h.h : h.w) / 2 + 10, hh = (rot ? h.w : h.h) / 2 + 10;
-      const cxp = h.x + 0, cyp = el._pile?.layout === 'cascade' ? h.y + (h.h - this.M.ch) / 2 : h.y;
+      const cxp = h.x + 0, cyp = el._pile?.layout === 'cascade' ? h.y + (h.h - (h.ch || this.M.ch)) / 2 : h.y;
       if (Math.abs(x - cxp) <= hw && Math.abs(y - cyp) <= hh) { const dd = Math.hypot(x - cxp, y - cyp); if (dd < bd) { bd = dd; best = id; } }
     }
     return best;
