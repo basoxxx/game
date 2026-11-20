@@ -181,37 +181,37 @@ if (!ONLY || ONLY === 'hub') {
 }
 // ---- 5. Centro Storico: walking into a one-way dead end is announced right away (no hint needed)
 if (!ONLY || ONLY === 'dead') {
-  const stars = {}; for (let i = 1; i <= 20; i++) stars[`c${i}`] = 3;
-  let found = null, page = null;
-  for (let lv = 21; lv <= 30 && !found; lv++) {
-    page?.context().close(); stars[`c${lv - 1}`] = 3;
-    page = await newPage(390, 844, { stars, coins: 0 });
+  const { CAMPAIGN } = await import('../src/ingorgo/campaign.js');
+  const C = await import('../src/ingorgo/core.js');
+  // breadth-first from the start of the world's levels to the nearest state with no way out
+  let lv = 0, path = null;
+  for (let n = 21; n <= 30 && !path; n++) {
+    const L = C.decodeLevel(CAMPAIGN[n - 1]), B = C.compile(L), s0 = C.initState(B, L);
+    const seen = new Map([[C.stateKey(s0), null]]); let layer = [[s0, []]];
+    for (let d = 0; d < 40 && layer.length && !path; d++) {
+      const next = [];
+      for (const [s, ms] of layer) { for (const m of C.moves(B, s)) { const t = C.apply(B, s, m), k = C.stateKey(t); if (seen.has(k) || C.isGoal(B, t)) continue; seen.set(k, 1); const p2 = [...ms, m]; if (!C.solve(B, t, 100000)) { path = p2; break; } next.push([t, p2]); } if (path) break; }
+      layer = next;
+    }
+    if (path) lv = n;
+  }
+  ok(!!path, `Centro Storico: level ${lv} has a dead end ${path ? path.length : '?'} moves from the start`);
+  if (path) {
+    const stars = {}; for (let i = 1; i < lv; i++) stars[`c${i}`] = 3;
+    const page = await newPage(390, 844, { stars, coins: 0 });
     await page.goto(BASE + '?game=ingorgo'); await page.waitForSelector('.ig-menu', { timeout: 60000 });
     await page.click('[data-a=ig-next]'); await game(page); await settle(page);
-    // depth-2 search through the game's own hooks for a move sequence that leaves no way out
-    found = await page.evaluate(() => {
-      const g = window.__ingorgo, B = g.B, size = (c) => (c.ax === 0 ? B.w : B.h);
-      const cand = () => { const out = []; B.cars.forEach((c, i) => { for (let p = -1; p <= size(c); p++) out.push([i, p < 0 ? -99 : p]); }); return out; };
-      for (const a of cand()) {
-        if (!g.doMove(a)) continue;
-        if (!g.solveNow()) return [a];
-        for (const b of cand()) { if (!g.doMove(b)) continue; if (!g.solveNow()) return [a, b]; g.undo(); }
-        g.undo();
-      }
-      return null;
-    });
-    if (found) console.log(`  level ${lv}: dead end after ${JSON.stringify(found)}`);
-  }
-  ok(!!found, 'Centro Storico: a dead-end move sequence exists to test with');
-  if (found) {
+    const played = await page.evaluate((path) => path.every((m) => window.__ingorgo.doMove(m)), path);
+    ok(played, `played into the dead end: ${JSON.stringify(path)}`);
     await page.waitForFunction(() => /Vicolo cieco/.test(document.getElementById('ig-msg')?.textContent || ''), null, { timeout: 30000 }).catch(() => {});
     const msg = await page.evaluate(() => document.getElementById('ig-msg')?.textContent || '');
     ok(/Vicolo cieco.*annulla \d/.test(msg), `dead end announced without asking for a hint: «${msg}»`);
     await shot(page, 'deadend-390x844');
-    await page.evaluate(() => { window.__ingorgo.undo(); window.__ingorgo.undo(); });
-    ok(await page.evaluate(() => !!window.__ingorgo.solveNow()), 'undo gets out of the dead end');
+    const back = +(msg.match(/annulla (\d+)/)?.[1] || 1);
+    await page.evaluate((n) => { for (let i = 0; i < n; i++) window.__ingorgo.undo(); }, back);
+    ok(await page.evaluate(() => !!window.__ingorgo.solveNow()), `undoing ${back} move(s) gets out of the dead end`);
+    await page.close();
   }
-  await page?.close();
 }
 await browser.close();
 console.log(errors.length ? `console errors:\n${errors.join('\n')}` : 'no console errors');

@@ -1044,7 +1044,7 @@ export class IngorgoGame {
   solveNow() { const r = solve(this.B, this.s, 300000); return r ? r.moves : null; }
 
   destroy() {
-    cancelAnimationFrame(this.raf); clearTimeout(this._endT); clearTimeout(this._msgT); clearTimeout(this._pendT);
+    cancelAnimationFrame(this.raf); clearTimeout(this._endT); clearTimeout(this._msgT); clearTimeout(this._pendT); clearTimeout(this._deadT); this.deadSeq = (this.deadSeq || 0) + 1;
     window.removeEventListener('keydown', this.onKD, true);
     window.removeEventListener('pointermove', this.onPM); window.removeEventListener('pointerup', this.onPU); window.removeEventListener('pointercancel', this.onPU);
     document.removeEventListener('visibilitychange', this.onVis);
