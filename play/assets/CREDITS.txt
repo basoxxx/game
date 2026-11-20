@@ -1,0 +1,78 @@
+Textures and HDRIs: Poly Haven (https://polyhaven.com) - CC0 1.0 Public Domain.
+asphalt_02, aerial_grass_rock, gravel_floor, snow_02, concrete_floor_worn_001, rocky_trail,
+corrugated_iron_02, metal_plate, concrete_wall_008, aerial_rocks_02 (re-compressed),
+kloofendal_48d_partly_cloudy_puresky, qwantani_late_afternoon_puresky, qwantani_dusk_2_puresky, moonless_golf,
+kloofendal_overcast_puresky (wet races), asphalt_track (racing surface, 1k + 2k, re-compressed).
+Circuit geometry: bacinger/f1-circuits (MIT).
+Vegetation impostors (veg/trees.webp): rendered from Poly Haven CC0 models
+fir_sapling_medium, pine_sapling_small, searsia_lucida, searsia_burchellii, shrub_02,
+quiver_tree_02, othonna_cerarioides (https://polyhaven.com/models) - CC0 1.0 Public Domain.
+
+Facade textures (tex/facade001_*, tex/facade006_*): ambientCG Facade001, Facade006
+(https://ambientcg.com) - CC0 1.0 Public Domain (re-compressed).
+
+Rally textures (rally/*.webp, re-compressed 1k webp): Poly Haven (https://polyhaven.com) - CC0 1.0 Public Domain.
+pebble_ground_01, brown_mud_rocks_01, dry_ground_rocks, asphalt_snow, snow_03, forest_ground_04.
+Scontro Totale (derby/): Poly Haven (https://polyhaven.com) - CC0 1.0 Public Domain, re-compressed to webp.
+dirt (derby/dirt_diff.webp), muddy_tracks (derby/mud_diff.webp), models Barrel_01 (derby/barrel.*)
+and old_tyre (derby/tyre.*), HDRI overcast_soil_puresky (derby/overcast_soil_puresky_1k.hdr).
+v7 paddock models (512 px webp textures): covered_car (derby/wreck.*), propane_tank (derby/propane.*),
+metal_jerrycan_green (derby/jerrycan.*).
+
+Voragine facades (voragine/f_*.webp, 1k webp; *_e = night window emission, partly generated from the colour maps):
+ambientCG (https://ambientcg.com) - CC0 1.0 Public Domain: Facade001, Facade003, Facade006, Facade017, Facade018A.
+Road grain reuses tex/asphalt_02 (Poly Haven, CC0).
+
+Territorio (src/territorio): no external assets. Board, vehicles, obstacles and effects are procedural
+(three.js primitives and shaders); the cover public/covers/territorio.webp is rendered from the game.
+Serpentone: no third-party assets. Arenas, snakes, hats, food and the cover (covers/serpentone.webp) are procedural, rendered by the game itself.
+Minigolf Baso (src/minigolf/): all course geometry, props, textures (canvas) and sounds are procedural - no external assets.
+Bastione: no external assets. Models, maps, icons, effects and sounds are procedural (three.js primitives,
+canvas, inline SVG, Web Audio); the bean figures reuse Orda's procedural geometry.
+Kart Baso (src/kart): no third-party assets. Karts, drivers, items, tracks, props and textures are built
+procedurally in code (three.js primitives and canvas textures); sounds come from the hub's procedural
+audio engine (src/ui/audio.js). Characters, tracks and items are original creations.
+Ingorgo (src/ingorgo): no external assets. Vehicles, city, textures (windows, water, chequers) and
+all sounds (horns, engines) are generated in code; levels come from the seeded generator + solver.
+
+Officina: no external assets. Garage, track, parts, crates and the kart are procedural (three.js); the race
+cars are Apex Dynasty's own procedural models (src/ui/cars). Cover rendered from the game (tools/officina-cover.mjs).
+
+Festa Baso (src/festa): no external assets. The board, minigame arenas, effects and the cover
+(covers/festa.webp, rendered by tools/festa-cover.mjs) are procedural; it reuses the Baso Hub's own procedural
+art (Orda figures, Serpentone hats and heads, Kart Baso karts, Scontro Totale bangers, Bastione buildings).
+
+Arcade Baso (src/arcade): no external assets. Ships, bosses, bricks, the runner, Gnam and the wasps, mazes,
+levels, card art (inline SVG) and the cover (covers/arcade.webp, rendered by tools/arcade-cover.mjs) are
+procedural and original; sounds come from the hub's procedural audio engine (src/ui/audio.js).
+
+Rompicapo (src/rompicapo): no external assets. Boards, tiles (original Mahjong faces: suns, drops, leaves,
+winds, gems, flowers, seasons), bricks, effects and sounds are drawn and synthesised in code; the cover
+(covers/rompicapo.webp) is rendered from the games by tools/rompicapo-cover.mjs.
+
+Carte Baso (src/carte): no external assets. Card faces (Napoletane, Piacentine, French + jokers), backs, felts and
+the cover (covers/carte.webp, tools/carte-cover.mjs) are original procedural SVG/CSS; sounds are synthesised (Web Audio).
+Texas Hold'em and Blackjack (src/carte/games/poker*, blackjack*): no external assets; chips, dealer button and felt
+prints are CSS. Play money only: the chips are fictional.
+
+Quiz e Parole (src/quiz): questions, explanations, hangman words and hints are original. Word lists for Parolina and
+Anagrammi are derived from "paroleitaliane" by Francesco Napoletano (https://github.com/napolux/paroleitaliane,
+MIT licence: 280000_parole_italiane.txt, 60000_parole_italiane.txt, lista_badwords.txt used as a filter,
+9000_nomi_propri.txt used as a filter), ranked by frequency with "FrequencyWords" by Hermit Dave
+(https://github.com/hermitdave/FrequencyWords; used only to sort the words by frequency, none of its data is
+redistributed), then curated
+by hand (src/quiz/words-src). Art, balloon illustration, sounds and the cover (tools/quiz-cover.mjs) are procedural.
+Tavolo Baso (src/tavolo): no external assets. Boards, pieces (turned lathe profiles), ships, textures (wood grain,
+marble veins, sea) and the cover (covers/tavolo.webp, rendered by tools/tavolo-cover.mjs) are procedural; the
+chess engine, draughts/four-in-a-row/battleship AIs and the mate-in-two positions (tools/tavolo-puzzles.mjs) are
+original code and generated content. The opening book lists common mainstream opening moves.
+
+Solitari (src/carte/games/solitari*): no external assets or data. Rules, solvers, deal numbering and the layout are
+original code; the classic FreeCell numbering uses the publicly documented Microsoft deal algorithm (an LCG), not
+copied data. Cards and sounds come from Carte Baso's procedural art.
+
+Carte Baso (src/carte): no external assets. Card faces (Napoletane, Piacentine, French + jokers), backs, felts and
+the cover (covers/carte.webp, tools/carte-cover.mjs) are original procedural SVG/CSS; sounds are synthesised (Web Audio).
+
+Scala 40 and Burraco (src/carte/games/scala40*, burraco*): no external assets; they use the Carte Baso French faces
+and jokers. Rules written from common Italian play (two decks + 4 jokers; Burraco pinelle, pozzetti, 2005 points).
