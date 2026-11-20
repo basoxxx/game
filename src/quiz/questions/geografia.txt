@@ -1,0 +1,152 @@
+# Geografia
+1|Qual è la capitale d'Italia?|Roma|Milano|Napoli|Firenze|Roma è capitale del Regno d'Italia dal 1871.
+1|Qual è la capitale della Francia?|Parigi|Lione|Marsiglia|Nizza|Parigi è attraversata dalla Senna.
+1|Qual è la capitale della Spagna?|Madrid|Barcellona|Siviglia|Valencia|Madrid si trova al centro della penisola iberica.
+1|Qual è la capitale della Germania?|Berlino|Monaco di Baviera|Francoforte|Amburgo|Berlino è capitale della Germania riunificata dal 1990.
+1|Qual è la capitale del Regno Unito?|Londra|Manchester|Edimburgo|Liverpool|Londra sorge sul Tamigi.
+1|Qual è il fiume più lungo d'Italia?|Po|Tevere|Adige|Arno|Il Po è lungo circa 652 km.
+1|Qual è il lago più grande d'Italia?|Lago di Garda|Lago Maggiore|Lago di Como|Lago Trasimeno|Il Garda si divide tra Lombardia, Veneto e Trentino.
+1|Qual è la montagna più alta d'Europa occidentale?|Monte Bianco|Monte Rosa|Cervino|Gran Paradiso|Il Monte Bianco supera i 4.800 metri.
+1|Quale vulcano domina il golfo di Napoli?|Vesuvio|Etna|Stromboli|Vulcano|Il Vesuvio seppellì Pompei ed Ercolano nel 79 d.C.
+1|Qual è il vulcano attivo più alto d'Europa?|Etna|Vesuvio|Stromboli|Teide|L'Etna, in Sicilia, supera i 3.300 metri.
+1|Quante sono le regioni italiane?|20|18|21|22|Di queste, cinque sono a statuto speciale.
+1|Qual è la regione italiana più grande?|Sicilia|Piemonte|Sardegna|Lombardia|La Sicilia supera i 25.000 km².
+1|Qual è la regione italiana più piccola?|Valle d'Aosta|Molise|Liguria|Umbria|La Valle d'Aosta è anche la meno popolosa.
+1|Qual è il capoluogo della Lombardia?|Milano|Bergamo|Brescia|Como|Milano è la seconda città italiana per abitanti.
+1|Qual è il capoluogo della Campania?|Napoli|Salerno|Caserta|Avellino|Napoli è la terza città italiana per popolazione.
+1|Qual è il capoluogo della Sicilia?|Palermo|Catania|Messina|Siracusa|Palermo si affaccia sul mar Tirreno.
+1|Qual è il capoluogo della Sardegna?|Cagliari|Sassari|Olbia|Nuoro|Cagliari sorge nel sud dell'isola.
+1|Qual è il capoluogo del Piemonte?|Torino|Novara|Asti|Cuneo|Torino fu la prima capitale del Regno d'Italia.
+1|Qual è il capoluogo della Toscana?|Firenze|Pisa|Siena|Livorno|Firenze è attraversata dall'Arno.
+1|Qual è il capoluogo del Veneto?|Venezia|Verona|Padova|Vicenza|Venezia è costruita su oltre cento isole della laguna.
+1|Quale mare bagna Venezia?|Mar Adriatico|Mar Tirreno|Mar Ionio|Mar Ligure|Venezia sorge in una laguna dell'alto Adriatico.
+1|In quale continente si trova l'Egitto?|Africa|Asia|Europa|Oceania|Il Sinai, però, è considerato parte dell'Asia.
+1|Qual è l'oceano più grande del mondo?|Pacifico|Atlantico|Indiano|Artico|Il Pacifico copre circa un terzo della superficie terrestre.
+1|Qual è il continente più grande?|Asia|Africa|America|Europa|L'Asia è anche il continente più popoloso.
+1|Qual è la capitale del Giappone?|Tokyo|Kyoto|Osaka|Hiroshima|Tokyo è una delle aree metropolitane più popolose del mondo.
+1|Qual è la capitale della Russia?|Mosca|San Pietroburgo|Kiev|Minsk|Il Cremlino si trova a Mosca.
+1|Qual è la capitale degli Stati Uniti?|Washington|New York|Los Angeles|Chicago|Washington D.C. ospita la Casa Bianca.
+1|In quale Paese si trovano le piramidi di Giza?|Egitto|Messico|Sudan|Marocco|Le piramidi sorgono vicino al Cairo.
+1|Quale Stato è racchiuso interamente nella città di Roma?|Città del Vaticano|San Marino|Monaco|Andorra|Il Vaticano è lo Stato più piccolo del mondo.
+1|Quale piccolo Stato è circondato dall'Italia tra Emilia-Romagna e Marche?|San Marino|Liechtenstein|Andorra|Malta|San Marino è una delle repubbliche più antiche del mondo.
+1|Qual è il deserto caldo più grande del mondo?|Sahara|Gobi|Kalahari|Atacama|Il Sahara copre gran parte del Nordafrica.
+1|Qual è la capitale del Portogallo?|Lisbona|Porto|Coimbra|Faro|Lisbona sorge alla foce del Tago.
+1|Qual è la capitale della Grecia?|Atene|Salonicco|Sparta|Corinto|Sull'Acropoli di Atene sorge il Partenone.
+1|Quale isola italiana è la seconda per grandezza?|Sardegna|Sicilia|Elba|Capri|La Sardegna è seconda solo alla Sicilia.
+1|Su quale isola si trova la città di Catania?|Sicilia|Sardegna|Ischia|Elba|Catania sorge ai piedi dell'Etna.
+1|Quale catena montuosa attraversa l'Italia da nord a sud?|Appennini|Alpi|Pirenei|Carpazi|Gli Appennini percorrono la penisola per circa 1.200 km.
+1|In quale città si trova la Torre pendente?|Pisa|Bologna|Firenze|Lucca|La torre campanaria è nella Piazza dei Miracoli.
+1|Qual è la capitale dell'Austria?|Vienna|Salisburgo|Innsbruck|Graz|Vienna si trova sul Danubio.
+1|Qual è la capitale della Svizzera?|Berna|Zurigo|Ginevra|Losanna|Berna è la «città federale» della Svizzera.
+1|In quale Paese si parla il portoghese come lingua ufficiale in Sud America?|Brasile|Argentina|Cile|Perù|Il Brasile fu una colonia portoghese.
+1|Qual è la capitale dell'Argentina?|Buenos Aires|Córdoba|Rosario|Montevideo|Montevideo è la capitale dell'Uruguay.
+1|Qual è il fiume che attraversa Roma?|Tevere|Arno|Po|Aniene|L'Aniene è un affluente del Tevere.
+1|Qual è il fiume che attraversa Firenze?|Arno|Tevere|Serchio|Ombrone|L'Arno sfocia nel mar Ligure vicino a Pisa.
+1|Qual è la capitale della Cina?|Pechino|Shanghai|Hong Kong|Canton|Pechino ospita la Città Proibita.
+1|In quale Paese si trova la Grande Muraglia?|Cina|Mongolia|Giappone|Corea|La Muraglia si snoda per migliaia di chilometri.
+2|Qual è il fiume più lungo del mondo secondo la maggior parte delle misurazioni?|Nilo|Rio delle Amazzoni|Yangtze|Mississippi|Il primato è conteso con il Rio delle Amazzoni, a seconda di come si misura.
+2|Qual è il fiume con la maggiore portata d'acqua al mondo?|Rio delle Amazzoni|Nilo|Congo|Gange|Il Rio delle Amazzoni porta al mare più acqua di qualsiasi altro fiume.
+2|Qual è la montagna più alta del mondo?|Everest|K2|Kilimangiaro|Monte Bianco|L'Everest supera gli 8.800 metri.
+2|Qual è la seconda montagna più alta del mondo?|K2|Kangchenjunga|Lhotse|Makalu|Il K2 fu scalato per la prima volta da una spedizione italiana nel 1954.
+2|Qual è la capitale del Canada?|Ottawa|Toronto|Montréal|Vancouver|Ottawa si trova nell'Ontario.
+2|Qual è la capitale dell'Australia?|Canberra|Sydney|Melbourne|Perth|Canberra fu scelta come compromesso tra Sydney e Melbourne.
+2|Qual è la capitale della Turchia?|Ankara|Istanbul|Smirne|Antalya|Istanbul è la città più grande, ma la capitale è Ankara.
+2|Qual è la capitale del Brasile?|Brasília|Rio de Janeiro|San Paolo|Salvador|Brasília fu inaugurata nel 1960.
+2|Qual è la capitale del Marocco?|Rabat|Casablanca|Marrakech|Fès|Casablanca è la città più popolosa.
+2|Qual è la capitale della Norvegia?|Oslo|Bergen|Stoccolma|Helsinki|Stoccolma è la capitale della Svezia.
+2|Qual è la capitale della Polonia?|Varsavia|Cracovia|Danzica|Breslavia|Varsavia sorge sulla Vistola.
+2|Qual è la capitale dell'Ungheria?|Budapest|Praga|Bucarest|Belgrado|Budapest nasce dall'unione di Buda e Pest sul Danubio.
+2|Qual è la capitale della Romania?|Bucarest|Budapest|Sofia|Chișinău|Sofia è la capitale della Bulgaria.
+2|Qual è la capitale dell'Irlanda?|Dublino|Belfast|Cork|Galway|Belfast è nell'Irlanda del Nord, parte del Regno Unito.
+2|Qual è la capitale della Croazia?|Zagabria|Spalato|Fiume|Lubiana|Lubiana è la capitale della Slovenia.
+2|Qual è la capitale dell'Egitto?|Il Cairo|Alessandria|Luxor|Giza|Il Cairo sorge sul Nilo.
+2|Qual è la capitale dell'India?|Nuova Delhi|Mumbai|Calcutta|Bangalore|Mumbai è la città più popolosa.
+2|Quale stretto separa la Sicilia dalla Calabria?|Stretto di Messina|Stretto di Bonifacio|Canale di Sicilia|Stretto di Otranto|Lo stretto è largo circa 3 km nel punto più stretto.
+2|Quale stretto separa la Sardegna dalla Corsica?|Bocche di Bonifacio|Stretto di Messina|Canale di Piombino|Stretto di Gibilterra|Le Bocche di Bonifacio sono larghe circa 11 km.
+2|Quale stretto collega il Mediterraneo all'oceano Atlantico?|Stretto di Gibilterra|Bosforo|Dardanelli|Canale di Suez|Lo stretto separa Spagna e Marocco.
+2|Quale stretto attraversa Istanbul?|Bosforo|Dardanelli|Gibilterra|Hormuz|Il Bosforo divide la città tra Europa e Asia.
+2|Quale canale collega il Mediterraneo al Mar Rosso?|Canale di Suez|Canale di Panama|Canale di Corinto|Canale di Kiel|Fu inaugurato nel 1869.
+2|Quale canale collega l'Atlantico al Pacifico?|Canale di Panama|Canale di Suez|Stretto di Magellano|Canale di Beagle|Il canale fu aperto nel 1914.
+2|In quale regione italiana si trovano le Dolomiti?|Trentino-Alto Adige, Veneto e Friuli|Piemonte e Valle d'Aosta|Lombardia|Abruzzo|Le Dolomiti sono patrimonio UNESCO dal 2009.
+2|Qual è la vetta più alta degli Appennini?|Corno Grande|Monte Vettore|Monte Cimone|Monte Amiata|Il Corno Grande, nel Gran Sasso, raggiunge 2.912 metri.
+2|Su quale lago si trovano Bellagio e Varenna?|Lago di Como|Lago Maggiore|Lago d'Iseo|Lago di Garda|Bellagio sorge sulla punta tra i due rami del lago.
+2|Su quale lago si trovano le isole Borromee?|Lago Maggiore|Lago di Como|Lago di Garda|Lago d'Orta|L'Isola Bella e l'Isola Madre sono le più celebri.
+2|Qual è il lago più grande dell'Italia centrale?|Trasimeno|Bolsena|Bracciano|Vico|Il Trasimeno si trova in Umbria.
+2|Quali isole italiane sono dette anche «Eolie»?|Lipari, Stromboli, Vulcano, Salina e altre|Elba, Giglio e Capraia|Ischia, Capri e Procida|Lampedusa e Linosa|Le Eolie sono sette isole vulcaniche a nord della Sicilia.
+2|A quale arcipelago appartiene l'isola d'Elba?|Arcipelago Toscano|Eolie|Egadi|Pontine|L'Elba ospitò Napoleone in esilio nel 1814-15.
+2|A quale regione appartiene l'isola di Lampedusa?|Sicilia|Sardegna|Calabria|Malta|Lampedusa fa parte delle isole Pelagie.
+2|Quale regione italiana ha due province autonome, Trento e Bolzano?|Trentino-Alto Adige|Friuli-Venezia Giulia|Valle d'Aosta|Veneto|Le due province hanno ampia autonomia.
+2|Quale città è il capoluogo della Puglia?|Bari|Lecce|Taranto|Foggia|Bari si affaccia sull'Adriatico.
+2|Qual è il capoluogo della Calabria?|Catanzaro|Reggio Calabria|Cosenza|Crotone|Reggio Calabria è la città più popolosa, ma il capoluogo è Catanzaro.
+2|Qual è il capoluogo dell'Abruzzo?|L'Aquila|Pescara|Chieti|Teramo|Pescara è la città più popolosa della regione.
+2|Qual è il capoluogo del Molise?|Campobasso|Isernia|Termoli|Larino|Il Molise è diventato regione autonoma nel 1963.
+2|Qual è il capoluogo della Basilicata?|Potenza|Matera|Melfi|Policoro|Matera è famosa per i Sassi.
+2|Qual è il capoluogo delle Marche?|Ancona|Pesaro|Macerata|Ascoli Piceno|Ancona è un importante porto sull'Adriatico.
+2|Qual è il capoluogo dell'Umbria?|Perugia|Terni|Assisi|Spoleto|L'Umbria è l'unica regione peninsulare senza sbocco sul mare.
+2|Qual è il capoluogo del Friuli-Venezia Giulia?|Trieste|Udine|Pordenone|Gorizia|Trieste si affaccia sul golfo omonimo.
+2|Qual è il capoluogo della Liguria?|Genova|La Spezia|Savona|Imperia|Genova ha uno dei porti più importanti del Mediterraneo.
+2|Qual è il capoluogo dell'Emilia-Romagna?|Bologna|Modena|Parma|Ravenna|Bologna ha l'università più antica del mondo occidentale.
+2|Quale regione è l'unica dell'Italia peninsulare senza sbocco al mare?|Umbria|Basilicata|Molise|Toscana|Anche Piemonte, Lombardia, Valle d'Aosta e Trentino non hanno mare, ma non sono peninsulari.
+2|Quale città italiana è famosa per i Sassi, patrimonio UNESCO?|Matera|Alberobello|Lecce|Gravina|Matera fu Capitale europea della cultura nel 2019.
+2|Per quali costruzioni è famosa Alberobello?|I trulli|I nuraghi|I sassi|Le torri|I trulli sono case in pietra con tetto a cono.
+2|In quale regione si trovano i nuraghi?|Sardegna|Sicilia|Puglia|Calabria|I nuraghi sono torri di pietra dell'età del bronzo.
+2|Quale fiume attraversa Torino?|Po|Dora Baltea|Tanaro|Ticino|A Torino il Po riceve anche la Dora Riparia.
+2|Quale fiume attraversa Verona?|Adige|Brenta|Piave|Mincio|L'Adige è il secondo fiume italiano per lunghezza.
+2|Qual è il secondo fiume più lungo d'Italia?|Adige|Tevere|Arno|Ticino|L'Adige è lungo circa 410 km.
+2|Quale Paese ha più abitanti al mondo dal 2023?|India|Cina|Stati Uniti|Indonesia|Nel 2023 l'India ha superato la Cina secondo le stime dell'ONU.
+2|Qual è il Paese più grande del mondo per superficie?|Russia|Canada|Cina|Stati Uniti|La Russia supera i 17 milioni di km².
+2|Quale Paese è formato da oltre 17.000 isole?|Indonesia|Filippine|Giappone|Grecia|L'Indonesia è il più grande arcipelago del mondo.
+2|In quale continente si trova il Kilimangiaro?|Africa|Asia|Sud America|Oceania|Il Kilimangiaro si trova in Tanzania.
+2|In quale catena montuosa si trova l'Aconcagua?|Ande|Montagne Rocciose|Himalaya|Alpi|L'Aconcagua è la vetta più alta delle Americhe.
+2|Quale deserto è considerato il più arido del mondo, escluse le zone polari?|Atacama|Sahara|Gobi|Namib|L'Atacama si trova in Cile.
+2|Quale mare non ha sbocchi ed è il più salato tra quelli citati?|Mar Morto|Mar Nero|Mar Caspio|Mar Baltico|Il Mar Morto è a oltre 400 metri sotto il livello del mare.
+2|Qual è il lago più grande del mondo per superficie?|Mar Caspio|Lago Superiore|Lago Vittoria|Lago Bajkal|Il Caspio è un lago salato chiamato mare.
+2|Qual è il lago più profondo del mondo?|Lago Bajkal|Lago Tanganica|Mar Caspio|Lago Superiore|Il Bajkal, in Siberia, supera i 1.600 metri di profondità.
+2|Su quale fiume sorge Parigi?|Senna|Loira|Rodano|Garonna|La Loira è il fiume più lungo della Francia.
+2|Quali città attraversa il Danubio?|Vienna, Bratislava, Budapest e Belgrado|Praga e Varsavia|Berlino e Amburgo|Zurigo e Basilea|Il Danubio attraversa dieci Paesi.
+2|In quale Paese si trova Machu Picchu?|Perù|Bolivia|Ecuador|Messico|La cittadella inca si trova sulle Ande peruviane.
+2|In quale Paese si trova la città di Petra?|Giordania|Egitto|Siria|Israele|Petra è scavata nella roccia rosa.
+2|Quale isola è la più grande del mondo, escludendo l'Australia?|Groenlandia|Nuova Guinea|Borneo|Madagascar|La Groenlandia appartiene al Regno di Danimarca.
+3|Quanti abitanti ha circa l'Italia?|59 milioni|45 milioni|72 milioni|65 milioni|La popolazione italiana è di circa 59 milioni di persone.
+3|Qual è il punto più meridionale dell'Italia?|Punta Pesce Spada a Lampedusa|Capo Passero|Capo Spartivento|Pantelleria|Lampedusa è più a sud di Tunisi.
+3|Qual è la vetta più alta interamente in territorio italiano?|Gran Paradiso|Monte Bianco|Monte Rosa|Cervino|Il Gran Paradiso (4.061 m) è tutto in Italia; Bianco e Rosa sono di confine.
+3|Quale fiume nasce in Svizzera, attraversa il lago Maggiore e sfocia nel Po?|Ticino|Adda|Toce|Mincio|Il Ticino attraversa il lago Maggiore e sfocia nel Po vicino a Pavia.
+3|Quale fiume esce dal lago di Garda?|Mincio|Oglio|Adda|Sarca|Il Mincio esce dal Garda a Peschiera e passa per Mantova.
+3|Quale fiume esce dal lago di Como a Lecco?|Adda|Ticino|Oglio|Serio|L'Adda attraversa il lago di Como e sfocia nel Po.
+3|In quale regione si trova il lago d'Orta?|Piemonte|Lombardia|Valle d'Aosta|Trentino|Sul lago d'Orta si trova l'isola di San Giulio.
+3|Quale passo alpino collega la Valtellina all'Alto Adige ed è tra i più alti d'Italia?|Passo dello Stelvio|Passo del Brennero|Passo del Sempione|Passo del Tonale|Lo Stelvio supera i 2.750 metri.
+3|Quale passo collega l'Italia all'Austria lungo l'autostrada del Brennero?|Brennero|Resia|Monte Croce Carnico|Tarvisio|Il Brennero è uno dei valichi più trafficati delle Alpi.
+3|Quale traforo collega Courmayeur a Chamonix?|Traforo del Monte Bianco|Traforo del Fréjus|Traforo del Gran San Bernardo|Galleria del Gottardo|Il traforo del Monte Bianco fu aperto nel 1965.
+3|Quale galleria ferroviaria è la più lunga del mondo, sotto le Alpi svizzere?|Galleria di base del San Gottardo|Tunnel della Manica|Galleria del Sempione|Galleria del Fréjus|Supera i 57 km ed è stata aperta nel 2016.
+3|Qual è il capoluogo della Valle d'Aosta?|Aosta|Courmayeur|Saint-Vincent|Cervinia|Aosta fu fondata dai Romani come Augusta Praetoria.
+3|Quale città si chiamava in epoca romana «Augusta Taurinorum»?|Torino|Aosta|Trento|Bologna|Il nome richiama la tribù dei Taurini.
+3|Quale città romana si chiamava «Mediolanum»?|Milano|Modena|Mantova|Monza|Mediolanum fu anche capitale dell'Impero d'Occidente.
+3|Quale città italiana fu chiamata «Parthenope» dai Greci?|Napoli|Palermo|Taranto|Siracusa|Il nome deriva da una sirena della mitologia.
+3|In quale provincia si trovano le Cinque Terre?|La Spezia|Genova|Savona|Massa-Carrara|Monterosso, Vernazza, Corniglia, Manarola e Riomaggiore.
+3|Quanti sono i borghi delle Cinque Terre?|5|3|7|4|Sono patrimonio UNESCO dal 1997 insieme a Portovenere.
+3|Quale isola si trova davanti a Napoli, famosa per i Faraglioni?|Capri|Ischia|Procida|Ventotene|I Faraglioni sono tre speroni di roccia.
+3|Quale isola minore italiana è la più grande?|Elba|Ischia|Sant'Antioco|Pantelleria|L'Elba misura circa 224 km².
+3|Quale regione italiana ha più province?|Lombardia|Piemonte|Sicilia|Veneto|La Lombardia ha 12 tra province e città metropolitana.
+3|Quale Paese contende all'Italia il primato mondiale di siti UNESCO?|Cina|Spagna|Francia|Grecia|Italia e Cina si contendono il primato mondiale dei siti UNESCO.
+3|Qual è la capitale del Kazakistan?|Astana|Almaty|Taškent|Biškek|Almaty è la città più grande; la capitale è Astana.
+3|Qual è la capitale della Nigeria?|Abuja|Lagos|Kano|Ibadan|Abuja è capitale dal 1991.
+3|Qual è la capitale della Nuova Zelanda?|Wellington|Auckland|Christchurch|Queenstown|Auckland è la città più popolosa.
+3|Qual è la capitale del Vietnam?|Hanoi|Ho Chi Minh|Da Nang|Huế|Ho Chi Minh, l'antica Saigon, è la città più grande.
+3|Qual è la capitale della Mongolia?|Ulan Bator|Astana|Lhasa|Ürümqi|È la capitale più fredda del mondo per temperatura media.
+3|Qual è la capitale della Bolivia sede del governo?|La Paz|Sucre|Santa Cruz|Cochabamba|Sucre è la capitale costituzionale.
+3|Quale capitale si trova alla maggiore altitudine tra queste?|La Paz|Quito|Bogotá|Città del Messico|La Paz si trova a circa 3.600 metri.
+3|Qual è la capitale della Slovacchia?|Bratislava|Košice|Lubiana|Brno|Bratislava confina con Austria e Ungheria.
+3|Qual è la capitale della Finlandia?|Helsinki|Tampere|Turku|Oslo|Helsinki si affaccia sul golfo di Finlandia.
+3|Qual è la capitale dell'Islanda?|Reykjavík|Akureyri|Nuuk|Tórshavn|Reykjavík è la capitale più a nord del mondo.
+3|Quale Stato africano ha tre capitali?|Sudafrica|Nigeria|Kenya|Etiopia|Pretoria, Città del Capo e Bloemfontein.
+3|Quale Paese si chiamava un tempo Ceylon?|Sri Lanka|Myanmar|Thailandia|Bangladesh|Il nome Sri Lanka è stato adottato nel 1972.
+3|Quale Paese si chiamava un tempo Persia?|Iran|Iraq|Afghanistan|Turchia|Il nome Iran è ufficiale dal 1935.
+3|Quale Paese si chiamava un tempo Siam?|Thailandia|Cambogia|Laos|Myanmar|Il nome Thailandia fu adottato nel 1939.
+3|Quale fiume attraversa Baghdad?|Tigri|Eufrate|Giordano|Nilo|Tigri ed Eufrate delimitano la Mesopotamia.
+3|In quale oceano si trova il Madagascar?|Oceano Indiano|Oceano Atlantico|Oceano Pacifico|Mar Rosso|Il Madagascar è la quarta isola più grande del mondo.
+3|Quale linea immaginaria divide la Terra in emisfero nord e sud?|Equatore|Meridiano di Greenwich|Tropico del Cancro|Circolo polare|L'equatore è lungo circa 40.000 km.
+3|Da quale città passa il meridiano fondamentale?|Greenwich, Londra|Parigi|Roma|Madrid|È il meridiano zero dal 1884.
+3|Quale arcipelago appartiene all'Ecuador ed è famoso per Darwin?|Galápagos|Azzorre|Canarie|Falkland|Le Galápagos ispirarono la teoria dell'evoluzione.
+3|In quale Paese si trova il Salto Ángel, la cascata più alta del mondo?|Venezuela|Brasile|Argentina|Colombia|Il salto supera i 970 metri.
+3|Quale città è attraversata dal Canal Grande?|Venezia|Amsterdam|Chioggia|Comacchio|Il Canal Grande è lungo circa 3,8 km.
+3|Quale ponte attraversa il Canal Grande vicino a Rialto?|Ponte di Rialto|Ponte dei Sospiri|Ponte degli Scalzi|Ponte dell'Accademia|Il ponte in pietra fu completato nel 1591.
