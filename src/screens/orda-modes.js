@@ -13,7 +13,7 @@ import { starsFor as coreStars } from '../orda/meta.js';
 import { useCore, GOOD, gateText } from '../orda/gen.js';
 import {
   dailySpec, dailyReady, dayKey, parseDay, streakBonus, shareText, DAILY_LOADOUT,
-  newRun, endlessWave, prepareWave, rollPerks, perkById, PERKS, perkUps, runScore, waveDifficulty,
+  newRun, endlessWave, prepareWave, rollPerks, perkById, PERKS, perkUps, splitUps, endlessLine, runScore, waveDifficulty,
   omLoad, omSave, normResult, recordMatch, recordDaily, recordEndless,
 } from '../orda/modes.js';
 import { dailyStatus, claimable, diffName, missionsPanel, claimMission } from '../orda/modes-entries.js';
@@ -41,7 +41,7 @@ export function levelSketch(L, { w = 150, h = 240 } = {}) {
   const f = (v) => v.toFixed(1);
   const gates = L.gates.map((g) => {
     const x0 = sx(g.x - g.w / 2), gw = sw(g.w), y = sy(g.y), a = g.move ? Math.min(7, sw(g.move.amp)) : 0;
-    return `<g class="${GOOD[g.type] ? 'g-good' : 'g-bad'}${g.toggle ? ' g-tog' : ''}"><rect x="${f(x0)}" y="${f(y - 6)}" width="${f(gw)}" height="11" rx="3"/><text x="${f(x0 + gw / 2)}" y="${f(y + 2.6)}">${esc(gateText(g))}</text>${a ? `<path class="g-mv" d="M${f(x0 - 2)} ${f(y)}h-${f(a)}M${f(x0 + gw + 2)} ${f(y)}h${f(a)}"/>` : ''}</g>`;
+    return `<g class="${GOOD[g.type] ? 'g-good' : 'g-bad'}${g.toggle ? ' g-tog' : ''}"><rect x="${f(x0)}" y="${f(y - 6)}" width="${f(gw)}" height="11" rx="3"/><text x="${f(x0 + gw / 2)}" y="${f(y + 2.6)}">${esc(gateText(g)).replace('÷', '<tspan class="dv">÷</tspan>')}</text>${a ? `<path class="g-mv" d="M${f(x0 - 2)} ${f(y)}h-${f(a)}M${f(x0 + gw + 2)} ${f(y)}h${f(a)}"/>` : ''}</g>`;
   }).join('');
   const obs = (L.obstacles || []).map((o) => {
     const y = sy(o.y);
@@ -181,29 +181,39 @@ async function startMatch() {
   root.innerHTML = '';
   const prof = wallet.profile();
   // the daily is played with the same cannon by everybody; Infinita with your own + the run's perks
-  const lo = P.kind === 'daily' ? DAILY_LOADOUT : { up: perkUps(P.run.perks, prof.up), champ: prof.champ, champLvl: prof.champLvl };
+  // (perk levels past an upgrade's cap still count: splitUps hands them to the core as upBonus)
+  const lo = P.kind === 'daily' ? DAILY_LOADOUT : { ...splitUps(perkUps(P.run.perks, prof.up)), champ: prof.champ, champLvl: prof.champLvl };
   V.crowd = 0;
   let frames = 0;
   const g = V.game = new OrdaGame(root, {
-    level, mode: P.kind === 'daily' ? 'daily' : 'endless', label: P.kind === 'daily' ? `Sfida #${dailyStatus().info.num}` : `Ondata ${P.run.wave}`,
+    level, mode: P.kind === 'daily' ? 'daily' : 'endless', label: P.kind === 'daily' ? `Sfida #${dailyStatus().info.num}` : 'Infinita', // the level is already named «Ondata n»
     seed: (level.gen?.seed ?? 1) + (P.kind === 'endless' ? P.run.wave : 0), players: 1,
-    upgrades: lo.up, champion: lo.champ, champLvl: lo.champLvl,
+    upgrades: lo.up, upBonus: lo.upBonus, champion: lo.champ, champLvl: lo.champLvl,
     skin: prof.skin, cannon: prof.cannon, tier: gfxTier(), volume: getSettings().sound === false ? 0 : 0.6 * (getSettings().volume ?? 0.5) / 0.5, autofire: prof.autofire, shake: prof.shake, numbers: prof.numbers,
     onPause: (on) => setOver(on ? pauseHtml() : ''),
     onEnd: (r) => { if (V.game === g) onEnd(r, level); },
     // biggest crowd on the field (missions "Moltiplica la tua orda…")
-    hooks: { onFrame: (G) => { if (++frames % 8) return; const u = G.sim?.blueUnits?.() || 0; if (u > V.crowd) V.crowd = u; } },
+    hooks: { onFrame: (G) => { if (++frames % 8) return; const u = G.sim?.blueUnits?.() || 0; if (u > V.crowd) V.crowd = u; if (P.kind === 'endless') saveLine(P.run, G.sim); } },
   });
   window.__ordaModes = { game: g, level, play: P };
   try {
     await g.start?.();
   } catch (e) { console.error(e); root.innerHTML = `<div class="om-loading">Impossibile avviare la partita: ${esc(e.message || String(e))}<br><button class="btn mt16" data-a="om-quit">Indietro</button></div>`; }
 }
+// Infinita: the cannon's damage is saved as it happens, so quitting (or closing the tab) mid-wave
+// can't bring back a fresh cannon: the run resumes at the start of the wave with the damage taken
+function saveLine(run, S) {
+  if (!S || S.state !== 'play' || !S.cannon) return;
+  const line = endlessLine(run, Math.max(0, S.cannon.hp), S.cannon.max);
+  if (!(line < run.line) || line <= 0) return; // a cannon about to fall is settled by onEnd
+  run.line = line;
+  const s = omLoad(); if (s.run && s.run.seed === run.seed && s.run.wave === run.wave) { s.run.line = line; omSave(s); }
+}
 function pauseHtml() {
-  const off = V.play?.kind === 'daily' && V.play.official;
+  const off = V.play?.kind === 'daily' && V.play.official, noRetry = off || V.play?.kind === 'endless'; // no free retries
   return `<div class="om-dlg" role="dialog" aria-label="Pausa"><h2>Pausa</h2><p class="om-k">${hudTag()}</p>
-    <div class="om-btns col"><button class="btn primary" data-a="om-resume">${icon('play')} Riprendi</button>${off ? '' : `<button class="btn" data-a="om-restart">${icon('replay')} Ricomincia</button>`}<button class="btn ghost" data-a="om-quit">${icon('left')} Esci</button></div>
-    ${off ? '<p class="om-note">È il tentativo ufficiale: se esci ora conta come base non distrutta.</p>' : V.play?.kind === 'endless' ? '<p class="om-note">Se esci, la corsa resta salvata all’inizio di questa ondata.</p>' : ''}</div>`;
+    <div class="om-btns col"><button class="btn primary" data-a="om-resume">${icon('play')} Riprendi</button>${noRetry ? '' : `<button class="btn" data-a="om-restart">${icon('replay')} Ricomincia</button>`}<button class="btn ghost" data-a="om-quit">${icon('left')} Esci</button></div>
+    ${off ? '<p class="om-note">È il tentativo ufficiale: se esci ora conta come base non distrutta.</p>' : V.play?.kind === 'endless' ? '<p class="om-note">Se esci, la corsa resta salvata all’inizio di questa ondata, con i danni già subiti dal cannone.</p>' : ''}</div>`;
 }
 
 function onEnd(raw, L) {
@@ -228,7 +238,7 @@ function onEnd(raw, L) {
   // Infinita: carry the cannon's damage, the totals; a win opens the perk pick
   const run = P.run;
   run.figures += r.figures; run.maxCrowd = Math.max(run.maxCrowd || 0, r.maxCrowd); run.kills = (run.kills || 0) + r.kills;
-  run.line = Math.max(0, Math.round(r.cannonHp ?? run.line));
+  run.line = r.cannonMax ? endlessLine(run, r.cannonHp, r.cannonMax) : run.line;
   if (r.won && run.line > 0) {
     run.cleared = run.wave;
     run.offer = rollPerks(run.seed, run.wave, run.perks, wallet.profile().up);
@@ -345,7 +355,7 @@ registerScreen({
     },
     'om-share'() { copyShare(); },
     'om-resume'() { V.game?.togglePause?.(false); setOver(''); },
-    'om-restart'() { startMatch(); },
+    'om-restart'() { if (V.play?.kind === 'endless') { saveLine(V.play.run, V.game?.sim); } startMatch(); },
     'om-quit'() {
       const P = V.play, g = V.game;
       const live = g && !(g.over || g.sim?.state === 'won' || g.sim?.state === 'lost');
@@ -354,6 +364,7 @@ registerScreen({
         const s = omLoad(), info = dailyStatus(s).info;
         if (!s.daily[info.key]?.official) { const r = normResult({ win: false, ...(g.sim?.result?.() || {}), quit: true }, dailySpec().level); recordDaily(s, info, r); omSave(s); }
       }
+      if (P?.kind === 'endless' && live) saveLine(P.run, g.sim);
       stopGame(); V.play = null; App.refresh();
     },
   },

@@ -12,6 +12,7 @@
 //     level:     level JSON (shape documented in levels.js; generated levels work the same way)
 //     mode:      'level' | 'endless' | 'daily' | 'raid' | 'versus'  (only labels/flow differ here)
 //     seed, players: 1 | 2, upgrades: { rate, shot, hp, speed, charge, armor } (levels),
+//     upBonus: { … } levels past each upgrade's cap (Infinita perks),
 //     skin, cannon (cosmetic ids from meta.js), champion: id, champLvl, prevStars,
 //     tier: 'high'|'med'|'low', volume, autofire, shake, numbers,
 //     onEnd(result), onPause(on),
@@ -183,15 +184,27 @@ function drawGate(cv, g) {
   c.lineWidth = 8; c.strokeStyle = 'rgba(255,255,255,.9)'; c.stroke();
   c.font = `900 ${Math.round(H * 0.62)}px "Exo 2", system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
   const txt = gateLabel(g.type, g.value, g);
-  c.lineWidth = 14; c.strokeStyle = ({ rainbow: '#5a1a8f', split: '#3b1a8f', rec: '#0b5a3a' })[kind] || (good ? '#0b3a8f' : '#7a0618'); c.strokeText(txt, W / 2, H * 0.55);
-  c.shadowColor = good ? '#bff4ff' : '#ffd0d6'; c.shadowBlur = 24; c.fillStyle = '#fff'; c.fillText(txt, W / 2, H * 0.55); c.shadowBlur = 0;
+  c.lineWidth = 14; c.strokeStyle = ({ rainbow: '#5a1a8f', split: '#3b1a8f', rec: '#0b5a3a' })[kind] || (good ? '#0b3a8f' : '#7a0618');
+  if (g.type === 'div') divLabel(c, txt.slice(1), W / 2, H * 0.55, Math.round(H * 0.62), good);
+  else { c.strokeText(txt, W / 2, H * 0.55); c.shadowColor = good ? '#bff4ff' : '#ffd0d6'; c.shadowBlur = 24; c.fillStyle = '#fff'; c.fillText(txt, W / 2, H * 0.55); c.shadowBlur = 0; }
   if (g.toggle) { // the swap countdown: a small pie in the corner
     const f = Math.max(0, Math.min(1, g.tt / (g.toggle.every || 3)));
     c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.arc(W - 40, 40, 24, 0, Math.PI * 2); c.fill();
     c.fillStyle = '#ffe066'; c.beginPath(); c.moveTo(W - 40, 40); c.arc(W - 40, 40, 22, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2); c.closePath(); c.fill();
   }
 }
+// "÷n": the font's ÷ is thin and turns into a smudge on a far-away gate, so it is drawn by hand: a
+// thick bar and two big dots, as heavy as the digits next to it
+function divLabel(c, num, cx, cy, fs, good) {
+  const tw = c.measureText(num).width, gw = fs * 0.7, gap = fs * 0.12, x0 = cx - (gw + gap + tw) / 2, gx = x0 + gw / 2, gy = cy - fs * 0.04, dy = fs * 0.34, r = fs * 0.12;
+  const shape = () => { c.beginPath(); c.roundRect(x0, gy - fs * 0.07, gw, fs * 0.14, fs * 0.07); for (const d of [-1, 1]) { c.moveTo(gx + r, gy + d * dy); c.arc(gx, gy + d * dy, r, 0, Math.PI * 2); } };
+  shape(); c.stroke();
+  c.textAlign = 'left'; c.strokeText(num, x0 + gw + gap, cy);
+  c.shadowColor = good ? '#bff4ff' : '#ffd0d6'; c.shadowBlur = 24; c.fillStyle = '#fff';
+  shape(); c.fill(); c.fillText(num, x0 + gw + gap, cy); c.shadowBlur = 0; c.textAlign = 'center';
+}
 const gateKind = (g) => (g.rainbow && g.type === 'mul' ? 'rainbow' : g.type === 'split' || g.type === 'rec' ? g.type : gateGood(g.type) ? 'good' : 'bad');
+const TOWER_KIND = { slow: '#7dd3fc', splash: '#f97316', sniper: '#a78bfa' };
 const STRIP = { rainbow: '#ffe066', split: '#b98cff', rec: '#5ff0a8', good: '#5ad1ff', bad: '#ff5a6e' };
 // a pad on the floor: chevrons (jump: yellow, pointing forward · push: blue, pointing sideways)
 function padTex(kind, dir = 1) {
@@ -231,16 +244,16 @@ export class OrdaGame {
     const o = this.o, root = this.root, L = this.level;
     const tier = this.tier = o.tier || 'high';
     const cap = Math.round(CAPS[tier] || 900);
-    this.sim = new Sim(L, { up: o.upgrades, champ: o.champion, champLvl: o.champLvl, seed: o.seed, cap, autofire: o.autofire, hooks: { onWave: o.hooks?.onWave, onBaseHit: o.hooks?.onBaseHit } });
+    this.sim = new Sim(L, { up: o.upgrades, upBonus: o.upBonus, champ: o.champion, champLvl: o.champLvl, seed: o.seed, cap, autofire: o.autofire, hooks: { onWave: o.hooks?.onWave, onBaseHit: o.hooks?.onBaseHit } });
     const C = champById(o.champion);
     root.innerHTML = `<canvas class="or-cv"></canvas><div class="or-hud">
       <div class="or-top">
         <button class="or-pausebtn" id="or-pausebtn" aria-label="Pausa">II</button>
         ${o.onRestart ? '<button class="or-pausebtn or-restart" id="or-restart" aria-label="Ricomincia (R)">↻</button>' : ''}
         <div class="or-boss ${L.bonus ? 'vault' : ''}"><div class="or-boss-n"><span id="or-bname">${L.bonus ? '💰 Caveau' : `${L.base?.boss ? '👑 ' : ''}${L.base?.name || 'Base rossa'}`}</span><b id="or-bhp"></b></div><div class="or-bar"><i id="or-bbar"></i><em id="or-bshield"></em></div></div>
-        <div class="or-timer" id="or-timer">0:00</div>
+        <div class="or-timer" id="or-timer"${L.endless ? ' hidden' : ''}>0:00</div>
       </div>
-      <div class="or-goals" id="or-goals">${L.bonus ? '<span>🎁 Livello bonus: raccogli più orda che puoi!</span>' : `<span id="or-g1">⏱ ${L.stars?.par ?? 60}s</span><span id="or-g2">👥 ${L.stars?.crowd ?? 30}</span>`}<span class="or-lv">${o.label || (o.mode === 'level' ? `Livello ${L.id}` : ({ raid: 'Razzia', endless: 'Infinita', daily: 'Sfida del giorno', versus: '2 giocatori' })[o.mode] || o.mode)} · ${L.name || ''}</span></div>
+      <div class="or-goals" id="or-goals">${L.bonus ? '<span>🎁 Livello bonus: raccogli più orda che puoi!</span>' : L.endless ? '' : `<span id="or-g1">⏱ ${L.stars?.par ?? 60}s</span><span id="or-g2">👥 ${L.stars?.crowd ?? 30}</span>`}<span class="or-lv">${o.label || (o.mode === 'level' ? `Livello ${L.id}` : ({ raid: 'Razzia', endless: 'Infinita', daily: 'Sfida del giorno', versus: '2 giocatori' })[o.mode] || o.mode)} · ${L.name || ''}</span></div>
       <div class="or-crowd" id="or-crowd"><b id="or-cn">0</b><span>la tua orda</span></div>
       <div class="or-combo" id="or-combo"><b id="or-combo-t">Valanga</b><i><em id="or-combo-f"></em></i></div>
       <div class="or-coins" id="or-coins"><span>🪙</span><b id="or-coins-n">0</b></div>
@@ -457,7 +470,16 @@ export class OrdaGame {
       const bar = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.22), new THREE.MeshBasicMaterial({ color: '#ff3b4e', depthTest: false, fog: false })); bar.position.y = 4.4; bar.renderOrder = 6;
       const bg = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.32), new THREE.MeshBasicMaterial({ color: '#1a1020', depthTest: false, fog: false, transparent: true, opacity: 0.7 })); bg.position.y = 4.4; bg.renderOrder = 5;
       g.add(body, roof, gun, bg, bar); this.scene.add(g);
-      return { tw, g, body, bar, bg, gone: 0 };
+      // raid towers with a kind: a coloured roof and their range drawn on the floor
+      let ring = null;
+      if (tw.kind) {
+        const kc = TOWER_KIND[tw.kind];
+        roof.material = new THREE.MeshLambertMaterial({ color: kc });
+        ring = new THREE.Mesh(new THREE.RingGeometry(Math.max(0.2, tw.range - 0.18), tw.range, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: kc, transparent: true, opacity: 0.5, depthWrite: false }));
+        ring.position.y = 0.04; ring.renderOrder = 2; g.add(ring);
+        if (tw.kind === 'slow') { const disc = new THREE.Mesh(new THREE.CircleGeometry(tw.range, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: kc, transparent: true, opacity: 0.16, depthWrite: false })); disc.position.y = 0.03; g.add(disc); }
+      }
+      return { tw, g, body, bar, bg, ring, gone: 0 };
     });
   }
   buildCannon() {
@@ -613,9 +635,9 @@ export class OrdaGame {
   // landscape looks from higher up (the lane fills the height, the scenery the sides).
   fitCamera(w, h) {
     const cam = this.cam, W = this.sim.W, L = this.sim.L, asp = w / h;
-    const wide = asp > 1.15;
-    cam.fov = wide ? 40 : 46; cam.updateProjectionMatrix();
-    const pitch = wide ? 0.66 : 0.8; // radians above the horizon
+    const wide = asp > 1.15, short = wide && h < 560; // phone landscape: a lower, closer camera so the lane isn't a thin strip
+    cam.fov = wide ? (short ? 44 : 40) : 46; cam.updateProjectionMatrix();
+    const pitch = short ? 0.44 : wide ? 0.66 : 0.8; // radians above the horizon
     const tz = L * (wide ? 0.5 : 0.47);
     const pts = [[-W / 2 - 0.5, 0, CANNON_Z - 2.6], [W / 2 + 0.5, 0, CANNON_Z - 2.6], [-W / 2, 0, L + BASE_DEPTH], [W / 2, 0, L + BASE_DEPTH], [0, 8, L + BASE_DEPTH * 0.6]];
     const v = new THREE.Vector3();
@@ -740,6 +762,13 @@ export class OrdaGame {
         break;
       }
       case 'shield': this.shieldFlash = 1; break;
+      case 'shell': case 'snipe': {
+        const col = TC2.set(TOWER_KIND[e.t === 'shell' ? 'splash' : 'sniper']);
+        if (e.t === 'shell') { for (let i = 0; i < 14; i++) fx.emit(e.x, 0.4, e.z, (Math.random() - 0.5) * 7, 3 + Math.random() * 5, (Math.random() - 0.5) * 7, i % 2 ? col : TC.set('#3a2a20'), 0.45, 0.6); this.shake(0.15, 0.1); this.snd('shell', 120, () => osfx.hit()); }
+        else { for (let i = 0; i <= 8; i++) { const k = i / 8; fx.emit(e.fx + (e.x - e.fx) * k, 1.6 - k * 1.2, e.fz + (e.z - e.fz) * k, 0, 0.5, 0, col, 0.22, 0.25, 0); } this.snd('snipe', 120, () => osfx.minus()); }
+        if (e.n > 0) { const a = this.popAgg.get('tw') || { n: 0, x: e.x, z: e.z, t: 0 }; a.n -= e.n; a.x = e.x; a.z = e.z; this.popAgg.set('tw', a); }
+        break;
+      }
       case 'tower': {
         this.freeze = 0.09; this.shake(0.8, 0.45); this.slowmo(0.5, 0.25);
         for (let i = 0; i < 40; i++) fx.emit(e.x, 1 + Math.random() * 3, e.z, (Math.random() - 0.5) * 10, 3 + Math.random() * 8, (Math.random() - 0.5) * 10, i % 3 ? RED_D : TC.set('#ffffff'), 0.5, 1.2);

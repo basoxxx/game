@@ -4,7 +4,7 @@
 //   node tools/orda-gen-test.mjs [seeds=500]
 import { Sim, autopilot } from '../src/orda/sim.js';
 import { useCore, generateLevel, validate, play, hardness, laneSpread } from '../src/orda/gen.js';
-import { dailySpec, dailyInfo, endlessWave, newRun, rollPerks, perkById, perkUps, shareText, dayNumber, recordDaily, omLoad, addDays, liveStreak, waveDifficulty, GEN_VERSION, DAILY_LOADOUT } from '../src/orda/modes.js';
+import { dailySpec, dailyInfo, endlessWave, newRun, rollPerks, perkById, perkUps, splitUps, endlessLine, shareText, dayNumber, recordDaily, omLoad, addDays, liveStreak, waveDifficulty, GEN_VERSION, DAILY_LOADOUT } from '../src/orda/modes.js';
 
 globalThis.localStorage ??= { _m: {}, getItem(k) { return this._m[k] ?? null; }, setItem(k, v) { this._m[k] = String(v); }, removeItem(k) { delete this._m[k]; } };
 useCore({ Sim, autopilot });
@@ -96,5 +96,26 @@ for (let k = 1; k <= RUNS; k++) {
 }
 console.log(`\nendless hardness by wave (d ${waveDifficulty(1)}…${waveDifficulty(WAVES).toFixed(2)}): ${ew.slice(1).map((h) => h.toFixed(2)).join(' ')}`);
 for (let w = 3; w < ew.length; w++) if (ew[w] < ew[w - 2] - 0.03) bad(`endless hardness drops at wave ${w}`);
+// ---- endless: the cannon's line survives the armour upgrade unchanged (it used to compound every
+// wave: 40 → 88 → 194 with Bastione 6), damage carries over in level units, perks past the caps count
+{
+  const run = newRun(5, { armor: 6, rate: 10 });
+  for (let w = 1; w <= 3; w++) {
+    run.wave = w; const L = endlessWave(run);
+    const s = new Sim(L, { up: { armor: 6 }, seed: 1, countdown: 0 });
+    run.line = endlessLine(run, s.cannon.hp, s.cannon.max); // a wave won without a scratch
+  }
+  if (run.line !== run.lineMax) bad(`endless line compounds with armour: ${run.line}/${run.lineMax}`);
+  run.wave = 4; const s4 = new Sim(endlessWave(run), { up: { armor: 6 }, seed: 1, countdown: 0 });
+  if (endlessLine(run, s4.cannon.max / 2, s4.cannon.max) !== Math.round(run.lineMax / 2) || endlessLine(run, 0, s4.cannon.max) !== 0 || endlessLine(run, 0.3, s4.cannon.max) !== 1) bad('endless line from the cannon hp');
+  run.line = 15; const s5 = new Sim(endlessWave(run), { up: { armor: 6 }, seed: 1, countdown: 0 });
+  if (s5.cannon.hp !== Math.round(15 * 2.2) || s5.cannon.max !== Math.round(run.lineMax * 2.2)) bad(`damaged cannon carried: ${s5.cannon.hp}/${s5.cannon.max}`);
+  const sp = splitUps(perkUps(['cadenza', 'cadenza', 'tempra'], { rate: 10, hp: 3 }));
+  if (sp.up.rate !== 10 || sp.upBonus.rate !== 4 || sp.up.hp !== 5 || sp.upBonus.hp) bad(`splitUps ${JSON.stringify(sp)}`);
+  const offer = rollPerks(9, 3, [], { rate: 10, shot: 6, hp: 8, speed: 8 });
+  if (!offer.some((id) => perkById(id).up)) console.log('  note: no upgrade perk in this roll');
+  if (rollPerks(9, 3, ['cadenza', 'cadenza', 'cadenza'], { rate: 10 }).includes('cadenza')) bad('perk past its max offered');
+  console.log('endless line / perks past the caps: ok');
+}
 console.log(`\n${N} seeds in ${((Date.now() - t0) / 1000).toFixed(0)} s — ${fail ? `${fail} FAILURES` : 'all OK'}`);
 process.exit(fail ? 1 : 0);
