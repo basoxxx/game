@@ -58,7 +58,7 @@ const isOver = (s) => !!s.over;
 // ---------------------------------------------------------------- results and history
 const short = (c) => cardShort(c);
 const A_TXT = { sb: 'SB', bb: 'BB', fold: 'lascia', check: 'passa', call: 'vede', bet: 'punta', raise: 'rilancia a' };
-export function actText(e) { if (e.allin) return `all-in ${fmtChips(e.amt)}`; return `${A_TXT[e.a] || e.a}${e.amt != null && e.a !== 'fold' && e.a !== 'check' ? ` ${fmtChips(e.amt)}` : ''}`; }
+export function actText(e) { if (e.allin) return e.a === 'call' ? `vede ${fmtChips(e.amt)} (all-in)` : `all-in ${fmtChips(e.amt)}`; return `${A_TXT[e.a] || e.a}${e.amt != null && e.a !== 'fold' && e.a !== 'check' ? ` ${fmtChips(e.amt)}` : ''}`; }
 function winText(s) {
   const r = s.result; if (!r) return '';
   if (r.uncontested) return `Gli altri lasciano: piatto di ${fmtChips(r.pots[0]?.amount)} senza showdown.`;

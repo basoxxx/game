@@ -6,7 +6,7 @@ export const useChipStyle = () => useStyle('carte-chips-css', CHIPS_CSS);
 
 export const DENOMS = [
   { v: 5000, c: 'cv-k5' }, { v: 1000, c: 'cv-k1' }, { v: 500, c: 'cv-h5' }, { v: 100, c: 'cv-h1' },
-  { v: 50, c: 'cv-f5' }, { v: 25, c: 'cv-q' }, { v: 10, c: 'cv-d' }, { v: 5, c: 'cv-r' }, { v: 1, c: 'cv-w' },
+  { v: 50, c: 'cv-f5' }, { v: 25, c: 'cv-q' }, { v: 20, c: 'cv-t' }, { v: 10, c: 'cv-d' }, { v: 5, c: 'cv-r' }, { v: 1, c: 'cv-w' },
 ];
 export const fmtChips = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 // break an amount into denominations, biggest first: [{ v, c, k }]

@@ -11,5 +11,6 @@ export const POKER_CSS = `
 .pk-sty { color: #9fb8a8; font-size: 10.5px; }
 .ct-pile.pk-tbl.outline { border-color: rgba(255,255,255,.12); background: rgba(0,0,0,.08); }
 .pk-pots { display: inline-flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+@media (max-height: 560px) and (min-aspect-ratio: 4/3) { .ct-root:has(.pk-tbl) .ct-acts { left: auto; right: 10px; transform: none; bottom: 10px; width: min(44vw, 400px); justify-content: flex-end; } .ct-root:has(.pk-tbl) .ct-acts .btn { padding: 6px 10px; min-height: 34px; font-size: 12.5px; } }
 @media (max-width: 560px) { .ct-root:has(.pk-tbl) .ct-acts .btn { padding: 7px 10px; font-size: 12.5px; min-height: 36px; } .ct-root:has(.pk-tbl) .ct-seat { min-width: 0; } }
 `;

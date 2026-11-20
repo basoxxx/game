@@ -24,7 +24,7 @@ export const CHIPS_CSS = `
 .chp.big { --cs: clamp(18px, calc(var(--cw) * .32), 34px); }
 .cv-k5 { --cc: #6b2fb8; --ce: #e7d6ff; } .cv-k1 { --cc: #e0b020; --ce: #3a2a00; } .cv-h5 { --cc: #7a3d14; --ce: #ffd9a8; }
 .cv-h1 { --cc: #151515; --ce: #f2f2f2; } .cv-f5 { --cc: #1f7fd6; --ce: #fff; } .cv-q { --cc: #1d8a3e; --ce: #fff; }
-.cv-d { --cc: #1aa6a0; --ce: #fff; } .cv-r { --cc: #c8202b; --ce: #fff; } .cv-w { --cc: #e8e8e8; --ce: #4a6fd1; }
+.cv-d { --cc: #1aa6a0; --ce: #fff; } .cv-t { --cc: #d6407f; --ce: #fff; } .cv-r { --cc: #c8202b; --ce: #fff; } .cv-w { --cc: #e8e8e8; --ce: #4a6fd1; }
 .chp-face { --cs: 34px; display: inline-grid; place-items: center; width: var(--cs); height: var(--cs); border-radius: 50%; vertical-align: middle;
   background: radial-gradient(circle, var(--cc) 0 52%, var(--ce, #fff) 53% 62%, var(--cc) 63%); border: 2px dashed rgba(255, 255, 255, .7); box-shadow: 0 2px 4px rgba(0, 0, 0, .5); }
 .chp-face b { font: 800 11px/1 var(--display, sans-serif); color: #fff; text-shadow: 0 1px 1px #000; }
@@ -36,5 +36,6 @@ html.reduce-motion .chp, html.reduce-motion .chp-c, html.reduce-motion .ct-pile.
 .ct-pile.marker { width: 0 !important; height: 0 !important; transition: transform .55s cubic-bezier(.2, .8, .2, 1); z-index: 245; }
 .ct-pile.marker .ct-lbl { left: calc(var(--cw) / 2); top: calc(var(--ch) / 2); bottom: auto; transform: translate(-50%, -50%); padding: 0; background: none; }
 .pk-dbtn { display: grid; place-items: center; width: clamp(20px, calc(var(--cw) * .3), 30px); height: clamp(20px, calc(var(--cw) * .3), 30px); border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fff, #d9d9d9 70%); color: #111; font: 900 13px/1 var(--display, sans-serif); box-shadow: 0 2px 4px rgba(0, 0, 0, .55), inset 0 0 0 2px #b9b9b9; }
+.pk-st { font-family: var(--display, sans-serif); font-weight: 800; color: #ffd23f; font-size: 13px; }
 .tbl-note { display: block; font: 600 11px/1.3 var(--body, sans-serif); color: rgba(255, 255, 255, .62); letter-spacing: .04em; text-shadow: 0 1px 2px #000; }
 `;

@@ -59,10 +59,8 @@ function scores(s) {
   rows.unshift({ label: `Banco: ${s.dealer.map(cardShort).join(' ')} (${d.total > 21 ? 'sballa' : d.total})`, values: [''] });
   if (s.ins) rows.push({ label: 'Assicurazione', values: [s.insWon ? `+${fmtChips(s.ins * 2)}` : `−${fmtChips(s.ins)}`] });
   const st = tally(s);
-  rows.push({ label: 'Banco a fine mano (fiches finte)', values: [fmtChips(s.bank)] });
-  rows.push({ label: `Sessione: ${st.hands} mani · ${st.won} vinte · ${st.push} pari · ${st.lost} perse · ${st.bj} blackjack`, values: [''] });
-  if (st.hints) rows.push({ label: `Consigli seguiti: ${st.hintOk} su ${st.hints}`, values: [''] });
-  if (s.count !== 'off') rows.push({ label: `Conteggio Hi-Lo: ${sg(B.seenCount(s))} (vero ${sg1(B.trueCount(s))}, ${B.decksLeft(s).toFixed(1)} mazzi)${st.quizN ? ` · quiz ${st.quizOk}/${st.quizN}` : ''}`, values: [''] });
+  rows.push({ label: `Sessione: ${st.hands} mani, ${st.won} vinte, ${st.push} pari, ${st.lost} perse, ${st.bj} blackjack${st.hints ? ` · consigli seguiti ${st.hintOk}/${st.hints}` : ''}`, values: [`${fmtChips(s.bank)} fiches`] });
+  if (s.count !== 'off') rows.push({ label: `Hi-Lo: conteggio ${sg(B.seenCount(s))}, vero ${sg1(B.trueCount(s))} (${B.decksLeft(s).toFixed(1)} mazzi)${st.quizN ? ` · quiz ${st.quizOk}/${st.quizN}` : ''}`, values: [''] });
   return {
     points: [net], rows,
     records: { banco: s.bank, vincita: Math.max(0, net), ...(st.quizN ? { quiz: st.quizOk } : {}) },
@@ -90,7 +88,7 @@ const BJ_CSS = `
 .ct-root:has(.bj-tbl) .ct-acts .btn:has(.chp-face) .chp-face { --cs: 46px; }
 .ct-root:has(.bj-tbl) .ct-acts .btn:has(.chp-face):hover .chp-face { transform: translateY(-3px); box-shadow: 0 6px 10px rgba(0,0,0,.5), 0 0 0 2px #ffd23f; }
 .ct-root:has(.bj-tbl) .ct-acts .btn:has(.chp-face) .chp-face b { font-size: 13px; }
-.bj-felt { display: block; text-align: center; font: 800 calc(var(--cw) * .16)/1.2 var(--display, sans-serif); letter-spacing: .14em; text-transform: uppercase; color: rgba(255,230,160,.55); white-space: nowrap; }
+.bj-felt { display: block; width: min(86vw, 640px); white-space: normal; text-align: center; font: 800 calc(var(--cw) * .16)/1.2 var(--display, sans-serif); letter-spacing: .14em; text-transform: uppercase; color: rgba(255,230,160,.55); white-space: nowrap; }
 .bj-felt small { display: block; font: 600 11px/1.4 var(--body, sans-serif); letter-spacing: .06em; color: rgba(255,255,255,.55); text-transform: none; }
 .bj-tot { display: inline-block; min-width: 26px; padding: 1px 8px; border-radius: 12px; background: rgba(0,0,0,.6); color: #fff; font: 800 14px/1.4 var(--display, sans-serif); text-align: center; }
 .bj-tot.soft { background: rgba(30,90,160,.8); } .bj-tot.bust { background: #b3202a; } .bj-tot.bj { background: #c99a10; color: #111; }
@@ -100,6 +98,12 @@ const BJ_CSS = `
 .ct-root:has(.bj-tbl) .ct-pile.bj-act .ct-lbl .bj-tot { box-shadow: 0 0 0 2px #ffd23f; }
 .bj-spot { display: grid; place-items: center; width: calc(var(--cw) * .95); height: calc(var(--cw) * .95); border-radius: 50%; border: 2px dashed rgba(255,230,160,.45); color: rgba(255,230,160,.7); font: 700 12px/1.1 var(--display, sans-serif); text-transform: uppercase; letter-spacing: .08em; }
 .bj-count { padding: 3px 10px; border-radius: 4px; background: rgba(0,0,0,.55); color: #c7f0ff; font: 700 12px/1.4 var(--display, sans-serif); letter-spacing: .04em; white-space: nowrap; }
+@media (max-height: 560px) and (min-aspect-ratio: 4/3) {
+  .ct-root:has(.bj-tbl) .ct-acts { left: auto; right: 10px; transform: none; bottom: 10px; width: min(40vw, 360px); justify-content: flex-end; }
+  .ct-root:has(.bj-tbl) .ct-acts .btn { min-height: 34px; padding: 6px 10px; font-size: 12.5px; }
+  .ct-root:has(.bj-tbl) .ct-acts .btn:has(.chp-face) .chp-face { --cs: 38px; }
+  .bj-felt small { display: none; } .bj-felt { width: 40vw; font-size: 12px; }
+}
 `;
 function totLabel(cards, { final = false } = {}) {
   if (!cards.length) return '';
@@ -129,7 +133,7 @@ function view(s, viewer, ctx = {}) {
       const active = s.phase === 'play' && i === s.cur;
       const res = h.res && s.over ? `<span class="bj-res ${h.res}">${B.RES_TXT[h.res]}${h.pay - h.bet ? ` ${h.pay - h.bet > 0 ? '+' : '−'}${fmtChips(Math.abs(h.pay - h.bet))}` : ''}</span>` : h.res === 'bust' ? '<span class="bj-res bust">Sballata</span>' : '';
       piles.push({ id: `hand${i}`, cls: active ? 'bj-act' : '', anchor: 'table', x, y: handY, layout: 'row', gap: 0.5, scale: sc, cards: h.cards.map((c) => ({ id: c, up: true })), label: `<span class="bj-lab">${totLabel(h.cards, { final: h.split ? 'split' : false })}${res}</span>` });
-      piles.push({ id: i ? `bet${i}` : 'spot', cls: 'chips', anchor: 'table', x, y: handY + (P ? 0.13 : 0.18) * sc, cards: [], label: chipStack(s.over ? h.pay : h.bet, { cols: 2, cls: s.over && h.pay > h.bet ? 'win' : '' }) });
+      piles.push({ id: i ? `bet${i}` : 'spot', cls: 'chips', anchor: 'table', x, y: handY, oy: 0.5 * sc + 0.42, cards: [], label: chipStack(s.over ? h.pay : h.bet, { cols: 2, cls: s.over && h.pay > h.bet ? 'win' : '' }) });
     });
     if (s.ins) piles.push({ id: 'ins', cls: 'chips', anchor: 'table', x: 0.5, y: P ? 0.51 : 0.53, cards: [], label: chipStack(s.insWon ? s.ins * 3 : s.ins, { cls: 'side', note: s.insWon ? 'assicurazione pagata' : 'assicurazione' }) });
   }
