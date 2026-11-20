@@ -239,6 +239,7 @@ export default {
   defaultTarget: 30,
   records: { piatto: 'Piatto più grande vinto', fiches: 'Fiches massime (finte)' },
   undo: false,
+  roundWord: 'Mano',
   setup, legalMoves, apply, steps, ai, isOver, scores, view, status, nextDealer, matchOver, rules: RULES,
 };
 export { E as engine };

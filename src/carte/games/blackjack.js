@@ -180,6 +180,8 @@ export default {
   defaultTarget: 20,
   records: { banco: 'Banco massimo (finto)', vincita: 'Vincita in una mano', quiz: 'Quiz di conteggio giusti' },
   undo: false,
+  roundWord: 'Mano',
+  noCpu: true,
   setup, legalMoves: (s, p) => decorate(legalMoves(s, p)), apply, steps, ai, isOver, scores, view, status, nextDealer, matchOver, rules: RULES,
 };
 export { B as engine };
