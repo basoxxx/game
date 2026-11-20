@@ -178,7 +178,7 @@ export function autoscontro(stage, sim, ctx) {
       for (const e of sim.events.splice(0)) { if (e.type === 'bump') fx.burst(e.x, 1, e.y, '#ffd23f', 10 + e.power * 20, 4 + e.power * 4); if (e.type === 'fall') fx.burst(e.x, 0, e.y, '#ff8a3a', 30, 6); }
       fx.update(dt);
       camR += (sim.R - camR) * Math.min(1, dt * 2); // the camera follows the shrinking platform: the cars grow on screen
-      stage.frame(0, 0, camR - 1, camR - 1, 0.9);
+      stage.frame(0, 0, camR - 2.5, camR - 2.5, 0.9);
     },
     tags: () => sim.c.map((c) => [c.x, 2.6, c.y]),
   };

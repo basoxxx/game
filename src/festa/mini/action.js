@@ -291,5 +291,5 @@ export class Autoscontro extends Base {
   }
   // same points: fewer falls, then more K.O.
   tie() { return this.c.map((c) => -c.falls * 100 + c.ko); }
-  hud(i) { const c = this.c[i]; return c.fall > 0 ? 'Giù!' : `${c.ko} K.O. · ${c.falls} cadute`; }
+  hud(i) { const c = this.c[i]; return c.fall > 0 ? 'Giù!' : `${c.ko} K.O. · ${c.falls} ${c.falls === 1 ? 'caduta' : 'cadute'}`; }
 }
