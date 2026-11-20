@@ -145,6 +145,7 @@ t('raccogliere lo scarto senza aver aperto: va usato o rimesso', () => {
   eq(s.mustUse, '7H');
   yes(!G.legalMoves(s, 0).some((m) => m.a === 'disc'), 'prima bisogna aprire');
   const pb = G.apply(s, { a: 'putback' }); eq(pb.phase, 'draw'); eq(pb.discard[pb.discard.length - 1], '7H'); eq(pb.hands[0].length, 13);
+  yes(!G.legalMoves(pb, 0).some((m) => m.a === 'take'), 'dopo averlo rimesso si pesca dal tallone');
   // K K K = 30 alone is not enough, and it does not use the 7
   let k = G.apply(s, { a: 'meld', keys: ['13C', '13D', '13S'] }); yes(!k.opened[0]);
   k = G.apply(k, { a: 'meld', keys: ['5H', '6H', '7H'] }); yes(k.opened[0], 'aperto usando lo scarto');
@@ -242,7 +243,9 @@ const duel = (a, b, N) => {
   for (let i = 0; i < N; i++) {
     const lv = i % 2 ? [b, a] : [a, b];
     const M = newMatch(G, { n: 2, seed: 777 + i, target: 101, options: {}, seats: lv.map((l) => ({ kind: 'cpu', level: l })) });
+    let guard = 0;
     while (!M.over) {
+      if (++guard > 40000) throw new Error('duello infinito');
       if (G.isOver(M.state)) { endRound(G, M); if (!M.over) nextRound(G, M); continue; }
       const p = M.state.turn; play(G, M, G.ai(clone(M.state), p, lv[p], rng(M.moves + i * 7)));
     }

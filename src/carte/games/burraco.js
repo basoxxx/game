@@ -134,7 +134,7 @@ function layMeld(s, p, ids) {
 function endTurn(s, p) {
   s.hands[p].push(...s.stage[p]); s.stage[p] = [];
   s.took1 = null; s.turnNo++; s.turn = (p + 1) % s.n; s.phase = 'draw';
-  if (!s.stock.length) { s.over = true; s.turn = -1; s.say = { text: 'Tallone finito' }; }
+  if (!s.stock.length || s.turnNo > 400) { s.over = true; s.turn = -1; s.say = { text: 'Tallone finito' }; } // (400 turns: safety net)
 }
 function step(s, m) {
   const p = s.turn, hand = s.hands[p], T = teamOf(s, p);
@@ -307,7 +307,7 @@ function ai(s, p, level = 'normale', rng = Math.random) {
   const wild = att.filter((m) => isWild(m.card, R));
   if (wild.length) {
     const closing = s.tookPz[T] && hand.length <= 3;
-    const mk = wild.filter((m) => !isBurraco(s.melds[m.m]) && isBurraco(m.nm) && (level !== 'difficile' || hand.length <= 6 || s.stock.length < 15));
+    const mk = wild.filter((m) => !isBurraco(s.melds[m.m]) && isBurraco(m.nm));
     if (mk.length) return clean(mk[0]);
     if (closing || (!s.tookPz[T] && hand.length <= 2) || (level === 'difficile' && rush(s, T))) return clean(wild[0]);
   }
@@ -319,20 +319,20 @@ function ai(s, p, level = 'normale', rng = Math.random) {
 function view(s, viewer, ctx = {}) {
   const P = ctx.portrait, piles = [], VT = teamOf(s, viewer), myTurn = s.turn === viewer && !s.over;
   piles.push({ id: 'rm', cls: 'rm-mark', x: 0, y: 0, cards: [] });
-  piles.push({ id: 'stock', x: P ? 0.08 : 0.05, y: P ? 0.06 : 0.17, scale: P ? 0.62 : 0.68, layout: 'stack', up: false, source: true, cards: s.stock, label: String(s.stock.length) });
-  s.pz.forEach((pz, i) => { if (pz) piles.push({ id: `pz${i}`, x: P ? 0.22 + i * 0.07 : 0.05, y: P ? 0.06 : 0.48 + i * 0.09, rot: P ? 0 : 90, scale: P ? 0.5 : 0.55, layout: 'stack', up: false, cards: pz, label: i === 0 ? 'Pozzetti' : '' }); });
-  piles.push({ id: 'discard', x: P ? 0.66 : 0.5, y: P ? 0.06 : 0.5, w: P ? 0.6 : 0.5, scale: P ? 0.62 : 0.6, layout: 'row', gap: 0.3, cards: s.discard.map((c) => ({ id: c, up: true })), outline: true, label: s.discard.length > 1 ? `Scarti · ${s.discard.length}` : 'Scarti' });
+  piles.push({ id: 'stock', x: P ? 0.08 : 0.06, y: P ? 0.06 : 0.17, scale: P ? 0.62 : 0.66, layout: 'stack', up: false, source: true, cards: s.stock, label: String(s.stock.length) });
+  s.pz.forEach((pz, i) => { if (pz) piles.push({ id: `pz${i}`, x: P ? 0.22 + i * 0.07 : 0.14 + i * 0.05, y: P ? 0.06 : 0.17, rot: 0, scale: P ? 0.5 : 0.5, layout: 'stack', up: false, cards: pz, label: i === 0 ? 'Pozzetti' : '' }); });
+  piles.push({ id: 'discard', x: P ? 0.66 : 0.6, y: P ? 0.06 : 0.5, w: P ? 0.6 : 0.5, scale: P ? 0.62 : 0.6, layout: 'row', gap: 0.3, cards: s.discard.map((c) => ({ id: c, up: true })), outline: true, label: s.discard.length > 1 ? `Scarti · ${s.discard.length}` : 'Scarti' });
   const lab = (m) => (isBurraco(m) ? (isPulito(m) ? 'Burraco pulito' : 'Burraco sporco') : '');
   const grid = (T, rect, align) => meldGrid(s.melds.map((m, i) => ({ ...m, i })).filter((m) => m.team === T), rect, {
     cols: P ? 3 : 5, scale: P ? 0.56 : 0.52, gap: 0.3, rowH: P ? 0.12 : 0.2, align, idOf: (m) => `m${m.i}`,
     extra: (m) => ({ cls: `rm-meld${isBurraco(m) ? ' rm-bur' : ''}`, label: lab(m), z: 10 + m.i * 20 }),
   });
-  piles.push(...grid(1 - VT, P ? { x0: 0, x1: 1, y0: 0.15, y1: 0.48 } : { x0: 0.1, x1: 0.9, y0: 0.0, y1: 0.4 }, 'top'));
-  piles.push(...grid(VT, P ? { x0: 0, x1: 1, y0: 0.62, y1: 0.99 } : { x0: 0.1, x1: 0.88, y0: 0.6, y1: 0.97 }, 'top'));
+  piles.push(...grid(1 - VT, P ? { x0: 0, x1: 1, y0: 0.15, y1: 0.48 } : { x0: 0.24, x1: 0.97, y0: 0.0, y1: 0.4 }, 'top'));
+  piles.push(...grid(VT, P ? { x0: 0, x1: 1, y0: 0.62, y1: 0.99 } : { x0: 0.24, x1: 0.97, y0: 0.6, y1: 0.97 }, 'top'));
   const st = s.stage[viewer] || [];
   if ((myTurn && s.phase === 'play') || st.length) {
     const v = st.length ? validate(st, R) : null;
-    piles.push({ id: 'stage', cls: 'rm-stage', x: P ? 0.5 : 0.055, y: P ? 0.555 : 0.86, w: P ? 0.8 : 0.11, scale: P ? 0.56 : 0.56, layout: 'row', gap: 0.36, outline: true, cards: (v ? v.cards : st).map((c) => ({ id: c, up: true })), label: v ? 'Valida' : st.length ? 'Combinazione…' : 'Nuova combinazione' });
+    piles.push({ id: 'stage', cls: 'rm-stage', x: P ? 0.5 : 0.11, y: P ? 0.555 : 0.7, w: P ? 0.8 : 0.19, scale: P ? 0.56 : 0.56, layout: 'row', gap: 0.36, outline: true, cards: (v ? v.cards : st).map((c) => ({ id: c, up: true })), label: v ? 'Valida' : st.length ? 'Combinazione…' : 'Nuova combinazione' });
   }
   for (let p = 0; p < s.n; p++) {
     const mine = p === viewer, h = s.hands[p];

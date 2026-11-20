@@ -77,10 +77,13 @@ async function perform0(page, C, m, how) {
     await page.click(`.ct-acts [data-mi="${i}"]`); return true;
   };
   if (!m.card) { // a button
-    const ok = await btn(new Function('x', `return x.a === ${JSON.stringify(m.a)} && JSON.stringify(x.keys || null) === ${JSON.stringify(JSON.stringify(m.keys || null))}`));
+    const ok = await btn(new Function('x', `return !!x.label && !x.card && x.a === ${JSON.stringify(m.a)} && JSON.stringify(x.keys || null) === ${JSON.stringify(JSON.stringify(m.keys || null))}`));
     if (!ok) throw new Error(`pulsante mancante per ${JSON.stringify(m)}`);
     return waitMove(page, before);
   }
+  // let the hand settle (cards slide when one leaves it), then aim
+  await page.waitForFunction(() => !document.querySelector('.ct-card.fly'), null, { timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(150);
   const cardSel = `.ct-card[data-card="${m.card}"]`;
   const nMoves = await page.evaluate((id) => window.__carte.legal().filter((x) => x.card === id).length, m.card);
   const a = await point(page, cardSel);
@@ -100,7 +103,7 @@ async function perform0(page, C, m, how) {
   }
   // two moves on the same card and pile (attach or swap the joker): pick in the chooser
   if (await page.$('.cb-choose')) {
-    const i = await page.evaluate((m) => { const ms = window.__carte.legal().filter((x) => x.card === m.card && x.to === m.to); return ms.findIndex((x) => x.a === m.a); }, m);
+    const i = await page.evaluate((m) => { const ms = window.__carte.legal().filter((x) => x.card === m.card); return ms.findIndex((x) => x.a === m.a && x.to === m.to); }, m);
     await page.click(`[data-a=cb-pick][data-i="${Math.max(0, i)}"]`);
   }
   return waitMove(page, before);

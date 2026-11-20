@@ -75,7 +75,7 @@ function compute(s, p) {
   const sortBtn = sortMove(s.sort[p]);
   if (s.phase === 'draw') {
     out.push({ a: 'draw', card: s.stock[s.stock.length - 1] });
-    if (s.discard.length) out.push({ a: 'take', card: s.discard[s.discard.length - 1] });
+    if (s.discard.length && !s.putBack) out.push({ a: 'take', card: s.discard[s.discard.length - 1] });
     out.push(sortBtn);
     return out;
   }
@@ -156,8 +156,9 @@ function cancelPending(s, p) {
 }
 function endTurn(s, p) {
   s.hands[p].push(...s.stage[p]); s.stage[p] = [];
-  s.took = null; s.mustUse = null; s.turnNo++;
+  s.took = null; s.mustUse = null; s.putBack = false; s.turnNo++;
   s.turn = nextAlive(s, p); s.phase = 'draw';
+  if (s.turnNo > 120 * s.n) { s.over = true; s.void = true; s.turn = -1; s.say = { text: 'Smazzata nulla' }; return; } // safety net
   if (!s.stock.length) {
     if (s.reshuffles >= 2 || s.discard.length < 2) { s.over = true; s.void = true; s.turn = -1; s.say = { text: 'Tallone finito' }; return; }
     const top = s.discard.pop();
@@ -186,7 +187,7 @@ function step(s, m) {
       s.say = { text: 'Jolly recuperato!', cls: 'blue' }; break;
     }
     case 'cancel': cancelPending(s, p); break;
-    case 'putback': cancelPending(s, p); take(s.mustUse); s.discard.push(s.mustUse); s.picked[p].pop(); s.mustUse = null; s.took = null; s.phase = 'draw'; break;
+    case 'putback': cancelPending(s, p); take(s.mustUse); s.discard.push(s.mustUse); s.picked[p].pop(); s.mustUse = null; s.took = null; s.putBack = true; s.phase = 'draw'; break;
     case 'disc': {
       hand.push(...s.stage[p]); s.stage[p] = [];
       take(m.card); s.discard.push(m.card); s.thrown[p].push(m.card); s.last = { p, cards: [m.card] };
@@ -229,7 +230,7 @@ function scores(s) {
     points: pts, rows,
     records: { chiusure: s.winner === 0 ? 1 : 0, calate: melded },
     coins: s.winner === 0 ? (s.inHand ? 12 : 5) : 1,
-    note: s.void ? 'Il tallone è finito due volte: smazzata nulla, nessuno paga.' : s.winner >= 0 ? `Penalità: carte rimaste in mano (jolly 25, asso 11, figure 10); chi non ha aperto paga ${s.opts.chiuso}. Si esce a ${s.opts.target}.` : '',
+    note: s.void ? 'Smazzata nulla (tallone finito due volte o partita bloccata): nessuno paga.' : s.winner >= 0 ? `Penalità: carte rimaste in mano (jolly 25, asso 11, figure 10); chi non ha aperto paga ${s.opts.chiuso}. Si esce a ${s.opts.target}.` : '',
   };
 }
 function matchOver(totals, cfg, rounds) {
@@ -301,7 +302,7 @@ function aiMoves(s, p, R) {
   const hand = s.hands[p], out = [];
   if (s.phase === 'draw') {
     out.push({ a: 'draw', card: s.stock[s.stock.length - 1] });
-    if (s.discard.length) out.push({ a: 'take', card: s.discard[s.discard.length - 1] });
+    if (s.discard.length && !s.putBack) out.push({ a: 'take', card: s.discard[s.discard.length - 1] });
     return out;
   }
   const opened = s.opened[p], pend = pendingMelds(s).length > 0;
@@ -326,13 +327,13 @@ function ai(s, p, level = 'normale', rng = Math.random) {
     if (!tk || isJoker(top) && !s.opened[p] && level === 'facile') return draw;
     const withTop = [...hand, top];
     if (!s.opened[p]) {
-      const plan = planFor(s, p, R, { hand: withTop, must: top, budget: level === 'facile' ? 300 : 2500 });
+      const plan = planFor(s, p, R, { hand: withTop, must: top, budget: level === 'facile' ? BUDGETS[0] : BUDGETS[1] });
       const pts = plan.melds.reduce((a, x) => a + meldPoints(x.meld), 0);
       if (pts >= OPEN && plan.melds.some((x) => x.cards.includes(top)) && (level !== 'facile' || rng() < 0.6)) return tk;
       return draw;
     }
-    if (isJoker(top)) return tk;
-    const plan = planFor(s, p, R, { hand: withTop, budget: level === 'facile' ? 300 : 2000 });
+    if (isJoker(top) && (hand.length > 3 || attachableAnywhere(s, top, R))) return tk;
+    const plan = planFor(s, p, R, { hand: withTop, budget: level === 'facile' ? BUDGETS[0] : BUDGETS[1] });
     const used = plan.melds.some((x) => x.cards.includes(top));
     const att = level !== 'facile' && attachableAnywhere(s, top, R);
     if ((used || att) && (level !== 'facile' || rng() < 0.5)) return tk;
@@ -370,11 +371,11 @@ function view(s, viewer, ctx = {}) {
   const P = ctx.portrait, piles = [], names = (q) => ctx.seats?.[q]?.name || `G${q + 1}`;
   const myTurn = s.turn === viewer && !s.over;
   piles.push({ id: 'rm', cls: 'rm-mark', x: 0, y: 0, cards: [] });
-  piles.push({ id: 'stock', x: P ? 0.1 : 0.05, y: P ? 0.075 : 0.2, scale: P ? 0.7 : 0.72, layout: 'stack', up: false, source: true, cards: s.stock, label: String(s.stock.length) });
-  piles.push({ id: 'discard', x: P ? 0.3 : 0.05, y: P ? 0.075 : 0.52, scale: P ? 0.7 : 0.72, layout: 'stack', cards: s.discard.slice(-14).map((c) => ({ id: c, up: true })), outline: true, label: 'Scarti' });
+  piles.push({ id: 'stock', x: P ? 0.1 : 0.07, y: P ? 0.075 : 0.2, scale: P ? 0.7 : 0.68, layout: 'stack', up: false, source: true, cards: s.stock, label: String(s.stock.length) });
+  piles.push({ id: 'discard', x: P ? 0.3 : 0.16, y: P ? 0.075 : 0.2, scale: P ? 0.7 : 0.68, layout: 'stack', cards: s.discard.slice(-14).map((c) => ({ id: c, up: true })), outline: true, label: 'Scarti' });
   // older discards are kept off the table (a pile only shows its top)
   const R = rulesOf(s);
-  const rect = P ? { x0: 0, x1: 1, y0: 0.19, y1: 0.97 } : { x0: 0.13, x1: 0.96, y0: 0.0, y1: 0.92 };
+  const rect = P ? { x0: 0, x1: 1, y0: 0.19, y1: 0.97 } : { x0: 0.24, x1: 0.97, y0: 0.0, y1: 0.92 };
   piles.push(...meldGrid(s.melds, rect, {
     cols: P ? 3 : 5, scale: P ? 0.6 : 0.58, gap: 0.34, rowH: P ? 0.135 : 0.225, align: 'top',
     extra: (m) => ({ cls: `rm-meld${m.pend ? ' rm-pend' : ''}`, label: m.pend ? `apertura ${pendingPts(s)}/${OPEN}` : names(m.owner) }),
@@ -383,7 +384,7 @@ function view(s, viewer, ctx = {}) {
   const st = s.stage[viewer] || [];
   if (myTurn && s.phase === 'play' || st.length) {
     const v = st.length ? validate(st, R) : null;
-    piles.push({ id: 'stage', cls: 'rm-stage', x: P ? 0.72 : 0.06, y: P ? 0.075 : 0.84, w: P ? 0.5 : 0.12, scale: P ? 0.7 : 0.6, layout: 'row', gap: 0.42, outline: true, cards: (v ? v.cards : st).map((c) => ({ id: c, up: true })), label: v ? `Valida · ${meldPoints(v)} punti` : st.length ? 'Combinazione…' : 'Nuova combinazione' });
+    piles.push({ id: 'stage', cls: 'rm-stage', x: P ? 0.72 : 0.115, y: P ? 0.075 : 0.66, w: P ? 0.5 : 0.19, scale: P ? 0.7 : 0.6, layout: 'row', gap: 0.42, outline: true, cards: (v ? v.cards : st).map((c) => ({ id: c, up: true })), label: v ? `Valida · ${meldPoints(v)} punti` : st.length ? 'Combinazione…' : 'Nuova combinazione' });
   }
   const sorted = (p) => (s.sort[p] === 'gruppi' ? grouped(s.hands[p], planFor(s, p, rulesOf(s), { budget: BUDGETS[1] })) : sortHand(s.hands[p], s.sort[p]));
   for (let p = 0; p < s.n; p++) {

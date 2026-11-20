@@ -200,7 +200,7 @@ const duel = (a, b, N, variant = 'due') => {
 };
 t('IA: Normale batte Facile, Difficile non è peggio di Normale', () => {
   const [a, b] = duel('normale', 'facile', QUICK ? 40 : 120); console.log(`  normale-facile ${a}-${b}`); yes(a > b * 1.3, 'normale troppo debole');
-  const [c, d, df] = duel('difficile', 'normale', QUICK ? 60 : 160); console.log(`  difficile-normale ${c}-${d} (${df.toFixed(1)} punti a smazzata)`); yes(c >= d * 0.9 || df > 0, 'difficile peggiore');
+  const [c, d, df] = duel('difficile', 'normale', QUICK ? 200 : 400); console.log(`  difficile-normale ${c}-${d} (${df.toFixed(1)} punti a smazzata)`); yes(c >= d * 0.9 || df > 0, `difficile peggiore (${df.toFixed(1)})`);
 });
 
 console.log(`${ok} ok, ${fail} falliti`);
