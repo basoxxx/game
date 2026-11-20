@@ -52,6 +52,14 @@ await start(p, 'cava', 'race');
 { const g = await p.evaluate(() => { const g = window.__derby; for (let i = 0; i < 60; i++) g.frame(1 / 60); const pt = g.player.mesh.userData.parts[0]; g.detach(g.player, pt); const d = g.debris[g.debris.length - 1]; const at0 = d.body.collider(0).collisionGroups(); for (let i = 0; i < 70; i++) g.frame(1 / 60); return { at0, after: d.body.collider(0).collisionGroups() }; });
   ok(((g.at0 >>> 0) & 0xffff & 0x0002) === 0 && (g.after >>> 0) === 0xffffffff, `pezzi staccati: ignorano le auto alla nascita, poi tornano solidi (${(g.at0 >>> 0).toString(16)} -> ${(g.after >>> 0).toString(16)})`); }
 await quit(p);
+// a re-render while the race loads (a toast, a pad, the hub) mounted a second game and left the first one running
+await p.evaluate(() => { window.__rs = 0; const add = window.addEventListener.bind(window), rem = window.removeEventListener.bind(window); window.addEventListener = (t, f, o) => { if (t === 'resize') window.__rs++; return add(t, f, o); }; window.removeEventListener = (t, f, o) => { if (t === 'resize') window.__rs--; return rem(t, f, o); }; });
+await click(p, '[data-a="dz-tab"][data-id="carriera"]');
+{ const rs0 = await p.evaluate(() => window.__rs);
+  await p.evaluate(() => { document.querySelector('[data-a="dz-daily"]').click(); window.__apex.App.refresh(); window.__apex.App.refresh(); });
+  await p.waitForFunction(() => ['countdown', 'race'].includes(window.__derby?.state), null, { timeout: 180000 }); await p.waitForTimeout(1500);
+  await p.evaluate(() => window.__derby.togglePause()); await click(p, '.dz-root [data-a="dz-quit"]'); await p.waitForSelector('.dz-menu'); await p.waitForTimeout(500);
+  const rs1 = await p.evaluate(() => window.__rs); ok(rs1 <= rs0 && (await p.evaluate(() => window.__derby)) === null, `rimontaggio durante il caricamento: nessuna partita orfana (listener resize ${rs0} -> ${rs1})`); }
 await p.context().close();
 // results on a phone in landscape
 const m = await open(844, 390, true);

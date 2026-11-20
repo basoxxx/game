@@ -67,6 +67,7 @@ export class DerbyGame {
   async start() {
     if (!this.venue) { const { VENUES } = await import('./tracks.js'); this.venue = VENUES.find((v) => v.id === this.o.venue) || VENUES[0]; }
     await initPhysics();
+    if (this.dead) return;
     const kind = this.venue.kind;
     this.mode = kind === 'derby' ? (ARENA_MODES.includes(this.o.mode) ? this.o.mode : 'derby') : kind === 'stunt' ? 'stunt' : kind === 'park' ? 'parco' : (['race', 'elim', 'time', 'caccia', 'distruzione'].includes(this.o.mode) ? this.o.mode : 'race');
     if (this.mode === 'time' || this.mode === 'stunt' || this.mode === 'distruzione' || this.mode === 'parco') this.o.opponents = this.o.keepOpp ? this.o.opponents : 0;
@@ -109,6 +110,7 @@ export class DerbyGame {
     // precompile every shader of the scene before the lights go out (no first-crash / first-fire hitch);
     // parallel compile where the driver supports it, never waiting more than 4 s
     try { this.updateCamera(0.016); const t0 = performance.now(); await Promise.race([this.renderer.compileAsync ? this.renderer.compileAsync(this.scene, this.camera) : Promise.resolve(this.renderer.compile(this.scene, this.camera)), new Promise((r) => setTimeout(r, 4000))]); this.compileMs = Math.round(performance.now() - t0); } catch (e) { console.warn('precompile', e); }
+    if (this.dead) return; // destroyed while loading (quit, restart): no loop, no listeners left behind
     this.state = 'countdown'; this.countdown = 3.6; this._lastCount = 4;
     try { engineStart(this.player.spec.engine || 'endurance'); } catch {}
     this.last = performance.now();
