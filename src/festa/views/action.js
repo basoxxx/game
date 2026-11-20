@@ -165,6 +165,7 @@ export function autoscontro(stage, sim, ctx) {
   const types = ['berlina', 'muscle', 'utilitaria', 'rally'];
   const cars = ctx.players.map((p, i) => { const c = buildBanger(types[i % 4], p.sc, i + 1, 3 + i, { clean: true }); const g = new THREE.Group(); g.add(c); c.scale.setScalar(0.62); c.traverse((o) => { if (o.isMesh) o.castShadow = true; }); scene.add(g); return g; });
   const fx = new Confetti(scene);
+  let camR = sim.R;
   return {
     scene,
     update(dt) {
@@ -176,7 +177,8 @@ export function autoscontro(stage, sim, ctx) {
       });
       for (const e of sim.events.splice(0)) { if (e.type === 'bump') fx.burst(e.x, 1, e.y, '#ffd23f', 10 + e.power * 20, 4 + e.power * 4); if (e.type === 'fall') fx.burst(e.x, 0, e.y, '#ff8a3a', 30, 6); }
       fx.update(dt);
-      stage.frame(0, 0, sim.R0 - 1, sim.R0 - 1, 0.9);
+      camR += (sim.R - camR) * Math.min(1, dt * 2); // the camera follows the shrinking platform: the cars grow on screen
+      stage.frame(0, 0, camR - 1, camR - 1, 0.9);
     },
     tags: () => sim.c.map((c) => [c.x, 2.6, c.y]),
   };
