@@ -75,5 +75,28 @@ for (const [track, lat] of [['cometa', 14], ['vulcano', 13]]) {
   if (!ok) fail++;
   console.log(`${ok ? 'ok' : '!!'} wrong way: no lap counted (dist ${k.dist.toFixed(0)}, wrongT ${k.wrongT.toFixed(1)})`);
 }
+// difficulty: a "decent driver" (the AI driving the human kart at skill 0.85, so no rubber band and
+// no rival pace factor) over the 16 Grand Prix races with the real GP field. 100 cc must be winnable,
+// 150 cc clearly harder. Rubber band is symmetric (rivals behind get no extra catch-up surge).
+if (!only && !process.env.KART_SKIP_GP) {
+  const { CUPS, CLASSES, BODIES, WHEELS } = await import('../src/kart/data.js');
+  const rivals = CHARACTERS.filter((c) => c.id !== 'baso').slice(0, 7).map((c, i) => ({ char: c.id, body: BODIES[(i * 3) % BODIES.length].id, wheels: WHEELS[(i * 5 + 1) % WHEELS.length].id, human: -1 }));
+  const avg = {};
+  for (const cls of ['normale', 'esperto']) {
+    const pl = [];
+    for (const cup of CUPS) cup.races.forEach((tr, ri) => {
+      const sim = new Sim({ mode: 'race', track: tr, laps: 3, cls, karts: [...rivals, { char: 'baso', human: 0 }], seed: 1000 + ri * 13 + cup.id.length });
+      const h = sim.karts.find((k) => k.human === 0); h.auto = true; h.ai.skill = 0.85;
+      let st = 0; while (sim.state !== 'done' && st < 60 * 400) { sim.step(1 / 60); st++; }
+      pl.push(h.place);
+    });
+    avg[cls] = pl.reduce((a, b) => a + b, 0) / pl.length;
+    console.log(`   ${cls}: decent driver places ${pl.join('')} (avg ${avg[cls].toFixed(2)}, ${pl.filter((p) => p === 1).length} wins)`);
+  }
+  const C = (id) => CLASSES.find((c) => c.id === id);
+  const ok = avg.normale <= 3.6 && avg.esperto >= 3 && avg.esperto > avg.normale && C('facile').pace < C('normale').pace && C('normale').pace < C('esperto').pace && CLASSES.every((c) => (c.catchup ?? 1.4) <= 1);
+  if (!ok) fail++;
+  console.log(`${ok ? 'ok' : '!!'} difficulty: 100 cc winnable (avg ${avg.normale.toFixed(2)} ≤ 3.6), 150 cc hard (avg ${avg.esperto.toFixed(2)} ≥ 3), symmetric rubber band`);
+}
 console.log(fail ? `${fail} FAILED` : 'all ok');
 process.exitCode = fail ? 1 : 0;

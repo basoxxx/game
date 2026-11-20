@@ -954,7 +954,8 @@ export class VoragineGame {
       this.progress('rival', 1);
     } else if (b.player) { this.stats.deaths = (this.stats.deaths || 0) + 1; this.sfx.lost(); this.flash('#ff2040'); this.shake = 1; this.toast(this.mode.respawn ? `${a.name} ti ha inghiottito! Riparti tra 3 secondi…` : `${a.name} ti ha inghiottito!`, true); }
     else this.sfx.rivalGone();
-    if (b.player && !this.mode.respawn) setTimeout(() => this.finish('eaten'), 1400);
+    // game time (paused with the game, dropped by destroy): a quit or a restart in this beat must not end the old match
+    if (b.player && !this.mode.respawn) this.later(1.4, () => this.finish('eaten'));
   }
   flash(color) { const el = this.$('vg-flash'); if (!el) return; el.style.setProperty('--c', color); el.classList.remove('on'); void el.offsetWidth; el.classList.add('on'); }
   updateFalling(dt) {
@@ -1138,7 +1139,7 @@ export class VoragineGame {
   }
 
   finish(why) {
-    if (this.over) return;
+    if (this.over || this.dead) return;
     this.over = true;
     const rank = this.ranking(), me = this.me;
     const pos = rank.indexOf(me) + 1;
@@ -1163,7 +1164,7 @@ export class VoragineGame {
   updateDust(dt) { this.updateFx(dt); }
 
   destroy() {
-    cancelAnimationFrame(this.raf);
+    this.dead = true; cancelAnimationFrame(this.raf);
     window.removeEventListener('keydown', this.onKD, true); window.removeEventListener('keyup', this.onKU, true);
     window.removeEventListener('pointerup', this.onPU); window.removeEventListener('pointercancel', this.onPU);
     document.removeEventListener('visibilitychange', this.onVis);

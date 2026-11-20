@@ -1,8 +1,9 @@
 // Ingorgo — car sounds (horns, engines, tyre squeaks, bumps) synthesised with WebAudio. The shared
 // kit in src/ui/audio.js has no horns, so this small one runs its own context, created on the first
 // gesture and following the volume setting (0 = silent). UI jingles still come from the shared sfx.
-let ctx = null, master = null, vol = 0.6;
+let ctx = null, master = null, vol = 0.6, src = null;
 const ac = () => {
+  if (src) { try { const v = src(); if (v !== vol) setVolume(v); } catch {} } // follows the mixer live (sound on/off, general and effects volume)
   if (vol <= 0) return null;
   if (!ctx) {
     const C = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
@@ -12,7 +13,8 @@ const ac = () => {
   if (ctx.state === 'suspended') ctx.resume().catch(() => {});
   return ctx;
 };
-export function setVolume(v) { vol = Math.max(0, v); if (master) master.gain.value = vol; }
+export function setVolume(v) { vol = Math.max(0, +v || 0); if (master) master.gain.value = vol; }
+export function followVolume(fn) { src = typeof fn === 'function' ? fn : null; }
 export function closeAudio() { try { ctx?.close(); } catch {} ctx = null; master = null; }
 
 function tone(type, f, t, dur, peak, o = {}) {

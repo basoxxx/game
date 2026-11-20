@@ -15,7 +15,7 @@ export const dayNumber = (d = new Date()) => Math.round((new Date(d.getFullYear(
 export function addDays(key, n) { const d = parseDay(key); d.setDate(d.getDate() + n); return dayKey(d); }
 // weekday ramp: Monday gentle, Sunday spicy
 const WEEK_D = [0.85, 0.35, 0.45, 0.5, 0.6, 0.65, 0.75]; // Sun … Sat
-export const GEN_VERSION = 3;
+export const GEN_VERSION = 4; // 4: deterministic maths in the Sim (same daily in every browser)
 // a standard loadout for the daily: everyone plays it with the same cannon (and it is tuned for it)
 export const DAILY_LOADOUT = { up: { rate: 2, shot: 1, hp: 2, speed: 2, charge: 2, armor: 2 }, champ: 'colosso', champLvl: 1 }; // bump when the generator changes (invalidates cached dailies)
 const _dailyCache = new Map();
@@ -63,8 +63,8 @@ export function shareText(spec, r) {
 }
 
 // ---------------------------------------------------------------- Infinita
-// up: extra upgrade levels on top of the player's own (the core clamps at each upgrade's max, so a
-// perk whose upgrade is already maxed is not offered) · lvl: changes baked into the wave's level JSON
+// up: extra upgrade levels on top of the player's own (levels past an upgrade's cap still count, up to
+// UP_OVER more: see splitUps) · lvl: changes baked into the wave's level JSON
 export const PERKS = [
   { id: 'cadenza', name: 'Cannone rapido', desc: 'Il cannone spara più in fretta (+2 livelli Cadenza).', icon: 'speed', max: 3, up: { rate: 2 } },
   { id: 'raffica', name: 'Raffica', desc: 'Più omini per colpo (+2 livelli Raffica).', icon: 'users', max: 3, up: { shot: 2 } },
@@ -80,12 +80,13 @@ export const PERKS = [
 ];
 export const perkById = (id) => PERKS.find((p) => p.id === id);
 const UP_MAX = { rate: 10, shot: 6, hp: 8, speed: 8, charge: 8, armor: 6 }; // mirrors the core's UPGRADES max
+const UP_OVER = 6; // mirrors meta.js UP_OVER: perk levels past the cap the core still counts
 // three different perks, never one at its cap or one that can't do anything with the player's upgrades
 export function rollPerks(runSeed, wave, owned = [], playerUp = {}) {
   const r = rng(hashStr(`perk:${runSeed}:${wave}`));
   const cnt = (id) => owned.filter((x) => x === id).length;
   const ups = perkUps(owned, playerUp);
-  const pool = PERKS.filter((p) => cnt(p.id) < p.max && (!p.up || Object.keys(p.up).some((k) => (ups[k] || 0) < UP_MAX[k])));
+  const pool = PERKS.filter((p) => cnt(p.id) < p.max && (!p.up || Object.keys(p.up).some((k) => (ups[k] || 0) < UP_MAX[k] + UP_OVER)));
   const out = [];
   while (out.length < 3 && pool.length) out.push(pool.splice((r() * pool.length) | 0, 1)[0].id);
   return out;
@@ -95,6 +96,12 @@ export function perkUps(perks = [], playerUp = {}) {
   const up = { ...playerUp };
   for (const id of perks) for (const [k, v] of Object.entries(perkById(id)?.up || {})) up[k] = (up[k] || 0) + v;
   return up;
+}
+// the core's loadout for those levels: { up } within each cap, { upBonus } the levels past it
+export function splitUps(total = {}) {
+  const up = {}, upBonus = {};
+  for (const [k, v] of Object.entries(total)) { const m = UP_MAX[k] ?? Infinity; up[k] = Math.min(m, v || 0); if ((v || 0) > m) upBonus[k] = Math.min(UP_OVER, v - m); }
+  return { up, upBonus };
 }
 export const coinMul = (perks = []) => 1 + 0.25 * perks.filter((x) => x === 'bottino').length;
 export const ENDLESS_LINE = 40;
@@ -120,11 +127,18 @@ export function endlessWave(run) {
   L.id = `endless-${run.seed}-${run.wave}`; L.name = `Ondata ${run.wave}`; L.wave = run.wave;
   L.endless = true; L.time = 900; // no real clock: the base's spawns ramp up over time instead
   L.base.ramp = 0.25 + Math.min(0.4, (run.wave - 1) * 0.02);
+  // the line is kept in level units: the Sim multiplies both by the armour upgrade (see endlessLine)
   L.cannon = { hp: Math.max(1, Math.round(run.line)), max: run.lineMax };
   if (run.wave % 5 === 0) { L.base.boss = true; L.base.name = `Cittadella ${run.wave / 5}`; }
   for (const id of run.perks) perkById(id)?.lvl?.(L);
   L.perks = run.perks.slice();
   return L;
+}
+// the cannon's resistance after a wave, back in level units (the Sim's hp includes the armour bonus)
+export function endlessLine(run, cannonHp, cannonMax) {
+  if (!(cannonMax > 0)) return run.line;
+  if (!(cannonHp > 0)) return 0;
+  return Math.max(1, Math.min(run.lineMax, Math.round((run.lineMax * cannonHp) / cannonMax)));
 }
 export const runScore = (run) => run.cleared * 1000 + run.figures;
 

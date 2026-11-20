@@ -1,0 +1,129 @@
+# Cinema e musica
+1|Come si chiama il festival della canzone italiana che si tiene ogni anno in Liguria?|Festival di Sanremo|Festivalbar|Zecchino d'Oro|Canzonissima|Il Festival di Sanremo si tiene dal 1951.
+1|Come si chiama il festival del cinema che si svolge al Lido ogni estate?|Mostra del cinema di Venezia|Festival di Cannes|Berlinale|Festa del cinema di Roma|È il festival cinematografico più antico del mondo, nato nel 1932.
+1|Come si chiama il premio principale della Mostra di Venezia?|Leone d'oro|Palma d'oro|Orso d'oro|Oscar|A Cannes si assegna la Palma d'oro, a Berlino l'Orso d'oro.
+1|Quale statuetta d'oro premia i migliori film negli Stati Uniti?|Oscar|Grammy|Emmy|Tony|Gli Oscar sono assegnati dall'Academy dal 1929.
+1|Come si chiama il topo più famoso della Disney?|Topolino|Gambadilegno|Pippo|Paperino|Topolino debuttò nel 1928 in «Steamboat Willie».
+1|In quale film Disney compare il leoncino Simba?|Il re leone|Bambi|Il libro della giungla|Robin Hood|«Il re leone» uscì nel 1994.
+1|Come si chiama il pupazzo di neve di «Frozen»?|Olaf|Sven|Kristoff|Hans|Sven è la renna di Kristoff.
+1|Quale mago frequenta la scuola di Hogwarts?|Harry Potter|Gandalf|Merlino|Frodo|La saga è stata scritta da J. K. Rowling.
+1|Come si chiama il pesce pagliaccio protagonista di un film Pixar?|Nemo|Dory|Marlin|Bruce|In «Alla ricerca di Nemo» Marlin cerca il figlio.
+1|Quale personaggio dice «Che la Forza sia con te»?|I Jedi di Guerre stellari|Superman|Harry Potter|Indiana Jones|La frase è il saluto tipico della saga di Star Wars.
+1|Quante corde ha una chitarra classica?|6|4|5|12|Le chitarre a 12 corde esistono, ma la classica ne ha sei.
+1|Quante corde ha un violino?|4|5|6|3|Il violino è accordato in sol, re, la, mi.
+1|Quale strumento a tastiera con le canne si trova spesso nelle chiese?|Organo|Arpa|Clavicembalo|Fisarmonica|L’organo produce il suono soffiando aria nelle canne.
+1|Quale strumento si suona soffiando e ha un'ancia semplice?|Clarinetto|Tromba|Flauto traverso|Oboe|L'oboe ha l'ancia doppia, il flauto non ha ancia.
+1|Quale gruppo inglese cantava «Yesterday» e «Let It Be»?|The Beatles|The Rolling Stones|Queen|Pink Floyd|I Beatles venivano da Liverpool.
+1|Chi era la voce dei Queen?|Freddie Mercury|Brian May|Mick Jagger|Elton John|Freddie Mercury scrisse «Bohemian Rhapsody».
+1|Chi era chiamato «il Re del rock and roll»?|Elvis Presley|Chuck Berry|Little Richard|Jerry Lee Lewis|Elvis divenne famoso negli anni Cinquanta.
+1|Chi era chiamato «il Re del pop»?|Michael Jackson|Prince|Elton John|Justin Bieber|«Thriller» è l'album più venduto di sempre.
+1|Quale gruppo romano ha vinto Sanremo 2021 e l'Eurovision 2021?|Måneskin|Pinguini Tattici Nucleari|Il Volo|Modà|I Måneskin vinsero l'Eurovision con «Zitti e buoni».
+1|Quale cantautore genovese scrisse «La canzone di Marinella»?|Fabrizio De André|Gino Paoli|Luigi Tenco|Bruno Lauzi|De André è detto «Faber».
+1|Quale cantante italiano canta «Albachiara» e «Vita spericolata»?|Vasco Rossi|Luciano Ligabue|Zucchero|Gianni Morandi|Vasco è nato a Zocca, in provincia di Modena.
+1|Quale tenore italiano era famoso nel mondo per «Nessun dorma»?|Luciano Pavarotti|Andrea Bocelli|Plácido Domingo|Enrico Caruso|Pavarotti era nato a Modena nel 1935.
+1|Quale cantante ha inciso «Nel blu dipinto di blu», detta «Volare»?|Domenico Modugno|Adriano Celentano|Claudio Villa|Gianni Morandi|Vinse Sanremo nel 1958.
+1|Quale attore italiano è il protagonista di «La vita è bella»?|Roberto Benigni|Massimo Troisi|Carlo Verdone|Alberto Sordi|Benigni vinse l'Oscar come miglior attore.
+1|Quale animale è Bambi nel film Disney?|Cerbiatto|Coniglio|Volpe|Scoiattolo|Il suo amico coniglio si chiama Tamburino.
+1|Come si chiama il cowboy di «Toy Story»?|Woody|Buzz|Rex|Slinky|Buzz Lightyear è il ranger spaziale.
+1|Come si chiama la città di Batman?|Gotham City|Metropolis|Smallville|Star City|Metropolis è la città di Superman.
+1|Quale strumento suona tradizionalmente il batterista?|Batteria|Basso|Tastiera|Sassofono|La batteria comprende tamburi e piatti.
+2|Quale regista italiano diresse «La dolce vita»?|Federico Fellini|Michelangelo Antonioni|Luchino Visconti|Pier Paolo Pasolini|Il film vinse la Palma d'oro nel 1960.
+2|In quale fontana di Roma si bagna Anita Ekberg ne «La dolce vita»?|Fontana di Trevi|Fontana dei Quattro Fiumi|Barcaccia|Fontana del Tritone|La scena con Marcello Mastroianni è tra le più celebri del cinema.
+2|Quale regista diresse «Il buono, il brutto, il cattivo»?|Sergio Leone|Sergio Corbucci|Dario Argento|Damiano Damiani|È uno dei più celebri «spaghetti western».
+2|Chi compose le musiche di «Nuovo Cinema Paradiso»?|Ennio Morricone con il figlio Andrea|Nino Rota|Nicola Piovani|Luis Bacalov|Il tema d'amore è firmato da Andrea Morricone.
+2|Quale film di Giuseppe Tornatore vinse l'Oscar come miglior film straniero?|Nuovo Cinema Paradiso|La leggenda del pianista sull'oceano|Malèna|L'uomo delle stelle|L'Oscar fu assegnato nel 1990.
+2|Quale film di Paolo Sorrentino vinse l'Oscar come miglior film straniero nel 2014?|La grande bellezza|Il divo|È stata la mano di Dio|Youth|Il protagonista è Jep Gambardella, interpretato da Toni Servillo.
+2|Chi interpreta Jep Gambardella ne «La grande bellezza»?|Toni Servillo|Carlo Verdone|Elio Germano|Pierfrancesco Favino|Servillo ha lavorato più volte con Sorrentino.
+2|Quale compositore scrisse le musiche de «Il padrino»?|Nino Rota|Ennio Morricone|John Williams|Henry Mancini|Nino Rota firmò anche molte colonne sonore di Fellini.
+2|Quale regista ha diretto la trilogia de «Il padrino»?|Francis Ford Coppola|Martin Scorsese|Brian De Palma|Steven Spielberg|Il primo capitolo uscì nel 1972.
+2|Chi ha diretto «Jurassic Park» ed «E.T.»?|Steven Spielberg|George Lucas|James Cameron|Ridley Scott|«E.T.» uscì nel 1982, «Jurassic Park» nel 1993.
+2|Chi ha creato la saga di «Guerre stellari»?|George Lucas|Steven Spielberg|J. J. Abrams|Ridley Scott|Il primo film uscì nel 1977.
+2|Chi ha diretto «Titanic» e «Avatar»?|James Cameron|Christopher Nolan|Peter Jackson|Robert Zemeckis|«Titanic» vinse 11 Oscar.
+2|Quanti Oscar vinse «Titanic»?|11|9|7|14|Lo stesso record è condiviso con «Ben-Hur» e «Il ritorno del re».
+2|Chi ha diretto la trilogia del «Signore degli anelli»?|Peter Jackson|Guillermo del Toro|Sam Raimi|Ridley Scott|I film sono stati girati in Nuova Zelanda.
+2|Chi scrisse il romanzo «Il Signore degli Anelli»?|J. R. R. Tolkien|C. S. Lewis|J. K. Rowling|George R. R. Martin|Tolkien era professore a Oxford.
+2|Come si chiama l'hobbit che porta l'anello a Mordor?|Frodo|Bilbo|Sam|Pipino|Lo accompagna il fedele Sam.
+2|Quale attore interpreta Jack Sparrow?|Johnny Depp|Orlando Bloom|Brad Pitt|Tom Cruise|La saga è «I pirati dei Caraibi».
+2|Quale agente segreto ha il numero di codice 007?|James Bond|Jason Bourne|Ethan Hunt|Jack Ryan|Il personaggio fu creato da Ian Fleming.
+2|Quale attore scozzese fu il primo James Bond al cinema?|Sean Connery|Roger Moore|Daniel Craig|Pierce Brosnan|Il primo film fu «Agente 007 - Licenza di uccidere» del 1962.
+2|Quale coppia comica italiana girò «Non ci resta che piangere»?|Benigni e Troisi|Totò e Peppino|Ficarra e Picone|Aldo, Giovanni e Giacomo|Il film è del 1984.
+2|Quale attore napoletano era detto «il Principe della risata»?|Totò|Eduardo De Filippo|Peppino De Filippo|Massimo Troisi|Antonio de Curtis è il vero nome di Totò.
+2|Chi interpretò il ragionier Fantozzi?|Paolo Villaggio|Lino Banfi|Renato Pozzetto|Ugo Tognazzi|Il primo film di Fantozzi uscì nel 1975.
+2|Quale attrice italiana vinse l'Oscar per «La ciociara»?|Sophia Loren|Anna Magnani|Gina Lollobrigida|Claudia Cardinale|Fu il primo Oscar a un'interpretazione non in lingua inglese.
+2|Quale attrice italiana vinse l'Oscar per «La rosa tatuata» nel 1956?|Anna Magnani|Sophia Loren|Giulietta Masina|Monica Vitti|Magnani fu la prima italiana a vincere l'Oscar come attrice.
+2|Quale regista italiano vinse l'Oscar alla regia per «L'ultimo imperatore»?|Bernardo Bertolucci|Federico Fellini|Giuseppe Tornatore|Gabriele Salvatores|Il film vinse nove Oscar nel 1988.
+2|Quale film di Gabriele Salvatores vinse l'Oscar come miglior film straniero nel 1992?|Mediterraneo|Marrakech Express|Io non ho paura|Nirvana|Il film è ambientato su un'isola greca durante la guerra.
+2|Quale saga di film è ambientata a Hogwarts?|Harry Potter|Le cronache di Narnia|Percy Jackson|Hunger Games|Gli otto film uscirono tra il 2001 e il 2011.
+2|Come si chiama il gufo di Harry Potter?|Edvige|Fanny|Grattastinchi|Crosta|Fanny è la fenice di Silente.
+2|Quale principessa Disney perde una scarpetta di cristallo?|Cenerentola|Biancaneve|Aurora|Belle|Il film Disney uscì nel 1950.
+2|Quale fu il primo lungometraggio animato della Disney, nel 1937?|Biancaneve e i sette nani|Pinocchio|Fantasia|Dumbo|Fu un enorme successo.
+2|Quale studio ha prodotto «Toy Story», primo film interamente in computer grafica?|Pixar|DreamWorks|Blue Sky|Illumination|«Toy Story» uscì nel 1995.
+2|Quale studio giapponese ha prodotto «La città incantata»?|Studio Ghibli|Toei Animation|Sunrise|Madhouse|Il film di Hayao Miyazaki vinse l'Oscar nel 2003.
+2|Chi è il regista de «Il mio vicino Totoro»?|Hayao Miyazaki|Isao Takahata|Makoto Shinkai|Mamoru Hosoda|Totoro è diventato il simbolo dello Studio Ghibli.
+2|Quale cantautore incise «Il mio canto libero» e «Emozioni»?|Lucio Battisti|Lucio Dalla|Francesco Guccini|Gianni Morandi|Battisti era in realtà laziale, di Poggio Bustone; i testi erano di Mogol.
+2|Chi scrisse i testi di molte canzoni di Lucio Battisti?|Mogol|Pasquale Panella|Paolo Conte|Franco Battiato|Mogol è lo pseudonimo di Giulio Rapetti; Panella scrisse gli ultimi album.
+2|Quale cantautore bolognese scrisse «Caruso»?|Lucio Dalla|Francesco Guccini|Vasco Rossi|Gianni Morandi|«Caruso» è del 1986.
+2|Quale cantautore siciliano incise «La cura» e «Centro di gravità permanente»?|Franco Battiato|Carmen Consoli|Rosario Fiorello|Mario Venuti|Battiato era nato a Ionia, oggi Riposto.
+2|Chi vinse il Festival di Sanremo 2024 con «La noia»?|Angelina Mango|Geolier|Annalisa|Ghali|Angelina Mango è figlia del cantautore Pino Mango.
+2|Chi vinse il Festival di Sanremo 2023 con «Due vite»?|Marco Mengoni|Lazza|Tananai|Ultimo|Mengoni aveva già vinto nel 2013.
+2|Quale band britannica incise l'album «The Dark Side of the Moon»?|Pink Floyd|Led Zeppelin|The Who|Genesis|L'album uscì nel 1973.
+2|Quale band irlandese è guidata da Bono?|U2|The Cranberries|Thin Lizzy|The Corrs|Gli U2 si formarono a Dublino nel 1976.
+2|Quale cantante giamaicano è il simbolo del reggae?|Bob Marley|Peter Tosh|Jimmy Cliff|Shaggy|Bob Marley guidava i Wailers.
+2|Quale band svedese vinse l'Eurovision 1974 con «Waterloo»?|ABBA|Roxette|Europe|Ace of Base|Dal loro repertorio è nato il musical «Mamma mia!».
+2|Quale compositore era sordo quando compose la Nona sinfonia?|Ludwig van Beethoven|Wolfgang Amadeus Mozart|Johann Sebastian Bach|Franz Schubert|Beethoven diresse la prima nel 1824.
+2|Quale compositore tedesco scrisse «L'arte della fuga» e i «Concerti brandeburghesi»?|Johann Sebastian Bach|Georg Friedrich Händel|Joseph Haydn|Richard Wagner|Bach fu Kantor a Lipsia.
+2|Quale accordo formano insieme le note do, mi e sol?|Accordo di do maggiore|Accordo di la minore|Accordo di sol maggiore|Accordo di fa maggiore|Do-mi-sol è la triade di do maggiore.
+2|Che cosa indica il termine «forte» in uno spartito?|Suonare a volume alto|Suonare velocemente|Suonare con dolcezza|Ripetere la parte|«Piano» indica invece volume basso.
+2|Quale tempo musicale indica «adagio»?|Lento|Molto veloce|Moderato veloce|Allegro|Andante, adagio e largo indicano tempi lenti.
+2|Quale strumento suona il «primo violino» di un'orchestra?|Il violino|La viola|Il pianoforte|Il flauto|Il primo violino è anche detto «spalla».
+3|Quale film di Fellini vinse l'Oscar come miglior film straniero nel 1975?|Amarcord|8½|La strada|Le notti di Cabiria|«Amarcord» in romagnolo significa «mi ricordo».
+3|Quale attrice era moglie e musa di Federico Fellini?|Giulietta Masina|Anita Ekberg|Claudia Cardinale|Sandra Milo|Masina fu protagonista de «La strada».
+3|Quale regista diresse «Ladri di biciclette», capolavoro del neorealismo?|Vittorio De Sica|Roberto Rossellini|Luchino Visconti|Cesare Zavattini|Il film è del 1948.
+3|Quale film di Roberto Rossellini del 1945 è considerato l'inizio del neorealismo?|Roma città aperta|Paisà|Germania anno zero|Stromboli|Anna Magnani vi interpreta la popolana Pina.
+3|Quale regista diresse «Il Gattopardo» nel 1963?|Luchino Visconti|Federico Fellini|Mario Monicelli|Pietro Germi|Il film vinse la Palma d'oro.
+3|Quale regista diresse «La grande guerra» e «L'armata Brancaleone»?|Mario Monicelli|Dino Risi|Ettore Scola|Luigi Comencini|«La grande guerra» vinse il Leone d'oro nel 1959.
+3|Quale film di Dino Risi del 1962 racconta un viaggio in auto con Gassman e Trintignant?|Il sorpasso|I mostri|Profumo di donna|Una vita difficile|Gassman guida una Lancia Aurelia B24.
+3|Quale regista girò «Profondo rosso» e «Suspiria»?|Dario Argento|Mario Bava|Lucio Fulci|Pupi Avati|La colonna sonora di «Profondo rosso» è dei Goblin.
+3|Quale gruppo firmò la colonna sonora di «Profondo rosso»?|Goblin|Le Orme|Premiata Forneria Marconi|Banco del Mutuo Soccorso|Il tema principale è diventato un classico.
+3|Quale film di Bernardo Bertolucci fu girato in gran parte nella Città Proibita?|L'ultimo imperatore|Il tè nel deserto|Piccolo Buddha|Novecento|Fu il primo film occidentale autorizzato a girare lì.
+3|Quale film italiano del 2004 di Paolo Sorrentino racconta un uomo d'affari solitario in un hotel svizzero?|Le conseguenze dell'amore|L'uomo in più|Il divo|This Must Be the Place|Il protagonista è Titta Di Girolamo, interpretato da Toni Servillo.
+3|Quale film di Matteo Garrone vinse il Grand Prix a Cannes nel 2008?|Gomorra|Dogman|Reality|Io capitano|Il film è tratto dal libro di Roberto Saviano.
+3|Quale film di Nanni Moretti vinse la Palma d'oro nel 2001?|La stanza del figlio|Caro diario|Habemus Papam|Mia madre|Moretti vinse anche la regia a Cannes per «Caro diario».
+3|Chi ha diretto «Chiamami col tuo nome», ambientato in Lombardia?|Luca Guadagnino|Paolo Virzì|Gabriele Muccino|Ferzan Özpetek|Il film ottenne l'Oscar per la sceneggiatura non originale.
+3|Quale film ha vinto più Oscar insieme a «Titanic» e «Ben-Hur»?|Il Signore degli Anelli - Il ritorno del re|Via col vento|West Side Story|Gigi|Tutti e tre hanno vinto 11 statuette.
+3|Chi diresse «2001: Odissea nello spazio»?|Stanley Kubrick|Andrej Tarkovskij|Ridley Scott|George Lucas|Il computer di bordo si chiama HAL 9000.
+3|Chi ha diretto «Pulp Fiction»?|Quentin Tarantino|Martin Scorsese|David Fincher|Guy Ritchie|Il film vinse la Palma d'oro nel 1994.
+3|Quale attore detiene il record di Oscar come miglior attore protagonista?|Daniel Day-Lewis|Jack Nicholson|Tom Hanks|Marlon Brando|Day-Lewis ne ha vinti tre.
+3|Quale attrice ha vinto più Oscar come interprete?|Katharine Hepburn|Meryl Streep|Ingrid Bergman|Bette Davis|Katharine Hepburn vinse quattro Oscar come miglior attrice.
+3|Quale fu il primo film sonoro della storia, nel 1927?|Il cantante di jazz|Metropolis|Tempi moderni|Il monello|«The Jazz Singer» introdusse dialoghi e canzoni sincronizzati.
+3|Quali fratelli francesi organizzarono la prima proiezione pubblica a pagamento nel 1895?|Lumière|Pathé|Méliès|Gaumont|La proiezione si tenne al Grand Café di Parigi.
+3|Quale cantautore vinse il premio Nobel per la letteratura nel 2016?|Bob Dylan|Leonard Cohen|Bruce Springsteen|Paul Simon|Fu premiato «per aver creato nuove espressioni poetiche nella canzone americana».
+3|Chi compose «Il carnevale degli animali»?|Camille Saint-Saëns|Maurice Ravel|Sergej Prokof'ev|Claude Debussy|Il «Cigno» è il brano più famoso.
+3|Quale compositore russo scrisse «Pierino e il lupo»?|Sergej Prokof'ev|Pëtr Čajkovskij|Igor Stravinskij|Modest Musorgskij|Ogni personaggio è rappresentato da uno strumento.
+3|Quale balletto di Čajkovskij ha per protagonisti i cigni?|Il lago dei cigni|Lo schiaccianoci|La bella addormentata|Giselle|Il balletto debuttò a Mosca nel 1877.
+3|Quale opera di Mozart ha come protagonista il servo Leporello?|Don Giovanni|Le nozze di Figaro|Il flauto magico|Così fan tutte|Il libretto è di Lorenzo Da Ponte.
+3|Chi scrisse il libretto delle tre opere italiane più celebri di Mozart?|Lorenzo Da Ponte|Pietro Metastasio|Arrigo Boito|Felice Romani|Da Ponte scrisse «Nozze», «Don Giovanni» e «Così fan tutte».
+3|Quale opera di Verdi è ambientata in Egitto?|Aida|Nabucco|Otello|Falstaff|L'opera debuttò al Cairo nel 1871.
+3|Quale opera di Puccini è ambientata a Parigi tra giovani artisti?|La bohème|Tosca|Manon Lescaut|Gianni Schicchi|Debuttò al Teatro Regio di Torino nel 1896.
+3|In quale città è ambientata la «Tosca» di Puccini?|Roma|Parigi|Venezia|Napoli|Il terzo atto si svolge a Castel Sant'Angelo.
+3|Quale compositore scrisse l'opera «Cavalleria rusticana»?|Pietro Mascagni|Ruggero Leoncavallo|Umberto Giordano|Francesco Cilea|È tratta da una novella di Giovanni Verga.
+3|Quale opera di Leoncavallo contiene l'aria «Vesti la giubba»?|Pagliacci|Zazà|La bohème|Edipo re|Pagliacci e Cavalleria sono spesso rappresentate insieme.
+3|Quale fu la prima canzone a vincere il Festival di Sanremo nel 1951?|Grazie dei fiori|Vola colomba|Nel blu dipinto di blu|Papaveri e papere|La cantò Nilla Pizzi.
+3|Quale cantante italiana vinse l'Eurovision nel 1964 con «Non ho l'età»?|Gigliola Cinquetti|Mina|Rita Pavone|Milva|Fu la prima vittoria italiana all'Eurovision.
+3|Chi vinse l'Eurovision 1990 per l'Italia con «Insieme: 1992»?|Toto Cutugno|Al Bano|Riccardo Cocciante|Umberto Tozzi|Fu la seconda vittoria italiana prima dei Måneskin.
+3|Quale cantante italiana è nota come «la Tigre di Cremona»?|Mina|Ornella Vanoni|Patty Pravo|Milva|Mina si è ritirata dalle scene pubbliche nel 1978.
+3|Quale cantante è soprannominata «la Pantera di Goro»?|Milva|Mina|Iva Zanicchi|Loredana Bertè|Milva era celebre interprete di Brecht.
+3|Quale gruppo rock progressivo italiano incise «Impressioni di settembre»?|Premiata Forneria Marconi|Banco del Mutuo Soccorso|Le Orme|New Trolls|La PFM collaborò anche con De André.
+3|Quale cantautore romano incise «Roma capoccia» e «Notte prima degli esami»?|Antonello Venditti|Francesco De Gregori|Rino Gaetano|Claudio Baglioni|Venditti è legato alla squadra della Roma.
+3|Quale cantautore incise «Gianna» e «Il cielo è sempre più blu»?|Rino Gaetano|Edoardo Bennato|Ivan Graziani|Lucio Dalla|Rino Gaetano era nato a Crotone.
+1|Come si chiama l'orco verde protagonista di un film DreamWorks del 2001?|Shrek|Hulk|Grinch|Fiona|Il suo amico è un asino chiacchierone, Ciuchino.
+1|Quale personaggio dei cartoni dice «Che succede, amico?» mangiando una carota?|Bugs Bunny|Duffy Duck|Titti|Speedy Gonzales|Bugs Bunny è il coniglio dei Looney Tunes.
+1|Come si chiama il gatto che insegue sempre il topo Jerry?|Tom|Silvestro|Garfield|Felix|«Tom & Jerry» nasce nel 1940.
+1|Quale strumento suonava il jazzista Louis Armstrong?|Tromba|Sassofono|Pianoforte|Clarinetto|Armstrong era anche un celebre cantante.
+2|Quale cantante americana è nota per l'album «1989» e il tour «The Eras Tour»?|Taylor Swift|Beyoncé|Lady Gaga|Katy Perry|The Eras Tour è il tour con il maggiore incasso di sempre.
+2|Quale musical racconta la storia di Maria e Tony a New York?|West Side Story|Grease|Cats|Chicago|È una versione moderna di «Romeo e Giulietta».
+2|Quale strumento è tipico della musica tradizionale scozzese?|Cornamusa|Fisarmonica|Mandolino|Sitar|La cornamusa ha una sacca d'aria e più canne.
+2|Quale strumento a corde pizzicate è tipico della canzone napoletana?|Mandolino|Banjo|Ukulele|Liuto|«'O sole mio» è spesso accompagnata dal mandolino.
+2|Quale cantautore incise «La donna cannone» e «Generale»?|Francesco De Gregori|Lucio Dalla|Antonello Venditti|Fabrizio De André|De Gregori è detto «il Principe dei cantautori».
+3|Quale tenore napoletano fu tra i primi grandi divi del disco all'inizio del Novecento?|Enrico Caruso|Beniamino Gigli|Tito Schipa|Giuseppe Di Stefano|Caruso incise centinaia di dischi negli Stati Uniti.
+3|Quale direttore d'orchestra parmense diresse la prima di «Turandot» nel 1926?|Arturo Toscanini|Riccardo Muti|Claudio Abbado|Gianandrea Gavazzeni|Toscanini interruppe l'esecuzione dove Puccini aveva smesso di scrivere.

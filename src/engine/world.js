@@ -1,7 +1,7 @@
 import { CATEGORIES, DIFFICULTY } from '../data/categories.js';
 import { TEAMS, ENGINE_SUPPLIERS, STAFF_NAMES } from '../data/teams.js';
 import { NAME_POOLS, NATS } from '../data/names.js';
-import { TRACKS, SEASON_LENGTH, SPONSORS, STAGE_NAMES } from '../data/tracks.js';
+import { TRACKS, SEASON_LENGTH, SPONSORS, STAGE_NAMES, RALLY_STAGES } from '../data/tracks.js';
 import { rand, randInt, pick, clamp, shuffle, uid, gauss, mulberry32 } from './rng.js';
 import { staffTraitFor, strengthRanking } from './dynasty.js';
 import { getTrack } from './basics.js';
@@ -119,7 +119,7 @@ export function buildCalendar(cat, length) {
     if ((cat === 'formula' && ['chn', 'mia', 'can', 'gbr', 'ned', 'sgp'].includes(t.id)) || cat === 'junior') ev.sprint = true;
     if (cat === 'rally') {
       const r = mulberry32(t.seed + i);
-      const names = shuffle(STAGE_NAMES);
+      const names = shuffle(RALLY_STAGES[t.id] || STAGE_NAMES);
       ev.stages = t.surfaces.map((s, si) => ({ name: names[si], surface: s, km: Math.round(8 + r() * 18 + (si === 2 ? 8 : 0)), power: si === t.surfaces.length - 1 }));
     }
     return ev;

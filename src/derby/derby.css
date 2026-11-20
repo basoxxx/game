@@ -154,3 +154,24 @@
 /* the buttons stay reachable when the results card scrolls (1024x768, phones) */
 .dzx-card .dzx-foot { position: sticky; bottom: -22px; margin: 0 -26px -22px; padding: 12px 26px 16px; background: linear-gradient(180deg, rgba(14,16,20,.85), rgba(14,16,20,.98) 30%); z-index: 2; }
 @media (max-height: 820px) { .dzx-card { padding-top: 16px; } .dzx-card h2 { font-size: 36px; margin-bottom: 6px; } .dzx-respod { margin: 0 0 8px; } .dzx-respod .p1 b { height: 40px; line-height: 40px; } .dzx-respod .p2 b { height: 30px; line-height: 30px; } .dzx-respod .p3 b { height: 22px; line-height: 22px; font-size: 18px; } .dzx-respod .dzx-medal { width: 22px; height: 22px; } .dzx-card td, .dzx-card th { padding-top: 6px; padding-bottom: 6px; } }
+/* phone in landscape (844x390 and the like): the results card is two columns, standings on the left and
+   the medal, run numbers and bonus objectives on the right, so the table is on screen without scrolling */
+@media (max-height: 500px) and (min-width: 600px) {
+  .dzx-over { justify-content: flex-start; padding-top: max(4px, env(safe-area-inset-top)); }
+  .dzx-card { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); grid-template-rows: repeat(7, auto) 1fr auto; column-gap: 14px; align-content: start;
+    width: calc(100vw - 2 * max(10px, env(safe-area-inset-left))); max-width: 980px; max-height: calc(100dvh - 8px); padding: 8px 14px 0; border-radius: 12px; }
+  .dzx-card > * { grid-column: 2; min-width: 0; }
+  .dzx-card > .dzx-head, .dzx-card > .dzx-foot { grid-column: 1 / -1; }
+  .dzx-card > .dzx-res-grid { grid-column: 1; grid-row: 2 / 9; flex-direction: column; gap: 8px; }
+  .dzx-card:not(:has(.dzx-res-grid .tbl)) { display: block; width: auto; max-width: 92vw; } /* no standings (time trial, long jump): one column */
+  .dzx-head { gap: 10px; } .dzx-head .dzx-medal { width: 40px; height: 40px; }
+  .dzx-card h2 { font-size: 26px !important; margin: 0 0 2px !important; }
+  .dzx-respod { display: none; }
+  .dzx-facts { gap: 5px; margin: 0 0 6px; } .dzx-facts span { padding: 3px 7px; font-size: 11px; } .dzx-facts b { font-size: 14px; }
+  .dzx-objres { gap: 5px; margin: 0 0 4px; justify-content: flex-start; } .dzx-objres span { font-size: 11px; padding: 3px 7px; }
+  .dzx-res-grid > div { overflow-x: auto; max-width: 100%; }
+  .dzx-card .tbl { font-size: 11.5px; } .dzx-card td, .dzx-card th { padding: 3px 5px !important; white-space: nowrap; } .dzx-card th { font-size: 10px; } .dzx-card td:nth-child(2) { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+  .dzx-facts { justify-content: flex-start; }
+  .dzx-card .dzx-foot { bottom: 0; margin: 6px -14px 0; padding: 6px 14px 8px; font-size: 12px; gap: 8px; }
+  .dzx-card .dzx-foot .btn.lg { padding: 8px 14px; font-size: 14px; min-height: 0; }
+}

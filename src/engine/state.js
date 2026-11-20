@@ -58,13 +58,14 @@ export function listSaves() {
 export function exportSave() {
   return new Blob([JSON.stringify(G.state)], { type: 'application/json' });
 }
-export function importSave(text) {
+// apply = false only parses and validates (the caller asks before overwriting a slot, then sets G.state itself)
+export function importSave(text, apply = true) {
   const s = JSON.parse(text);
   if (!isGameState(s)) throw new Error('File di salvataggio non valido');
   if (s.ironman) { // an Ironman career cannot be rolled back to an older backup
     for (const k of SLOTS) { try { const o = JSON.parse(storage()?.getItem(SAVE_PREFIX + k) || 'null'); if (o?.ironman?.id === s.ironman.id && (o.savedAt || 0) > (s.savedAt || 0)) throw new Error('Carriera Ironman: esiste già un salvataggio più recente di questa carriera.'); } catch (e) { if (/Ironman/.test(e.message)) throw e; } }
   }
-  G.state = s; return s;
+  if (apply) G.state = s; return s;
 }
 
 const DEFAULT_SETTINGS = { sound: true, volume: 0.5, engineSound: true, raceSpeed: 8, animations: true };

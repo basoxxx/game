@@ -12,6 +12,15 @@
 
 ![Scontro Totale](site-src/shots/cover-derby.webp)
 
+## Novità della versione 6.5
+Cinque nuove raccolte nel Baso Hub (ora 17 giochi):
+- **Carte Baso** – Scopa (classica, Scopone scientifico, Scopa d'assi) e Briscola (1v1 e a coppie) con carte napoletane e piacentine originali; Solitari (Solitario, Spider, FreeCell, Piramide) con partite numerate, "solo vincibili" e solitario del giorno; Scala 40 e Burraco; Texas Hold'em e Blackjack con fiches finte, solo per gioco. CPU a 3 livelli, più giocatori sullo stesso dispositivo, dorsi e tappeti da sbloccare.
+- **Tavolo Baso** – Scacchi (6 livelli, problema del giorno, 200 problemi), Dama italiana, Quattro in fila e Battaglia navale in 3D, anche in due sul tablet in piano.
+- **Rompicapo** – Sudoku, Unisci, Mattoncini e Mahjong con sfide del giorno.
+- **Arcade Baso** – Astro Baso, Rimbalzo, Corri Baso e Labirinto Goloso al neon, con record e sfida del giorno.
+- **Quiz e Parole** – Quiz, quiz del giorno, Parolina, Impiccato e Anagrammi in italiano.
+- **Revisione generale dei bug**: Apex Dynasty (soste ai box, bandiera a scacchi, Monaco, import dei salvataggi, nomi delle prove rally, muretto box), Orda (Infinita, torri delle razzie, sfida del giorno identica su tutti i browser, spinta dopo le sconfitte), Kart Baso (scorciatoie, difficoltà del Gran Premio, schermo diviso più fluido), Bastione (Aiuto del Re), Ingorgo (generazione 3× più veloce, avviso vicolo cieco), Festa Baso (spareggi, partita salvabile), Serpentone, Minigolf e altro.
+
 ## Novità della versione 6.4
 - **Festa Baso** – party game per 2–4 giocatori sullo stesso schermo: tabellone 3D con dadi, monete e stelle, torneo e allenamento, 15 minigiochi costruiti con i pezzi degli altri giochi (tiro alla fune e corsa delle porte con Orda, sprint e palloncini con Kart Baso, autoscontro, mini voragine, arena dei serpenti, pittura del territorio, Bastione unito, più vicino alla buca, Ingorgo lampo, corsa all'officina, semaforo, ritmo e memoria). Tastiera a zone, fino a 4 controller e touch diviso anche con tablet sul tavolo. Il Baso Hub ora ha 12 giochi.
 
@@ -322,3 +331,179 @@ Semaforo (riflessi), Ritmo Baso e Memoria a colori.
 - `node tools/festa-test.mjs` (ogni minigioco con 2/3/4 giocatori CPU, determinismo, tabellone e torneo completi),
   `node tools/festa-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/festa-cover.mjs <url>` (copertina),
   `node tools/festa-bank.mjs` (rigenera gli ingorghi del minigioco con il generatore di Ingorgo).
+
+## Arcade Baso (Baso Hub · Arcade)
+
+Raccolta di **4 giochi arcade originali** in stile neon 2.5D/3D (three.js), una sola voce nel Baso Hub con una
+casella per gioco più la **Sfida del giorno** (un gioco a rotazione, seme e variante uguali per tutti, bonus monete).
+- **Astro Baso** — sparatutto verticale: 3 settori × 8 ondate generate dal seme, 6 tipi di nemici, 3 boss con fasi
+  (Granchio Quasar, Medusa Ionica, Occhio del Vuoto), 5 potenziamenti, bombe, cristalli, moltiplicatore combo fino a x8.
+  2 giocatori in cooperativa (due navi).
+- **Rimbalzo** — spaccamattoni: 48 quadri (12 disegnati a mano + 36 dal generatore, tutti verificati risolvibili),
+  modalità infinita, mattoni duri/metallo/esplosivi/oro, 8 capsule (multipalla, laser, colla, fuoco…).
+- **Corri Baso** — corsa infinita a 3 corsie: salto, scivolata, tram, monete, 4 potenziamenti, velocità crescente,
+  3 missioni a rotazione che alzano il moltiplicatore.
+- **Labirinto Goloso** — Gnam e le quattro vespe (impronte, pattuglia, guardia, specchio) in labirinti simmetrici
+  generati senza vicoli ciechi, peperoncino, dolci bonus, allarme «Sciame!».
+- Record (migliori 10 per gioco), monete, colori e scie in comune ai 4 giochi (niente pubblicità).
+- Comandi: tastiera, 2 controller, mouse, touch (trascina, scorri, tocca, tasti virtuali) in verticale e orizzontale;
+  2 giocatori a turno sullo stesso seme (o in cooperativa in Astro Baso). Qualità a livelli + FrameGuard.
+- Codice: `src/arcade/` (simulazioni pure `astro.js`, `rimbalzo.js`, `corri.js`, `labirinto.js`; viste `*-view.js`;
+  `host.js` input/loop/HUD; `stage.js`), schermata `src/screens/arcade.js`, voce `src/hub/games/arcade.js`.
+- `node tools/arcade-test.mjs` (collisioni, punteggi, livelli risolvibili e completabili), `node tools/arcade-e2e.mjs <url> [cartella]`
+  (Playwright, 4 risoluzioni), `node tools/arcade-cover.mjs <url>` (copertina `public/covers/arcade.webp`).
+
+## Rompicapo (Baso Hub · Puzzle)
+
+Una scatola di quattro rompicapo veloci, in verticale e in orizzontale, su telefono, tablet e PC. Ognuno ha il suo
+menu, livelli o difficoltà, statistiche e una **sfida del giorno** uguale per tutti; il «Rompicapo del giorno» le
+raccoglie (monete doppie per il gioco in vetrina, bonus per tutte e quattro, serie di giorni, risultato da copiare).
+Le monete sbloccano **8 temi** che ricolorano tutti i giochi. Niente pubblicità, niente acquisti.
+- **Sudoku**: generatore con soluzione unica garantita (contatore a bitmask) e difficoltà graduate dalle tecniche
+  necessarie (singoli · candidati bloccati e coppie · triple, X-Wing, Y-Wing, Swordfish); note, evidenziazioni,
+  annulla, errori (limite di 3 facoltativo), aiuti che spiegano la tecnica, 100 livelli per difficoltà, partita salvata.
+- **Unisci**: fai scorrere e unisci i numeri (4×4, 5×5, 6×6), un passo indietro, record, partita salvata.
+- **Mattoncini**: 7 pezzi a sacchetto, rotazioni con wall kick (tabelle SRS), tieni, 5 prossimi, ombra, caduta
+  morbida/istantanea, ritardo di blocco, T-spin, combo, consecutive; Maratona (150 linee), Sprint 40, Ultra 2 minuti,
+  Infinita. Tastiera con auto-ripetizione, gesti touch, tasti a schermo, controller.
+- **Mahjong solitario**: 6 disposizioni a strati (da 56 a 144 tessere) con tessere disegnate in codice; smazzate
+  risolvibili per costruzione (la partita giocata al contrario), aiuto che mantiene la partita risolvibile, annulla,
+  mescola con soluzione garantita.
+- Codice: logica pura in `src/rompicapo/` (`sudoku.js`, `merge.js`, `blocks.js`, `mahjong.js`), viste
+  `*-ui.js`, schermata `src/screens/rompicapo.js`, voce del Baso Hub `src/hub/games/rompicapo.js`.
+- `node tools/rompicapo-test.mjs` (500 sudoku unici, 300 smazzate risolvibili, rotazioni/kick/linee, regole di Unisci),
+  `node tools/rompicapo-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni, si gioca dalla UI),
+  `node tools/rompicapo-cover.mjs <url>` (copertina `public/covers/rompicapo.webp`).
+
+## Carte Baso (Baso Hub · Carte)
+
+Raccolta di giochi di carte in un'unica voce del Baso Hub, con un framework a plug-in in cui ogni gioco è un file
+in `src/carte/games/` (API documentata in `src/carte/README.md`).
+- **Scopa** (classica in 2, 3 o 4 a coppie, **Scopone scientifico** con Napola facoltativa, **Scopa d'assi**) e
+  **Briscola** (in 2 o 4 a coppie, con segnali tra compagni): regole e punteggi italiani completi (carte, denari,
+  settebello, primiera, scope; 120 punti in Briscola), CPU Facile / Normale / Difficile (conta le carte e simula le
+  mani possibili con playout Monte Carlo), partite a 11/21/31 punti o al meglio di 3/5.
+- Carte disegnate in modo procedurale (SVG originali): Napoletane, Piacentine, Francesi con jolly; dorsi e tavoli da
+  sbloccare con le monete vinte (niente soldi veri, niente pubblicità); statistiche e record per gioco.
+- Tavolo 2D/2.5D animato (distribuzione, giocata, girata, presa), tocca o trascina le carte, tastiera e controller,
+  verticale e orizzontale; da 1 a 4 umani a turno con schermata «passa il dispositivo»; partita salvata e ripresa.
+- `node tools/carte-test.mjs` (regole, punteggi e migliaia di partite IA contro IA), `node tools/carte-e2e.mjs <url> [cartella]`
+  (Playwright, partite complete di Scopa e Briscola a 4 risoluzioni), `node tools/carte-cover.mjs` (copertina).
+
+### Carte Baso: Texas Hold'em e Blackjack (fiches finte, solo per gioco)
+- **Texas Hold'em** (`src/carte/games/poker.js`, motore in `src/carte/games/poker/`): da 2 a 6 posti, **Sit & Go** con
+  bui che salgono (Turbo/Normale/Lenta) o **tavolo cash** con ricarica automatica di fiches finte; giri di puntata
+  completi (lascia/passa/vedi/punta/rilancia/all-in, rilancio minimo, all-in corti che non riaprono il giro, puntate
+  non viste restituite, piatti laterali, piatti divisi), showdown con i nomi italiani dei punti, storico della mano,
+  hot-seat con carte coperte. CPU con 4 stili (Roccia, Squalo, Maniaco, Pescatore) e 3 livelli: equity Monte Carlo,
+  pot odds, posizione, bluff.
+- **Blackjack** (`src/carte/games/blackjack.js`, `src/carte/games/blackjack/`): tu contro il banco, sabot da 6 mazzi con
+  carta di taglio, S17/H17, raddoppio, divisione (assi una carta), assicurazione, resa facoltativa, blackjack 3:2,
+  pulsante **Consiglio** (strategia base), allenamento al conteggio **Hi-Lo** (mostra o quiz), statistiche di sessione.
+- Le fiches sono numeri finti: nessun acquisto, nessuna conversione (le monete del Baso Hub arrivano solo come premio
+  cosmetico di fine partita, come negli altri giochi di carte).
+- `node tools/carte-poker-test.mjs` (valutatore su tutte le 2.598.960 mani da 5 carte e su mani casuali contro un
+  riferimento lento, piatti laterali, macchina a stati delle puntate, maratona con conservazione delle fiches, IA),
+  `node tools/carte-blackjack-test.mjs` (pagamenti, divisioni, raddoppi, banco, strategia base, conteggio, maratona),
+  `node tools/carte-poker-e2e.mjs <url> [cartella]` (Playwright, poker e blackjack a 4 risoluzioni).
+
+### Solitari (Carte Baso)
+
+Quattro solitari con le carte francesi, come plug-in di Carte Baso (`src/carte/games/solitari-*.js`, regole,
+risolutori e disposizione in `src/carte/games/solitari/`):
+- **Solitario (Klondike)** pesca 1 / pesca 3, punteggio standard (non Vegas) con bonus tempo; **Spider** a 1, 2 o 4
+  semi; **FreeCell** con numerazione propria (ogni numero verificato dal risolutore: tutte vincibili) o classica
+  (Windows, con le famose impossibili come la 11982 evitate); **Piramide** con 1, 2 o 3 giri del mazzo.
+- Partite numerate (1-1.000.000), «Solo vincibili» (risolutore deterministico), **Solitario del giorno** uguale per
+  tutti; annulla illimitato (ripetizione della partita dal numero), suggerimenti dal risolutore (Klondike, FreeCell,
+  Piramide) o dal pianificatore (Spider), tocca per spostare nel posto migliore, trascina le scale, completamento
+  automatico animato, tempo/mosse/punti, statistiche per variante (serie, tempi, mosse, punti), festa di vittoria
+  con le carte che rimbalzano; tasti U/H/N/D, frecce e Invio; verticale e orizzontale.
+- `node tools/carte-solitari-test.mjs` (regole, risolutori su molti numeri giocati attraverso il plug-in, annulla,
+  soak con controllo degli invarianti), `node tools/carte-solitari-e2e.mjs <url> [cartella]` (Playwright: vince una
+  partita di ogni solitario dall'interfaccia, con i suggerimenti, a 4 risoluzioni).
+
+## Quiz e Parole (Baso Hub · Quiz)
+
+Raccolta di quattro giochi in italiano in un'unica tessera del Baso Hub (modalità: Quiz, Quiz del giorno, Parolina,
+Impiccato, Anagrammi). Mouse, touch, tastiera e controller; verticale e orizzontale su telefono, tablet e PC.
+- **Quiz**: 1.311 domande originali a scelta multipla con spiegazione, in 9 categorie (Motori e Formula, Cultura
+  generale, Geografia, Storia, Scienza, Sport, Cinema e musica, Lingua italiana, Tecnologia) e 3 livelli. Modalità
+  Partita (10 domande a tempo, bonus velocità e serie), Sopravvivenza (3 vite, livello crescente), Sfida 2-4 giocatori
+  sullo stesso schermo (prenotazione con Q/P/Z/M, un controller a testa o pulsanti touch, anche «tablet sul tavolo»)
+  e Quiz del giorno (uguale per tutti, risultato in emoji da condividere). Aiuti: 50:50, Salta, +10 secondi. Nessuna
+  domanda si ripete finché la categoria non è esaurita; le domande sono JSON per categoria caricati a richiesta.
+- **Parolina**: la parola di 5 lettere in 6 tentativi; parola del giorno e partite libere, modalità difficile,
+  statistiche e serie, griglia emoji da condividere, tastiera italiana a schermo (le lettere accentate valgono come
+  semplici). 1.838 soluzioni comuni scelte a mano + ~6.700 tentativi validi.
+- **Impiccato** con la mongolfiera (niente forca: ogni errore fa cadere un sacchetto di sabbia), 8 categorie con indizi.
+- **Anagrammi a tempo**: 7 lettere, 90 secondi (+2 per parola), parolone da 7 lettere, sfida del giorno.
+- Monete guadagnate giocando (niente pubblicità) e 7 temi grafici da sbloccare.
+- Codice: `src/quiz/` (domande sorgente in `questions/*.txt`, dati generati in `data/`, viste in `views/`, logica
+  deterministica in `daily.js`), schermata `src/screens/quiz.js`, voce del hub `src/hub/games/quiz.js`.
+- `node tools/quiz-build.mjs` (testi → JSON), `node tools/quiz-words.mjs <cartella sorgenti>` (liste di parole, vedi
+  CREDITS), `node tools/quiz-test.mjs` (schema, duplicati, bilanciamento, parole, determinismo del giorno),
+  `node tools/quiz-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/quiz-cover.mjs <url>` (copertina).
+## Tavolo Baso (Baso Hub · Tavolo)
+
+Collezione di quattro classici da tavolo su scacchiere 3D (three.js: legno e marmo procedurali, luci morbide,
+riflessi d'ambiente, pezzi torniti, animazioni di salto e scivolamento; in 2D con qualità Bassa o senza WebGL),
+contro il computer o in due sullo stesso dispositivo (scacchiera che ruota verso chi muove, oppure «tablet sul
+tavolo» con vista dall'alto e barra dell'avversario capovolta).
+- **Scacchi**: regole complete (arrocco, en passant, promozione a scelta, scacco/matto/stallo, 50 mosse, triplice
+  ripetizione, materiale insufficiente), motore in un Web Worker (alpha-beta PVS con approfondimento iterativo,
+  quiescenza, tabella delle trasposizioni, mossa nulla, LMR, libro d'aperture) a 6 livelli da Principiante a
+  Campione, suggerimenti, annulla, orologi (3+2, 5′, 10′, 15+10), esportazione PGN/FEN, mosse in notazione italiana.
+- **Dama italiana**: pedine che non mangiano la dama, presa obbligatoria con le priorità italiane (quantità,
+  qualità del pezzo che prende, numero di dame, dama incontrata per prima), dama che muove di una casa; IA a 4 livelli.
+- **Quattro in fila** (7×6): negamax con potatura alfa-beta e tabella delle trasposizioni, 4 livelli.
+- **Battaglia navale**: schieramento a trascinamento/rotazione, navi separate o a contatto, colpo a segno che
+  rispara (opzione), ammiraglio del computer a 4 livelli (caccia/bersaglio, scacchiera, densità di probabilità),
+  due giocatori con schermo nascosto e passaggio del dispositivo.
+- **Puzzle del giorno**: matto in 2 (banca di posizioni originali generate e verificate dal risolutore), «vinci in 3»
+  di Quattro in fila (generato dal giorno), la flotta nascosta del giorno; serie di giorni; 200 matti in 2 di allenamento.
+- Monete solo giocando (niente pubblicità) per 6 scacchiere/tavoli e 5 set di pezzi (anche i dischi di Quattro in fila).
+- Comandi: tocco/clic e trascinamento, tastiera (frecce + Invio, U annulla, H suggerimento, V vista, Esc pausa),
+  controller tramite la navigazione del Baso Hub (le caselle sono pulsanti veri sopra la scena 3D).
+- Codice: regole e IA pure in `src/tavolo/{chess,dama,four,navale}/`, viste in `src/tavolo/view/`, partite in
+  `src/tavolo/play/`, schermata `src/screens/tavolo.js`.
+- `node tools/tavolo-test.mjs` (perft sulle posizioni standard, regole, IA; `QUICK=1` più veloce),
+  `node tools/tavolo-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/tavolo-cover.mjs <url>`
+  (copertina), `node tools/tavolo-puzzles.mjs [n] [seme]` (rigenera la banca dei matti in 2).
+
+## Carte Baso (Baso Hub · Carte)
+
+Raccolta di giochi di carte in un'unica voce del Baso Hub, con un framework a plug-in in cui ogni gioco è un file
+in `src/carte/games/` (API documentata in `src/carte/README.md`).
+- **Scopa** (classica in 2, 3 o 4 a coppie, **Scopone scientifico** con Napola facoltativa, **Scopa d'assi**) e
+  **Briscola** (in 2 o 4 a coppie, con segnali tra compagni): regole e punteggi italiani completi (carte, denari,
+  settebello, primiera, scope; 120 punti in Briscola), CPU Facile / Normale / Difficile (conta le carte e simula le
+  mani possibili con playout Monte Carlo), partite a 11/21/31 punti o al meglio di 3/5.
+- Carte disegnate in modo procedurale (SVG originali): Napoletane, Piacentine, Francesi con jolly; dorsi e tavoli da
+  sbloccare con le monete vinte (niente soldi veri, niente pubblicità); statistiche e record per gioco.
+- Tavolo 2D/2.5D animato (distribuzione, giocata, girata, presa), tocca o trascina le carte, tastiera e controller,
+  verticale e orizzontale; da 1 a 4 umani a turno con schermata «passa il dispositivo»; partita salvata e ripresa.
+- `node tools/carte-test.mjs` (regole, punteggi e migliaia di partite IA contro IA), `node tools/carte-e2e.mjs <url> [cartella]`
+  (Playwright, partite complete di Scopa e Briscola a 4 risoluzioni), `node tools/carte-cover.mjs` (copertina).
+
+### Scala 40 e Burraco (Carte Baso · ramino)
+
+Due plug-in di ramino all'italiana con due mazzi francesi e 4 jolly (`src/carte/games/scala40.js`,
+`src/carte/games/burraco.js`, logica comune delle combinazioni in `src/carte/games/scala40/ramino.js`).
+- **Scala 40** (2-6 giocatori, 13 carte): apertura con 40 punti anche in più combinazioni, scale e tris/poker di semi
+  diversi, jolly (uno per combinazione o «liberi»), attacchi, recupero del jolly, scarto raccolto solo per aprire,
+  divieto di scartare carte attaccabili (opzione), chiusura in mano a punti doppi, chi non apre paga 100 (o 50),
+  eliminazione a 101 o 201: vince l'ultimo rimasto.
+- **Burraco** (in due o a coppie, 11 carte + pozzetti): jolly e pinelle (massimo una matta per combinazione, il 2 al suo
+  posto è naturale, la matta scivola in fondo), si raccoglie tutto il pozzo, pozzetto in volo o allo scarto, burraco
+  pulito 200 / sporco 100, chiusura (+100) con un burraco (opzione: pulito), partite a 2005, 1505, 1005 o una smazzata.
+- Tavolo: tocca il tallone o lo scarto, poi tocca una carta e la destinazione o trascinala (nuova combinazione, una
+  combinazione del tavolo, gli scarti); pulsanti «Cala…/Apri con…» con le combinazioni migliori della mano, ordinamento
+  per seme o per valore, riepilogo della smazzata con la tabella dei punti.
+- CPU Facile / Normale / Difficile: partizione ottima della mano (branch and bound sulle combinazioni possibili),
+  raccolta degli scarti valutata, carte da tenere secondo vicine e uscite ancora possibili, memoria di cosa raccolgono
+  e scartano gli avversari (niente carte che si attaccano alle loro combinazioni).
+- `node tools/carte-scala-test.mjs` e `node tools/carte-burraco-test.mjs` (validazione con jolly e pinelle, tabelle dei
+  punti, migliaia di smazzate IA contro IA con controllo completo dello stato a ogni mossa; `QUICK=1` per la versione
+  breve), `node tools/carte-scala-e2e.mjs <url> [cartella]` e `node tools/carte-burraco-e2e.mjs <url> [cartella]`
+  (Playwright: una smazzata giocata dalla UI a 1440×900, 1024×768, 390×844, 844×390).

@@ -26,3 +26,8 @@ export function noteMini(d, id, place, human = true) {
   s.played++; if (place === 1) s.won++;
   d.stats.minis++; if (place === 1) d.stats.miniWins++;
 }
+// a board party in progress, saved between turns (one slot): { v, cfg, B, seed, miniCount, earned, at }
+const BKEY = 'baso_festa_board_v1';
+export function feSaveBoard(o) { try { localStorage.setItem(BKEY, JSON.stringify({ v: 1, ...o, at: Date.now() })); } catch {} }
+export function feLoadBoard() { try { const o = JSON.parse(localStorage.getItem(BKEY) || 'null'); return o && o.v === 1 && o.B && o.cfg ? o : null; } catch { return null; } }
+export function feClearBoard() { try { localStorage.removeItem(BKEY); } catch {} }

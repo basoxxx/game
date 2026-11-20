@@ -141,7 +141,7 @@ registerScreen({
         vgSave(st);
         V.result = r;
         setTimeout(() => {
-          const ov = document.getElementById('vg-over'); if (!ov || !V.playing) return;
+          const ov = document.getElementById('vg-over'); if (!ov || !V.playing || V.game !== g) return; // a rematch started in this beat keeps its own overlay
           ov.innerHTML = results(r, st);
           try { r.pos === 1 || r.stars >= 2 ? sfx.win() : sfx.ok(); if (r.unlocks.length) setTimeout(() => sfx.levelup?.(), 600); } catch {}
           requestAnimationFrame(() => ov.querySelector('.btn.primary')?.focus({ preventScroll: true }));
