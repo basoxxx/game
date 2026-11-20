@@ -238,7 +238,7 @@ function hintMove() {
 function describe(m, s) {
   if (m.act === 'draw') return 'Gira una carta dal mazzo';
   if (m.act === 'recycle') return 'Rigira il mazzo';
-  if (m.act === 'deal') return 'Distribuisci una nuova fila';
+  if (m.act === 'row') return 'Distribuisci una nuova fila';
   if (m.act === 'pair') return 'Togli la coppia evidenziata';
   const to = m.to || '';
   const where = to[0] === 'f' ? 'in fondazione' : to.startsWith('cell') ? 'in una cella libera' : to[0] === 't' ? 'nella colonna evidenziata' : to === 'waste' ? 'sugli scarti' : '';
@@ -260,7 +260,7 @@ function showHint(m) {
   const els = [];
   const card = m.card || (m.act === 'recycle' ? null : null);
   if (card) els.push(T.els.get(card));
-  const pile = m.to ? m.to : m.act === 'recycle' || m.act === 'draw' ? 'stock' : null;
+  const pile = m.to ? m.to : m.act === 'recycle' || m.act === 'draw' || m.act === 'row' ? 'stock' : null;
   if (m.with) els.push(T.els.get(m.with));
   if (pile && pile !== 'deal') {
     const pv = T.view?.piles?.find((p) => p.id === pile);
@@ -286,16 +286,18 @@ function tapPick(id) {
 function onTap(e) {
   const T = W()?.table; if (!T || T._dragged || T.sel) return;
   const now = performance.now(), L = C.lastTap;
-  if (L && now - L.t < 330 && Math.hypot(e.clientX - L.x, e.clientY - L.y) < 14) { e.stopPropagation(); e.preventDefault(); return; } // the 2nd click of a double click
+  // the 2nd click of a double click on a card that already went home: ignore it (not on the stock: fast draws)
+  const onStock = T.pos.get(e.target.closest('.ct-card')?.dataset.card)?.pile === 'stock';
+  if (e.detail >= 2 && !onStock && L && now - L.t < 500 && Math.hypot(e.clientX - L.x, e.clientY - L.y) < 14) { e.stopPropagation(); e.preventDefault(); return; }
   const cardEl = e.target.closest('.ct-card');
   if (!cardEl) {
     const pid = T.pileAt(e.clientX, e.clientY);
-    if (pid === 'stock' && canPlay()) { const m = (W().legal() || []).find((x) => x.act === 'recycle' || x.act === 'draw' || x.act === 'deal'); if (m) { e.stopPropagation(); C.lastTap = { t: now, x: e.clientX, y: e.clientY }; T.fire(m); } }
+    if (pid === 'stock' && canPlay()) { const m = (W().legal() || []).find((x) => x.act === 'recycle' || x.act === 'draw' || x.act === 'row'); if (m) { e.stopPropagation(); C.lastTap = { t: now, x: e.clientX, y: e.clientY }; T.fire(m); } }
     return;
   }
   if (!cardEl.classList.contains('ok')) return;
   const ms = T.movesFor(cardEl.dataset.card);
-  if (ms.length < 2) { C.lastTap = { t: now, x: e.clientX, y: e.clientY }; return; }
+  if (ms.length < 2) { if (!onStock) C.lastTap = { t: now, x: e.clientX, y: e.clientY }; return; }
   const m = tapPick(cardEl.dataset.card);
   if (!m) return; // the game prefers the framework's "pick the destination" selection
   e.stopPropagation(); e.preventDefault();
@@ -311,7 +313,7 @@ function onKey(e) {
   if (k === 'u' || k === 'backspace') { e.preventDefault(); act('undo'); }
   else if (k === 'h') { e.preventDefault(); act('hint'); }
   else if (k === 'n') { e.preventDefault(); act('new'); }
-  else if (k === 'd') { const m = (W()?.legal() || []).find((x) => x.act === 'draw' || x.act === 'recycle' || x.act === 'deal'); if (m && canPlay()) { e.preventDefault(); W().table.fire(m); } }
+  else if (k === 'd') { const m = (W()?.legal() || []).find((x) => x.act === 'draw' || x.act === 'recycle' || x.act === 'row'); if (m && canPlay()) { e.preventDefault(); W().table.fire(m); } }
 }
 
 // ------------------------------------------------------------------ win celebration: bouncing cards

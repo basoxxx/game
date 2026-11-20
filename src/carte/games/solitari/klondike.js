@@ -252,8 +252,8 @@ export function view(s, D) {
   const below = s.wa.slice(0, s.wa.length - vis), shown = s.wa.slice(s.wa.length - vis);
   piles.push(pileAt(D, 'wastebelow', below, waste[0], waste[1], cw, { layout: 'stack' }));
   const gap = 0.3;
-  if (side) piles.push(pileAt(D, 'waste', shown, waste[0], waste[1], cw, { layout: 'cascade', upGap: 0.17 }));
-  else piles.push(pileAt(D, 'waste', shown, waste[0] + ((shown.length - 1) / 2) * cw * gap, waste[1], cw, { layout: 'row', gap }));
+  if (side) piles.push(pileAt(D, 'waste', shown, waste[0], waste[1], cw, { layout: 'cascade', upGap: 0.17, z: 60 }));
+  else piles.push(pileAt(D, 'waste', shown, waste[0] + ((shown.length - 1) / 2) * cw * gap, waste[1], cw, { layout: 'row', gap, z: 60 }));
   s.f.forEach((f, i) => { const [x, y] = fpos(i); piles.push(pileAt(D, `f${i}`, f, x, y, cw, { layout: 'stack', outline: true, cls: 'sol-found' })); });
   const maxH = (H - pad - ch / 2 - tabY) / H;
   s.t.forEach((col, i) => {

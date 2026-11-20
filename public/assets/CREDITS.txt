@@ -60,3 +60,7 @@ by hand (src/quiz/words-src). Art, balloon illustration, sounds and the cover (t
 
 Carte Baso (src/carte): no external assets. Card faces (Napoletane, Piacentine, French + jokers), backs, felts and
 the cover (covers/carte.webp, tools/carte-cover.mjs) are original procedural SVG/CSS; sounds are synthesised (Web Audio).
+
+Solitari (src/carte/games/solitari*): no external assets or data. Rules, solvers, deal numbering and the layout are
+original code; the classic FreeCell numbering uses the publicly documented Microsoft deal algorithm (an LCG), not
+copied data. Cards and sounds come from Carte Baso's procedural art.

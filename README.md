@@ -402,3 +402,19 @@ in `src/carte/games/` (API documentata in `src/carte/README.md`).
   verticale e orizzontale; da 1 a 4 umani a turno con schermata «passa il dispositivo»; partita salvata e ripresa.
 - `node tools/carte-test.mjs` (regole, punteggi e migliaia di partite IA contro IA), `node tools/carte-e2e.mjs <url> [cartella]`
   (Playwright, partite complete di Scopa e Briscola a 4 risoluzioni), `node tools/carte-cover.mjs` (copertina).
+
+### Solitari (Carte Baso)
+
+Quattro solitari con le carte francesi, come plug-in di Carte Baso (`src/carte/games/solitari-*.js`, regole,
+risolutori e disposizione in `src/carte/games/solitari/`):
+- **Solitario (Klondike)** pesca 1 / pesca 3, punteggio standard (non Vegas) con bonus tempo; **Spider** a 1, 2 o 4
+  semi; **FreeCell** con numerazione propria (ogni numero verificato dal risolutore: tutte vincibili) o classica
+  (Windows, con le famose impossibili come la 11982 evitate); **Piramide** con 1, 2 o 3 giri del mazzo.
+- Partite numerate (1-1.000.000), «Solo vincibili» (risolutore deterministico), **Solitario del giorno** uguale per
+  tutti; annulla illimitato (ripetizione della partita dal numero), suggerimenti dal risolutore (Klondike, FreeCell,
+  Piramide) o dal pianificatore (Spider), tocca per spostare nel posto migliore, trascina le scale, completamento
+  automatico animato, tempo/mosse/punti, statistiche per variante (serie, tempi, mosse, punti), festa di vittoria
+  con le carte che rimbalzano; tasti U/H/N/D, frecce e Invio; verticale e orizzontale.
+- `node tools/carte-solitari-test.mjs` (regole, risolutori su molti numeri giocati attraverso il plug-in, annulla,
+  soak con controllo degli invarianti), `node tools/carte-solitari-e2e.mjs <url> [cartella]` (Playwright: vince una
+  partita di ogni solitario dall'interfaccia, con i suggerimenti, a 4 risoluzioni).

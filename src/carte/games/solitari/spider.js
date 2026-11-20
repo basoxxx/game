@@ -40,7 +40,7 @@ export function moves(s) {
       });
     }
   });
-  if (s.st.length && s.t.every((c) => c.length)) out.push({ card: top(s.st), act: 'deal' });
+  if (s.st.length && s.t.every((c) => c.length)) out.push({ card: top(s.st), act: 'row' });
   return out;
 }
 function settle(s, i) {
@@ -55,7 +55,7 @@ function settle(s, i) {
   if (!col.length) s.d[i] = 0;
 }
 export function apply(s, m) {
-  if (m.act === 'deal') {
+  if (m.act === 'row') {
     for (let i = 0; i < 10 && s.st.length; i++) s.t[i].push(s.st.pop());
     s.score -= 1;
     for (let i = 0; i < 10; i++) settle(s, i);
@@ -127,7 +127,7 @@ export function plan(s0, budget = 5000) {
     }
   }
   if (best === root) { // no progress in sight: deal, or fill an empty column so that dealing becomes legal
-    const all = moves(s0), d = all.find((m) => m.act === 'deal');
+    const all = moves(s0), d = all.find((m) => m.act === 'row');
     if (d) return { path: [d], won: false };
     if (s0.st.length && s0.t.some((c) => !c.length)) {
       let bm = null, bv = Infinity;

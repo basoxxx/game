@@ -56,7 +56,7 @@ export const bonus = (s) => (s.passes - s.pass) * 25;
 
 // ------------------------------------------------------------------ solver (DFS with memo)
 const keyOf = (s) => `${s.p.map((c) => (c ? 1 : 0)).join('')}|${s.st.length}|${s.wa.join(',')}|${s.pass}`;
-const cpP = (s) => ({ p: s.p.slice(), st: s.st.slice(), wa: s.wa.slice(), f: s.f, pass: s.pass, passes: s.passes, score: s.score });
+const cpP = (s) => ({ p: s.p.slice(), st: s.st.slice(), wa: s.wa.slice(), f: s.f.slice(), pass: s.pass, passes: s.passes, score: s.score });
 export function solve(s0, budget = 40000) {
   const seen = new Set(), path = []; let nodes = 0, abort = false;
   const order = (s) => {
