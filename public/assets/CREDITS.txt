@@ -70,3 +70,9 @@ original code and generated content. The opening book lists common mainstream op
 Solitari (src/carte/games/solitari*): no external assets or data. Rules, solvers, deal numbering and the layout are
 original code; the classic FreeCell numbering uses the publicly documented Microsoft deal algorithm (an LCG), not
 copied data. Cards and sounds come from Carte Baso's procedural art.
+
+Carte Baso (src/carte): no external assets. Card faces (Napoletane, Piacentine, French + jokers), backs, felts and
+the cover (covers/carte.webp, tools/carte-cover.mjs) are original procedural SVG/CSS; sounds are synthesised (Web Audio).
+
+Scala 40 and Burraco (src/carte/games/scala40*, burraco*): no external assets; they use the Carte Baso French faces
+and jokers. Rules written from common Italian play (two decks + 4 jokers; Burraco pinelle, pozzetti, 2005 points).

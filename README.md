@@ -461,3 +461,40 @@ tavolo» con vista dall'alto e barra dell'avversario capovolta).
 - `node tools/tavolo-test.mjs` (perft sulle posizioni standard, regole, IA; `QUICK=1` più veloce),
   `node tools/tavolo-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/tavolo-cover.mjs <url>`
   (copertina), `node tools/tavolo-puzzles.mjs [n] [seme]` (rigenera la banca dei matti in 2).
+
+## Carte Baso (Baso Hub · Carte)
+
+Raccolta di giochi di carte in un'unica voce del Baso Hub, con un framework a plug-in in cui ogni gioco è un file
+in `src/carte/games/` (API documentata in `src/carte/README.md`).
+- **Scopa** (classica in 2, 3 o 4 a coppie, **Scopone scientifico** con Napola facoltativa, **Scopa d'assi**) e
+  **Briscola** (in 2 o 4 a coppie, con segnali tra compagni): regole e punteggi italiani completi (carte, denari,
+  settebello, primiera, scope; 120 punti in Briscola), CPU Facile / Normale / Difficile (conta le carte e simula le
+  mani possibili con playout Monte Carlo), partite a 11/21/31 punti o al meglio di 3/5.
+- Carte disegnate in modo procedurale (SVG originali): Napoletane, Piacentine, Francesi con jolly; dorsi e tavoli da
+  sbloccare con le monete vinte (niente soldi veri, niente pubblicità); statistiche e record per gioco.
+- Tavolo 2D/2.5D animato (distribuzione, giocata, girata, presa), tocca o trascina le carte, tastiera e controller,
+  verticale e orizzontale; da 1 a 4 umani a turno con schermata «passa il dispositivo»; partita salvata e ripresa.
+- `node tools/carte-test.mjs` (regole, punteggi e migliaia di partite IA contro IA), `node tools/carte-e2e.mjs <url> [cartella]`
+  (Playwright, partite complete di Scopa e Briscola a 4 risoluzioni), `node tools/carte-cover.mjs` (copertina).
+
+### Scala 40 e Burraco (Carte Baso · ramino)
+
+Due plug-in di ramino all'italiana con due mazzi francesi e 4 jolly (`src/carte/games/scala40.js`,
+`src/carte/games/burraco.js`, logica comune delle combinazioni in `src/carte/games/scala40/ramino.js`).
+- **Scala 40** (2-6 giocatori, 13 carte): apertura con 40 punti anche in più combinazioni, scale e tris/poker di semi
+  diversi, jolly (uno per combinazione o «liberi»), attacchi, recupero del jolly, scarto raccolto solo per aprire,
+  divieto di scartare carte attaccabili (opzione), chiusura in mano a punti doppi, chi non apre paga 100 (o 50),
+  eliminazione a 101 o 201: vince l'ultimo rimasto.
+- **Burraco** (in due o a coppie, 11 carte + pozzetti): jolly e pinelle (massimo una matta per combinazione, il 2 al suo
+  posto è naturale, la matta scivola in fondo), si raccoglie tutto il pozzo, pozzetto in volo o allo scarto, burraco
+  pulito 200 / sporco 100, chiusura (+100) con un burraco (opzione: pulito), partite a 2005, 1505, 1005 o una smazzata.
+- Tavolo: tocca il tallone o lo scarto, poi tocca una carta e la destinazione o trascinala (nuova combinazione, una
+  combinazione del tavolo, gli scarti); pulsanti «Cala…/Apri con…» con le combinazioni migliori della mano, ordinamento
+  per seme o per valore, riepilogo della smazzata con la tabella dei punti.
+- CPU Facile / Normale / Difficile: partizione ottima della mano (branch and bound sulle combinazioni possibili),
+  raccolta degli scarti valutata, carte da tenere secondo vicine e uscite ancora possibili, memoria di cosa raccolgono
+  e scartano gli avversari (niente carte che si attaccano alle loro combinazioni).
+- `node tools/carte-scala-test.mjs` e `node tools/carte-burraco-test.mjs` (validazione con jolly e pinelle, tabelle dei
+  punti, migliaia di smazzate IA contro IA con controllo completo dello stato a ogni mossa; `QUICK=1` per la versione
+  breve), `node tools/carte-scala-e2e.mjs <url> [cartella]` e `node tools/carte-burraco-e2e.mjs <url> [cartella]`
+  (Playwright: una smazzata giocata dalla UI a 1440×900, 1024×768, 390×844, 844×390).
