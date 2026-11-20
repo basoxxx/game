@@ -66,3 +66,7 @@ Tavolo Baso (src/tavolo): no external assets. Boards, pieces (turned lathe profi
 marble veins, sea) and the cover (covers/tavolo.webp, rendered by tools/tavolo-cover.mjs) are procedural; the
 chess engine, draughts/four-in-a-row/battleship AIs and the mate-in-two positions (tools/tavolo-puzzles.mjs) are
 original code and generated content. The opening book lists common mainstream opening moves.
+
+Solitari (src/carte/games/solitari*): no external assets or data. Rules, solvers, deal numbering and the layout are
+original code; the classic FreeCell numbering uses the publicly documented Microsoft deal algorithm (an LCG), not
+copied data. Cards and sounds come from Carte Baso's procedural art.
