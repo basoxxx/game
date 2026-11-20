@@ -1,0 +1,147 @@
+# Lingua italiana
+1|Quante sono le lettere dell'alfabeto italiano tradizionale?|21|26|24|22|J, K, W, X e Y sono considerate lettere straniere.
+1|Quale di queste parole è scritta correttamente?|Qualcuno|Qualcun'o|Qualquno|Cualcuno|«Qualcuno» si scrive con la q e senza apostrofo.
+1|Quale forma è corretta?|Un'amica|Un amica|Una amica'|Un'amico|Davanti a un nome femminile che inizia per vocale si usa l'apostrofo: «un'amica».
+1|Quale forma è corretta?|Un amico|Un'amico|Uno amico|Un' amico|«Un» davanti a un maschile non vuole l'apostrofo.
+1|Qual è il plurale di «uovo»?|Uova|Uovi|Uove|Uovo|«Uovo» al plurale diventa femminile: le uova.
+1|Qual è il plurale di «uomo»?|Uomini|Uomi|Uoma|Uomani|È un plurale irregolare.
+1|Qual è il plurale di «bue»?|Buoi|Bui|Bue|Buei|Anche questo è un plurale irregolare.
+1|Qual è il femminile di «attore»?|Attrice|Attora|Attoressa|Attrina|Come «pittore-pittrice» e «scrittore-scrittrice».
+1|Qual è il contrario di «alto»?|Basso|Grosso|Largo|Corto|Il contrario di «lungo» è «corto».
+1|Qual è un sinonimo di «felice»?|Contento|Triste|Stanco|Arrabbiato|Anche «lieto» e «allegro» sono sinonimi.
+1|Qual è un sinonimo di «veloce»?|Rapido|Lento|Pigro|Pesante|Anche «svelto» è un sinonimo.
+1|Qual è il contrario di «coraggioso»?|Pauroso|Forte|Audace|Valoroso|Anche «vile» e «codardo» sono contrari.
+1|Quale di queste parole è un verbo?|Correre|Corsa|Corridore|Veloce|«Corsa» e «corridore» sono nomi, «veloce» è un aggettivo.
+1|Quale di queste parole è un aggettivo?|Bello|Bellezza|Abbellire|Bellamente|«Bellamente» è un avverbio.
+1|Quale di queste parole è un avverbio?|Velocemente|Veloce|Velocità|Velocizzare|Molti avverbi finiscono in «-mente».
+1|Come si scrive correttamente?|Perché|Perchè|Perche'|Per ché|«Perché» vuole l'accento acuto.
+1|Come si scrive correttamente?|Né... né|Nè... nè|Ne'... ne'|Né... nè|La congiunzione negativa «né» ha l'accento acuto.
+1|Quale forma è corretta?|Qual è|Qual'è|Quale'è|Qualè|«Qual è» si scrive senza apostrofo: è un troncamento.
+1|Quale forma è corretta?|Un po'|Un pò|Un po|Un pó|«Po'» è un troncamento di «poco» e vuole l'apostrofo.
+1|Quale forma è corretta?|C'è|C'é|Cè|Ce'|«C'è» è l'elisione di «ci è».
+1|Quale verbo completa la frase «Ieri io … al mare»?|Sono andato|Andrò|Vado|Andassi|Il passato prossimo di «andare» usa l'ausiliare essere.
+1|Qual è il passato prossimo di «io mangio»?|Ho mangiato|Sono mangiato|Mangiai|Mangiavo|«Mangiare» usa l'ausiliare avere.
+1|Quale parola è un nome proprio?|Roma|Città|Fiume|Montagna|I nomi propri si scrivono con l'iniziale maiuscola.
+1|Quante sillabe ha la parola «casa»?|2|1|3|4|Si divide in due sillabe: ca-sa.
+1|Quante sillabe ha la parola «farfalla»?|3|2|4|5|Si divide in tre sillabe: far-fal-la.
+1|Quale di queste parole è un diminutivo?|Gattino|Gattone|Gattaccio|Gattesco|«-ino» è un suffisso diminutivo.
+1|Quale di queste parole è un accrescitivo?|Librone|Libretto|Libruccio|Libraio|«-one» è un suffisso accrescitivo.
+1|Cosa significa il proverbio «Chi dorme non piglia pesci»?|Chi non si dà da fare non ottiene niente|Il sonno fa bene|I pescatori si alzano tardi|Bisogna mangiare pesce|Invita a essere attivi e intraprendenti.
+1|Completa il proverbio: «Tra il dire e il fare c'è di mezzo…»|il mare|il monte|la strada|il fiume|Significa che è più facile parlare che agire.
+1|Completa il proverbio: «Chi va piano va sano e…»|va lontano|arriva presto|non cade mai|torna a casa|Invita alla prudenza.
+1|Completa il proverbio: «Non tutto il male vien per…»|nuocere|caso|sempre|niente|Anche da una disgrazia può nascere qualcosa di buono.
+1|Completa il proverbio: «Una rondine non fa…»|primavera|estate|il nido|stagione|Un singolo caso non basta per trarre una regola.
+1|Cosa significa «essere al verde»?|Non avere soldi|Essere in campagna|Essere giovani|Essere invidiosi|L'espressione deriva forse dalle candele che si consumavano fino alla base verde.
+1|Cosa significa «in bocca al lupo»?|Buona fortuna|Attenzione al pericolo|Sei in ritardo|Mangia piano|Si risponde «crepi!» oppure «viva il lupo!».
+1|Cosa significa «avere le mani bucate»?|Spendere troppo|Essere maldestri|Avere freddo|Lavorare molto|Chi ha le mani bucate non riesce a tenere i soldi.
+1|Cosa significa «prendere un granchio»?|Sbagliarsi|Pescare bene|Farsi male|Arrabbiarsi|Significa commettere un errore, prendere un abbaglio.
+1|Cosa significa «acqua in bocca!»?|Non dirlo a nessuno|Bevi qualcosa|Stai zitto e mangia|Fa caldo|È un invito a mantenere un segreto.
+1|Qual è il contrario di «entrare»?|Uscire|Salire|Venire|Partire|Il contrario di «salire» è «scendere».
+1|Quale articolo determinativo si usa con «zaino»?|Lo|Il|La|L'|Davanti a z, s+consonante, gn, ps si usa «lo».
+1|Quale articolo si usa con «studente»?|Lo|Il|La|Gli|«S» seguita da consonante vuole «lo»: lo studente, gli studenti.
+1|Quale articolo si usa con «gnomo»?|Lo|Il|L'|La|Si dice «lo gnomo» e «gli gnomi».
+2|Qual è il plurale di «dio»?|Dei|Dii|Dio|Diei|Al plurale si dice «gli dei».
+2|Qual è il plurale di «ala»?|Ali|Ale|Alae|Ala|Il plurale «ale» esiste ma è antico.
+2|Qual è il plurale di «arma»?|Armi|Arme|Armae|Arma|Come «ala-ali», il plurale è in -i.
+2|Qual è il plurale di «braccio» riferito al corpo umano?|Braccia|Bracci|Braccie|Braccii|«I bracci» si usa per oggetti, come i bracci di una gru.
+2|Qual è il plurale di «ciliegia»?|Ciliegie|Ciliege|Ciliegi|Cilieghe|La i resta perché la g è preceduta da vocale.
+2|Qual è il plurale di «arancia»?|Arance|Arancie|Aranci|Aranze|Se «-cia» è preceduto da consonante la i cade: arance.
+2|Qual è il plurale di «camicia»?|Camicie|Camice|Camici|Camiche|Se «-cia» è preceduto da vocale la i resta: camicie.
+2|Qual è il plurale di «valigia»?|Valigie|Valige|Valigi|Valighe|Con la vocale prima di «-gia» la i si conserva.
+2|Qual è il plurale di «medico»?|Medici|Medichi|Medicii|Medice|Le parole sdrucciole in «-co» tendono al plurale in «-ci».
+2|Qual è il plurale di «amico»?|Amici|Amichi|Amicii|Amice|È un'eccezione: le parole piane in «-co» di solito fanno «-chi».
+2|Qual è il plurale di «lago»?|Laghi|Lagi|Lagghi|Lage|Come «luogo-luoghi».
+2|Qual è il plurale di «capolavoro»?|Capolavori|Capilavori|Capolavoro|Capilavoro|Nei nomi composti con «capo» nel senso di «migliore» cambia la seconda parte.
+2|Qual è il plurale di «capostazione»?|Capistazione|Capostazioni|Capistazioni|Capostazione|Qui «capo» indica la persona che comanda: al plurale cambia «capo».
+2|Qual è il plurale di «pescespada»?|Pescispada|Pescespade|Pescispade|Pescespada|Si pluralizza la prima parte: i pescispada.
+2|Quale parola è invariabile al plurale?|Città|Libro|Fiore|Casa|Le parole tronche accentate restano uguali al plurale.
+2|Qual è il plurale di «crisi»?|Crisi|Crise|Crisis|Crisii|Le parole in «-i» sono invariabili.
+2|Quale forma del congiuntivo è corretta?|Penso che tu abbia ragione|Penso che tu hai ragione|Penso che tu avessi ragione adesso|Penso che tu avrai ragione|Dopo «penso che» si usa il congiuntivo: «abbia».
+2|Quale frase è corretta?|Se avessi tempo, verrei|Se avrei tempo, verrei|Se avessi tempo, venissi|Se avrei tempo, venissi|Nel periodo ipotetico: se + congiuntivo imperfetto, condizionale.
+2|Quale frase è corretta?|Se lo avessi saputo, sarei venuto|Se lo avrei saputo, sarei venuto|Se lo sapevo, sarei venuto|Se lo avessi saputo, venivo|È il periodo ipotetico dell'irrealtà nel passato.
+2|Quale forma è corretta per dire «ho detto a lui»?|Gli ho detto|Le ho detto|Ci ho detto|Lo ho detto|«Gli» è il pronome per «a lui»; «le» è per «a lei».
+2|Come si dice correttamente riferito a una donna: «… ho telefonato»?|Le|Gli|La|Ci|«A lei» si traduce con «le»: le ho telefonato.
+2|Qual è il participio passato di «aprire»?|Aperto|Aprito|Apruto|Apparso|È un participio irregolare.
+2|Qual è il participio passato di «rompere»?|Rotto|Rompito|Romputo|Rupto|Anche «corrompere» fa «corrotto».
+2|Qual è il participio passato di «scendere»?|Sceso|Scenduto|Scendito|Scesso|Come «prendere-preso».
+2|Qual è il passato remoto di «io vedo»?|Vidi|Vedetti|Vedei|Vedii|«Vidi» è la forma corretta del passato remoto.
+2|Qual è il passato remoto di «io ho»?|Ebbi|Avei|Avetti|Ebbei|Il passato remoto di avere è: ebbi, avesti, ebbe…
+2|Qual è il passato remoto di «egli è»?|Fu|Era|Fosse|Fue|Il passato remoto di essere: fui, fosti, fu…
+2|Qual è il futuro di «io vado»?|Andrò|Anderò|Vadrò|Andarò|Il futuro di andare è irregolare: andrò, andrai…
+2|Qual è il gerundio di «fare»?|Facendo|Fando|Farendo|Faccendo|Il gerundio deriva dalla forma latina «facere».
+2|Qual è il congiuntivo presente di «io vado», nella frase «Vuole che io…»?|Vada|Vado|Andassi|Vadi|«Vadi» è un errore molto diffuso: si dice «che io vada».
+2|Qual è il congiuntivo presente di «stare» (che io…)?|Stia|Stessi|Stii|Sto|«Che io stia, che tu stia, che egli stia».
+2|Qual è il congiuntivo presente di «dare» (che egli…)?|Dia|Dasse|Dii|Dà|«Che egli dia».
+2|Quale forma è corretta?|Dà (verbo)|Da (verbo)|Dá (verbo)|Da' (verbo)|«Dà» verbo vuole l'accento, «da» preposizione no.
+2|Quale frase è corretta?|Lui dà un libro a Marco|Lui da un libro a Marco|Lui dá un libro a Marco|Lui da' un libro a Marco|«Dà» terza persona di dare si accenta per distinguerla da «da».
+2|Quale forma è corretta?|Sé stesso, o anche se stesso|Sè stesso|Se' stesso|Sée stesso|Oggi entrambe le grafie «sé stesso» e «se stesso» sono accettate.
+2|Quale di queste parole ha l'accento sulla terzultima sillaba?|Tavolo|Amore|Città|Gioco|Le parole sdrucciole hanno l'accento sulla terzultima: tà-vo-lo.
+2|Come si chiama una parola con l'accento sull'ultima sillaba?|Tronca|Piana|Sdrucciola|Bisdrucciola|Esempi: città, perché, virtù.
+2|Come si chiama una parola con l'accento sulla penultima sillaba?|Piana|Tronca|Sdrucciola|Atona|La maggior parte delle parole italiane è piana.
+2|Cosa significa «procrastinare»?|Rimandare|Anticipare|Esagerare|Proteggere|Deriva dal latino «cras», domani.
+2|Cosa significa «effimero»?|Che dura poco|Molto forte|Antico|Gioioso|Dal greco, «che dura un giorno».
+2|Cosa significa «ubiquo»?|Che si trova ovunque|Che è molto antico|Che è nascosto|Che è ubriaco|Dal latino «ubique», ovunque.
+2|Cosa significa «lapalissiano»?|Ovvio, evidente|Lento|Molto complicato|Pieno di pietre|Deriva da Jacques de La Palice e dalle sue celebri ovvietà.
+2|Cosa significa «pleonastico»?|Superfluo, ridondante|Pieno di plastica|Molto importante|Eccessivamente lento|Un'espressione pleonastica aggiunge parole inutili.
+2|Cosa significa «sibillino»?|Oscuro, enigmatico|Chiaro|Che sibila|Allegro|Deriva dalle Sibille, profetesse dai responsi ambigui.
+2|Cosa significa «dirimere»?|Risolvere una questione|Dividere a metà|Distruggere|Ricordare|Si dice «dirimere una controversia».
+2|Cosa significa «iperbole»?|Un'esagerazione|Una domanda retorica|Una ripetizione|Un paragone|Esempio: «Te l'ho detto mille volte».
+2|Quale figura retorica è «Sei un leone»?|Metafora|Similitudine|Iperbole|Ossimoro|La similitudine userebbe «come»: «forte come un leone».
+2|Quale figura retorica è «ghiaccio bollente»?|Ossimoro|Metafora|Anafora|Litote|L'ossimoro accosta due termini opposti.
+2|Quale figura retorica è «Non è un genio» per dire che è poco intelligente?|Litote|Iperbole|Ossimoro|Anafora|La litote afferma qualcosa negando il contrario.
+2|Come si chiama una parola che si legge uguale anche al contrario, come «radar»?|Palindromo|Anagramma|Omonimo|Acronimo|Altri palindromi: «ossesso», «onorarono».
+2|Come si chiama una parola ottenuta cambiando l'ordine delle lettere di un'altra?|Anagramma|Palindromo|Sinonimo|Acrostico|«Roma» è anagramma di «amor».
+2|Come si chiamano parole che si scrivono uguale ma hanno significato diverso?|Omonimi|Sinonimi|Contrari|Neologismi|Esempio: «riso» (cereale) e «riso» (risata).
+2|Come si chiama una parola nuova entrata nella lingua?|Neologismo|Arcaismo|Prestito|Dialettismo|Un arcaismo, al contrario, è una parola antica.
+2|Quale parola italiana deriva dall'arabo?|Zucchero|Finestra|Scuola|Libro|Anche «arancia», «magazzino» e «algebra» vengono dall'arabo.
+2|Da quale lingua deriva principalmente l'italiano?|Latino|Greco|Etrusco|Francese|L'italiano è una lingua romanza, come francese e spagnolo.
+2|Su quale dialetto si basa principalmente l'italiano letterario?|Fiorentino|Romano|Milanese|Napoletano|Dante, Petrarca e Boccaccio scrivevano in volgare fiorentino.
+2|Come si chiama l'istituzione fiorentina nata nel 1583 per lo studio della lingua?|Accademia della Crusca|Accademia dei Lincei|Società Dante Alighieri|Treccani|Il nome richiama la separazione della farina dalla crusca.
+2|Qual è il simbolo dell'Accademia della Crusca?|Un frullone|Una penna|Un leone|Una torre|Il frullone separava la farina dalla crusca.
+2|Cosa significa «fare il portoghese»?|Entrare senza pagare il biglietto|Parlare un'altra lingua|Viaggiare molto|Essere molto gentile|Si narra di portoghesi ammessi gratis a uno spettacolo a Roma.
+2|Cosa significa «piantare in asso»?|Abbandonare qualcuno all'improvviso|Vincere a carte|Coltivare l'orto|Mettersi in posa|Deriva forse da «in Nasso», l'isola dove Teseo abbandonò Arianna.
+2|Cosa significa «menare il can per l'aia»?|Tergiversare, perdere tempo|Portare a spasso il cane|Lavorare in campagna|Fare confusione|Significa girare intorno al problema senza affrontarlo.
+2|Cosa significa «essere una mosca bianca»?|Essere una persona rara|Essere fastidioso|Essere invisibile|Essere molto anziano|Una mosca bianca è qualcosa di raro e speciale.
+2|Cosa significa «avere un diavolo per capello»?|Essere molto arrabbiati|Essere spettinati|Essere fortunati|Essere molto furbi|Indica un forte nervosismo.
+2|Cosa significa «fare un buco nell'acqua»?|Non ottenere nessun risultato|Fare un bagno|Scavare un pozzo|Riuscire per caso|Ogni sforzo risulta inutile.
+3|Qual è il plurale di «la gru», la macchina da cantiere?|Le gru|Le grue|I grui|Le grua|«Gru» è femminile e invariabile.
+3|Qual è il plurale di «belga»?|Belgi|Belghi|Belge|Belgha|È un'eccezione: «belga-belgi», ma «collega-colleghi».
+3|Qual è il plurale di «mago» riferito ai Re Magi?|Magi|Maghi|Magio|Maghe|«I Magi» è la forma riservata ai Re Magi; altrimenti si dice «maghi».
+3|Qual è il plurale di «sopracciglio»?|Sopracciglia, o sopraccigli|Sopraccigliai|Sopraccigli soltanto|Sopraccigliate|Il plurale femminile «sopracciglia» indica la coppia sugli occhi.
+3|Qual è il plurale di «grido» riferito all'uomo?|Grida|Gridi|Gride|Gridii|«Gridi» si usa per gli animali.
+3|Quale verbo ha come passato remoto «nacqui»?|Nascere|Nuocere|Nevicare|Notare|Nascere: nacqui, nascesti, nacque.
+3|Qual è il passato remoto di «io cuocio»?|Cossi|Cuocei|Cuossi|Cocqui|Il participio passato è «cotto».
+3|Qual è il participio passato di «redimere»?|Redento|Redimito|Redimuto|Redemito|Da «redimere» viene anche «redenzione».
+3|Qual è il participio passato di «assolvere»?|Assolto|Assolvuto|Assolso|Assolvito|Anche «risolvere» fa «risolto».
+3|Qual è la prima persona del passato remoto di «cadere»?|Caddi|Cadei|Cadetti|Cadii|Cadere: caddi, cadesti, cadde.
+3|Qual è il congiuntivo imperfetto di «essere» (che io…)?|Fossi|Essessi|Sia|Fussi|«Fussi» è una forma dialettale.
+3|Qual è il condizionale presente di «volere» (io…)?|Vorrei|Volerei|Vorei|Voglierei|Il condizionale di volere è irregolare.
+3|Quale figura retorica ripete la stessa parola all'inizio di più versi?|Anafora|Epifora|Chiasmo|Allitterazione|Esempio dantesco: «Per me si va… per me si va…».
+3|Quale figura retorica ripete gli stessi suoni, come «Di me medesmo meco mi vergogno»?|Allitterazione|Anafora|Onomatopea|Ossimoro|Il verso è di Petrarca.
+3|Come si chiama la figura retorica che dispone gli elementi a incrocio (AB-BA)?|Chiasmo|Anafora|Climax|Zeugma|Esempio: «Le donne, i cavallier, l'arme, gli amori».
+3|Come si chiama la parte di una parola che ne porta il significato principale?|Radice|Desinenza|Suffisso|Prefisso|La desinenza indica genere, numero, persona.
+3|Cosa significa l'espressione latina «carpe diem»?|Cogli l'attimo|Il giorno è finito|Vivi e lascia vivere|Ogni giorno è uguale|È un verso del poeta Orazio.
+3|Cosa significa «alea iacta est»?|Il dado è tratto|La festa è finita|Il tempo vola|Chi vince ha ragione|Frase attribuita a Cesare al passaggio del Rubicone.
+3|Cosa significa «in medio stat virtus»?|La virtù sta nel mezzo|Il mezzo giustifica il fine|La virtù è rara|Nel mezzo c'è il pericolo|È un principio di moderazione.
+3|Cosa significa «a priori»?|Prima dell'esperienza|Dopo l'esperienza|Per sempre|In segreto|«A posteriori» significa invece dopo l'esperienza.
+3|Cosa significa «lapsus»?|Un errore involontario nel parlare o scrivere|Un periodo di tempo|Una caduta|Una legge|Dal latino «labi», scivolare.
+3|Cosa significa «tabula rasa»?|Fare piazza pulita, ricominciare da zero|Un tavolo rotondo|Una lista di nomi|Una tavola imbandita|In origine era la tavoletta di cera cancellata.
+3|Cosa significa «idiosincrasia»?|Forte avversione per qualcosa|Una grande intelligenza|Un'abitudine piacevole|Un tipo di malattia infettiva|In senso medico indica anche un'intolleranza.
+3|Cosa significa «serendipità»?|Scoprire qualcosa di buono per caso, cercando altro|Grande tranquillità|Un profumo orientale|La capacità di prevedere il futuro|Il termine deriva da una fiaba sui principi di Serendip.
+3|Cosa significa «obnubilare»?|Offuscare, annebbiare|Ordinare|Lodare|Nascondere sotto terra|Si dice per esempio di una mente annebbiata.
+3|Cosa significa «pusillanime»?|Vile, privo di coraggio|Molto piccolo|Pieno di fantasia|Generoso|Dal latino «pusillus animus», animo piccolo.
+3|Cosa significa «prolisso»?|Che si dilunga troppo|Molto preciso|Breve e chiaro|Molto produttivo|Un discorso prolisso è lungo e noioso.
+3|Cosa significa «zelante»?|Pieno di impegno e premura|Geloso|Svogliato|Arrabbiato|Lo zelo è un impegno appassionato.
+3|Quale scrittore inventò la parola «scapigliatura» per un movimento letterario?|Cletto Arrighi|Giovanni Verga|Arrigo Boito|Emilio Praga|Arrighi la usò nel romanzo «La Scapigliatura e il 6 febbraio».
+3|Chi coniò la parola «tramezzino»?|Gabriele D'Annunzio|Filippo Tommaso Marinetti|Pellegrino Artusi|Giovanni Pascoli|D'Annunzio propose «tramezzino» al posto dell'inglese «sandwich».
+3|Da quale lingua viene la parola «ciao»?|Dal veneziano «s'ciavo»|Dal latino «chao»|Dal francese «chaud»|Dallo spagnolo «chau»|«S'ciavo» significava «sono vostro schiavo», cioè «al vostro servizio».
+3|Da quale nome di città deriva la parola «jeans»?|Genova|Nîmes|Napoli|Lione|«Jeans» deriva da «Gênes», nome francese di Genova; il «denim» invece da Nîmes.
+3|Da quale lingua deriva la parola «robot»?|Ceco|Russo|Tedesco|Giapponese|Fu usata da Karel Čapek nel 1920; «robota» significa lavoro forzato.
+3|Cosa indica il suffisso «-ite» in medicina, come in «tonsillite»?|Un'infiammazione|Un tumore|Un'operazione|Una frattura|Appendicite, gastrite e otite sono infiammazioni.
+3|Cosa significa il prefisso «iper-», come in «ipermercato»?|Sopra, oltre|Sotto|Contro|Prima|Il contrario è «ipo-», sotto.
+3|Quale parola contiene un dittongo?|Piede|Paura|Mare|Libro|In «pie-de» la i e la e formano un dittongo.
+3|Quale parola contiene uno iato?|Paura|Fiore|Piano|Guado|In «pa-u-ra» la a e la u si pronunciano separate.
+3|In quale parola la «z» si pronuncia sorda?|Pizza|Zero|Zanzara|Romanzo|In «zero» e «zanzara» la z è sonora.
+3|Quale di questi è un nome collettivo?|Gregge|Pecora|Lana|Pastore|Un nome collettivo indica un insieme: gregge, folla, flotta.
+3|Come si chiama il gruppo di api che vive insieme?|Sciame|Branco|Stormo|Gregge|Lo stormo è di uccelli, il branco di lupi.
+3|Come si chiama un gruppo di navi?|Flotta|Stormo|Mandria|Plotone|Una flotta è un insieme di navi.
