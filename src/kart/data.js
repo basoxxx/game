@@ -62,10 +62,14 @@ export function kartStats(charId, bodyId = 'classico', wheelId = 'standard') {
   };
 }
 
+// ai: rivals' driving skill · pace: rivals' top-speed factor against a human in the same kart ·
+// rubber: how much rivals ahead of / behind the best human slow down / speed up (at 140 m, symmetric:
+// no extra catch-up surge) — tuned with tools/kart-sim.mjs (Grand Prix check): a decent driver wins
+// most 100 cc cups with some effort, 150 cc is hard
 export const CLASSES = [
-  { id: 'facile', name: 'Facile', cc: '50 cc', mult: 0.88, ai: 0.35, rubber: 0.08 },
-  { id: 'normale', name: 'Normale', cc: '100 cc', mult: 1, ai: 0.62, rubber: 0.05 },
-  { id: 'esperto', name: 'Esperto', cc: '150 cc', mult: 1.1, ai: 0.9, rubber: 0.03 },
+  { id: 'facile', name: 'Facile', cc: '50 cc', mult: 0.88, ai: 0.35, rubber: 0.08, pace: 0.86, catchup: 1 },
+  { id: 'normale', name: 'Normale', cc: '100 cc', mult: 1, ai: 0.62, rubber: 0.05, pace: 0.92, catchup: 1 },
+  { id: 'esperto', name: 'Esperto', cc: '150 cc', mult: 1.1, ai: 0.9, rubber: 0.03, pace: 0.96, catchup: 1 },
 ];
 
 // Items. `w` = roulette weights by race standing: [front, middle, back]; `bw` = battle weight

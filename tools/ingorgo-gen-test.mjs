@@ -8,8 +8,8 @@
 // · the 60 campaign levels, 30 daily puzzles, samples from the 400 pack levels.
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
-import { generate, MECH_IDS, dailyLevel, packLevel, PACKS } from '../src/ingorgo/gen.js';
-import { compile, initState, solve, moves, apply, isGoal, legal, stateKey, encodeLevel, decodeLevel, occupancy, EXITED } from '../src/ingorgo/core.js';
+import { generate, MECH_IDS, dailyLevel, packLevel, PACKS, hashStr } from '../src/ingorgo/gen.js';
+import { compile, initState, solve, moves, apply, isGoal, legal, stateKey, encodeLevel, decodeLevel, occupancy, EXITED, flickSpeed } from '../src/ingorgo/core.js';
 import { CAMPAIGN } from '../src/ingorgo/campaign.js';
 
 // plain BFS over every legal move (independent of the A* heuristic and of the exit pruning)
@@ -111,8 +111,21 @@ if (!isMainThread) {
   let pbad = 0;
   for (const P of PACKS) for (const n of [1, 37, 100]) { const L = packLevel(P.id, n); const e = checkLevel(L, false); if (e.length) { pbad++; console.log('FAIL pack', P.id, n, e.join('; ')); } }
   console.log(`packs: ${PACKS.length * 3 - pbad}/${PACKS.length * 3} sampled levels OK`);
+  // the faster explorer must not change any generated puzzle (players' pack progress points at them):
+  // fingerprints taken with the original string-keyed explorer
+  const GOLD = { 'facile-2': 224678905, 'facile-51': 540159705, 'medio-2': 1325135473, 'medio-51': 2413712708, 'difficile-2': 4123531819, 'difficile-51': 54680484, 'esperto-2': 2245547590, 'esperto-51': 2744318563 };
+  let gbad = 0, steps = [];
+  for (const [k, h] of Object.entries(GOLD)) { const [id, n] = k.split('-'); const L = packLevel(id, +n, (f) => steps.push(f)); if (hashStr(encodeLevel(L)) !== h) { gbad++; console.log('FAIL pack level changed', k); } }
+  { const d = dailyLevel(new Date(2026, 10, 19)); if (hashStr(encodeLevel(d.L)) !== 4260834066) { gbad++; console.log('FAIL daily 2026-11-19 changed'); } }
+  if (!steps.length || steps.some((f) => !(f >= 0 && f < 1))) { gbad++; console.log('FAIL generation progress not reported in 0..1'); }
+  console.log(`generated puzzles unchanged: ${9 - Math.min(9, gbad)}/9 fingerprints · progress reported ${steps.length} times`);
+  // flick: a quick careful drag is not a flick, a real flick is; a pause before lifting cancels it
+  const drag = (cellsPerS, pxPerCell, n = 8, stopMs = 0) => { const sm = []; for (let k = 0; k < n; k++) { const t = k * 12, x = (cellsPerS * t) / 1000; sm.push([t, x, x * pxPerCell, 0]); } return flickSpeed(sm, (n - 1) * 12 + 4 + stopMs); };
+  const fl = [[drag(8, 55), 0, 'phone: 8 cells/s (440 px/s) careful drag'], [drag(20, 55) > 0, true, 'phone: 20 cells/s flick'], [drag(10, 100) > 0, true, 'desktop: 10 cells/s (1000 px/s) flick'], [drag(20, 55, 8, 150), 0, 'flick then pause before lifting']];
+  for (const [got, want, what] of fl) if (got !== want) { gbad++; console.log('FAIL flick:', what, got); }
+  console.log(`flick gesture: ${fl.filter(([g, w]) => g === w).length}/${fl.length} cases`);
   void EXITED;
-  const fails = bad + cbad + dbad + pbad;
+  const fails = bad + cbad + dbad + pbad + gbad;
   console.log(fails ? `\n${fails} FAILURES` : '\nALL OK');
   process.exit(fails ? 1 : 0);
 }

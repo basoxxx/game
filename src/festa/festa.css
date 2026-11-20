@@ -8,6 +8,13 @@
 .fz-wallet b { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); font-size: 30px; font-style: italic; color: var(--gold); }
 .fz-wallet b .ico { width: 22px; height: 22px; }
 .fz-wallet .w-s { font-size: 12.5px; color: var(--muted); }
+.fz-resume { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; max-width: 1240px; margin: 0 0 14px; padding: 14px 18px; background: linear-gradient(120deg, color-mix(in srgb, #ff4d6d 22%, var(--s1)), var(--s1) 75%); border: 1px solid var(--line2); border-left: 4px solid #ff4d6d; }
+.fz-resume > div:first-child { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.fz-resume b { font-family: var(--display); font-size: 20px; font-style: italic; text-transform: uppercase; }
+.fz-resume span { color: var(--muted, #aab); font-size: 14px; }
+.fz-resume .who { display: flex; gap: 6px; flex-wrap: wrap; }
+.fz-resume .who i { font-style: normal; color: #fff; font-weight: 700; font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+.fz-resume .fz-btns { margin: 0; }
 .fz-modes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; max-width: 1240px; }
 .fz-mode { text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 20px; background: linear-gradient(140deg, color-mix(in srgb, var(--c) 26%, var(--s1)), var(--s1) 70%); border: 1px solid var(--line2); border-top: 4px solid var(--c); cursor: pointer; color: var(--text); transition: transform .15s, border-color .15s; min-height: 150px; }
 .fz-mode:hover, .fz-mode:focus-visible { transform: translateY(-3px); border-color: var(--c); }
@@ -63,7 +70,7 @@
 .fz-root { position: fixed; inset: 0; background: #0d1320; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; font-family: var(--display, system-ui); color: #fff; }
 .fz-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .fz-loading { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center; font-size: 22px; font-style: italic; }
-.fz-layer { position: absolute; inset: 0; pointer-events: none; }
+.fz-layer { position: absolute; inset: 0; pointer-events: none; z-index: 25; } /* above the touch zones: their outlines never cross the corner HUD */
 .fz-labs { position: absolute; inset: 0; }
 .fz-lab { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; white-space: nowrap; }
 .fz-lab b { padding: 1px 7px; border-radius: 8px; font-size: 13px; font-weight: 900; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.5); box-shadow: 0 2px 6px rgba(0,0,0,.35); }
@@ -155,7 +162,7 @@ html.portrait .fz-panels.tall.n2 { grid-template-columns: 1fr 1fr; }
 .fz-stick i { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; background: var(--c); box-shadow: 0 2px 8px rgba(0,0,0,.4); }
 .fz-abtn { position: absolute; right: 8%; bottom: 14%; width: 86px; height: 86px; border-radius: 50%; background: color-mix(in srgb, var(--c) 55%, transparent); border: 3px solid rgba(255,255,255,.55); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 20px; pointer-events: none; opacity: .8; }
 .fz-abtn.on { transform: scale(.92); opacity: 1; background: var(--c); }
-.fz-zlab { position: absolute; left: 8px; bottom: 6px; font-size: 12px; color: var(--c); font-weight: 900; text-shadow: 0 1px 2px #000; }
+.fz-zlab { position: absolute; left: 50%; transform: translateX(-50%); bottom: 6px; font-size: 12px; color: var(--c); font-weight: 900; text-shadow: 0 1px 2px #000; }
 @media (max-height: 480px) { .fz-stick { width: 76px; height: 76px; margin: -38px 0 0 -38px; } .fz-abtn { width: 66px; height: 66px; } .fz-card { padding: 12px 16px; } .fz-card p { font-size: 13px; } .fz-ctl li { font-size: 12px; padding: 3px 8px; } .fz-count { font-size: 40px; } .fz-panels { inset: 46px 6px 46px; } .fz-top b { font-size: 26px; } .fz-pc { padding: 3px 8px; min-width: 90px; } .fz-pc span { font-size: 13px; } }
 .fz-card.final { position: absolute; right: calc(env(safe-area-inset-right) + 18px); top: 50%; transform: translateY(-50%); width: min(440px, 44vw); animation: none; }
 html.portrait .fz-card.final { right: auto; top: auto; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 12px); transform: translateX(-50%); width: min(560px, 94vw); max-height: 52vh; }

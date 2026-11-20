@@ -1,5 +1,6 @@
 // Bastione — headless, deterministic tower-defense simulation (no DOM, no three.js).
-//   const s = new Sim(level, { diff, tree, hero, heroLvl, spells, seed, mode })
+//   const s = new Sim(level, { diff, tree, hero, heroLvl, spells, seed, mode, aid, aidBoss })
+//   aid / aidBoss: the campaign catch-up (extra starting gold, boss hp factor; see catchUp in data.js)
 //   s.step(dt) advances by dt (call with a fixed step: 1/60 live, 1/30 in tools)
 //   commands: build(slot, type) upgrade(slot) specialize(slot, 0|1) sell(slot) setMode(slot, mode)
 //             callWave() moveHero(x, z) ability(i) cast(spell, x, z)  → true when done
@@ -46,7 +47,7 @@ export class Sim {
     this.paths = L.paths.map((p) => new Path(p));
     this.slots = L.slotsXY.map(([x, z], i) => ({ i, x, z, tower: null }));
     this.keep = { x: L.keep[0], z: L.keep[1] };
-    this.gold = Math.round((L.gold + this.fx.gold0) * (this.rule.gold ? 1 : 1));
+    this.gold = Math.round((L.gold + this.fx.gold0) * (this.rule.gold ? 1 : 1)) + Math.max(0, Math.round(opts.aid || 0));
     this.maxLives = opts.lives || LIVES; this.lives = this.maxLives;
     this.state = 'ready'; this.t = 0; this.wave = 0; this.waveT = FIRST_WAIT; this.waveTotal = this.endless ? Infinity : L.waveList.length;
     this.spawnQ = []; this.enemies = []; this.soldiers = []; this.projs = []; this.fields = []; this.ev = []; this.towers = [];
@@ -137,7 +138,7 @@ export class Sim {
     if (this.endless) ({ groups, hp } = endlessWave(this.L, w)); else { groups = this.L.waveList[w]; hp = waveHp(this.L, w); }
     let end = 0;
     for (const g of groups) {
-      for (let i = 0; i < g.n; i++) this.spawnQ.push({ at: this.t + g.delay + i * g.gap, type: g.type, path: Math.min(g.path || 0, this.paths.length - 1), hp: g.boss ? (this.L.bossHp || 1) : hp * (g.hpMul || 1) });
+      for (let i = 0; i < g.n; i++) this.spawnQ.push({ at: this.t + g.delay + i * g.gap, type: g.type, path: Math.min(g.path || 0, this.paths.length - 1), hp: g.boss ? (this.L.bossHp || 1) * (this.o.aidBoss || 1) : hp * (g.hpMul || 1) });
       end = Math.max(end, g.delay + g.n * g.gap);
     }
     this.spawnQ.sort((a, b) => a.at - b.at);

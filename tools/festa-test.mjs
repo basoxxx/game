@@ -3,7 +3,8 @@
 //   node tools/festa-test.mjs
 import { MINIGAMES, cpuSkill } from '../src/festa/mini/index.js';
 import { blankInput } from '../src/festa/util.js';
-import { newBoard, boardRoll, boardMove, boardAfterMini, boardFinal, BOARD } from '../src/festa/party.js';
+import { newBoard, boardRoll, boardMove, boardAfterMini, boardFinal, BOARD, boardSnapshot, boardRestore } from '../src/festa/party.js';
+import { placesOf } from '../src/festa/util.js';
 import { newTourney, tourneyAfter } from '../src/festa/party.js';
 
 let fails = 0;
@@ -72,6 +73,51 @@ ok(BOARD.length >= 20, 'board spaces');
   }
   ok(T.champion != null, 'tournament has a champion');
   console.log(`torneo: campione G${T.champion + 1} in ${T.played.length} minigiochi, vittorie ${T.wins.join('-')}`);
+}
+
+// ---- board saved between turns and resumed (JSON round trip, also of the random stream) = same game
+{
+  const run = (cut) => {
+    let B = newBoard({ n: 3, rounds: 5, seed: 4242, names: ['A', 'B', 'C'], minis: MINIGAMES.map((m) => m.id) });
+    let guard = 0, quiet = 0;
+    while (B.phase !== 'end' && guard++ < 500) {
+      if ((B.phase === 'roll' || B.phase === 'mini') && ++quiet === cut) { B = boardRestore(JSON.parse(JSON.stringify(boardSnapshot(B)))); ok(B && typeof B.r === 'function', 'board restore'); }
+      if (B.phase === 'roll') { boardRoll(B); while (B.phase === 'move') boardMove(B); }
+      else if (B.phase === 'mini') boardAfterMini(B, play(MINIGAMES.find((m) => m.id === B.mini), 3, B.seed + B.round, [true, true, true]).sim.result());
+      else if (B.phase === 'final') boardFinal(B);
+    }
+    return JSON.stringify(B.podium);
+  };
+  const ref = run(-1);
+  for (const cut of [1, 4, 9]) ok(run(cut) === ref, `board resumed at quiet point ${cut} differs from the uninterrupted game`);
+  ok(boardRestore({ n: 2, players: [] }) === null && boardRestore(null) === null, 'board restore rejects junk');
+  console.log('salvataggio del tabellone: ripresa identica');
+}
+
+// ---- tie-breaks: CPUs that solve the same number of jams / reach the same car level still get an order
+{
+  ok(JSON.stringify(placesOf([10, 4, 10], false, [1, 0, 2])) === '[2,3,1]', 'placesOf tie-break');
+  ok(JSON.stringify(placesOf([10, 4, 10])) === '[1,3,1]', 'placesOf shared place');
+  for (const id of ['ingorgo', 'officina', 'golf']) {
+    let tied = 0;
+    for (let seed = 1; seed <= 4; seed++) for (const n of [3, 4]) { const r = play(MINIGAMES.find((m) => m.id === id), n, seed * 131 + n, Array(n).fill(true)).sim.result(); if (new Set(r.places).size < n) tied++; }
+    ok(tied <= 1, `${id}: ${tied}/8 CPU matches end with shared places`);
+  }
+  const ing = play(MINIGAMES.find((m) => m.id === 'ingorgo'), 2, 9, [true, true]).sim.result();
+  ok(ing.scores.every((v) => Number.isInteger(v) && v < 30), `ingorgo shows jams freed, not internal points: ${ing.scores}`);
+  const off = play(MINIGAMES.find((m) => m.id === 'officina'), 2, 9, [true, true]).sim.result();
+  ok(off.scores.every((v) => v >= 1 && v <= 6), `officina shows the car level: ${off.scores}`);
+  // 1v1 balloons: CPUs duel instead of orbiting until the bell, and a draw at the bell goes to sudden death
+  for (let seed = 1; seed <= 4; seed++) { const { sim } = play(MINIGAMES.find((m) => m.id === 'palloncini'), 2, seed * 7919 + 2, [true, true]); ok(new Set(sim.result().places).size === 2, `palloncini 1v1 seed ${seed}: draw`); }
+  const P = MINIGAMES.find((m) => m.id === 'palloncini').Sim, ps = new P({ n: 2, seed: 3, cpu: [false, false] }), idle = [{ x: 0, y: 0, a: false, ap: false }, { x: 0, y: 0, a: false, ap: false }];
+  for (let f = 0; f < 60 * 61; f++) ps.step(DT, idle);
+  ok(!ps.done && ps.extra, 'palloncini: a draw at 60 s goes to the sudden death');
+  for (let f = 0; f < 60 * 16; f++) ps.step(DT, idle);
+  ok(ps.done, 'palloncini: the sudden death ends');
+  // the golf CPU finds the bank shots around the wall (the straight line bounces back from 9 m to ~6.7 m)
+  const g = play(MINIGAMES.find((m) => m.id === 'golf'), 4, 21, [true, true, true, true]).sim.result();
+  ok(Math.min(...g.scores.map((v) => (v == null ? 999 : v))) < 200, `golf CPUs all far from the cup: ${g.scores}`);
+  console.log('spareggi: ok');
 }
 
 console.log(fails ? `\n${fails} FAIL` : '\nOK');

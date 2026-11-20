@@ -9,7 +9,8 @@ import { createHost } from './link.js';
 import { COMPOUNDS } from '../data/categories.js';
 import { sectorFracs } from '../engine/session.js';
 import { tyreModel } from '../engine/tyres.js';
-import { referenceProfile, trackGeometry } from '../engine/trackphys.js';
+import { referenceProfile, trackGeometry, sampleAtTimeFrac } from '../engine/trackphys.js';
+import { STAGE_STYLE } from '../ui/trackview.js';
 
 const RATE = 250; // ms between snapshots
 let H = null, timer = 0, tick = 0, lastSid = null, sentEvt = new WeakSet(), listeners = new Set();
@@ -79,6 +80,8 @@ function meta(L = live()) {
       sid: sidOf(L), kind: 'rally', name: `${stg.name || 'Prova speciale'}`, sub: `PS ${sim.stageIdx + 1}/${sim.stages.length} · ${stg.km?.toFixed?.(1) ?? stg.km} km`,
       track: { name: sim.track.name, circuit: sim.track.circuit || '', nat: sim.track.nat, cid: null, cat: 'rally' },
       cars: sim.crews.map((c) => carMeta(st, c, sim.driver(c))), compounds: [], controls: ['dec', 'speed'], stages: sim.stages.length,
+      // the stage road (same generator as the rally screen's map): the pit wall draws it and the crews on it
+      route: { seed: (sim.track.seed || 0) + (stg.idx ?? sim.stageIdx) * 101, style: STAGE_STYLE[sim.track.id] || 'rough', surface: stg.surface },
     };
   }
   const tr = sim.track;
@@ -117,6 +120,22 @@ function recorder(sim) {
   let trap = null; try { trap = trapFrac(sim.cat, sim.track); } catch { /* */ }
   const rec = { best: [null, null, null], cars: {}, gh: [], ghLap: -1 };
   for (const c of sim.cars) rec.cars[c.key] = { cur: [null, null, null], cls: [null, null, null], last: [null, null, null], lcls: [null, null, null], pb: [null, null, null], t0: null, idx: secOf(c.dist, B), trap: null, trapBest: null, mini: [] };
+  // a pit wall that joins mid-race: seed the sectors from what the race already knows (the lap in progress
+  // since the line, the last and best laps split by the reference sector shares) instead of blank columns
+  try {
+    for (const c of sim.cars) {
+      const r = rec.cars[c.key]; if (c.status !== 'running' || !(c.dist > 0)) continue;
+      const split = (T) => (T > 0 ? tf.map((x) => x * T) : [null, null, null]);
+      if (c.lastLap > 0) { r.last = split(c.lastLap); r.lcls = ['y', 'y', 'y']; }
+      if (c.bestLap > 0) r.pb = split(c.bestLap);
+      const f = c.dist - Math.floor(c.dist), el = sim.time - (c.lapStart ?? 0);
+      if (c.inPit > 0 || f < 0.01 || !(el > 0)) continue;
+      const rate = el / f; // seconds per lap at the pace of the lap in progress
+      for (let k = 0; k < r.idx; k++) { r.cur[k] = tf[k] * rate; r.cls[k] = 'y'; }
+      r.t0 = (c.lapStart ?? 0) + (r.idx ? B[r.idx - 1] : 0) * rate;
+    }
+    if (sim.fastest?.key && sim.fastest.time < Infinity) { rec.best = tf.map((x) => x * sim.fastest.time); rec.bestKey = [0, 1, 2].map(() => sim.fastest.key); }
+  } catch { /* */ }
   // gaps chart: the laps run before the pit wall was connected, from the lap-time history
   try {
     const cum = {}; let maxL = 0;
@@ -284,9 +303,11 @@ function rallySnap(L) {
   const ranked = crews.slice().sort((a, b) => (b.done ? 1 : 0) - (a.done ? 1 : 0) || (a.done && b.done ? tOf(a) - tOf(b) : (b.progress || 0) - (a.progress || 0)));
   const done = ranked.filter((c) => c.done && tOf(c) != null);
   const bestT = done.length ? Math.min(...done.map(tOf)) : null;
+  // where the crew is along the road (progress is a time fraction: the stage's speed profile turns it into distance, as on the rally screen's map)
+  const along = (p) => { const g = X.geo; if (!g?.profile || !g.N) return p; try { return Math.min(g.N - 1, sampleAtTimeFrac(g.profile, Math.min(0.9999, Math.max(0, p)))) / g.N; } catch { return p; } };
   const spl = (c) => Object.entries(c.splitTimes || {}).filter(([k]) => +k < 1).sort((a, b) => +a[0] - +b[0]).map(([, v]) => r1(v));
   const cars = ranked.map((c, i) => ({
-    k: c.key, p: i + 1, st: c.status === 'out' || c.retiredLeg ? 'dnf' : c.done ? 'fin' : 'run', d: r3(c.progress || 0), el: r1(c.stageT ?? null), time: r1(tOf(c)),
+    k: c.key, p: i + 1, st: c.status === 'out' || c.retiredLeg ? 'dnf' : c.done ? 'fin' : 'run', d: r3(c.progress || 0), f: r3(along(c.progress || 0)), el: r1(c.stageT ?? null), time: r1(tOf(c)),
     gap: c.done && bestT != null ? r1(tOf(c) - bestT) : null, splits: spl(c), ty: c.tyre || null, me: c.isPlayer ? 1 : 0, total: r1(c.total ?? null), pace: c.pace || null,
     dmg: r3(Math.max(0, ...Object.values(c.damage || {}))), road: (c.roadPos ?? 0) + 1,
   }));

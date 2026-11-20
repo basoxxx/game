@@ -108,7 +108,7 @@ export class BastioneGame {
   async start() {
     const o = this.o, L = this.level, root = this.root;
     const tier = this.tier = o.tier || 'high';
-    this.sim = new Sim(L, { diff: o.diff, tree: o.tree, hero: o.hero, heroLvl: o.heroLvl, spells: o.spells, seed: o.seed });
+    this.sim = new Sim(L, { diff: o.diff, tree: o.tree, hero: o.hero, heroLvl: o.heroLvl, spells: o.spells, seed: o.seed, aid: o.aid, aidBoss: o.aidBoss });
     root.innerHTML = this.hudHtml();
     this.cv = root.querySelector('.bs-cv');
     this.$ = (id) => root.querySelector('#' + id);
@@ -133,7 +133,8 @@ export class BastioneGame {
     this.loop = this.loop.bind(this);
     this.raf = requestAnimationFrame(this.loop);
     document.activeElement?.blur?.();
-    if (L.tip) this.banner(L.tip, 'note', 7);
+    if (o.aid > 0) this.banner(`Aiuto del Re: +${o.aid} oro iniziale${o.aidBoss < 1 ? ' e capo indebolito' : ''}, finché i potenziamenti non ti mettono in pari`, 'note', 7);
+    else if (L.tip) this.banner(L.tip, 'note', 7);
     this._helpT = setTimeout(() => this.$('bs-help')?.classList.add('off'), 12000);
   }
 

@@ -2,7 +2,7 @@ import { App, registerScreen } from '../app.js';
 import { icon } from '../ui/icons.js';
 import { logoMark, carSVG, teamBadge } from '../ui/art.js';
 import { esc } from '../ui/dom.js';
-import { listSaves, loadGame, deleteSave, importSave, saveGame, SLOTS } from '../engine/state.js';
+import { G, listSaves, loadGame, deleteSave, importSave, saveGame, SLOTS } from '../engine/state.js';
 import { CATEGORIES, DIFFICULTY } from '../data/categories.js';
 import { circuitPath, arcFrac, TrackView } from '../ui/trackview.js';
 import { TRACKS } from '../data/tracks.js';
@@ -215,7 +215,18 @@ export function openLoad(saveMode = false) {
     import(el) {
       const f = el.files?.[0]; if (!f) return;
       // the migration needs the engine (code-split): fetch it along with the file text
-      Promise.all([f.text(), import('../engine/migrate.js')]).then(([t, { migrateSave }]) => { try { const s = migrateSave(importSave(t)); s.slot = s.slot || 1; saveGame(s.slot); App.closeModal(); App.go('hub'); } catch (e) { App.toast('Import fallito', e.message, 'bad'); } }, (e) => App.toast('Import fallito', e.message, 'bad'));
+      el.value = ''; // the same file can be picked again after a cancel
+      Promise.all([f.text(), import('../engine/migrate.js')]).then(([t, { migrateSave }]) => {
+        let s; try { s = migrateSave(importSave(t, false)); } catch (e) { App.toast('Import fallito', e.message, 'bad'); return; }
+        const go = (slot) => { G.state = s; s.slot = slot; if (!saveGame(slot)) { App.toast('Import fallito', 'Spazio di salvataggio non disponibile.', 'bad'); return; } App.closeModal(); App.toast('Partita importata', `Slot ${slot}`, 'good'); App.go('hub'); };
+        const saves = listSaves(); const want = SLOTS.includes(s.slot) ? s.slot : 1; const cur = saves.find((x) => x.slot === want);
+        if (!cur || cur.empty) { go(want); return; }
+        // the slot the file comes from is taken: never overwrite it without asking
+        const free = saves.find((x) => x.empty && !x.corrupt);
+        App.modal(`<h2>Slot ${want} occupato</h2><p class="muted">Il file importato (${esc(s.teams?.[s.playerTeam]?.name || 'carriera')}, stagione ${s.season}) andrebbe nello slot ${want}, che contiene già ${esc(cur.team || 'una partita')} (stagione ${cur.season}).${free ? ` Puoi metterlo nello slot ${free.slot}, che è vuoto.` : ''}</p>
+          <div class="row mt24" style="justify-content:flex-end;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-a="close-modal">Annulla</button>${s.ironman ? '' : free ? `<button class="btn primary" data-a="imp-free">Usa lo slot ${free.slot}</button>` : ''}<button class="btn danger" data-a="imp-over">Sovrascrivi slot ${want}</button></div>`,
+        { 'imp-free'() { go(free.slot); }, 'imp-over'() { go(want); } });
+      }, (e) => App.toast('Import fallito', e.message, 'bad'));
     },
   };
   App.modal(render(), actions);

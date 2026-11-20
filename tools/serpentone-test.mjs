@@ -131,6 +131,10 @@ const quiet = (o = {}) => new Sim({ seed: 7, rivals: 0, ...o });
   const E = course('facile'), H = course('difficile');
   ok(H.crashes <= 3 && E.crashes <= 4, `rivals dodge big bodies and the wall (crashes: hard ${H.crashes}, easy ${E.crashes})`);
   ok(H.eaten > E.eaten, `hard rivals eat more (${H.eaten} vs ${E.eaten})`);
+  // a free-for-all of rivals only: a sharper pack must not die more often than the normal one (hunting each other)
+  const pack = (d) => { let n = 0; for (const seed of [1, 2, 3, 4]) { const q = new Sim({ seed, mode: 'classica', diff: d, missions: false }); q.kill(q.players[0], null, 'x'); q.players[0].respawnT = 1e9; for (let t = 0; t < 90; t += 1 / 30) { q.step(1 / 30); for (const e of q.events) if (e.t === 'die' && q.snakes[e.s].ai) n++; q.events.length = 0; } } return n; };
+  const dn = pack('normale'), dh = pack('difficile');
+  ok(dh <= dn * 1.1 + 2, `hard rivals do not die more than normal ones (${dh} vs ${dn})`);
 }
 // --- duo: two players, both respawn
 {

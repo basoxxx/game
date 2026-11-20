@@ -3,7 +3,7 @@ import { getTrack, buildCalendar } from './world.js';
 import { ensureProgress } from './progress.js';
 import { ensureLegacy } from './legacy.js';
 import { ensureDynasty } from './dynasty.js';
-import { TRACKS } from '../data/tracks.js';
+import { TRACKS, RALLY_STAGES } from '../data/tracks.js';
 
 export function migrateSave(st) {
   if (!st) return st;
@@ -17,6 +17,12 @@ export function migrateSave(st) {
     }
     if (st.weekend && !getTrack(cat, st.weekend.trackId)) st.weekend = null;
     if (st.weekend && !st.weekend.weather?.trackTemp) st.weekend = null;
+  }
+  // older calendars drew rally stage names from one shared pool ("Sardinia Coast" in Monte Carlo): rename the stages still to run
+  if (cat === 'rally') for (const ev of st.calendar || []) {
+    const own = RALLY_STAGES[ev.trackId]; if (!own || ev.done || !ev.stages || ev.stages.every((x) => own.includes(x.name))) continue;
+    if (st.weekend && st.weekend.trackId === ev.trackId) continue; // a rally in progress keeps the names it was started with
+    ev.stages.forEach((x, i) => { x.name = own[i % own.length]; });
   }
   ensureProgress(st);
   if (st.career) ensureLegacy(st);

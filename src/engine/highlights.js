@@ -162,8 +162,10 @@ export class CircuitRecorder {
     const sim = this.sim;
     if (c.status !== 'finished') return c.dist;
     // cool-down lap: the car eases off after the flag
-    const dt = Math.max(0, sim.time - (c.crossT ?? sim.time)); const v = 1 / (c.lapTarget || sim.track.lap);
-    return c.finishLap + v * (dt * 0.35 + 1.3 * (1 - Math.exp(-dt / 2)));
+    // (from the last shown position and speed, so the flag is no jolt for a car that was stuck behind another)
+    const F = c.finU;
+    const dt = Math.max(0, sim.time - (F ? F.t : c.crossT ?? sim.time)); const v = F ? F.v : 1 / (c.lapTarget || sim.track.lap);
+    return (F ? F.u : c.finishLap) + v * (dt * 0.35 + 1.3 * (1 - Math.exp(-dt / 2)));
   }
   sample(force = false) {
     const sim = this.sim;

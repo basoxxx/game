@@ -29,7 +29,8 @@ export function tyreModel(catId, compound) {
 export function degPenalty(m, age, life) {
   const lin = m.deg * age * (1 + (age / life) * 0.6);
   const cliffStart = life * 0.86;
-  const cliff = age > cliffStart ? (age - cliffStart) ** 2 * 0.055 : 0;
+  // past the cliff the car is on the canvas: very slow, but a bounded loss (no ten-minute laps on a forgotten stint)
+  const cliff = age > cliffStart ? Math.min(28, (age - cliffStart) ** 2 * 0.055) : 0;
   return lin + cliff;
 }
 

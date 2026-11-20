@@ -15,7 +15,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { pixelRatio } from '../ui/quality.js';
 import { FrameGuard } from '../ui/perfguard.js';
 import { icon } from '../ui/icons.js';
-import { compile, initState, occupancy, carRange, ferryFree, apply, isGoal, legal, solve, EXITED, starsFor, starLimits, isRed } from './core.js';
+import { compile, initState, occupancy, carRange, ferryFree, apply, isGoal, legal, solve, EXITED, starsFor, starLimits, isRed, flickSpeed } from './core.js';
 import { snd, setVolume } from './sound.js';
 import { PAINTS, THEMES, MECH_RULE } from './meta.js';
 import { job } from './jobs.js';
@@ -614,7 +614,7 @@ export class IngorgoGame {
     if (d.ferry) {
       const v = d.start + (p.z - d.p0.z);
       this.fvp = d.free ? clamp(v, -0.3, B.h - B.fl + 0.3) : d.start + clamp(v - d.start, -0.12, 0.12);
-      d.samples.push([e.timeStamp, this.fvp]);
+      d.samples.push([e.timeStamp, this.fvp, e.clientX, e.clientY]); if (d.samples.length > 12) d.samples.shift();
       return;
     }
     const v = this.vs[d.car], c = v.c;
@@ -624,22 +624,20 @@ export class IngorgoGame {
     if (x > hi) x = d.r.outHi ? x : hi + Math.min(0.3, (x - hi) * 0.25);
     if (x < lo) x = d.r.outLo ? x : lo - Math.min(0.3, (lo - x) * 0.25);
     v.vp = x; v.vel = 0;
-    d.samples.push([e.timeStamp, x]); if (d.samples.length > 8) d.samples.shift();
+    d.samples.push([e.timeStamp, x, e.clientX, e.clientY]); if (d.samples.length > 12) d.samples.shift();
     d.pushed = raw > hi + 0.3 ? 1 : raw < lo - 0.3 ? -1 : 0;
   }
   pointerUp(e) {
     const d = this.drag; if (!d || e.pointerId !== d.id) return;
     this.drag = null;
     const tap = Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 9 && performance.now() - d.t0 < 1200;
-    // release speed (cells / s) from the last samples
-    let vel = 0; const sm = d.samples;
-    if (sm.length >= 2) { const a = sm[0], b = sm[sm.length - 1]; const dt = (b[0] - a[0]) / 1000; if (dt > 0.03 && e.timeStamp - b[0] < 100) vel = (b[1] - a[1]) / dt; }
+    const vel = flickSpeed(d.samples, e.timeStamp);
     if (d.ferry) {
       const B = this.B;
       if (tap) { this.tapFerry(); return; }
       if (!d.free) { this.blockedFerry(); return; }
       let y = Math.round(this.fvp);
-      if (Math.abs(vel) > 7) y = vel > 0 ? B.h - B.fl : 0;
+      if (vel) y = vel > 0 ? B.h - B.fl : 0;
       y = clamp(y, 0, B.h - B.fl);
       if (y !== this.s[B.n]) this.commit([-1, y]);
       return;
@@ -648,9 +646,9 @@ export class IngorgoGame {
     if (tap) { v.vp = this.s[d.car]; this.tapCar(d.car); return; }
     const r = d.r, c = v.c;
     let target = clamp(Math.round(v.vp), r.lo, r.hi);
-    if (r.outHi && (v.vp > r.hi + 0.55 || (vel > 6))) target = EXITED;
-    else if (r.outLo && (v.vp < r.lo - 0.55 || (vel < -6))) target = EXITED;
-    else if (vel > 6) target = r.hi; else if (vel < -6) target = r.lo;
+    if (r.outHi && (v.vp > r.hi + 0.55 || (vel > 0))) target = EXITED;
+    else if (r.outLo && (v.vp < r.lo - 0.55 || (vel < 0))) target = EXITED;
+    else if (vel > 0) target = r.hi; else if (vel < 0) target = r.lo;
     if (target === EXITED) { this.commit([d.car, EXITED], vel > 0 || v.vp > r.hi ? 1 : -1); return; }
     if (target !== this.s[d.car]) this.commit([d.car, target]);
     else if (d.pushed) this.blocked(d.car, d.pushed);
@@ -786,7 +784,29 @@ export class IngorgoGame {
     if (this.hintMove && this.hintMove[0] === m[0] && this.hintMove[1] === m[1]) this.clearHint(); else if (this.hintMove) this.clearHint();
     this.syncHud();
     if (isGoal(B, this.s)) this.win();
+    else if (B.hasArrows) this.checkDead();
     return true;
+  }
+  // One-way streets (Centro Storico, some rush hours) can trap the red car for good: after each move the
+  // solver checks in the background, and a dead end is announced at once with how many moves to undo
+  // (before, the player found out only by asking for a hint).
+  async checkDead() {
+    const seq = this.deadSeq = (this.deadSeq || 0) + 1, L = this.L, alive = () => seq === this.deadSeq && !this.done && this.root.isConnected;
+    let res;
+    try { res = await job('solve', { level: L, state: Array.from(this.s) }); } catch { return; }
+    if (!alive() || res) { if (res && seq === this.deadSeq) this.deadAt = 0; return; }
+    let back = 0;
+    for (let k = this.hist.length - 1; k >= 0; k--) {
+      back++;
+      let r = null; try { r = await job('solve', { level: L, state: Array.from(this.hist[k]) }); } catch { return; }
+      if (!alive()) return;
+      if (r) break;
+    }
+    this.deadAt = this.moves;
+    this.msg(back ? `Vicolo cieco! Da qui l’auto rossa non esce più: annulla ${back} ${back === 1 ? 'mossa' : 'mosse'}` : 'Vicolo cieco! Da qui non si esce: ricomincia', 6000, 'warn');
+    snd.bump();
+    const u = this.root.querySelector('[data-k=undo]'); u?.classList.add('pulse'); clearTimeout(this._deadT); this._deadT = setTimeout(() => u?.classList.remove('pulse'), 6000);
+    this.root.classList.add('ig-dead');
   }
   undo() {
     if (!this.canPlay()) return;
@@ -795,6 +815,8 @@ export class IngorgoGame {
     const prev = this.hist.pop();
     for (let i = 0; i < this.B.n; i++) if (this.s[i] === EXITED && prev[i] !== EXITED) this.reenter(i, prev[i]);
     this.s = prev; this.moves--; this.undos++;
+    this.deadSeq = (this.deadSeq || 0) + 1; this.root.classList.remove('ig-dead');
+    if (this.B.hasArrows && this.deadAt) this.checkDead();
     if (this.B.hasLights) this.syncLights();
     this.clearHint(); snd.undo(); this.syncHud();
   }
@@ -810,7 +832,7 @@ export class IngorgoGame {
     this.commitPending();
     if (!this.hist.length) return;
     for (let i = 0; i < this.B.n; i++) if (this.s[i] === EXITED) this.reenter(i, this.s0[i]);
-    this.s = this.s0.slice(); this.hist = []; this.moves = 0; this.restarts++;
+    this.s = this.s0.slice(); this.hist = []; this.moves = 0; this.restarts++; this.deadSeq = (this.deadSeq || 0) + 1; this.deadAt = 0; this.root.classList.remove('ig-dead');
     if (this.L.time) { this.time = 0; this.started = false; }
     this.syncLights(); this.clearHint(); snd.undo(); this.syncHud();
     this.msg('Si ricomincia!', 1200);
@@ -1022,7 +1044,7 @@ export class IngorgoGame {
   solveNow() { const r = solve(this.B, this.s, 300000); return r ? r.moves : null; }
 
   destroy() {
-    cancelAnimationFrame(this.raf); clearTimeout(this._endT); clearTimeout(this._msgT); clearTimeout(this._pendT);
+    cancelAnimationFrame(this.raf); clearTimeout(this._endT); clearTimeout(this._msgT); clearTimeout(this._pendT); clearTimeout(this._deadT); this.deadSeq = (this.deadSeq || 0) + 1;
     window.removeEventListener('keydown', this.onKD, true);
     window.removeEventListener('pointermove', this.onPM); window.removeEventListener('pointerup', this.onPU); window.removeEventListener('pointercancel', this.onPU);
     document.removeEventListener('visibilitychange', this.onVis);

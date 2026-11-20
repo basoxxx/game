@@ -74,7 +74,7 @@ function tabGioco(s) {
     ${section('Aiuti', 'bulb')}
     ${row('Consigli dell’ingegnere', 'Suggerimenti contestuali che compaiono la prima volta che apri una schermata.', sw(!tipsOff(), 'data-a="set-tips"'))}
     ${row('Ripristina consigli e tour', 'Fa ricomparire tutti i consigli e i tour guidati già visti.', `<button class="btn sm" data-a="set-tips-reset">${icon('reset')} Ripristina</button>`)}
-    ${st ? `${section('Salvataggi', 'save')}
+    ${st && !st.quick ? `${section('Salvataggi', 'save')}
     ${row('Salva in uno slot', 'Il gioco salva da solo dopo ogni evento. Qui puoi creare un salvataggio in uno slot a scelta.', `<button class="btn sm" data-a="set-save">${icon('save')} Scegli slot…</button>`)}
     ${row('Esporta su file', 'Scarica la carriera in un file .json da conservare o da importare su un altro computer.', `<button class="btn sm" data-a="set-export">${icon('download')} Esporta</button>`)}` : section('Salvataggi', 'save')}
     ${row('Carica o importa', 'Apri uno slot di salvataggio, ripristina un backup o importa un file .json esportato.', `<button class="btn sm" data-a="set-load">${icon('upload')} Carica…</button>`)}
