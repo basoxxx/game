@@ -1,0 +1,126 @@
+# Tecnologia
+1|Cosa significa la sigla «PC»?|Personal computer|Programma centrale|Pannello di controllo|Porta comune|Il personal computer si diffuse negli anni Ottanta.
+1|Quale dispositivo si usa per muovere il puntatore sullo schermo?|Mouse|Stampante|Scanner|Altoparlante|Il mouse fu presentato da Douglas Engelbart nel 1968.
+1|Quale componente è considerato il «cervello» del computer?|Processore (CPU)|Monitor|Tastiera|Alimentatore|La CPU esegue le istruzioni dei programmi.
+1|Cosa si usa per navigare su Internet?|Un browser|Un foglio di calcolo|Un antivirus|Un compilatore|Chrome, Firefox, Safari ed Edge sono browser.
+1|Cosa significa «www» in un indirizzo web?|World Wide Web|World Web Wide|Web World Wide|Wide World Web|Il Web fu inventato da Tim Berners-Lee al CERN.
+1|Quale simbolo compare in tutti gli indirizzi email?|@|#|&|%|In italiano la @ si chiama «chiocciola».
+1|Come si chiama in italiano il simbolo @?|Chiocciola|Cancelletto|Asterisco|Barra|Il # si chiama cancelletto.
+1|Quale tasto si usa per andare a capo in un testo?|Invio|Esc|Tab|Alt|Il tasto Invio conferma anche i comandi.
+1|Quale combinazione di tasti copia un testo su Windows?|Ctrl + C|Ctrl + V|Ctrl + X|Ctrl + Z|Ctrl + V incolla, Ctrl + X taglia, Ctrl + Z annulla.
+1|Quale combinazione di tasti annulla l'ultima azione su Windows?|Ctrl + Z|Ctrl + Y|Ctrl + A|Ctrl + S|Ctrl + S salva, Ctrl + A seleziona tutto.
+1|Quale tecnologia senza fili collega cuffie e telefono a breve distanza?|Bluetooth|GPS|Fibra ottica|Radio FM|Il Bluetooth prende il nome da un re danese.
+1|Quale sistema usa i satelliti per trovare la posizione?|GPS|Wi-Fi|NFC|USB|Il GPS è gestito dagli Stati Uniti; l'europeo si chiama Galileo.
+1|Come si chiama il sistema europeo di navigazione satellitare?|Galileo|Glonass|Beidou|Copernico|Glonass è russo, Beidou cinese.
+1|Quale azienda produce l'iPhone?|Apple|Samsung|Google|Microsoft|Il primo iPhone fu presentato nel 2007.
+1|Quale azienda ha creato il sistema operativo Windows?|Microsoft|Apple|IBM|Google|Microsoft fu fondata da Bill Gates e Paul Allen.
+1|Quale azienda ha sviluppato il sistema operativo Android?|Google|Apple|Microsoft|Nokia|Android è il sistema operativo mobile più diffuso.
+1|Chi fondò Apple insieme a Steve Wozniak?|Steve Jobs|Bill Gates|Elon Musk|Mark Zuckerberg|Apple nacque nel 1976.
+1|Cosa misura il «gigabyte»?|La quantità di dati|La velocità del processore|La luminosità dello schermo|La durata della batteria|Un gigabyte equivale a circa un miliardo di byte.
+1|Cosa è più grande: un terabyte o un gigabyte?|Terabyte|Gigabyte|Sono uguali|Dipende dal computer|Un terabyte equivale a mille gigabyte.
+1|Come si chiamano le immagini piccole usate nei messaggi per esprimere emozioni?|Emoji|Pixel|Font|Cookie|Le emoji nacquero in Giappone alla fine degli anni Novanta.
+1|Come si chiama il più piccolo punto di un'immagine digitale?|Pixel|Byte|Bit|Voxel|Pixel viene da «picture element».
+1|A cosa serve un antivirus?|A proteggere il computer dai programmi dannosi|A velocizzare Internet|A stampare documenti|A raffreddare il processore|Gli antivirus individuano e bloccano il malware.
+1|Quale dispositivo trasforma un documento di carta in un file digitale?|Scanner|Stampante|Proiettore|Router|La stampante fa l'operazione inversa.
+1|Quale dispositivo distribuisce la connessione Internet in casa?|Router|Monitor|Webcam|Scanner|Il router crea spesso anche la rete Wi-Fi.
+1|Cos'è una «password»?|Una parola segreta per accedere|Un tipo di virus|Un programma di grafica|Un indirizzo web|Una buona password è lunga e difficile da indovinare.
+1|Quale invenzione di Guglielmo Marconi permise di comunicare a distanza senza fili?|La radio|Il telefono|La televisione|Il telegrafo con i fili|Marconi effettuò le prime trasmissioni radio alla fine dell'Ottocento.
+1|Chi inventò la lampadina a incandescenza di uso pratico?|Thomas Edison|Nikola Tesla|Alessandro Volta|Alexander Graham Bell|Edison la brevettò nel 1879-1880.
+1|Quale mezzo di trasporto inventarono i fratelli Wright?|L'aeroplano|L'automobile|Il dirigibile|L'elicottero|Il primo volo a motore avvenne nel 1903.
+1|Quale invenzione permette di vedere le immagini a distanza in casa?|La televisione|La radio|Il grammofono|Il telegrafo|In Italia le trasmissioni regolari iniziarono nel 1954.
+1|In che anno iniziarono le trasmissioni televisive regolari della RAI?|1954|1946|1960|1970|Il 3 gennaio 1954 andò in onda il primo programma.
+1|Cosa serve per ricaricare la batteria di uno smartphone?|Un caricabatterie|Un mouse|Una SIM|Una scheda di rete|Molti telefoni si ricaricano anche senza fili.
+1|Quale componente del telefono identifica il numero dell'utente?|La SIM|La batteria|La fotocamera|Lo schermo|SIM significa Subscriber Identity Module.
+2|Chi è considerato l'inventore del World Wide Web?|Tim Berners-Lee|Vint Cerf|Bill Gates|Steve Jobs|Berners-Lee lo propose al CERN nel 1989.
+2|Cosa significa la sigla «HTML»?|HyperText Markup Language|High Tech Modern Language|Home Tool Markup Language|Hyper Transfer Mail Language|L'HTML descrive la struttura delle pagine web.
+2|Cosa significa la sigla «USB»?|Universal Serial Bus|Unique System Board|Universal Storage Box|Ultra Speed Bus|La USB è diventata lo standard per collegare le periferiche.
+2|Cosa significa la sigla «RAM»?|Random Access Memory|Read Allowed Memory|Rapid Access Module|Remote Access Machine|La RAM conserva i dati solo mentre il computer è acceso.
+2|Cosa significa «Wi-Fi» comunemente?|Una rete senza fili|Un cavo veloce|Un tipo di processore|Un sistema operativo|Il Wi-Fi usa onde radio per collegare i dispositivi.
+2|Quanti bit ci sono in un byte?|8|4|10|16|Un byte di 8 bit può rappresentare 256 valori.
+2|Quale sistema di numerazione usano i computer internamente?|Binario|Decimale|Esadecimale|Romano|Il binario usa solo le cifre 0 e 1.
+2|Quanto fa 1010 in binario, convertito in decimale?|10|8|12|5|1×8 + 0×4 + 1×2 + 0×1 = 10.
+2|Quale linguaggio di programmazione prende il nome da un gruppo comico britannico?|Python|Java|Ruby|Perl|Il nome viene dai Monty Python.
+2|Quale linguaggio si usa nei browser per rendere interattive le pagine web?|JavaScript|COBOL|Fortran|Pascal|JavaScript fu creato nel 1995 da Brendan Eich.
+2|Cos'è un «algoritmo»?|Una sequenza di istruzioni per risolvere un problema|Un tipo di computer|Un virus informatico|Un cavo di rete|Il nome deriva dal matematico persiano al-Khwarizmi.
+2|Chi è considerata la prima programmatrice della storia?|Ada Lovelace|Grace Hopper|Marie Curie|Hedy Lamarr|Ada Lovelace scrisse un algoritmo per la macchina analitica di Babbage.
+2|Quale matematico britannico è considerato il padre dell'informatica e dell'intelligenza artificiale?|Alan Turing|Charles Babbage|John von Neumann|Claude Shannon|Turing propose anche il celebre «test di Turing».
+2|Quale macchina tedesca per cifrare messaggi fu decifrata durante la Seconda guerra mondiale?|Enigma|Colossus|Lorenz|Purple|Il lavoro di Alan Turing a Bletchley Park fu decisivo.
+2|Quale azienda italiana di Ivrea produsse la Programma 101, uno dei primi computer da tavolo?|Olivetti|Fiat|Pirelli|Telecom|La Programma 101 fu presentata nel 1965.
+2|Quale italiano partecipò all'invenzione del microprocessore Intel 4004?|Federico Faggin|Pier Giorgio Perotto|Adriano Olivetti|Leonardo Chiariglione|Il 4004 fu presentato nel 1971.
+2|Quale italiano guidò il gruppo che creò lo standard MP3?|Leonardo Chiariglione|Federico Faggin|Guglielmo Marconi|Roberto Battiston|Chiariglione fondò il gruppo MPEG.
+2|Quale formato è usato comunemente per le immagini compresse con perdita di qualità?|JPEG|PNG|TXT|MP3|Il PNG comprime senza perdita.
+2|Quale formato si usa comunemente per la musica compressa?|MP3|PDF|JPEG|DOCX|L'MP3 riduce molto le dimensioni dei file audio.
+2|Quale formato di documento è stato creato da Adobe per essere uguale su tutti i dispositivi?|PDF|DOC|ODT|RTF|PDF significa Portable Document Format.
+2|Cos'è il «phishing»?|Una truffa per rubare dati con messaggi falsi|Un modo di pescare online|Un tipo di processore|Una tecnica di stampa 3D|Non cliccare mai su link sospetti che chiedono password.
+2|Cos'è il «cloud» in informatica?|Servizi e dati su server raggiungibili via Internet|Un tipo di monitor|Un virus|Una tastiera senza fili|Con il cloud i file sono accessibili da più dispositivi.
+2|Cosa significa la sigla «IA»?|Intelligenza artificiale|Informatica avanzata|Internet aperto|Immagine animata|In inglese si dice AI, Artificial Intelligence.
+2|Cos'è un «QR code»?|Un codice a barre bidimensionale|Un tipo di password|Un virus|Un formato audio|Il QR code fu inventato in Giappone nel 1994 dalla Denso Wave.
+2|Cosa indica il «5G»?|La quinta generazione di reti mobili|Cinque gigabyte di memoria|Un tipo di processore|Una risoluzione video|Il 5G offre velocità e latenze migliori del 4G.
+2|Cosa significa «HD» riferito ai video?|Alta definizione|Hard disk|Doppia altezza|Disco rigido|Il Full HD ha una risoluzione di 1920 × 1080 pixel.
+2|Quale risoluzione viene chiamata «4K» nei televisori?|3840 × 2160|1920 × 1080|1280 × 720|7680 × 4320|7680 × 4320 è l'8K.
+2|Quale console di Nintendo si può usare sia collegata al televisore sia portatile?|Switch|Wii|GameCube|Nintendo 64|La Switch uscì nel 2017.
+2|Quale azienda produce la console PlayStation?|Sony|Nintendo|Microsoft|Sega|La prima PlayStation uscì nel 1994 in Giappone.
+2|Quale azienda produce la console Xbox?|Microsoft|Sony|Nintendo|Atari|La prima Xbox uscì nel 2001.
+2|Come si chiama l'idraulico baffuto protagonista dei videogiochi Nintendo?|Mario|Luigi|Wario|Link|Mario debuttò nel 1981 in «Donkey Kong».
+2|Quale videogioco a blocchi che cadono fu creato in Unione Sovietica nel 1984?|Tetris|Pac-Man|Space Invaders|Pong|Lo creò Aleksej Pažitnov.
+2|Quale videogioco prevede di costruire con blocchi in un mondo cubico?|Minecraft|Fortnite|Tetris|The Sims|Minecraft è uno dei videogiochi più venduti di sempre.
+2|In quale anno uscì il primo iPhone?|2007|2001|2010|2004|Fu presentato da Steve Jobs il 9 gennaio 2007.
+2|In quale anno nacque Facebook?|2004|1998|2008|2010|Fu fondato da Mark Zuckerberg ad Harvard.
+2|In quale anno fu fondata Google?|1998|1994|2002|2006|Larry Page e Sergey Brin la fondarono in California.
+2|Cosa si intende per «open source»?|Software con codice sorgente libero e consultabile|Programmi solo a pagamento|Siti senza password|Computer senza tastiera|Linux e Firefox sono esempi di software open source.
+2|Quale sistema operativo libero fu creato da Linus Torvalds?|Linux|Unix|MS-DOS|macOS|Il kernel Linux fu annunciato nel 1991.
+2|Che cosa fa una stampante 3D?|Crea oggetti depositando materiale strato dopo strato|Stampa foto in rilievo|Proietta immagini 3D|Scansiona oggetti|Si usa plastica, resina e perfino metallo.
+2|Cosa si intende per «domotica»?|L'automazione della casa|Lo studio dei domini web|La robotica industriale|La programmazione dei giochi|Luci, termostati e tapparelle si comandano anche dal telefono.
+2|Quale motore inventò Rudolf Diesel?|Il motore ad accensione per compressione|Il motore elettrico|La turbina a gas|Il motore a vapore|Il motore Diesel non usa la candela.
+2|Chi inventò il motore a scoppio a quattro tempi, brevettato nel 1876?|Nikolaus Otto|Rudolf Diesel|Karl Benz|Gottlieb Daimler|Il ciclo Otto è usato nei motori a benzina.
+2|Quale italiano sviluppò un motore a scoppio prima di Otto, nel 1853?|Barsanti e Matteucci|Enrico Bernardi|Giovanni Agnelli|Ettore Bugatti|Eugenio Barsanti e Felice Matteucci depositarono un brevetto nel 1853.
+2|Chi costruì quella che è considerata la prima automobile moderna, nel 1886?|Karl Benz|Henry Ford|Enzo Ferrari|Louis Renault|La Benz Patent-Motorwagen aveva tre ruote.
+2|Quale modello Ford rese l'automobile accessibile a molti dal 1908?|Model T|Mustang|Model A|Thunderbird|La Model T fu costruita con la catena di montaggio.
+2|Come si chiama la tecnologia che ricarica i telefoni appoggiandoli su una base?|Ricarica a induzione|Ricarica solare|Ricarica a vapore|Ricarica magnetica a contatto|Lo standard più diffuso si chiama Qi.
+3|Cosa significa la sigla «HTTP»?|HyperText Transfer Protocol|High Transfer Text Program|Hyper Terminal Transfer Port|Home Text Transfer Protocol|La «S» di HTTPS indica la connessione cifrata.
+3|Cosa significa la «S» in «HTTPS»?|Secure|Server|System|Speed|La connessione HTTPS cifra i dati tra browser e sito.
+3|Cosa identifica un «indirizzo IP»?|Un dispositivo in una rete|Una pagina web|Un utente email|Una password|IP significa Internet Protocol.
+3|Quante cifre binarie ha un indirizzo IPv4?|32|64|128|16|Gli indirizzi IPv6 hanno invece 128 bit.
+3|Cosa fa un server DNS?|Traduce i nomi dei siti in indirizzi IP|Protegge dai virus|Accelera il processore|Comprime le immagini|Senza DNS dovremmo ricordare indirizzi numerici.
+3|Come si chiamava la rete militare americana da cui nacque Internet?|ARPANET|ETHERNET|NSFNET|MILNET|Il primo collegamento ARPANET risale al 1969.
+3|In quale anno fu inviato il primo messaggio su ARPANET?|1969|1975|1983|1991|Il messaggio partì dall'Università della California a Los Angeles.
+3|In quale anno l'Italia si collegò per la prima volta a Internet?|1986|1994|1979|1999|Il collegamento partì dal CNUCE di Pisa il 30 aprile 1986.
+3|Da quale città partì il primo collegamento italiano a Internet?|Pisa|Milano|Roma|Torino|Il centro CNUCE del CNR effettuò il collegamento.
+3|Cosa enuncia la «legge di Moore»?|Che il numero di transistor nei chip raddoppia periodicamente|Che la velocità di Internet si dimezza|Che i computer consumano sempre meno|Che i programmi raddoppiano di prezzo|Gordon Moore la formulò nel 1965.
+3|Chi fu cofondatore di Intel e formulò la legge che porta il suo nome?|Gordon Moore|Robert Noyce|Andy Grove|Federico Faggin|La legge descrive la crescita della complessità dei circuiti.
+3|Cosa misura la frequenza di clock di un processore?|Quante operazioni di base al secondo può scandire|La sua temperatura|La capacità di memoria|Il consumo in watt|Si misura in hertz, di solito in gigahertz.
+3|Cos'è un «transistor»?|Un componente che amplifica o commuta segnali elettrici|Un tipo di cavo|Una memoria permanente|Un'antenna|Fu inventato nel 1947 ai Bell Labs.
+3|Quale materiale è alla base della maggior parte dei chip?|Silicio|Rame|Oro|Germanio puro|Da qui il nome «Silicon Valley».
+3|Come si chiamava il primo computer elettronico general purpose, del 1946?|ENIAC|UNIVAC|Colossus|Z3|L'ENIAC pesava circa 27 tonnellate.
+3|Quale ingegnere tedesco costruì lo Z3, uno dei primi computer programmabili, nel 1941?|Konrad Zuse|Wernher von Braun|Heinrich Hertz|Karl Benz|Lo Z3 funzionava con relè elettromeccanici.
+3|Chi progettò la «macchina analitica» nell'Ottocento?|Charles Babbage|Blaise Pascal|Gottfried Leibniz|George Boole|La macchina non fu mai completata.
+3|Quale matematico inventò l'algebra su cui si basano i circuiti logici?|George Boole|Alan Turing|Isaac Newton|Leonhard Euler|L'algebra booleana usa solo vero e falso.
+3|Come si chiama l'unità di misura della frequenza?|Hertz|Watt|Pascal|Newton|Prende il nome da Heinrich Hertz.
+3|Quale tipo di memoria conserva i dati anche senza corrente, come nelle chiavette?|Flash|RAM|Cache|Registro|La memoria flash è usata anche negli SSD.
+3|Cosa significa la sigla «SSD»?|Solid State Drive|Super Speed Disk|System Storage Device|Single Side Disc|Gli SSD non hanno parti meccaniche in movimento.
+3|Cosa significa «CAPTCHA», il test per distinguere umani e computer?|Test di Turing pubblico e automatico|Codice di accesso protetto|Controllo antivirus|Password casuale|È l'acronimo inglese di «Completely Automated Public Turing test to tell Computers and Humans Apart».
+3|Cosa si intende per «crittografia end-to-end»?|Solo mittente e destinatario possono leggere i messaggi|I messaggi vengono cancellati alla fine|Si cifra solo l'ultima parola|Il server legge i messaggi|Nemmeno il fornitore del servizio può leggere il contenuto.
+3|Come si chiamava il primo satellite italiano, lanciato nel 1964?|San Marco 1|Sirio|Italsat|Beppo-SAX|San Marco 1 fu lanciato con un razzo americano da un team guidato da Luigi Broglio.
+3|Quale razzo europeo ha sostituito l'Ariane 5 dal 2024?|Ariane 6|Vega|Falcon 9|Soyuz|Il primo lancio dell'Ariane 6 avvenne a luglio 2024.
+3|Quale razzo leggero europeo è stato progettato in gran parte in Italia?|Vega|Ariane 6|Proton|Electron|Il Vega è costruito da Avio, a Colleferro.
+3|Quale azienda americana riutilizza i primi stadi dei suoi razzi Falcon 9?|SpaceX|Blue Origin|Boeing|Rocket Lab|Il primo atterraggio riuscito di un primo stadio orbitale avvenne nel 2015.
+3|Come si chiama il telescopio spaziale lanciato nel 2021 come successore di Hubble?|James Webb|Kepler|Chandra|Spitzer|Il James Webb osserva soprattutto nell'infrarosso.
+3|Come si chiama la stazione spaziale abitata in orbita dal 2000 con equipaggi internazionali?|Stazione spaziale internazionale|Mir|Skylab|Tiangong 1|La ISS orbita a circa 400 km di altezza.
+3|Quale tecnologia usa la sigla LED?|Diodo a emissione di luce|Lampada elettrica a deposito|Laser elettronico doppio|Luce elettrica diffusa|I LED consumano molto meno delle lampadine a incandescenza.
+3|Quale scienziato è considerato il padre della corrente alternata nelle reti elettriche?|Nikola Tesla|Thomas Edison|Michael Faraday|James Watt|Tesla e Westinghouse si scontrarono con Edison nella «guerra delle correnti».
+3|Quale italiano inventò il motore elettrico a campo magnetico rotante?|Galileo Ferraris|Antonio Pacinotti|Alessandro Volta|Guglielmo Marconi|Ferraris descrisse il principio nel 1885.
+3|Chi inventò la dinamo ad anello, nel 1860?|Antonio Pacinotti|Galileo Ferraris|Alessandro Volta|Augusto Righi|L'«anello di Pacinotti» fu un passo decisivo per le macchine elettriche.
+3|Quale ingegnere italiano progettò la macchina per caffè espresso a leva diffusa dal 1948?|Achille Gaggia|Luigi Bezzera|Alfonso Bialetti|Desiderio Pavoni|Bezzera brevettò una macchina per espresso nel 1901; la leva di Gaggia creò la crema.
+3|Chi inventò la caffettiera Moka nel 1933?|Alfonso Bialetti|Achille Gaggia|Renato Bialetti|Luigi Bezzera|La Moka Express è un'icona del design italiano.
+3|Cosa significa l'unità «mAh» sulle batterie?|Milliampere-ora, la capacità|Megawatt-ora, la potenza|Millivolt, la tensione|Minuti di autonomia|Più alto è il valore, più energia può immagazzinare la batteria.
+3|Che cos'è il «machine learning»?|Un insieme di tecniche con cui i computer imparano dai dati|La manutenzione delle macchine|Un linguaggio di programmazione|Un tipo di processore grafico|È una parte dell'intelligenza artificiale.
+3|Cosa significa la sigla «GPU»?|Graphics Processing Unit|General Power Unit|Global Processing Utility|Graphic Program Upload|Le GPU sono usate anche per addestrare le reti neurali.
+1|Come si chiama il programma che mostra le cartelle e i file su un computer Windows?|Esplora file|Pannello solare|Blocco note|Calcolatrice|Su Mac la stessa funzione è svolta dal Finder.
+1|Quale tasto cancella il carattere a sinistra del cursore?|Backspace|Canc|Esc|Fine|Il tasto Canc cancella invece a destra del cursore.
+1|Cosa fa la funzione «copia e incolla»?|Duplica un contenuto in un altro punto|Cancella un file|Stampa un documento|Spegne il computer|Fu resa popolare dai primi computer con interfaccia grafica.
+1|Come si chiama la fotocamera rivolta verso l'utente sullo smartphone?|Fotocamera frontale|Teleobiettivo|Grandangolo|Macro|Si usa per i selfie e le videochiamate.
+2|Quale unità misura la velocità di una connessione Internet?|Megabit al secondo|Megabyte|Gigahertz|Watt|Un megabyte corrisponde a 8 megabit.
+2|Cosa indica la sigla «NFC» negli smartphone?|Comunicazione a corto raggio per pagamenti e accoppiamenti|Un tipo di batteria|Una rete mobile|Un formato video|NFC significa Near Field Communication.
+2|Cosa sono i «cookie» di un sito web?|Piccoli file che memorizzano informazioni nel browser|Biscotti digitali per i giochi|Virus nascosti|Immagini pubblicitarie|Servono, per esempio, a ricordare l'accesso o il carrello.
+2|Cosa fa un «firewall»?|Filtra il traffico di rete per proteggere il computer|Raffredda il processore|Accende lo schermo|Masterizza dischi|Blocca le connessioni non autorizzate.
+3|Quale ingegnere italiano guidò il progetto della Programma 101, tra i primi personal computer?|Pier Giorgio Perotto|Federico Faggin|Adriano Olivetti|Mario Tchou|Perotto guidò il gruppo Olivetti che la progettò.

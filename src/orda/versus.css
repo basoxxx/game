@@ -129,6 +129,17 @@
 .ovs-banner b { display: block; font-size: clamp(24px, 5vw, 42px); font-style: italic; font-weight: 900; color: var(--wc, #fff); text-transform: uppercase; }
 .ovs-banner span { display: block; font-size: 14px; letter-spacing: .08em; opacity: .9; }
 .ovs-banner.win { --wc: #4ff08f; } .ovs-banner.lose { --wc: #ff6a5a; }
+/* tablet lying flat (portrait versus): each player reads the countdown and the banners in their half,
+   player 2's copy turned towards them */
+.ovs-twin { display: none; }
+.ovs-hud.portrait.versus.flat .ovs-twin { display: block; }
+.ovs-hud.portrait.versus.flat .ovs-count, .ovs-hud.portrait.versus.flat .ovs-banner { top: 74%; }
+.ovs-hud.portrait.versus.flat .ovs-count.ovs-twin, .ovs-hud.portrait.versus.flat .ovs-banner.ovs-twin { top: 26%; }
+.ovs-hud.portrait.versus.flat .ovs-count.ovs-twin { transform: translate(-50%, -50%) rotate(180deg); }
+.ovs-hud.portrait.versus.flat .ovs-count.ovs-twin.pop { animation-name: ovspop2; }
+@keyframes ovspop2 { from { transform: translate(-50%, -50%) rotate(180deg) scale(1.8); opacity: 0; } 40% { opacity: 1; } }
+.ovs-hud.portrait.versus.flat .ovs-banner.ovs-twin { transform: translate(-50%, -50%) rotate(180deg) scale(.6); }
+.ovs-hud.portrait.versus.flat .ovs-banner.ovs-twin.on { transform: translate(-50%, -50%) rotate(180deg) scale(1); }
 .ovs-help { position: absolute; inset: 0; opacity: 0; transition: opacity .4s; }
 .ovs-help.on { opacity: 1; }
 .ovs-help > div { position: absolute; left: 50%; padding: 8px 14px; border-radius: 12px; background: rgba(8,12,24,.6); font: 600 14px var(--font, sans-serif); white-space: nowrap; text-shadow: none; max-width: 92vw; white-space: normal; text-align: center; }
