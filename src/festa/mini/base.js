@@ -36,7 +36,9 @@ export class Base {
     return -1;
   }
   hud(i) { return `${Math.round(this.score[i])}`; }
-  result() { return { places: placesOf(this.score, this.low), scores: this.score.slice(), unit: this.unit, low: this.low }; }
+  // tie-break key per player (higher is better) for equal scores, so CPU seats that play alike still get an order
+  tie() { return null; }
+  result() { return { places: placesOf(this.score, this.low, this.tie()), scores: this.score.slice(), unit: this.unit, low: this.low }; }
 }
 // players' slot colours (rings, HUD corners, touch zones)
 export const SLOT_COLORS = ['#ff4d6d', '#2f8cff', '#2fd36b', '#ffc21a'];

@@ -137,6 +137,7 @@ export class Serpenti extends Base {
     inp.x = Math.cos(want); inp.y = Math.sin(want);
     inp.a = s.L > 9 && bd < 6 && bd > 3 && sk > 0.5;
   }
+  tie() { return this.s.map((s) => s.kills * 100 - s.deaths * 10 + (s.dead > 0 ? 0 : s.L * 0.01)); }
   hud(i) { const s = this.s[i]; return s.dead > 0 ? 'Schiantato!' : `${this.score[i]} pt · ${s.kills} K.O.`; }
 }
 

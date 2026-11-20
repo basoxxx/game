@@ -152,6 +152,7 @@ export function palloncini(stage, sim, ctx) {
       stage.frame(0, 0, sim.RA + 1, sim.RA + 1, 1.0);
     },
     tags: () => sim.k.map((k) => [k.x, 3.6, k.y]),
+    top: () => (sim.extra ? `Spareggio! ${Math.ceil(sim.left())}` : `${Math.ceil(sim.left())}`),
   };
 }
 

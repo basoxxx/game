@@ -20,16 +20,27 @@ export const SPACE_INFO = {
   blu: 'Casella blu: +3 monete', rosso: 'Casella rossa: −3 monete', evento: 'Evento a sorpresa', bonus: 'Casella bonus: +6 monete',
 };
 
+// the board's random stream keeps its state in B.rs (same sequence as util.rng), so a saved board resumes exactly
+function attachRng(B) {
+  Object.defineProperty(B, 'r', { value: () => { const a = (B.rs = (B.rs + 0x6d2b79f5) >>> 0); let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }, enumerable: false, configurable: true });
+  return B;
+}
 export function newBoard({ n, rounds = 8, seed = Date.now() & 0xffffff, names = [], minis }) {
-  const r = rng(seed);
   const B = {
-    n, rounds, round: 1, turn: 0, phase: 'roll', seed, dice: 0, steps: 0, log: [], mini: null, last: null,
+    n, rounds, round: 1, turn: 0, phase: 'roll', seed, rs: (seed >>> 0) || 1, dice: 0, steps: 0, log: [], mini: null, last: null,
     minis: minis?.length ? minis.slice() : null, queue: [], star: 0,
     players: Array.from({ length: n }, (_, i) => ({ i, name: names[i] || `Giocatore ${i + 1}`, coins: 10, stars: 0, pos: 0, miniWins: 0, coinsWon: 0, red: 0, events: 0, steps: 0, bought: 0 })),
   };
-  Object.defineProperty(B, 'r', { value: r, enumerable: false });
-  B.star = 8 + Math.floor(r() * 12);
+  attachRng(B);
+  B.star = 8 + Math.floor(B.r() * 12);
   return B;
+}
+// save / resume between turns: a plain JSON copy, and back (null if the data does not look like a board)
+export const boardSnapshot = (B) => JSON.parse(JSON.stringify(B));
+export function boardRestore(o) {
+  if (!o || !Array.isArray(o.players) || !o.players.length || o.players.length !== o.n || !['roll', 'mini', 'final'].includes(o.phase) || !Number.isFinite(o.rs)) return null;
+  const B = boardSnapshot(o); B.queue ||= []; B.log ||= [];
+  return attachRng(B);
 }
 const say = (B, text, kind = '') => { B.log.push({ text, kind, round: B.round }); if (B.log.length > 40) B.log.shift(); B.last = { text, kind }; };
 function moveStar(B) { const r = B.r; let s; do { s = Math.floor(r() * BOARD.length); } while (s === B.star || B.players.some((p) => p.pos === s)); B.star = s; }

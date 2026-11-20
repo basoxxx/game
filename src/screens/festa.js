@@ -5,7 +5,7 @@ import { icon } from '../ui/icons.js';
 import { esc, pageHead } from '../ui/dom.js';
 import { sfx, music } from '../ui/audio.js';
 import { gfxTier } from '../ui/quality.js';
-import { feLoad, feSave } from '../festa/store.js';
+import { feLoad, feSave, feLoadBoard, feClearBoard } from '../festa/store.js';
 import { CHARS, HATS, charById, hatById } from '../festa/roster.js';
 import { MINIGAMES, MINI } from '../festa/mini/index.js';
 import { DEVICES, devById, defaultDevices, isTouchDevice } from '../festa/input.js';
@@ -38,10 +38,19 @@ function bean(ch, hat, size = 64) {
     <rect x="-15" y="-24" width="30" height="34" rx="15" fill="${ch.color}"/><ellipse cx="-5" cy="-12" rx="4.5" ry="5" fill="#fff"/><ellipse cx="5" cy="-12" rx="4.5" ry="5" fill="#fff"/><circle cx="-4.5" cy="-11" r="2.2" fill="#111"/><circle cx="5.5" cy="-11" r="2.2" fill="#111"/>${HAT_SVG[hat] || ''}</svg>`;
 }
 
+// a board party left half-way (saved between turns): resume it or throw it away
+function resumeCard() {
+  const S = feLoadBoard(); if (!S) return '';
+  const B = S.B, who = (S.cfg.seats || []).slice(0, S.cfg.n).map((s, i) => `<i style="background:${SLOT_COLORS[i]}">${esc(charById(s.char).name.split(' ')[0])}</i>`).join('');
+  const when = new Date(S.at || Date.now()).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return `<div class="fz-resume"><div><b>Festa in sospeso</b><span>Tabellone · turno ${Math.min(B.round, B.rounds)} di ${B.rounds} · ${S.cfg.n} giocatori · ${esc(when)}</span><span class="who">${who}</span></div>
+    <div class="fz-btns"><button class="btn primary" data-a="fz-resume">${icon('play')} Riprendi la festa</button><button class="btn" data-a="fz-discard">Abbandona</button></div></div>`;
+}
 function home(d) {
   const st = d.stats;
   return `<div class="full-screen fz-menu">
     ${pageHead({ back: V.from, eyebrow: 'Baso Hub · Party', title: 'Festa Baso', sub: 'Il party game di tutto il Baso Hub: 15 minigiochi da 30-60 secondi per 2-4 giocatori sullo stesso schermo, con tabellone, torneo e allenamento.', right: `<div class="fz-wallet"><div class="w-k">Monete festa</div><b>${icon('coin')} ${fmt(d.coins)}</b><div class="w-s">${st.boards} feste · ${st.kings} corone · ${st.miniWins} minigiochi vinti</div></div>` })}
+    ${resumeCard()}
     <div class="fz-modes">${Object.entries(MODES).map(([id, m]) => `<button class="fz-mode" data-a="fz-mode" data-id="${id}" style="--c:${{ board: '#ff4d6d', torneo: '#ffc21a', train: '#2f8cff', chars: '#2fd36b' }[id]}">${icon(m.icon)}<b>${m.name}</b><span>${m.desc}</span></button>`).join('')}</div>
     <section class="fz-sec"><h3>I minigiochi</h3><div class="fz-minis">${MINIGAMES.map((m) => { const s = st.perMini[m.id]; return `<div class="fz-mcard" style="--c:${m.color}"><b>${esc(m.name)}</b><small>${esc(m.from)} · ${m.kind === 'team' ? 'a squadre' : m.kind === 'coop' ? 'cooperativo' : 'tutti contro tutti'}</small><span>${esc(m.desc)}</span>${s ? `<em>${s.won}/${s.played} vinti</em>` : ''}</div>`; }).join('')}</div></section>
     <section class="fz-sec"><h3>Le tue statistiche</h3><div class="fz-stats">${[[st.boards, 'feste sul tabellone'], [st.kings, 'volte Re della festa'], [st.tourneys, 'tornei'], [st.champs, 'tornei vinti'], [st.minis, 'minigiochi giocati'], [st.miniWins, 'minigiochi vinti'], [st.stars, 'stelle raccolte'], [st.coinsEarned, 'monete guadagnate']].map(([v, l]) => `<div><b>${fmt(v)}</b><span>${l}</span></div>`).join('')}</div></section>
@@ -152,7 +161,13 @@ registerScreen({
     },
     'fz-mini'(el) { const d = feLoad(); const s = new Set(d.opts.minis || MINIGAMES.map((x) => x.id)); if (s.has(el.dataset.id)) { if (s.size > 2) s.delete(el.dataset.id); } else s.add(el.dataset.id); d.opts.minis = MINIGAMES.map((x) => x.id).filter((x) => s.has(x)); feSave(d); App.refresh(); },
     'fz-mini-all'() { const d = feLoad(); d.opts.minis = null; feSave(d); App.refresh(); },
-    'fz-start'() { const d = feLoad(); V.cfg = buildCfg(d); V.playing = true; App.refresh(); },
+    'fz-start'() {
+      const go = () => { const d = feLoad(); V.cfg = buildCfg(d); V.playing = true; App.refresh(); };
+      if (V.mode === 'board' && feLoadBoard()) App.confirm('Nuova festa?', 'C’è una festa sul tabellone in sospeso: iniziandone una nuova verrà sostituita.', go, 'Nuova festa');
+      else go();
+    },
+    'fz-resume'() { const S = feLoadBoard(); if (!S) { App.refresh(); return; } V.mode = 'board'; V.cfg = { ...S.cfg, mode: 'board', target: 3, tier: gfxTier(), resume: S }; V.playing = true; App.refresh(); },
+    'fz-discard'() { App.confirm('Abbandonare la festa?', 'La partita sul tabellone in sospeso verrà cancellata.', () => { feClearBoard(); App.refresh(); }, 'Abbandona', true); },
     'fz-train'(el) { if (!MINI[el.dataset.id]) return; const d = feLoad(); V.cfg = buildCfg(d, el.dataset.id); V.playing = true; App.refresh(); },
     'fz-buy'(el) {
       const k = el.dataset.k, id = el.dataset.id, d = feLoad(), it = (k === 'chars' ? CHARS : HATS).find((x) => x.id === id); if (!it) return;
