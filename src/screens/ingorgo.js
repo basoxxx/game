@@ -11,14 +11,16 @@ import { WORLDS, PER_WORLD, TOTAL, campaignLevel, levelName, MECH_NAME, MECH_RUL
 import { PACKS, MECH_IDS, dailyInfo, dayKey } from '../ingorgo/gen.js';
 import { starLimits } from '../ingorgo/core.js';
 import { job, stopJobs } from '../ingorgo/jobs.js';
-import { snd, HORNS, setVolume } from '../ingorgo/sound.js';
+import { snd, HORNS, setVolume, followVolume } from '../ingorgo/sound.js';
 import '../ingorgo/ingorgo.css';
 
-const G = { view: 'home', from: 'launcher', play: null, game: null, world: null, pack: 'facile', zenNext: null, daily: null };
+const G = { view: 'home', from: 'launcher', play: null, game: null, world: null, pack: 'facile', zenNext: null, daily: null, packNext: null, packCache: new Map() };
 const fmt = (n) => Math.round(n).toLocaleString('it-IT');
 const fmtT = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const starsHtml = (n, cls = '') => `<span class="ig-stars-s ${cls}">${[1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}">★</i>`).join('')}</span>`;
-const volume = () => { const s = getSettings(); return s.sound === false ? 0 : 0.7 * (s.volume ?? 0.5) / 0.5; };
+// horns and car sounds run on their own audio context: general volume × effects volume, like the hub's sfx bus
+const volume = () => { const s = getSettings(); return s.sound === false ? 0 : 0.7 * ((s.volume ?? 0.5) / 0.5) * ((s.sfxVol ?? 0.8) / 0.8); };
+followVolume(volume);
 const ZEN_D = { rilassato: [0.05, 0.3], medio: [0.3, 0.6], impegnativo: [0.6, 0.9] };
 
 // ---------------------------------------------------------------- little CSS-drawn car (menus)
@@ -170,6 +172,8 @@ function results(r, x) {
 }
 
 // ---------------------------------------------------------------- playing
+// stopped jobs never settle: forget the prepared puzzles that were waiting on them
+function dropJobs() { stopJobs(); G.zenNext = null; G.packNext = null; }
 function stopGame() { G.game?.destroy(); G.game = null; window.__ingorgo = null; }
 function startPlay(play) { stopGame(); G.play = play; App.refresh(); }
 async function loadLevel(P) {
@@ -183,17 +187,41 @@ async function loadLevel(P) {
     G.daily = res; P.info = res.info; try { localStorage.setItem('sala_ingorgo_daily', JSON.stringify(res)); } catch {}
     return res.L;
   }
-  if (P.kind === 'pack') return job('pack', { pack: P.pack, n: P.n });
+  if (P.kind === 'pack') {
+    const key = `${P.pack}-${P.n}`;
+    if (G.packCache.has(key)) return G.packCache.get(key);
+    const L = await (G.packNext?.key === key ? G.packNext.p : packJob(P.pack, P.n));
+    if (G.packNext?.key === key) G.packNext = null;
+    return L;
+  }
   if (P.kind === 'zen') {
     if (G.zenNext) { const z = await G.zenNext; G.zenNext = null; return z; }
     return zenJob();
   }
   throw new Error('livello sconosciuto');
 }
+// Hard puzzles take a few seconds to generate (the solver maps every reachable state): the work runs in
+// the worker, the next puzzle is prepared ahead (results screen, Zen tab, pack list) and the loading
+// screen shows the progress.
+function showProg(f) {
+  const bar = document.querySelector('#ig-root .ig-lbar'); if (!bar) return;
+  bar.hidden = false; bar.firstElementChild.style.width = `${Math.round(Math.max(0.04, f) * 100)}%`;
+}
+const progOpt = { onProgress: showProg };
+function packJob(pack, n) {
+  const key = `${pack}-${n}`;
+  return job('pack', { pack, n }, progOpt).then((L) => { G.packCache.set(key, L); if (G.packCache.size > 12) G.packCache.delete(G.packCache.keys().next().value); return L; });
+}
+function prefetchPack(pack, n) {
+  const P = PACKS.find((x) => x.id === pack); if (!P || n > P.n) return;
+  const key = `${pack}-${n}`; if (G.packCache.has(key) || G.packNext?.key === key) return;
+  const p = packJob(pack, n); p.catch(() => {}); G.packNext = { key, p };
+}
+const idle = (f) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 400));
 function zenJob() {
   const z = igLoad().zen, mech = z.mech === 'misto' ? MECH_IDS[Math.floor(Math.random() * MECH_IDS.length)] : z.mech;
   const [a, b] = ZEN_D[z.diff] || ZEN_D.rilassato;
-  return job('gen', { seed: (Math.random() * 2 ** 31) | 0, mech, d: a + Math.random() * (b - a) }).then((L) => { delete L.time; L.id = 'zen'; return L; });
+  return job('gen', { seed: (Math.random() * 2 ** 31) | 0, mech, d: a + Math.random() * (b - a) }, progOpt).then((L) => { delete L.time; L.id = 'zen'; return L; });
 }
 function playTitle(P, L) {
   if (P.kind === 'campaign') return [`Livello ${levelName(P.n)}`, WORLDS[L.world].name];
@@ -226,6 +254,7 @@ function onEnd(r) {
   }
   igSave(p);
   if (P.kind === 'zen') G.zenNext = zenJob(); // the next one is cooking while the results are up
+  if (P.kind === 'pack' && r.win) prefetchPack(P.pack, P.n + 1);
   setTimeout(() => {
     const ov = document.getElementById('ig-over'); if (!ov || !G.play) return;
     ov.innerHTML = results(r, x);
@@ -242,11 +271,15 @@ registerScreen({
     if (params?.quick && !G.quickDone) { G.quickDone = true; const n = nextLevel(igLoad(), TOTAL); G.play = { kind: 'campaign', n: Math.min(n, TOTAL), level: campaignLevel(Math.min(n, TOTAL)) }; }
     if (params?.daily && !G.dailyDone) { G.dailyDone = true; G.play = { kind: 'daily' }; }
     if (params?.zen && !G.zenDone) { G.zenDone = true; G.play = { kind: 'zen' }; }
-    if (G.play) return `<div class="ig-stage"><div class="ig-root" id="ig-root"><div class="ig-loading"><i class="ig-spin"></i>Si forma l’ingorgo…</div></div><div class="ig-over" id="ig-over"></div></div>`;
+    if (G.play) return `<div class="ig-stage"><div class="ig-root" id="ig-root"><div class="ig-loading"><i class="ig-spin"></i>Si forma l’ingorgo…<div class="ig-lbar" hidden><i></i></div><small class="ig-lnote">I puzzle più difficili richiedono qualche secondo: il generatore verifica ogni mossa.</small><button class="btn ghost" data-a="ig-cancel">${icon('left')} Annulla</button></div></div><div class="ig-over" id="ig-over"></div></div>`;
     return menu(igLoad());
   },
   async mount() {
-    if (!G.play) { requestAnimationFrame(() => document.querySelector('.ig-tabs .on')?.focus({ preventScroll: true })); if (G.view === 'livelli' && G.scrollPacks) { G.scrollPacks = false; document.getElementById('ig-packs')?.scrollIntoView({ block: 'start' }); } return; }
+    if (!G.play) {
+      // idle time in the menus: prepare the puzzle the player is most likely to open next
+      if (G.view === 'zen' && !G.zenNext) idle(() => { if (!G.play && G.view === 'zen' && !G.zenNext) { G.zenNext = zenJob(); G.zenNext.catch(() => {}); } });
+      if (G.view === 'livelli') idle(() => { if (!G.play && G.view === 'livelli') { const p = igLoad(); prefetchPack(G.pack, (p.packs[G.pack] || 0) + 1); } });
+      requestAnimationFrame(() => document.querySelector('.ig-tabs .on')?.focus({ preventScroll: true })); if (G.view === 'livelli' && G.scrollPacks) { G.scrollPacks = false; document.getElementById('ig-packs')?.scrollIntoView({ block: 'start' }); } return; }
     const P = G.play, root = document.getElementById('ig-root');
     try { music.setMood?.(P.kind === 'zen' ? 'manage' : 'manage'); } catch {}
     let L;
@@ -267,7 +300,7 @@ registerScreen({
     window.__ingorgo = g;
     try { await g.start(); } catch (e) { console.error(e); root.innerHTML = `<div class="ig-loading">Impossibile avviare il gioco: ${esc(e.message || String(e))}<br><button class="btn mt16" data-a="ig-quit">Indietro</button></div>`; }
   },
-  unmount() { stopGame(); stopJobs(); G.play = null; G.zenNext = null; G.quickDone = G.dailyDone = G.zenDone = false; },
+  unmount() { stopGame(); dropJobs(); G.play = null; G.quickDone = G.dailyDone = G.zenDone = false; },
   actions: {
     'ig-tab'(el) { G.view = el.dataset.v; if (el.dataset.pack) G.scrollPacks = true; App.refresh(); },
     'ig-world'(el) { const w = +el.dataset.w; if (w * PER_WORLD + 1 > nextLevel(igLoad(), TOTAL)) { sfx.bad?.(); App.toast('Mondo bloccato', `Completa il mondo ${w} per aprire «${WORLDS[w].name}».`, 'bad'); return; } G.world = w; App.refresh(); },
@@ -277,8 +310,8 @@ registerScreen({
     'ig-pack-lv'(el) { const n = +el.dataset.n, p = igLoad(); if (n > (p.packs[G.pack] || 0) + 1) { sfx.bad?.(); App.toast('Livello bloccato', 'Risolvi prima il livello precedente di questa serie.', 'bad'); return; } startPlay({ kind: 'pack', pack: G.pack, n }); },
     'ig-daily'() { startPlay({ kind: 'daily' }); },
     'ig-zen'() { startPlay({ kind: 'zen' }); },
-    'ig-zmech'(el) { const p = igLoad(); p.zen.mech = el.dataset.id; igSave(p); G.zenNext = null; App.refresh(); },
-    'ig-zdiff'(el) { const p = igLoad(); p.zen.diff = el.dataset.id; igSave(p); G.zenNext = null; App.refresh(); },
+    'ig-zmech'(el) { const p = igLoad(); p.zen.mech = el.dataset.id; igSave(p); if (G.zenNext) dropJobs(); App.refresh(); },
+    'ig-zdiff'(el) { const p = igLoad(); p.zen.diff = el.dataset.id; igSave(p); if (G.zenNext) dropJobs(); App.refresh(); },
     'ig-buy'(el) {
       const k = el.dataset.k, p = igLoad(), it = SHOP[k].find((x) => x.id === el.dataset.id); if (!it) return;
       if (k === 'horn') { setVolume(volume()); snd.honk(it.id); }
@@ -303,5 +336,7 @@ registerScreen({
     },
     'ig-quit'() { const P = G.play; stopGame(); G.play = null; G.view = P?.kind === 'daily' ? 'daily' : P?.kind === 'zen' ? 'zen' : P?.kind === 'pack' || P?.kind === 'campaign' ? 'livelli' : G.view; if (P?.kind === 'pack') G.scrollPacks = true; if (P?.kind === 'campaign') G.world = P.level.world; App.refresh(); },
     'ig-hall'() { stopGame(); G.play = null; App.go('launcher'); },
+    // leave the loading screen: the abandoned generation is dropped with the worker
+    'ig-cancel'() { const P = G.play; if (G.game) return; dropJobs(); G.play = null; G.view = P?.kind === 'daily' ? 'daily' : P?.kind === 'zen' ? 'zen' : P?.kind === 'pack' ? 'livelli' : G.view; App.refresh(); },
   },
 });

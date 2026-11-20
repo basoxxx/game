@@ -175,7 +175,9 @@ function buildTrack(W, out, R, tier) {
   const groundMat = new THREE.MeshLambertMaterial({ map: groundTexture(T) });
   const off = W.off;
   const shoulderMat = off === 'lava' ? new THREE.MeshLambertMaterial({ map: groundTexture(T, '#5e4842', '#6e5248') }) : groundMat;
-  // road ribbons (main + shortcuts)
+  // road ribbons (main + shortcuts); shoulders, skirts and kerbs share materials: merged into one mesh
+  // each (fewer draw calls, which matters most with four split-screen views)
+  const sideGeos = [];
   for (const p of W.paths) {
     const surfMat = p.isMain ? roadMat : new THREE.MeshLambertMaterial({ map: groundTexture(T, p.surf === 'choco' ? '#6a3a1a' : p.surf === 'snow' ? '#e8f0ff' : '#b8885a', p.surf === 'choco' ? '#7a4a2a' : p.surf === 'snow' ? '#ffffff' : '#c89a6a'), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
     const road = new THREE.Mesh(ribbon(p, (w2) => -w2, (w2) => w2, (i) => p.y[i] + 0.03, (i) => p.y[i] + 0.03, p.isMain ? 14 : 'world'), surfMat);
@@ -189,15 +191,14 @@ function buildTrack(W, out, R, tier) {
     // shoulders + terrain skirt
     const m = p.margin;
     for (const s of [-1, 1]) {
-      const sh = new THREE.Mesh(ribbon(p, (w2) => s * w2, (w2) => s * (w2 + m + 2), (i) => p.y[i] - (p.isMain ? 0.06 : 0.14), (i) => p.y[i] - (p.isMain ? 0.06 : 0.14), 'world', { flip: s < 0 }), shoulderMat);
-      sh.receiveShadow = true; scene.add(sh);
+      sideGeos.push(ribbon(p, (w2) => s * w2, (w2) => s * (w2 + m + 2), (i) => p.y[i] - (p.isMain ? 0.06 : 0.14), (i) => p.y[i] - (p.isMain ? 0.06 : 0.14), 'world', { flip: s < 0 }));
       if (hilly || off === 'lava') {
         const base = off === 'lava' ? -1.6 : ymin - 0.05;
-        const sk = new THREE.Mesh(ribbon(p, (w2) => s * (w2 + m + 2), (w2) => s * (w2 + m + (off === 'lava' ? 6 : 26)), (i) => p.y[i] - (p.isMain ? 0.06 : 0.14), () => base, 'world', { flip: s < 0 }), shoulderMat);
-        sk.receiveShadow = true; scene.add(sk);
+        sideGeos.push(ribbon(p, (w2) => s * (w2 + m + 2), (w2) => s * (w2 + m + (off === 'lava' ? 6 : 26)), (i) => p.y[i] - (p.isMain ? 0.06 : 0.14), () => base, 'world', { flip: s < 0 }));
       }
     }
   }
+  if (sideGeos.length) { const g = mergeGeometries(sideGeos); sideGeos.forEach((x) => x.dispose()); const sh = new THREE.Mesh(g, shoulderMat); sh.receiveShadow = true; sh.name = 'shoulders'; scene.add(sh); }
   // ground plane (lava / sea / grass)
   if (!W.void) {
     if (off === 'lava') {
@@ -217,7 +218,7 @@ function buildTrack(W, out, R, tier) {
   }
   // kerbs on the bends
   if (!W.void) {
-    const km = new THREE.MeshLambertMaterial({ map: kerbTexture(T), polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    const km = new THREE.MeshLambertMaterial({ map: kerbTexture(T), polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }), kerbGeos = [];
     let i = 0; const n = main.n;
     while (i < n) {
       if (Math.abs(main.curv[i]) > 0.018) {
@@ -233,11 +234,12 @@ function buildTrack(W, out, R, tier) {
             if (k < b) { const q = (k - a) * 2; if (s < 0) idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); else idx.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); }
           }
           const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
-          const kb = new THREE.Mesh(g, km); kb.receiveShadow = true; scene.add(kb);
+          kerbGeos.push(g);
         }
         i = j + 4;
       } else i++;
     }
+    if (kerbGeos.length) { const g = mergeGeometries(kerbGeos); kerbGeos.forEach((x) => x.dispose()); const kb = new THREE.Mesh(g, km); kb.receiveShadow = true; kb.name = 'kerbs'; scene.add(kb); }
   }
   // barriers along every path edge (+ margin), with openings where another path joins
   const segs = [];

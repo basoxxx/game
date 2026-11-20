@@ -130,8 +130,9 @@ export class KartGame {
     this.view.onEvent(e);
     const pi = e.k != null ? this.players.findIndex((p) => p.kart === e.k) : -1;
     const k = e.k != null ? S.karts[e.k] : null;
-    const p1 = S.karts[this.players[0]?.kart ?? 0];
-    const near = (e.x != null ? Math.hypot(e.x - p1.x, e.z - p1.z) : k ? Math.hypot(k.x - p1.x, k.z - p1.z) : 999) < 45;
+    // split screen: every player hears what happens near their own kart (it used to be player 1 only)
+    const ex = e.x != null ? e.x : k?.x, ez = e.x != null ? e.z : k?.z;
+    const near = ex != null && (this.players.length ? this.players : [{ kart: 0 }]).some((p) => { const q = S.karts[p.kart]; return q && Math.hypot(ex - q.x, ez - q.z) < 45; });
     this.sound.event(e, pi >= 0 || (e.by != null && this.players.some((p) => p.kart === e.by)), near);
     const H = this.hud;
     if (e.t === 'explode') this.players.forEach((p, i) => { const q = S.karts[p.kart]; const d = Math.hypot(q.x - e.x, q.z - e.z); if (d < 25) this.view.kick(i, (1 - d / 25) * 1.1); });
@@ -168,8 +169,9 @@ export class KartGame {
     v.render();
     this.hud.update(dt);
     this.touch?.update(S.state !== 'done' && !this.paused);
-    const p1 = this.players[0] && S.karts[this.players[0].kart];
-    if (p1 && !this.paused && !p1.finished) this.sound.engine(p1, S.state); else this.sound.stopEngine();
+    // one engine voice: player 1's, or once P1 is over the line (or knocked out), the next player still racing
+    const pe = this.players.map((p) => S.karts[p.kart]).find((q) => q && !q.finished && !q.out);
+    if (pe && !this.paused) this.sound.engine(pe, S.state); else this.sound.stopEngine();
     if (S.state === 'done' && !this.over) this.end();
   }
   placeGhost() {

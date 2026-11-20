@@ -2,9 +2,10 @@
 // coins, projectiles, hazards and a pooled particle system (drift sparks, flames, dust, blasts).
 import * as THREE from 'three';
 import { buildScene } from './scene.js';
-import { makeKart, makeRicciolo, makeBomb, makeOilDecal, makeShield, makeMagnet, makeBalloon, makeBumper, itemBoxMaterial, toon, disposeModelCaches, flameMat } from './models.js';
+import { makeKart, makeKartLod, makeRicciolo, makeBomb, makeOilDecal, makeShield, makeMagnet, makeBalloon, makeBumper, itemBoxMaterial, toon, disposeModelCaches, flameMat } from './models.js';
 import { charById, PAINTS } from './data.js';
 
+const LOD_D = 55; // m: beyond this a rival kart is drawn as its baked stand-in (split screen only)
 const TIER_COL = [null, '#4ad6ff', '#ffb02e', '#ff4dd2'];
 const PCOL = ['#ff3b6b', '#3b82f6', '#2fd77f', '#ffc928'];
 
@@ -78,7 +79,10 @@ export class KartView {
       const tag = k.human >= 0 && (this.o.views || 1) > 1 ? tagSprite(`G${k.human + 1}`, PCOL[k.human]) : null; if (tag) { tag.position.y = 2.9; m.add(tag); }
       let balloons = null;
       if (S.battle) { balloons = []; for (let b = 0; b < 5; b++) { const bl = makeBalloon(k.human >= 0 ? PCOL[k.human] : ch.color); bl.position.set((b - 1) * 0.55, 2.6 + (b % 2) * 0.25, -1.1); m.add(bl); balloons.push(bl); } }
-      return { m, blob, shield, mag, balloons, spin: 0, roll: 0, pitch: 0, wheelA: 0, sparkT: 0, crane: null, lastY: k.y };
+      // split-screen races: rival karts far from a camera are drawn as a baked stand-in
+      let lod = null;
+      if ((this.o.views || 1) > 1 && !S.battle && k.human < 0) { lod = makeKartLod(ch, { body: k.body, wheels: k.wheels, paint, num: i + 1 }); lod.visible = false; sc.add(lod); }
+      return { m, lod, blob, shield, mag, balloons, spin: 0, roll: 0, pitch: 0, wheelA: 0, sparkT: 0, crane: null, lastY: k.y };
     });
     // item boxes & coins (instanced)
     const F = S.F;
@@ -142,7 +146,8 @@ export class KartView {
   syncKart(k, V, dt) {
     const m = V.m, u = m.userData, S = this.sim;
     m.visible = !k.out || (this.t % 0.3 < 0.15 && S.t - (k.outT || 0) < 1.5);
-    if (k.out && S.t - (k.outT || 0) >= 1.5) { m.visible = false; V.blob.visible = false; return; }
+    V.vis = m.visible;
+    if (k.out && S.t - (k.outT || 0) >= 1.5) { m.visible = false; V.vis = false; V.blob.visible = false; return; }
     let y = k.y;
     if (k.respawnT > 0) { const f = k.respawnT / 1.2; y += f * f * 6; }
     m.position.set(k.x, y, k.z);
@@ -290,8 +295,19 @@ export class KartView {
     if (this.vps.length === 1) { r.setScissorTest(false); r.setViewport(0, 0, W, H); r.render(this.scene, this.cams[0].cam); return; }
     if (this.vps.length === 3) { r.setScissorTest(false); r.setViewport(0, 0, W, H); r.setClearColor(0x0a0b0e, 1); r.clear(); }
     r.setScissorTest(true);
-    this.vps.forEach((v, i) => { const y = H - v.y - v.h; r.setViewport(v.x, y, v.w, v.h); r.setScissor(v.x, y, v.w, v.h); r.render(this.scene, this.cams[i].cam); });
+    this.vps.forEach((v, i) => { const y = H - v.y - v.h; this.lodFor(this.cams[i].cam); r.setViewport(v.x, y, v.w, v.h); r.setScissor(v.x, y, v.w, v.h); r.render(this.scene, this.cams[i].cam); });
     r.setScissorTest(false);
+  }
+  // per camera: detailed kart near, baked stand-in beyond LOD_D (same pose, position and heading)
+  lodFor(cam) {
+    const p = cam.position, D2 = LOD_D * LOD_D;
+    for (const V of this.K) {
+      if (!V.lod) continue;
+      if (V.vis === undefined) V.vis = V.m.visible;
+      const m = V.m, far = (m.position.x - p.x) ** 2 + (m.position.z - p.z) ** 2 > D2 && !V.shield.visible && !V.crane?.visible;
+      m.visible = V.vis && !far; V.lod.visible = V.vis && far;
+      if (far) { V.lod.position.copy(m.position); V.lod.rotation.y = m.rotation.y; }
+    }
   }
   dispose() {
     this.scene.traverse((o) => { o.geometry?.dispose?.(); const m = o.material; (Array.isArray(m) ? m : m ? [m] : []).forEach((x) => { x.map?.dispose?.(); x.dispose?.(); }); });
