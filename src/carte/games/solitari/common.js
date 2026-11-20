@@ -49,6 +49,7 @@ export function makeSolitaire(E, meta, def = {}) {
   const now = () => Date.now();
   function fresh(no, eo, extra = {}) {
     const s = E.deal(no, eo);
+    if (E.auto && eo.auto !== false) for (let g = 0; g < 60; g++) { const a = E.auto(s); if (!a) break; E.apply(s, a); }
     return Object.assign(s, { n: 1, turn: 0, teams: [[0]], no, eo, log: [], moves: 0, el: 0, ts: 0, t0: 0, over: null, ...extra });
   }
   // one human move + the safe auto-moves that follow it (FreeCell); returns the snapshots in between

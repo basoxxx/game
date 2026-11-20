@@ -22,7 +22,7 @@ export function install() {
   ui.hook = (game, s) => sync(game, s);
   injectStyle();
   document.addEventListener('keydown', onKey);
-  window.__solitari = { hint: () => hintMove(true), plan: () => C.plan, state: () => W()?.M?.state, tapPick, dims: () => ui.dims, stats: () => loadStats(), rerender };
+  window.__solitari = { deal: (no, mode) => requestDeal(no, mode), hint: () => hintMove(true), plan: () => C.plan, state: () => W()?.M?.state, tapPick, dims: () => ui.dims, stats: () => loadStats(), rerender };
 }
 
 // ------------------------------------------------------------------ stats (one localStorage key)
