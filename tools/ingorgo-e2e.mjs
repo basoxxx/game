@@ -179,6 +179,40 @@ if (!ONLY || ONLY === 'hub') {
   ok(true, 'hub: Gioca opens a level');
   await page.close();
 }
+// ---- 5. Centro Storico: walking into a one-way dead end is announced right away (no hint needed)
+if (!ONLY || ONLY === 'dead') {
+  const stars = {}; for (let i = 1; i <= 20; i++) stars[`c${i}`] = 3;
+  let found = null, page = null;
+  for (let lv = 21; lv <= 30 && !found; lv++) {
+    page?.context().close(); stars[`c${lv - 1}`] = 3;
+    page = await newPage(390, 844, { stars, coins: 0 });
+    await page.goto(BASE + '?game=ingorgo'); await page.waitForSelector('.ig-menu', { timeout: 60000 });
+    await page.click('[data-a=ig-next]'); await game(page); await settle(page);
+    // depth-2 search through the game's own hooks for a move sequence that leaves no way out
+    found = await page.evaluate(() => {
+      const g = window.__ingorgo, B = g.B, size = (c) => (c.ax === 0 ? B.w : B.h);
+      const cand = () => { const out = []; B.cars.forEach((c, i) => { for (let p = -1; p <= size(c); p++) out.push([i, p < 0 ? -99 : p]); }); return out; };
+      for (const a of cand()) {
+        if (!g.doMove(a)) continue;
+        if (!g.solveNow()) return [a];
+        for (const b of cand()) { if (!g.doMove(b)) continue; if (!g.solveNow()) return [a, b]; g.undo(); }
+        g.undo();
+      }
+      return null;
+    });
+    if (found) console.log(`  level ${lv}: dead end after ${JSON.stringify(found)}`);
+  }
+  ok(!!found, 'Centro Storico: a dead-end move sequence exists to test with');
+  if (found) {
+    await page.waitForFunction(() => /Vicolo cieco/.test(document.getElementById('ig-msg')?.textContent || ''), null, { timeout: 30000 }).catch(() => {});
+    const msg = await page.evaluate(() => document.getElementById('ig-msg')?.textContent || '');
+    ok(/Vicolo cieco.*annulla \d/.test(msg), `dead end announced without asking for a hint: «${msg}»`);
+    await shot(page, 'deadend-390x844');
+    await page.evaluate(() => { window.__ingorgo.undo(); window.__ingorgo.undo(); });
+    ok(await page.evaluate(() => !!window.__ingorgo.solveNow()), 'undo gets out of the dead end');
+  }
+  await page?.close();
+}
 await browser.close();
 console.log(errors.length ? `console errors:\n${errors.join('\n')}` : 'no console errors');
 console.log(fails ? `${fails} FAILURES` : 'ALL OK');
