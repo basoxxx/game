@@ -796,6 +796,8 @@ export class DerbyGame {
   feed(html) { const box = this.hud?.feed; if (!box) return; const el = document.createElement('div'); el.innerHTML = html; box.prepend(el); setTimeout(() => el.classList.add('out'), 4200); setTimeout(() => el.remove(), 4700); while (box.children.length > 5) box.lastChild.remove(); }
 
   aiInput(car, dt) { return aiInput(this, car, dt); }
+  // tools hook: the AI drives the player's car (balance runs and end-to-end checks); idx picks the personality
+  autopilot(on = true, idx = 2) { if (on) { initAI(this.player, idx); this._readInput ||= this.readInput; this.readInput = () => ({ ...this.aiInput(this.player, this._dt || 1 / 60), analog: true }); } else if (this._readInput) this.readInput = this._readInput; }
 
   // ---------------------------------------------------------------- damage & events
   // chained actions (hits, wrecks, drifts, jumps within 4.5 s of each other) multiply the player's points
@@ -956,12 +958,14 @@ export class DerbyGame {
     obj.parent.remove(obj); this.scene.add(obj); obj.position.copy(wp); obj.quaternion.copy(wq);
     const bb = new THREE.Box3().setFromObject(obj); const sz = bb.getSize(new THREE.Vector3()); const ctr = bb.getCenter(new THREE.Vector3());
     const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(ctr.x, ctr.y, ctr.z).setAngularDamping(0.4));
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(Math.max(0.05, sz.x / 2), Math.max(0.04, sz.y / 2), Math.max(0.05, sz.z / 2)).setMass(mass).setFriction(0.6), body);
+    // a part is born inside its car's hull and slower than it: it ignores the cars for a moment (it used to get wedged
+    // between the chassis and the ground, and a bumper torn off on the long-jump kicker stopped the car dead)
+    const col = this.world.createCollider(RAPIER.ColliderDesc.cuboid(Math.max(0.05, sz.x / 2), Math.max(0.04, sz.y / 2), Math.max(0.05, sz.z / 2)).setMass(mass).setFriction(0.6).setCollisionGroups(GROUPS_GHOST), body);
     const lv = car.body.linvel(); body.setLinvel({ x: lv.x * 0.8 + (Math.random() - 0.5) * 6, y: 3 + Math.random() * 4, z: lv.z * 0.8 + (Math.random() - 0.5) * 6 }, true);
     body.setAngvel({ x: (Math.random() - 0.5) * 12, y: (Math.random() - 0.5) * 12, z: (Math.random() - 0.5) * 12 }, true);
     // the body is placed at the bounding-box centre: keep the visual offset from it (in body space)
     const off = wp.clone().sub(ctr);
-    this.debris.push({ mesh: obj, body, off, q0: wq.clone(), t: 0 });
+    this.debris.push({ mesh: obj, body, off, q0: wq.clone(), t: 0, col });
     if (this.debris.length > 60) { const o = this.debris.shift(); this.scene.remove(o.mesh); this.world.removeRigidBody(o.body); }
   }
   detach(car, pt) {
@@ -1174,9 +1178,13 @@ export class DerbyGame {
     if (this.mode === 'time' || this.mode === 'distruzione') {
       this.laps = this.o.laps || 2;
       // reference lap from the racing-line speed profile at a strong AI pace, scaled by the player's car
-      let ref = 0; for (let i = 0; i < this.track.N; i++) ref += this.track.ds / Math.max(4, this.line.spd[i] * 0.958 * this.player.spec.top ** 0.5);
+      // (top speed only pays on the straights: x top^0.3, the v5 top^0.5 gave the fast cars an unreachable gold)
+      let ref = 0; for (let i = 0; i < this.track.N; i++) ref += this.track.ds / Math.max(4, this.line.spd[i] * 0.958 * this.player.spec.top ** 0.3);
       // narrow wooded tracks (fords, blind crests) cannot be driven on the ideal profile: a little slack there
-      const total = ref * this.laps * (this.track.width < 14 ? 1.06 : 1) + 2.5; // standing start
+      // per venue: what the line profile cannot see (mud and puddles, blind crests, the crossings), measured with the
+      // AI driving the player's car (tools/derby-balance.mjs): the AI's time now sits at the gold on every venue
+      const k = { cava: 1.08, pineta: 1.14, fattoria: 1.26, stadio: 1.05 }[this.venue.id] || 1;
+      const total = ref * this.laps * (this.track.width < 14 ? 1.06 : 1) * k + 2.5; // standing start
       this.targets = (this.mode === 'distruzione' ? [total * 1.22, total * 1.1, total * 1.02] : [total * 1.16, total * 1.06, total * 1.0]).map((t) => Math.round(t * 10) / 10);
     }
     MODES5.setup(this);
@@ -1310,7 +1318,11 @@ export class DerbyGame {
     const S = this.stunt; S.dists.push(d); if (why) this.message(why, 'wreck');
     if (S.att >= S.max) { this.finishOrder = [this.player]; this.finish(); return; }
     S.att++; S.phase = 'hold'; S.t = 0; S.live = 0;
-    this.respawn(this.player); this.player.hp = Math.max(this.player.hp, 60); this.repairWheels(this.player);
+    // every attempt starts on equal terms: the bottle refilled and the mechanics patched up (the nitro used to stay
+    // empty after the first run-up and the landing damage piled up, so attempts 2 and 3 flew ~15% shorter)
+    const c = this.player; this.respawn(c); c.hp = 100; c.zoneDmg = null; c.heat = 0; c.hotT = 0; c.fireT = 0; c.hotN = 0; c.burnT = 0;
+    c.nitro = Math.max(c.nitro, Math.min(100, 35 + (c.spec.nitroStart || 0)));
+    for (const w of c.mesh.userData.wheels) { w.userData.bent = 0; w.userData.toe = 0; w.rotation.x = 0; } this.repairWheels(c);
     for (let i = 0; i < 4; i++) this.skids.break(this.player.num * 10 + i);
   }
   finish() {
@@ -1349,7 +1361,11 @@ export class DerbyGame {
     if (!ev && ['race', 'derby', 'elim', 're'].includes(this.mode)) r.prize = Math.round(([5000, 3500, 2500, 1800, 1300, 1000, 800, 600][r.pos - 1] || 400) * (this.diff.prize || 1));
     if (this.mode === 'parco') r.prize = 0;
     // bonus objectives of the event (each pays once per run)
-    r.props = this.playerProps || 0; r.objectives = evalObjectives(this, r); const objPay = r.objectives.reduce((s, o) => s + (o.done ? o.prize : 0), 0);
+    r.props = this.playerProps || 0; r.objectives = evalObjectives(this, r);
+    // against the clock a run outside the bronze is not classified: no bonus objectives (a slow, careful lap ticked
+    // "no respawn" / "chassis over 80%" and paid ~3000 credits for a lap that earned nothing)
+    if (['time', 'distruzione'].includes(this.mode) && !r.medal) for (const o of r.objectives) if (o.done) o.unpaid = true;
+    const objPay = r.objectives.reduce((s, o) => s + (o.done && !o.unpaid ? o.prize : 0), 0);
     r.bonus = Math.min(6000, (P.kills || 0) * 1000 + Math.round((P.score || 0) / 20) * 10) + objPay;
     if (this.mode === 'parco') r.bonus = Math.min(1500, r.bonus);
     if (this.o.championship) r.bonus = Math.round(r.bonus / 2);
@@ -1447,6 +1463,7 @@ export class DerbyGame {
     // the cars also run Rapier CCD, so walls and props are never tunnelled)
     const sub = Math.max(1, Math.ceil(dt / 0.00847));
     for (let s = 0; s < sub; s++) { for (const car of this.cars) if (!car.removed) car.vc.updateVehicle(dt / sub); this.world.timestep = dt / sub; this.world.step(this.events); this.handleContacts(dt / sub); }
+    for (const d of this.debris) if (d.col && (d.t += dt) > 0.8) { d.col.setCollisionGroups(0xffffffff); d.col = null; }
     // numerical safety net: a body that exploded (NaN / absurd speed) is put back on the track
     for (const car of this.cars) { if (car.removed) continue; const v = car.body.linvel(), t = car.body.translation(); if (!Number.isFinite(v.x + v.y + v.z + t.x + t.y + t.z) || v.x * v.x + v.y * v.y + v.z * v.z > 150 * 150) { (this.simStats.nan ||= []).push([car.name, car.wheelLost.join(''), Math.round(car.hp), +this.time.toFixed(1), car.ghostT > 0, Math.round(v.y)]); car.body.setLinvel({ x: 0, y: 0, z: 0 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true); if (!Number.isFinite(t.x + t.y + t.z)) car.body.setTranslation({ x: this.track.pts[car.idx]?.x ?? this.terrain.cx, y: 50, z: this.track.pts[car.idx]?.z ?? this.terrain.cz }, true); car.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true); this.respawn(car); } }
     // derby end condition (time limit: 4 minutes, then the healthiest car wins)

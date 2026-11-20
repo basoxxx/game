@@ -11,9 +11,10 @@
 //   grip       tyre friction multiplier (all cars, all surfaces)
 //   stunt      long-jump medal distances scale with the faster run-up (v5 targets x 1.5 in v7, then x the
 //              car's jump class: see career.js JUMP_CLASS)
+//              v7.1: 1.6, the kicker no longer brakes the chassis at its seams (a full-nitro run flies ~5% further)
 //   brake      multiplier on the presets' service brake deceleration
 // v7 pace: another ~10% on the straights (vmax 58 -> 64 = 230 km/h for a stock saloon, more shove),
 // with a touch more grip, downforce and braking so the corners stay catchable at the higher entry speeds.
 // Physics stays at <= 1/118 s substeps with CCD on the cars (75 m/s = 0.64 m per step).
-export const PACE = { vmax: 64, engine: 11800, nitro: 9400, nitroTop: 1.2, kick: 8400, nitroDrain: 19, extraG: 0.36, down: 1.9, drag: 0.34, brake: 1.3, grip: 1.3, stunt: 1.5,
+export const PACE = { vmax: 64, engine: 11800, nitro: 9400, nitroTop: 1.2, kick: 8400, nitroDrain: 19, extraG: 0.36, down: 1.9, drag: 0.34, brake: 1.3, grip: 1.3, stunt: 1.6,
   line: { aLat: 19.2, aBrk: 12.2, aAcc: 10, vMax: 70, jump: 40 } };

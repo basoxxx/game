@@ -8,6 +8,9 @@ import { pbr, loadTex } from '../ui/gfx.js';
 import { makeForest, makeTreeShadows, vegOfKind } from '../ui/vegetation.js';
 import { mergeStatic } from './merge.js';
 import { surfaceTex } from './assets.js';
+import { BANGERS, tuneSpec } from './cars.js';
+import { stuntTargets } from './career.js';
+import { PACE } from './pace.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
@@ -539,11 +542,18 @@ function buildStunt(game, R) {
   game.kickerH = prof[seg][1];
   for (let i = 0; i < seg; i++) {
     const [xa, ya] = prof[i], [xb, yb] = prof[i + 1], pts = [];
-    for (const z of [-halfW, halfW]) pts.push(xa, ya, z, xb, yb, z, xa, -1.6, z, xb, -1.6, z);
+    for (const z of [-halfW, halfW]) pts.push(xa, ya - 0.3, z, xb, yb - 0.3, z, xa, -1.6, z, xb, -1.6, z);
     const body = game.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
     const col = game.world.createCollider(RAPIER.ColliderDesc.convexHull(new Float32Array(pts)).setFriction(1.0), body);
     if (col) game.handles.set(col.handle, { kind: 'ground' });
   }
+  // the riding surface is one triangle mesh with fixed internal edges, 0.3 m above the solid segments: at 60+ m/s
+  // the suspension bottoms out on the arc and the chassis slides on the ramp, and the seams between the convex
+  // segments used to catch it (a dead stop, "Tentativo nullo", mostly with the nitro saved for the last metres)
+  { const tv = [], ti = []; prof.forEach(([x, y]) => tv.push(x, y, halfW, x, y, -halfW)); for (let i = 0; i < seg; i++) { const b = i * 2; ti.push(b, b + 2, b + 1, b + 1, b + 2, b + 3); }
+    const body = game.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    let col = null; try { col = game.world.createCollider(RAPIER.ColliderDesc.trimesh(new Float32Array(tv), new Uint32Array(ti), RAPIER.TriMeshFlags?.FIX_INTERNAL_EDGES).setFriction(1.0), body); } catch (e) { console.warn('kicker', e); }
+    if (col) game.handles.set(col.handle, { kind: 'ground' }); }
   const chevron = canvasTex(256, 256, (g, W, H) => { g.fillStyle = '#1a1a1a'; g.fillRect(0, 0, W, H); g.fillStyle = '#ffd400'; for (let k = -2; k < 6; k++) { g.beginPath(); g.moveTo(0, k * 64); g.lineTo(W / 2, k * 64 + 64); g.lineTo(W, k * 64); g.lineTo(W, k * 64 + 28); g.lineTo(W / 2, k * 64 + 92); g.lineTo(0, k * 64 + 28); g.closePath(); g.fill(); } }, [3, 2]);
   const topM = new THREE.MeshStandardMaterial({ map: chevron, roughness: 0.75, metalness: 0.2 });
   const pos = [], uv = [], idx = [];
@@ -555,7 +565,10 @@ function buildStunt(game, R) {
   for (const z of [-halfW, halfW]) { const sh = new THREE.Shape(); sh.moveTo(prof[0][0], -1.6); prof.forEach(([x, y]) => sh.lineTo(x, y)); sh.lineTo(lip, -1.6); sh.closePath(); const g = new THREE.ShapeGeometry(sh); const m = new THREE.Mesh(g, M.corr('#7d8a8f')); m.material.side = THREE.DoubleSide; m.position.z = z; m.castShadow = true; game.S.add(m); }
   const face = new THREE.Mesh(new THREE.BoxGeometry(0.3, game.kickerH + 1.6, halfW * 2), M.corr('#6a6f72')); face.position.set(lip + 0.15, (game.kickerH - 1.6) / 2, 0); game.S.add(face);
   // distance lines across the landing slope, medal lines and signboards
-  const tg2 = game.o.targets || [60, 80, 95], medalC = ['#c9803f', '#d9dee6', '#ffcf3a'];
+  // the medal lines stand where the medals really are: base targets x the run-up pace x the car class and tune
+  // (they were drawn at the bare base distances, ~60% of the real ones)
+  const pc = BANGERS.find((b) => b.id === game.o.car) || BANGERS[0];
+  const tg2 = stuntTargets(game.o.targets, pc.id, tuneSpec(pc, game.o.tune).top, PACE.stunt), medalC = ['#c9803f', '#d9dee6', '#ffcf3a'];
   const lineM = new THREE.MeshBasicMaterial({ color: 0xf4f1e8, transparent: true, opacity: 0.85, polygonOffset: true, polygonOffsetFactor: -4, depthWrite: false });
   const strip = (x, w, mat) => { const g = new THREE.PlaneGeometry(w, 28, 1, 8); g.rotateX(-Math.PI / 2); const P = g.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, T.heightAt(x + P.getX(i), P.getZ(i)) + 0.06); const m = new THREE.Mesh(g, mat); m.position.x = x; game.scene.add(m); };
   const nums = canvasTex(1024, 256, (g, W, H) => { g.fillStyle = '#111'; g.fillRect(0, 0, W, H); g.font = 'italic 900 58px "Exo 2", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; for (let i = 0; i < 16; i++) { const cx = (i % 8) * 128 + 64, cy = Math.floor(i / 8) * 128 + 64; g.fillStyle = '#ffd400'; g.fillText(String((i + 1) * 10), cx, cy); } });
