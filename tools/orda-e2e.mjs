@@ -113,6 +113,30 @@ for (const [w, h, mob] of [[1440, 900, false], [1024, 768, false], [390, 844, tr
   ok(info.state === 'play' && info.bodies > 100, `${w}x${h}: level 13 in play, ${info.blue} blue units in ${info.bodies} bodies, ${info.red} red`);
   await page.context().close();
 }
+// ── 4. real touch (CDP: pointer events of type 'touch'): the cannon follows the finger on screen;
+// phone landscape frames a lane wide enough to aim
+for (const [w, h] of [[390, 844], [844, 390]]) {
+  const page = await newPage(w, h, true, false);
+  await page.addInitScript(() => localStorage.setItem('sala_orda_v1', JSON.stringify({ next: 9, stars: { 1: 2, 2: 2, 3: 2, 4: 2, 5: 2, 6: 2, 7: 2, 8: 2 }, opt: { autonext: false } })));
+  await page.goto(BASE + '?game=orda'); await page.waitForSelector('.or-menu');
+  await page.evaluate(() => window.__orda.play(9));
+  await page.waitForFunction(() => window.__orda?.game?.sim && window.__orda.game.cam, null, { timeout: 60000 });
+  await page.evaluate(() => window.__orda.step(1 / 30, 40));
+  const cdp = await page.context().newCDPSession(page);
+  const tp = (type, x) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: h * 0.8, id: 1 }] });
+  const sx = () => page.evaluate(() => { const g = window.__orda.game; return g.cv.getBoundingClientRect().left + g.projX(g.sim.cannon.x); });
+  const a = await sx();
+  await tp('touchStart', w / 2);
+  for (let k = 1; k <= 4; k++) { await tp('touchMove', w / 2 + k * 12); await page.evaluate(() => window.__orda.step(1 / 30, 3)); }
+  const b = await sx();
+  for (let k = 3; k >= -4; k--) { await tp('touchMove', w / 2 + k * 12); await page.evaluate(() => window.__orda.step(1 / 30, 3)); }
+  const c = await sx(), fire = await page.evaluate(() => window.__orda.game.sim.input.fire);
+  await tp('touchEnd');
+  ok(b > a + 15 && c < b - 30 && fire, `${w}x${h}: touch drag right/left moves the cannon right/left on screen (${a.toFixed(0)} → ${b.toFixed(0)} → ${c.toFixed(0)}), holding fires`);
+  const lane = await page.evaluate(() => { const g = window.__orda.game, W = g.sim.W; return Math.abs(g.projX(W / 2) - g.projX(-W / 2)); });
+  ok(lane >= Math.min(w, h) * 0.5, `${w}x${h}: lane ${lane.toFixed(0)} px wide at the cannon`);
+  await page.context().close();
+}
 await browser.close();
 console.log(errors.length ? `\nErrors:\n${errors.join('\n')}` : '\nno console errors');
 if (errors.length) fails++;

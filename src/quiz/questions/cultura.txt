@@ -1,0 +1,152 @@
+# Cultura generale
+1|Quanti giorni ha un anno bisestile?|366|365|364|367|Ogni quattro anni circa si aggiunge il 29 febbraio.
+1|Quanti minuti ci sono in un'ora?|60|100|30|90|Un'ora è divisa in 60 minuti da 60 secondi ciascuno.
+1|Quanti lati ha un esagono?|6|5|7|8|Esagono viene dal greco «hex», sei.
+1|Di che colore si ottiene mescolando blu e giallo?|Verde|Viola|Arancione|Marrone|Blu e giallo, colori primari in pittura, danno il verde.
+1|Quale animale è simbolo della città di Roma nella leggenda della fondazione?|La lupa|L'aquila|Il leone|L'orso|La lupa allattò Romolo e Remo secondo la leggenda.
+1|Chi dipinse la Gioconda?|Leonardo da Vinci|Michelangelo|Raffaello|Caravaggio|La Gioconda è conservata al Museo del Louvre di Parigi.
+1|Chi affrescò la volta della Cappella Sistina?|Michelangelo|Raffaello|Giotto|Botticelli|Michelangelo la dipinse tra il 1508 e il 1512.
+1|Chi scrisse la Divina Commedia?|Dante Alighieri|Francesco Petrarca|Giovanni Boccaccio|Ludovico Ariosto|La Commedia è divisa in Inferno, Purgatorio e Paradiso.
+1|Chi scrisse «I promessi sposi»?|Alessandro Manzoni|Giovanni Verga|Ugo Foscolo|Giacomo Leopardi|Il romanzo racconta la storia di Renzo e Lucia nella Lombardia del Seicento.
+1|Quanti sono i colori dell'arcobaleno tradizionalmente?|7|5|6|8|Rosso, arancione, giallo, verde, azzurro, indaco e violetto.
+1|Quale strumento ha 88 tasti nella versione standard?|Pianoforte|Organo|Fisarmonica|Clavicembalo|Il pianoforte moderno ha 52 tasti bianchi e 36 neri.
+1|Quale festività si celebra il 25 dicembre?|Natale|Pasqua|Epifania|Ferragosto|Il Natale celebra la nascita di Gesù.
+1|In quale giorno si festeggia la Festa della Repubblica italiana?|2 giugno|25 aprile|1° maggio|4 novembre|Il 2 giugno ricorda il referendum del 1946.
+1|Cosa si festeggia il 25 aprile in Italia?|La Liberazione|La Repubblica|L'Unità d'Italia|Il lavoro|Il 25 aprile ricorda la Liberazione dal nazifascismo nel 1945.
+1|Quante zampe ha un ragno?|8|6|10|4|I ragni sono aracnidi con otto zampe; gli insetti ne hanno sei.
+1|Quante zampe ha un insetto?|6|8|4|10|Tutti gli insetti hanno tre paia di zampe.
+1|Qual è il mammifero più grande del mondo?|Balenottera azzurra|Elefante africano|Squalo balena|Capodoglio|La balenottera azzurra può superare i 25 metri.
+1|Come si chiama il cucciolo della mucca?|Vitello|Puledro|Agnello|Capretto|Il puledro è del cavallo, l'agnello della pecora.
+1|Qual è la moneta ufficiale dell'Italia dal 2002?|Euro|Lira|Franco|Scudo|L'euro ha sostituito la lira nella circolazione il 1° gennaio 2002.
+1|Quante carte ha un mazzo di carte napoletane?|40|52|36|54|Le carte napoletane hanno quattro semi da dieci carte.
+1|Quali sono i semi delle carte napoletane?|Coppe, denari, spade, bastoni|Cuori, quadri, fiori, picche|Rose, ghiande, scudi, campane|Sole, luna, stelle, cometa|Sono i semi «latini», usati anche nelle carte piacentine e siciliane.
+1|Quale animale è famoso per cambiare colore?|Camaleonte|Iguana|Geco|Tartaruga|Il camaleonte cambia colore grazie a cellule speciali della pelle.
+1|Qual è il fiore simbolo dell'amore?|Rosa rossa|Margherita|Girasole|Tulipano giallo|La rosa rossa è da sempre simbolo della passione.
+1|Quanti anni dura un secolo?|100|10|1000|50|Un decennio dura 10 anni, un millennio 1000.
+1|Quanto fa 7 per 8?|56|54|64|48|Sette per otto fa cinquantasei.
+1|Qual è la radice quadrata di 81?|9|8|7|11|9 × 9 = 81.
+1|Quanti centimetri ci sono in un metro?|100|10|1000|60|Il prefisso «centi» indica un centesimo.
+1|In quale città si trova la Torre Eiffel?|Parigi|Londra|Bruxelles|Lione|La torre fu costruita per l'Esposizione Universale del 1889.
+1|Chi è l'autore delle fiabe di «Pinocchio»?|Carlo Collodi|Gianni Rodari|Italo Calvino|Edmondo De Amicis|«Le avventure di Pinocchio» uscì in volume nel 1883.
+1|Chi scrisse il libro «Cuore»?|Edmondo De Amicis|Carlo Collodi|Giovanni Pascoli|Luigi Pirandello|«Cuore» (1886) è il diario di uno scolaro torinese.
+1|Quale pianeta è chiamato «pianeta rosso»?|Marte|Venere|Giove|Mercurio|Il colore viene dagli ossidi di ferro sulla superficie.
+1|Come si chiama la pasta ripiena tipica di Bologna a forma di anello?|Tortellini|Ravioli|Agnolotti|Cannelloni|I tortellini si servono tradizionalmente in brodo.
+1|Da quale regione proviene il pesto alla genovese?|Liguria|Piemonte|Toscana|Campania|Il pesto si fa con basilico, pinoli, aglio, formaggio e olio.
+1|Quale città è famosa per la pizza margherita?|Napoli|Roma|Palermo|Bari|La margherita, con i colori della bandiera, è nata a Napoli.
+1|Che cosa misura un termometro?|La temperatura|La pressione|L'umidità|Il vento|Il barometro misura la pressione, l'igrometro l'umidità.
+1|Quale animale produce il miele?|Ape|Vespa|Formica|Calabrone|Le api producono il miele dal nettare dei fiori.
+1|Quanti giocatori ha in campo una squadra di calcio?|11|10|9|12|Dieci giocatori di movimento più il portiere.
+1|Come si chiama il personaggio che porta i doni ai bambini il 6 gennaio in Italia?|La Befana|Babbo Natale|Santa Lucia|Gesù Bambino|La Befana porta dolci ai buoni e carbone ai cattivi.
+1|Di che colore è il semaforo che significa «fermati»?|Rosso|Verde|Giallo|Blu|Rosso: stop; giallo: attenzione; verde: via libera.
+1|Qual è l'opposto di «generoso»?|Avaro|Gentile|Ricco|Altruista|L'avaro trattiene tutto per sé.
+1|Quale stagione inizia il 21 marzo circa?|Primavera|Estate|Autunno|Inverno|L'equinozio di primavera cade intorno al 20-21 marzo.
+1|Quale animale è il re della foresta nei racconti?|Leone|Tigre|Orso|Elefante|Anche se vive nella savana, il leone è «il re della foresta».
+1|Quante sono le note musicali nella scala tradizionale?|7|8|5|12|Do, re, mi, fa, sol, la, si.
+1|Chi ha composto «Le quattro stagioni»?|Antonio Vivaldi|Giuseppe Verdi|Gioachino Rossini|Giacomo Puccini|I quattro concerti per violino furono pubblicati nel 1725.
+1|Quale numero romano corrisponde a 10?|X|V|L|C|V vale 5, L 50, C 100.
+2|Quale numero romano corrisponde a 50?|L|C|D|X|D vale 500, M 1000.
+2|Quanto vale MCM in numeri romani?|1900|1100|2100|1500|M = 1000, CM = 900.
+2|Chi dipinse «La nascita di Venere»?|Sandro Botticelli|Tiziano|Raffaello|Piero della Francesca|Il dipinto è conservato agli Uffizi di Firenze.
+2|In quale museo si trova «La nascita di Venere»?|Uffizi, Firenze|Louvre, Parigi|Brera, Milano|Musei Vaticani|Gli Uffizi custodiscono anche la Primavera di Botticelli.
+2|Dove si trova il «Cenacolo» di Leonardo?|Santa Maria delle Grazie, Milano|San Marco, Venezia|Santa Croce, Firenze|San Pietro, Roma|L'Ultima Cena è dipinta sulla parete del refettorio del convento.
+2|Chi scolpì il David conservato alla Galleria dell'Accademia di Firenze?|Michelangelo|Donatello|Bernini|Canova|Michelangelo lo scolpì tra il 1501 e il 1504.
+2|Quale pittore è noto per l'uso drammatico di luce e ombra, come nella «Vocazione di San Matteo»?|Caravaggio|Giotto|Canaletto|Modigliani|Michelangelo Merisi da Caravaggio rivoluzionò la pittura del Seicento.
+2|Chi dipinse la «Notte stellata»?|Vincent van Gogh|Claude Monet|Paul Cézanne|Edvard Munch|Van Gogh la dipinse nel 1889 a Saint-Rémy.
+2|Chi dipinse «L'urlo»?|Edvard Munch|Gustav Klimt|Pablo Picasso|Salvador Dalí|Munch era un pittore norvegese.
+2|Chi dipinse «Guernica»?|Pablo Picasso|Joan Miró|Salvador Dalí|Francisco Goya|Picasso la dipinse nel 1937 dopo il bombardamento della città basca.
+2|Quale compositore scrisse l'opera «La traviata»?|Giuseppe Verdi|Giacomo Puccini|Gaetano Donizetti|Vincenzo Bellini|«La traviata» debuttò alla Fenice di Venezia nel 1853.
+2|Chi compose «Il barbiere di Siviglia»?|Gioachino Rossini|Giuseppe Verdi|Wolfgang Amadeus Mozart|Pietro Mascagni|Rossini lo compose nel 1816, a 24 anni.
+2|Chi compose «Madama Butterfly» e «Tosca»?|Giacomo Puccini|Giuseppe Verdi|Ruggero Leoncavallo|Gioachino Rossini|Puccini è autore anche di «La bohème» e «Turandot».
+2|Quale opera di Verdi contiene il coro «Va, pensiero»?|Nabucco|Aida|Rigoletto|Otello|Il coro degli ebrei in esilio è nel terzo atto del Nabucco.
+2|In quale città si trova il Teatro alla Scala?|Milano|Venezia|Napoli|Torino|La Scala fu inaugurata nel 1778.
+2|Il Teatro San Carlo, tra i più antichi d'Europa ancora attivi, si trova a…|Napoli|Palermo|Roma|Parma|Fu inaugurato nel 1737.
+2|Quale scrittore italiano vinse il Nobel per la letteratura nel 1934?|Luigi Pirandello|Grazia Deledda|Eugenio Montale|Salvatore Quasimodo|Pirandello è autore di «Sei personaggi in cerca d'autore».
+2|Chi fu la prima donna italiana a vincere il Nobel per la letteratura?|Grazia Deledda|Elsa Morante|Natalia Ginzburg|Sibilla Aleramo|La scrittrice sarda vinse nel 1926.
+2|Chi scrisse «Il nome della rosa»?|Umberto Eco|Italo Calvino|Dino Buzzati|Alberto Moravia|Il romanzo di Eco uscì nel 1980.
+2|Chi scrisse «Il Gattopardo»?|Giuseppe Tomasi di Lampedusa|Leonardo Sciascia|Luigi Pirandello|Giovanni Verga|Il romanzo uscì postumo nel 1958.
+2|Chi scrisse «I Malavoglia»?|Giovanni Verga|Luigi Capuana|Grazia Deledda|Federico De Roberto|È uno dei capolavori del Verismo.
+2|Chi è l'autore de «L'infinito»?|Giacomo Leopardi|Ugo Foscolo|Giosuè Carducci|Giovanni Pascoli|«Sempre caro mi fu quest'ermo colle…»
+2|Chi scrisse il «Decameron»?|Giovanni Boccaccio|Francesco Petrarca|Dante Alighieri|Niccolò Machiavelli|Cento novelle raccontate da dieci giovani in dieci giorni.
+2|Chi scrisse «Il Principe»?|Niccolò Machiavelli|Francesco Guicciardini|Baldassarre Castiglione|Tommaso Campanella|Machiavelli lo scrisse nel 1513.
+2|Come si chiama la donna amata da Petrarca nel Canzoniere?|Laura|Beatrice|Fiammetta|Silvia|Beatrice è la donna di Dante, Silvia compare in Leopardi.
+2|Chi guida Dante attraverso Inferno e Purgatorio?|Virgilio|Beatrice|Omero|San Bernardo|Virgilio rappresenta la ragione; Beatrice lo guida in Paradiso.
+2|Quanti canti compongono la Divina Commedia?|100|99|33|120|Un canto introduttivo più 33 canti per ciascuna cantica.
+2|Chi scrisse «Romeo e Giulietta»?|William Shakespeare|Christopher Marlowe|Charles Dickens|Oscar Wilde|La tragedia è ambientata a Verona.
+2|Chi è l'autore di «Don Chisciotte della Mancia»?|Miguel de Cervantes|Lope de Vega|Federico García Lorca|Gabriel García Márquez|La prima parte uscì nel 1605.
+2|In quale città è ambientato il «Mercante di Venezia»?|Venezia|Verona|Padova|Genova|La commedia di Shakespeare ruota attorno al mercante Antonio e a Shylock.
+2|Chi scrisse «Cent'anni di solitudine»?|Gabriel García Márquez|Jorge Luis Borges|Isabel Allende|Pablo Neruda|Il romanzo racconta la famiglia Buendía a Macondo.
+2|Chi scrisse «1984»?|George Orwell|Aldous Huxley|Ray Bradbury|H. G. Wells|Nel romanzo compare il Grande Fratello.
+2|Chi è l'autore di «Il piccolo principe»?|Antoine de Saint-Exupéry|Jules Verne|Victor Hugo|Albert Camus|Lo scrittore era anche aviatore.
+2|Chi scrisse «Ventimila leghe sotto i mari»?|Jules Verne|H. G. Wells|Robert Louis Stevenson|Emilio Salgari|Il protagonista è il capitano Nemo sul sottomarino Nautilus.
+2|Quale scrittore creò il personaggio di Sandokan?|Emilio Salgari|Jules Verne|Alexandre Dumas|Rudyard Kipling|Sandokan è la «Tigre della Malesia».
+2|Quale scrittore inventò Sherlock Holmes?|Arthur Conan Doyle|Agatha Christie|Edgar Allan Poe|Raymond Chandler|Holmes apparve per la prima volta nel 1887.
+2|Quale detective fu creato da Agatha Christie?|Hercule Poirot|Philip Marlowe|Jules Maigret|Sherlock Holmes|Poirot è un investigatore belga.
+2|Chi ha creato il commissario Montalbano?|Andrea Camilleri|Leonardo Sciascia|Carlo Lucarelli|Maurizio de Giovanni|Montalbano indaga nell'immaginaria Vigàta.
+2|In quale città italiana si trova l'Arena, anfiteatro romano usato per l'opera lirica?|Verona|Pola|Nîmes|Padova|L'Arena di Verona ospita un celebre festival lirico estivo.
+2|Quale architetto progettò la cupola di Santa Maria del Fiore a Firenze?|Filippo Brunelleschi|Leon Battista Alberti|Donato Bramante|Michelangelo|La cupola fu completata nel 1436.
+2|Chi progettò il colonnato di Piazza San Pietro?|Gian Lorenzo Bernini|Francesco Borromini|Michelangelo|Carlo Maderno|Il colonnato fu realizzato tra il 1656 e il 1667.
+2|Quale animale è il simbolo del WWF?|Panda gigante|Tigre|Elefante|Orso polare|Il panda è il simbolo del WWF dal 1961.
+2|Quale gas respirano le piante durante la fotosintesi?|Anidride carbonica|Ossigeno|Azoto|Elio|Le piante assorbono CO2 e rilasciano ossigeno.
+2|Qual è il segno zodiacale di chi nasce il 1° gennaio?|Capricorno|Acquario|Sagittario|Pesci|Il Capricorno va dal 22 dicembre al 20 gennaio circa.
+2|Quante sono le Meraviglie del mondo antico?|7|5|9|12|Tra esse le piramidi di Giza, l'unica ancora in piedi.
+2|Quale delle sette meraviglie del mondo antico esiste ancora?|La Piramide di Cheope|Il Colosso di Rodi|Il Faro di Alessandria|I Giardini pensili di Babilonia|La Grande Piramide di Giza è l'unica sopravvissuta.
+2|Quale anniversario di matrimonio corrisponde alle nozze d'oro?|50 anni|25 anni|40 anni|60 anni|25 anni sono le nozze d'argento, 60 quelle di diamante.
+2|Quale fu il primo Paese a concedere il voto alle donne nel 1893?|Nuova Zelanda|Regno Unito|Stati Uniti|Finlandia|La Nuova Zelanda introdusse il suffragio femminile nel 1893.
+2|In che anno le donne votarono per la prima volta alle elezioni politiche in Italia?|1946|1919|1948|1960|Le donne votarono nel 1946, alle amministrative e al referendum.
+2|Quale organizzazione ha sede a Ginevra e si occupa di salute nel mondo?|OMS|UNESCO|FAO|NATO|L'Organizzazione Mondiale della Sanità nacque nel 1948.
+2|Dove ha sede la FAO, l'agenzia ONU per l'alimentazione?|Roma|Ginevra|New York|Parigi|La FAO ha sede a Roma dal 1951.
+2|Quale strumento suonava Niccolò Paganini?|Violino|Pianoforte|Chitarra|Violoncello|Paganini fu uno dei più grandi violinisti di sempre.
+2|In quale città è nato Wolfgang Amadeus Mozart?|Salisburgo|Vienna|Monaco di Baviera|Praga|Mozart nacque a Salisburgo nel 1756.
+2|Quante sinfonie compose Ludwig van Beethoven?|9|7|12|5|La Nona contiene l'«Inno alla gioia», oggi inno europeo.
+2|Quale formaggio è indispensabile nella pizza margherita?|Mozzarella|Ricotta|Gorgonzola|Fontina|Pomodoro, mozzarella e basilico richiamano il tricolore.
+2|Da quale città viene il risotto con lo zafferano?|Milano|Torino|Venezia|Bergamo|Il risotto alla milanese è giallo grazie allo zafferano.
+2|Quale formaggio si usa nella carbonara tradizionale romana?|Pecorino romano|Parmigiano reggiano|Grana padano|Provolone|La carbonara si fa con guanciale, uova, pecorino e pepe.
+2|Quale dolce siciliano ha la forma di un cilindro di cialda ripieno di ricotta?|Cannolo|Cassata|Sfogliatella|Pastiera|Il cannolo è tipico del periodo di Carnevale.
+2|Da quale città arriva il panettone?|Milano|Verona|Torino|Genova|Il pandoro, invece, è di Verona.
+2|Quale vino toscano prende il nome dalla zona tra Firenze e Siena?|Chianti|Barolo|Amarone|Brunello|Il Chianti Classico ha il gallo nero come simbolo.
+2|Quale pittore del Rinascimento è autore della «Scuola di Atene»?|Raffaello|Leonardo|Tiziano|Mantegna|L'affresco è nelle Stanze Vaticane.
+3|Chi dipinse il «Giudizio Universale» nella Cappella Sistina?|Michelangelo|Raffaello|Perugino|Signorelli|Michelangelo lo dipinse tra il 1536 e il 1541, anni dopo la volta.
+3|In quale città si trova la Cappella degli Scrovegni affrescata da Giotto?|Padova|Assisi|Firenze|Ravenna|Giotto la affrescò all'inizio del Trecento.
+3|In quale città si trovano i mosaici bizantini di San Vitale?|Ravenna|Venezia|Palermo|Aquileia|Ravenna fu capitale dell'Impero romano d'Occidente.
+3|Chi dipinse «La tempesta», conservata alle Gallerie dell'Accademia di Venezia?|Giorgione|Tiziano|Tintoretto|Veronese|Il significato del dipinto è ancora discusso.
+3|Chi è l'autore della «Primavera», conservata agli Uffizi?|Sandro Botticelli|Filippo Lippi|Domenico Ghirlandaio|Paolo Uccello|Botticelli la dipinse intorno al 1480.
+3|Chi scolpì «Apollo e Dafne» alla Galleria Borghese?|Gian Lorenzo Bernini|Antonio Canova|Michelangelo|Benvenuto Cellini|Bernini lo scolpì da giovane, tra il 1622 e il 1625.
+3|Quale scultore neoclassico realizzò «Amore e Psiche»?|Antonio Canova|Bertel Thorvaldsen|Gian Lorenzo Bernini|Lorenzo Bartolini|Una versione è al Louvre di Parigi.
+3|Quale artista dipinse «La persistenza della memoria» con gli orologi molli?|Salvador Dalí|René Magritte|Max Ernst|Giorgio de Chirico|Il quadro è del 1931.
+3|Quale pittore italiano è il padre della pittura metafisica?|Giorgio de Chirico|Carlo Carrà|Giorgio Morandi|Umberto Boccioni|De Chirico dipinse piazze deserte e manichini.
+3|Chi scrisse il «Manifesto del Futurismo» nel 1909?|Filippo Tommaso Marinetti|Umberto Boccioni|Giacomo Balla|Gabriele D'Annunzio|Il manifesto fu pubblicato su «Le Figaro».
+3|Chi scrisse «La coscienza di Zeno»?|Italo Svevo|Luigi Pirandello|Federico Tozzi|Alberto Moravia|Il romanzo, del 1923, è ambientato a Trieste.
+3|Chi scrisse «Il fu Mattia Pascal»?|Luigi Pirandello|Italo Svevo|Gabriele D'Annunzio|Giovanni Verga|Il protagonista finge di essere morto per rifarsi una vita.
+3|Chi è l'autore dei «Sepolcri»?|Ugo Foscolo|Vincenzo Monti|Giuseppe Parini|Alessandro Manzoni|Il carme fu pubblicato nel 1807.
+3|Chi scrisse «Il barone rampante»?|Italo Calvino|Dino Buzzati|Elsa Morante|Primo Levi|Cosimo Piovasco di Rondò sale sugli alberi e non scende più.
+3|Chi scrisse «Se questo è un uomo»?|Primo Levi|Elie Wiesel|Giorgio Bassani|Natalia Ginzburg|Levi racconta la sua deportazione ad Auschwitz.
+3|Chi scrisse «Il deserto dei Tartari»?|Dino Buzzati|Italo Calvino|Cesare Pavese|Beppe Fenoglio|Il tenente Drogo attende per tutta la vita un nemico.
+3|Chi vinse il Nobel per la letteratura nel 1975?|Eugenio Montale|Salvatore Quasimodo|Dario Fo|Giosuè Carducci|Montale è autore di «Ossi di seppia».
+3|Chi fu il primo italiano a vincere il Nobel per la letteratura, nel 1906?|Giosuè Carducci|Gabriele D'Annunzio|Giovanni Pascoli|Luigi Pirandello|Carducci vinse il Nobel nel 1906.
+3|Quale scrittore italiano vinse il Nobel per la letteratura nel 1997?|Dario Fo|Eugenio Montale|Umberto Eco|Alberto Moravia|Il drammaturgo è autore di «Mistero buffo».
+3|Chi scrisse il poema «Orlando furioso»?|Ludovico Ariosto|Torquato Tasso|Matteo Maria Boiardo|Luigi Pulci|Il poema continua l'«Orlando innamorato» di Boiardo.
+3|Quale poema di Torquato Tasso racconta la prima crociata?|La Gerusalemme liberata|L'Orlando furioso|La Secchia rapita|Il Morgante|Il poema fu pubblicato nel 1581.
+3|In quale opera compare l'aria «Nessun dorma»?|Turandot|Tosca|La bohème|Aida|Turandot fu completata da Franco Alfano dopo la morte di Puccini.
+3|Per quale occasione fu composta l'«Aida» di Verdi, secondo la tradizione?|L'apertura del Canale di Suez|L'Unità d'Italia|L'incoronazione di un re|L'inaugurazione della Scala|Debuttò al Cairo nel 1871, legata alle celebrazioni per il Canale di Suez.
+3|Quale compositore è autore del «Bolero»?|Maurice Ravel|Claude Debussy|Camille Saint-Saëns|Erik Satie|Il Bolero è del 1928.
+3|Quale compositore italiano firmò le musiche di «C'era una volta il West»?|Ennio Morricone|Nino Rota|Riz Ortolani|Armando Trovajoli|Morricone vinse l'Oscar alla carriera nel 2007 e per «The Hateful Eight».
+3|Quale strumento ha costruito Antonio Stradivari, celebre liutaio di Cremona?|Violini|Pianoforti|Organi|Flauti|Gli Stradivari sono tra gli strumenti più preziosi del mondo.
+3|Come si chiama il palio che si corre in Piazza del Campo?|Palio di Siena|Palio di Asti|Giostra del Saracino|Palio di Ferrara|Il Palio di Siena si corre il 2 luglio e il 16 agosto.
+3|Quante contrade partecipano a ogni Palio di Siena?|10|17|12|8|Le contrade sono 17, ma a ogni Palio ne corrono dieci.
+3|In quale città si svolge la «Giostra del Saracino»?|Arezzo|Siena|Firenze|Pisa|La Giostra si corre in Piazza Grande due volte l'anno.
+3|Quale santo è il patrono di Napoli, famoso per il miracolo del sangue?|San Gennaro|San Francesco|San Nicola|Sant'Antonio|Il «miracolo» della liquefazione si attende più volte l'anno.
+3|Qual è il patrono di Milano?|Sant'Ambrogio|San Giorgio|San Carlo|San Marco|Si festeggia il 7 dicembre con la fiera degli «Oh bej! Oh bej!».
+3|Quale santo è patrono di Venezia, con il leone come simbolo?|San Marco|San Giorgio|San Zeno|San Teodoro|Il leone alato di San Marco è il simbolo della Serenissima.
+3|Quale ricorrenza indicano le «nozze di diamante»?|60 anni|50 anni|75 anni|40 anni|25 anni sono le nozze d'argento, 50 quelle d'oro.
+3|Quale filosofo greco fu maestro di Alessandro Magno?|Aristotele|Platone|Socrate|Pitagora|Aristotele fu precettore del giovane Alessandro.
+3|Chi è l'autore della «Repubblica», dialogo sullo Stato ideale?|Platone|Aristotele|Cicerone|Seneca|Nella Repubblica compare il mito della caverna.
+3|Chi pronunciò la frase «So di non sapere», secondo la tradizione?|Socrate|Platone|Diogene|Eraclito|Socrate non lasciò scritti: lo conosciamo da Platone.
+3|Quale filosofo scrisse «Penso, dunque sono»?|René Descartes|Immanuel Kant|Blaise Pascal|John Locke|«Cogito ergo sum» è nel «Discorso sul metodo».
+3|In quale città si trova il Museo del Prado?|Madrid|Barcellona|Lisbona|Siviglia|Il Prado custodisce capolavori di Velázquez e Goya.
+3|Chi dipinse «Las Meninas»?|Diego Velázquez|Francisco Goya|El Greco|Bartolomé Murillo|Il quadro è al Prado di Madrid.
+3|Quale città ospita la Biennale d'arte più antica del mondo?|Venezia|Parigi|San Paolo|Kassel|La Biennale di Venezia nacque nel 1895.
+3|Quale scrittore inglese creò Robinson Crusoe?|Daniel Defoe|Jonathan Swift|Henry Fielding|Samuel Richardson|Il romanzo fu pubblicato nel 1719.
+3|Chi scrisse «I viaggi di Gulliver»?|Jonathan Swift|Daniel Defoe|Laurence Sterne|Lewis Carroll|Gulliver visita Lilliput e Brobdingnag.
+3|Chi scrisse «Guerra e pace»?|Lev Tolstoj|Fëdor Dostoevskij|Anton Čechov|Ivan Turgenev|Il romanzo è ambientato durante le guerre napoleoniche.
+3|Chi scrisse «Delitto e castigo»?|Fëdor Dostoevskij|Lev Tolstoj|Nikolaj Gogol'|Aleksandr Puškin|Il protagonista è lo studente Raskol'nikov.
+3|In quale città è ambientato l'«Ulisse» di James Joyce?|Dublino|Londra|Trieste|Parigi|Il romanzo si svolge in un solo giorno, il 16 giugno 1904.

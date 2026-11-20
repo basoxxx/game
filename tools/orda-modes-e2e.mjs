@@ -109,6 +109,23 @@ for (let w = 1; w <= 3; w++) {
 const run = await page.evaluate(() => JSON.parse(localStorage.getItem('sala_orda_modes_v1')).run);
 log('  saved run:', JSON.stringify({ wave: run?.wave, cleared: run?.cleared, perks: run?.perks, line: run?.line }));
 if (!run || run.cleared !== 3 || run.perks.length !== 3) errors.push('endless run not saved after 3 waves');
+// the cannon's damage is kept when leaving mid-wave (quitting used to bring back a fresh cannon), no
+// free restart in the pause menu, no clock on the HUD
+{
+  if (await page.evaluate(() => getComputedStyle(document.getElementById('or-timer')).display) !== 'none') errors.push('endless shows the clock');
+  const hp = await page.evaluate(() => { const g = window.__ordaModes.game; g.autoplay = false; g.sim.cannon.hp = Math.round(g.sim.cannon.max * 0.4); for (let i = 0; i < 20; i++) g.step(1 / 30); return g.sim.cannon.hp; });
+  await page.evaluate(() => window.__ordaModes.game.togglePause(true));
+  await page.waitForSelector('.om-dlg [data-a="om-quit"]');
+  if (await page.locator('.om-dlg [data-a="om-restart"]').count()) errors.push('endless pause offers a free restart');
+  await click('.om-dlg [data-a="om-quit"]');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('sala_orda_modes_v1')).run);
+  if (!(saved.line < saved.lineMax * 0.5)) errors.push(`quitting mid-wave restored the cannon (${saved.line}/${saved.lineMax})`);
+  await click('[data-a="om-endless"][data-resume]');
+  await page.waitForFunction(() => window.__ordaModes?.game?.sim, null, { timeout: 90000 });
+  const c = await page.evaluate(() => [window.__ordaModes.game.sim.cannon.hp, window.__ordaModes.game.sim.cannon.max]);
+  log(`  quit mid-wave with the cannon at ${hp} → resumed at ${c.join('/')}`);
+  if (!(c[0] < c[1] * 0.5)) errors.push('resumed run has a fresh cannon');
+}
 // lose on purpose: the cannon is knocked down (the leftover crowd could otherwise still win the wave)
 await page.evaluate(() => { const g = window.__ordaModes.game; g.autoplay = false; g.sim.cannon.hp = 0; for (let i = 0; i < 10 && !g.over; i++) g.step(1 / 30); });
 await page.waitForSelector('.om-res', { timeout: 30000 });
