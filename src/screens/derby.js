@@ -291,6 +291,8 @@ registerScreen({
     const root = document.getElementById('dz-root');
     try { music.setMood?.('race'); music.stop?.(); } catch {}
     const { DerbyGame } = await import('../derby/game.js');
+    if (!D.playing || !root?.isConnected) return; // left (or re-rendered) while the chunk was loading
+    D.game?.destroy(); // a second mount of the same run must not leave the first game alive (listeners, GL context)
     const P = prog();
     const ev = D.run?.event || null;
     const venueId = ev ? ev.venue : D.run?.venue || D.venue;
@@ -352,7 +354,7 @@ registerScreen({
     'dz-champ-reset'() { App.confirm('Ricominciare il campionato?', 'I punti raccolti andranno persi.', () => { champReset(); App.refresh(); }); },
     'dz-champ'() { const c = champGet(); const nx = champNext(); if (!c || !nx) return; const P = prog(); const car = P.owned.includes(c.car) ? c.car : D.car; D.champ = true; D.run = { venue: nx, mode: 'race', car, opponents: 7 }; D.playing = true; sfx.ok(); App.refresh(); },
     'dz-resume'() { D.game?.togglePause(); },
-    'dz-restart'() { D.game?.destroy(); D.game = null; App.refresh(); },
-    'dz-quit'() { D.game?.destroy(); D.game = null; D.playing = false; D.champ = false; D.run = null; App.refresh(); },
+    'dz-restart'() { D.game?.destroy(); D.game = null; window.__derby = null; App.refresh(); },
+    'dz-quit'() { D.game?.destroy(); D.game = null; window.__derby = null; D.playing = false; D.champ = false; D.run = null; App.refresh(); },
   },
 });
