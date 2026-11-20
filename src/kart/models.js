@@ -171,6 +171,14 @@ export function makeKart(ch, { body = 'classico', wheels = 'standard', paint = n
   root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return root;
 }
+// far-away stand-in for split screen: the same kart in its rest pose baked into a couple of meshes
+// (no spinning wheels, steering or head turns: invisible at that distance, ~10 draw calls fewer)
+export function makeKartLod(ch, opt) {
+  const root = makeKart(ch, opt);
+  bake(root, (o) => o.name === 'flames');
+  root.traverse((o) => { if (o.isMesh) o.castShadow = false; });
+  return root;
+}
 // merge the meshes directly inside `group` (and their static sub-groups) by material; `keep(o)`
 // marks children that animate and must stay separate
 const WHITE = new THREE.Color(1, 1, 1);
@@ -186,15 +194,18 @@ function bake(group, keep) {
       if (keep(c)) continue;
       if (c.isMesh && !Array.isArray(c.material)) {
         const g = c.geometry.index ? c.geometry.toNonIndexed() : c.geometry.clone();
-        for (const n of Object.keys(g.attributes)) if (n !== 'position' && n !== 'normal' && n !== 'uv') g.deleteAttribute(n);
+        const vc = c.material.vertexColors && g.attributes.color; // already baked: keep its colours
+        for (const n of Object.keys(g.attributes)) if (n !== 'position' && n !== 'normal' && n !== 'uv' && !(vc && n === 'color')) g.deleteAttribute(n);
         if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
         g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, c.matrixWorld));
         // plain toon colours become vertex colours: they all share one material (one draw call)
         const m = c.material, plain = m.isMeshToonMaterial && !m.map && !m.transparent && m.emissive.getHex() === 0 && !m.vertexColors;
-        const n = g.attributes.position.count, col = new Float32Array(n * 3);
-        const cc = plain ? m.color : WHITE; for (let i = 0; i < n; i++) { col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b; }
-        g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-        const key = plain ? vcMat() : m;
+        if (!vc) {
+          const n = g.attributes.position.count, col = new Float32Array(n * 3);
+          const cc = plain ? m.color : WHITE; for (let i = 0; i < n; i++) { col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b; }
+          g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+        }
+        const key = plain || vc ? vcMat() : m;
         if (!by.has(key)) by.set(key, []);
         by.get(key).push(g); drop.push(c);
       }

@@ -8,7 +8,7 @@ import { getSettings } from '../engine/state.js';
 import { gfxTier } from '../ui/quality.js';
 import { bsLoad, bsSave, bsStars, bsNext, coinsFor } from '../bastione/store.js';
 import { LEVELS, levelById, endlessLevel, dailyLevel, dailyInfo } from '../bastione/levels.js';
-import { TOWERS, ENEMIES, HEROES, heroById, HERO_MAX, heroCost, SPELLS, WORLDS, DIFFS, diffById, TREE, BRANCHES, treeCost } from '../bastione/data.js';
+import { TOWERS, ENEMIES, HEROES, heroById, HERO_MAX, heroCost, SPELLS, WORLDS, DIFFS, diffById, TREE, BRANCHES, treeCost, catchUp } from '../bastione/data.js';
 import { TOWER_ICON, ENEMY_ICON, HERO_ICON, SPELL_ICON, ABILITY_ICON, ICON_COIN, ICON_GEM } from '../bastione/icons.js';
 import '../bastione/bastione.css';
 
@@ -212,6 +212,7 @@ registerScreen({
     const s = getSettings();
     const g = V.game = new BastioneGame(root, {
       level: run.level, mode: run.mode, label: run.label, diff: run.mode === 'level' ? p.diff : 'normale', tree: p.tree, hero: p.hero, heroLvl: p.hlv[p.hero] || 0, spells: p.spells, seed: run.seed,
+      ...(run.mode === 'level' ? (({ gold, boss }) => ({ aid: gold, aidBoss: boss }))(catchUp(run.level, p.tree, p.hlv[p.hero] || 0)) : {}),
       tier: gfxTier(), volume: s.sound === false ? 0 : 0.6, shake: p.opt.shake && !document.documentElement.classList.contains('reduce-motion'), numbers: p.opt.numbers, ranges: p.opt.ranges, speed: p.opt.speed || 1,
       seen: { ...p.seen }, onSeen: (t) => { const q = bsLoad(); q.seen[t] = 1; bsSave(q); },
       onSpeed: () => {},

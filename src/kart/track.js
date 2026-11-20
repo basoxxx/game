@@ -160,11 +160,37 @@ export class Track {
       const p = new Path(pts, { closed: false, step: 2.5, ends: [[A0.x, A0.z, A0.y, c.w], [B1.x, B1.z, B1.y, c.w]] });
       p.surf = c.surf || 'dirt'; p.margin = 1.2; p.cut = c;
       p.sFrom = sa; p.sTo = sb < sa ? sb + main.len : sb;
+      this.fitCut(p);
       this.paths.push(p);
     }
     this.rails = (def.rails || []).map(([a, b]) => [main.sAtU(a), b >= ctrl.length ? main.len : main.sAtU(b)]);
     this.buildFeatures();
     this.q = {}; this.q2 = {};
+  }
+  // Shortcut heights on hilly tracks: a straight blend from one end to the other can dip under the
+  // main road's shoulder and terrain skirt (the cut vanished into the hillside and the ground jumped
+  // when the probe switched path). Near the main road the cut now takes the main road's height and
+  // never goes below the skirt that slopes away from it; in the open it keeps its own profile.
+  fitCut(p) {
+    const main = this.main;
+    let ymin = Infinity, ymax = -Infinity; for (let i = 0; i < main.n; i++) { ymin = Math.min(ymin, main.y[i]); ymax = Math.max(ymax, main.y[i]); }
+    const lava = this.off === 'lava';
+    if (this.void || (ymax - ymin <= 0.5 && !lava)) return;
+    const base = lava ? -1.6 : ymin - 0.05, run = lava ? 4 : 24, q = {};
+    const Y = Float32Array.from(p.y), floor = new Float32Array(p.n).fill(-Infinity);
+    for (let i = 0; i < p.n; i++) {
+      main.nearest(p.x[i], p.z[i], -1, q);
+      const al = Math.abs(q.lat), w2 = q.w / 2, sh = w2 + main.margin + 2;
+      const skirt = al <= sh ? q.y : q.y + (base - q.y) * Math.min(1, (al - sh) / run);
+      const want = Math.max(p.y[i], skirt + (al <= sh ? 0 : 0.12));
+      // lower: blend across the main shoulder; higher: only once the cut's own shoulder clears the road
+      const f = Math.max(0, Math.min(1, (al - w2 - (want > q.y + 0.05 ? p.w[i] / 2 + p.margin + 2 : 0)) / (main.margin + 2)));
+      Y[i] = q.y + (want - q.y) * f;
+      if (al > w2) floor[i] = Math.min(Y[i], skirt + 0.04);
+    }
+    // soften the kinks between the fitted stretch and the cut's own profile (ends stay put)
+    for (let it = 0; it < 3; it++) for (let i = 1; i < p.n - 1; i++) Y[i] = Math.max(floor[i], (Y[i - 1] + 2 * Y[i] + Y[i + 1]) / 4);
+    p.y.set(Y);
   }
   // progress (m along the main loop) for a point on path p at arc length s
   progOn(p, s) {

@@ -131,6 +131,11 @@
 .ig-root { position: absolute; inset: 0; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
 .ig-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
 .ig-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; font-family: var(--display); font-size: 24px; font-style: italic; text-transform: uppercase; letter-spacing: .1em; color: var(--text2); text-align: center; padding: 20px; }
+.ig-lbar { width: min(260px, 70vw); height: 8px; border-radius: 6px; background: rgba(255,255,255,.12); overflow: hidden; }
+.ig-lbar i { display: block; height: 100%; width: 4%; background: #ff5a4e; border-radius: inherit; transition: width .25s; }
+.ig-lnote { font-family: var(--body, inherit); font-size: 13px; font-style: normal; text-transform: none; letter-spacing: 0; max-width: 320px; opacity: 0; animation: iglnote .3s 1.5s forwards; }
+@keyframes iglnote { to { opacity: .8; } }
+.ig-loading .btn { font-style: normal; letter-spacing: 0; opacity: 0; animation: iglnote .3s 1s forwards; }
 .ig-spin { width: 46px; height: 46px; border-radius: 50%; border: 5px solid rgba(255,255,255,.15); border-top-color: #ff5a4e; animation: igspin .8s linear infinite; }
 @keyframes igspin { to { transform: rotate(360deg); } }
 .ig-hud { position: absolute; inset: 0; pointer-events: none; font-family: var(--display); color: #fff; }
