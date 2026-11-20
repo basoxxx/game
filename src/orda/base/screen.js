@@ -182,9 +182,16 @@ function defPanel() {
 
 // ---------------------------------------------------------------- render / update in place
 function panelHtml() { return V.tab === 'base' ? basePanel() : V.tab === 'raid' ? raidPanel() : defPanel(); }
+// the header ticks every second (raid timer): replace only the parts that changed, so the tab buttons
+// are not swapped under a click / keyboard focus
+function patchHead(h, html) {
+  const t = document.createElement('div'); t.innerHTML = html;
+  if (h.children.length !== t.children.length) { h.innerHTML = html; return; }
+  [...t.children].forEach((n, i) => { const o = h.children[i]; if (o.outerHTML !== n.outerHTML) o.replaceWith(n); });
+}
 function update(what = 'all') {
   const root = document.querySelector('.ob'); if (!root) return;
-  if (what === 'all' || what === 'head') { const h = root.querySelector('#ob-head'); if (h) h.innerHTML = header(); }
+  if (what === 'all' || what === 'head') { const h = root.querySelector('#ob-head'); if (h) patchHead(h, header()); }
   if (what === 'all' || what === 'panel') { const p = root.querySelector('#ob-panel'); if (p) { const sc = p.scrollTop; p.innerHTML = panelHtml(); p.scrollTop = sc; } }
   root.dataset.tab = V.tab;
   syncView();

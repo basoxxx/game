@@ -3,8 +3,11 @@
 //   node tools/orda-selftest.mjs
 import { Sim, autopilot, CANNON_Z } from '../src/orda/sim.js';
 import { LEVELS } from '../src/orda/levels.js';
-import { starsFor, coinsFor } from '../src/orda/meta.js';
+import { starsFor, coinsFor, upEffects, UPGRADES, catchUp } from '../src/orda/meta.js';
+import { dsin, dcos, dexp, dlog2 } from '../src/orda/dmath.js';
+import { createHash } from 'node:crypto';
 
+const SIM_FP = 'b786cad007e6';
 let fails = 0;
 const ok = (c, msg) => { if (!c) { fails++; console.log('FAIL', msg); } else console.log('ok  ', msg); };
 const lvl = (gates, extra = {}) => ({ id: 1, name: 't', world: 0, len: 60, time: 60, stars: { par: 30, crowd: 10 }, cannon: { hp: 20 }, gates, obstacles: [], base: { hp: 1e6, spawners: [], towers: [] }, ...extra });
@@ -72,6 +75,50 @@ ok(shoot(mk(lvl([{ x: 5, y: 20, w: 4, type: 'mul', value: 3 }])), 10) === 10, 'g
     if (!won) lost.push(L.id);
   }
   ok(!lost.length, `all ${LEVELS.length} levels winnable by the autopilot${lost.length ? ` (not: ${lost.join(', ')})` : ''}`);
+}
+{ // deterministic maths (bit-identical in every browser): accurate, and the Sim no longer calls Math.sin & co.
+  let e = 0; for (let i = 0; i < 20000; i++) { const x = (i - 10000) * 0.0937; e = Math.max(e, Math.abs(dsin(x) - Math.sin(x)), Math.abs(dcos(x) - Math.cos(x)), Math.abs(dexp(x / 400) / Math.exp(x / 400) - 1), Math.abs(dlog2(1 + i * 3.3) - Math.log2(1 + i * 3.3))); }
+  ok(e < 1e-13 && dlog2(8) === 3 && dexp(0) === 1, `dmath matches Math within ${e.toExponential(1)}`);
+  // golden trace of a full autopilot match: the same on every engine (a change here = a change of the sim)
+  const s = new Sim(LEVELS[12], { up: { rate: 3, shot: 2, hp: 2 }, champ: 'grillo', seed: 77, countdown: 0, cap: 300 }); s.state = 'play';
+  const h = createHash('sha1');
+  for (let f = 0; f < 30 * 40 && s.state === 'play'; f++) { Object.assign(s.input, autopilot(s)); s.step(1 / 30); if (f % 30 === 0) h.update(new Float64Array([s.base.hp, s.cannon.hp, s.blue.n, s.red.n, s.blue.x[0] || 0, s.red.z[0] || 0])); }
+  const fp = h.digest('hex').slice(0, 12);
+  ok(fp === SIM_FP, `sim fingerprint ${fp} (expected ${SIM_FP}: update SIM_FP only for a deliberate change of the simulation)`);
+  const src = (await import('node:fs')).readFileSync(new URL('../src/orda/sim.js', import.meta.url), 'utf8');
+  ok(!/Math\.(sin|cos|tan|exp|log|log2|pow|atan2?|hypot)\(/.test(src) && !/\*\*/.test(src.replace(/\/\*\*[\s\S]*?\*\//g, '')), 'sim.js uses only exact maths (no Math.sin/exp/log2/pow, no **)');
+}
+{ // level.cannon.max: a cannon that starts damaged; both scale with the armour upgrade
+  const s = mk(lvl([], { cannon: { hp: 10, max: 40 } }), { up: { armor: 5 } });
+  ok(s.cannon.hp === 20 && s.cannon.max === 80, `cannon {hp 10, max 40} × armour 2 → ${s.cannon.hp}/${s.cannon.max}`);
+  const s2 = mk(lvl([], { cannon: { hp: 30 } }));
+  ok(s2.cannon.hp === 30 && s2.cannon.max === 30, 'cannon without max: full');
+}
+{ // maxCrowd in the result; upgrades past the cap (Infinita perks) still count
+  const s = mk(lvl([{ x: 0, y: 20, w: 6, type: 'mul', value: 4 }]));
+  shoot(s, 30);
+  const r = s.result();
+  ok(r.maxCrowd >= 100 && r.maxCrowd <= 120, `result.maxCrowd ${r.maxCrowd} (30 figures through ×4)`);
+  const maxed = Object.fromEntries(UPGRADES.map((u) => [u.id, u.max]));
+  const E0 = upEffects(maxed), E1 = upEffects(maxed, { rate: 2, shot: 2 }), E2 = upEffects(maxed, { rate: 99 });
+  ok(E1.rate > E0.rate && E1.shot > E0.shot && E1.hp === E0.hp && E2.rate === upEffects(maxed, { rate: 6 }).rate, `upBonus past the cap: rate ${E0.rate} → ${E1.rate} (bonus capped at +6)`);
+}
+{ // raid towers: kind + range
+  const tw = (kind, extra = {}) => lvl([], { base: { hp: 1e6, spawners: [], towers: [{ x: 0, y: 40, hp: 1e6, rate: 1, count: 0, kind, range: 5, ...extra }] } });
+  const run = (L, x) => { const s = mk(L); for (let i = 0; i < 40; i++) s.blue.add(x, CANNON_Z + 1 + i * 0.3, s.hpB, 0, 0.5); let t = 0; for (let f = 0; f < 60 * 12 && s.blue.n; f++) { s.step(1 / 60); if (!t && s.stats.baseDmg) t = s.t; } return { s, t }; };
+  const plain = run(tw(''), 2.6), slowIn = run(tw('slow', { slow: 0.5 }), 2.6), slowOut = run(tw('slow', { slow: 0.5, range: 1.5 }), 2.6);
+  ok(slowIn.t > plain.t + 0.3 && Math.abs(slowOut.t - plain.t) < 0.05, `slow tower: first hit ${plain.t.toFixed(2)}s → ${slowIn.t.toFixed(2)}s in range, ${slowOut.t.toFixed(2)}s out of range`);
+  const spIn = run(tw('splash', { count: 4 }), 0), spOut = run(tw('splash', { count: 4 }), 6.5);
+  ok(spIn.s.stats.lost > 0 && spOut.s.stats.lost === 0, `splash tower: ${spIn.s.stats.lost} lost in range, ${spOut.s.stats.lost} out of range`);
+  const snIn = run(tw('sniper', { count: 2 }), 0);
+  ok(snIn.s.stats.lost > 0 && snIn.s.stats.lost % 2 === 0, `sniper tower: picked off ${snIn.s.stats.lost}`);
+}
+{ // catch-up: a player who never bought an upgrade is stuck late; after a loss the "spinta" gets them through
+  const res = [24, 30, 35].map((id) => {
+    const L = LEVELS.find((l) => l.id === id), go = (up) => { const s = new Sim(L, { up, champ: 'colosso', seed: 4, countdown: 0 }); s.state = 'play'; for (let f = 0; f < 30 * (L.time + 2) && s.state === 'play'; f++) { Object.assign(s.input, autopilot(s)); s.step(1 / 30); } return s.state === 'won'; };
+    return { id, bare: go({}), boost: go(catchUp({}, id, 1).up) };
+  });
+  ok(res.every((r) => r.boost) && catchUp({}, 24, 0) === null && catchUp({ rate: 10, shot: 6, hp: 8, speed: 8, charge: 8, armor: 6 }, 35, 5) === null, `catch-up boost wins levels ${res.map((r) => `${r.id} (${r.bare ? 'won' : 'lost'} without)`).join(', ')}; none on a first try or for an upgraded cannon`);
 }
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
 process.exit(fails ? 1 : 0);
