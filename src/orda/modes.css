@@ -79,6 +79,7 @@
 .om-sketch .a-base { fill: #ff4d6d; opacity: .9; }
 .om-sketch .a-cannon { fill: var(--ob, #2f80ff); stroke: #fff; stroke-width: 1.5; }
 .om-sketch text { font: 700 8.5px/1 var(--display, sans-serif); text-anchor: middle; fill: #fff; }
+.om-sketch text .dv { font-size: 12px; font-weight: 900; } /* ÷ at 8.5 px is a smudge */
 .om-sketch .g-good rect { fill: rgba(47,128,255,.85); stroke: #fff; stroke-width: 1; }
 .om-sketch .g-bad rect { fill: rgba(255,77,109,.9); stroke: #fff; stroke-width: 1; }
 .om-sketch .g-tog rect { stroke: #ffd23f; stroke-dasharray: 3 2; stroke-width: 1.4; }

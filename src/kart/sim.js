@@ -514,10 +514,10 @@ export class Sim {
     const ref = H.length ? Math.max(...H.map((k) => k.dist)) : null;
     for (const k of this.karts) {
       if (k.human >= 0) continue;
-      const base = 0.955 + 0.06 * k.ai.skill;
+      const base = (this.cls.pace ?? 1) * (0.955 + 0.06 * k.ai.skill);
       if (ref == null) { k.rubber = base; continue; }
       const gap = (k.dist - ref) / 140; // + = AI ahead of the best human
-      k.rubber = base * (1 - clamp(gap, -1, 1) * this.cls.rubber * (gap > 0 ? 1 : 1.4));
+      k.rubber = base * (1 - clamp(gap, -1, 1) * this.cls.rubber * (gap > 0 ? 1 : (this.cls.catchup ?? 1.4)));
     }
   }
   standings() {

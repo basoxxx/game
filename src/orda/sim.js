@@ -9,6 +9,7 @@
 // full (low-end devices get smaller pools) clones are folded into the parent figure's units instead of
 // being dropped, so the game math is the same on every device: only the number of drawn bodies differs.
 import { upEffects, champById, CHARGE_K } from './meta.js';
+import { dsin, dcos, dexp, dlog2 } from './dmath.js'; // bit-identical in every browser (the daily is generated client-side)
 
 export const CANNON_Z = 1.5;
 export const COUNTDOWN = 1;     // seconds of "pronti…" before the first shot
@@ -19,9 +20,10 @@ const MAX_GATES = 32;
 
 export function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const sq = (v) => v * v;
 // collision radius of a red: giants are wide
-const redR = (R, j) => (R.kind[j] === 2 ? 0.75 + 0.12 * Math.log2(Math.max(2, R.u[j])) : 0.3 * unitScale(R.u[j]));
-export const unitScale = (u) => (u <= 1 ? 1 : Math.min(3.4, 1 + 0.36 * Math.log2(u)));
+const redR = (R, j) => (R.kind[j] === 2 ? 0.75 + 0.12 * dlog2(Math.max(2, R.u[j])) : 0.3 * unitScale(R.u[j]));
+export const unitScale = (u) => (u <= 1 ? 1 : Math.min(3.4, 1 + 0.36 * dlog2(u)));
 
 export class Pool {
   constructor(cap) {
@@ -69,13 +71,14 @@ export const GATE_TYPES = ['mul', 'add', 'sub', 'div', 'split', 'rec'];
 export class Sim {
   /**
    * @param level level JSON (levels.js shape)
-   * @param o { up: upgrade levels, champ: id, champLvl, cap: max bodies per team, seed, hooks }
+   * @param o { up: upgrade levels, upBonus: extra levels on top of each upgrade's cap (Infinita perks),
+   *            champ: id, champLvl, cap: max bodies per team, seed, hooks }
    */
   constructor(level, o = {}) {
     this.level = level; this.o = o;
     this.rand = rng(o.seed ?? (level.id || 1) * 7919 + 13);
     this.W = level.w || 16; this.L = level.len || 64;
-    const E = this.E = upEffects(o.up || {});
+    const E = this.E = upEffects(o.up || {}, o.upBonus);
     this.hpB = E.hp; this.hpR = level.redHp || 1;
     this.spdB = E.speed; this.spdR = level.redSpeed || RED_SPEED;
     const cap = o.cap || 1600;
@@ -83,8 +86,9 @@ export class Sim {
     this.t = 0; this.time = level.time || 120; this.count = o.countdown ?? level.countdown ?? COUNTDOWN;
     this.bonus = !!level.bonus;
     this.state = 'count'; this.why = '';
-    const chp = Math.round((level.cannon?.hp || 20) * E.armor);
-    this.cannon = { x: 0, hp: chp, max: chp, fireAcc: 0, shotAcc: 0, recoil: 0, vx: 0 };
+    // cannon.max (optional): a cannon that starts damaged (Infinita carries the damage between waves)
+    const cmax = Math.round((level.cannon?.max || level.cannon?.hp || 20) * E.armor), chp = Math.min(cmax, Math.round((level.cannon?.hp || 20) * E.armor));
+    this.cannon = { x: 0, hp: chp, max: cmax, fireAcc: 0, shotAcc: 0, recoil: 0, vx: 0 };
     const b = level.base || {};
     this.base = {
       hp: b.hp || 100, max: b.hp || 100, w: b.w || 9, z: this.L, boss: !!b.boss, name: b.name || '',
@@ -102,7 +106,11 @@ export class Sim {
     this.fallen = 0; // blue units lost to traps and bad gates: the "riciclo" gates give them back
     this.combo = 0; this.comboTier = 1; this.comboGain = 0; this.comboLoss = 0;
     this.obs = (level.obstacles || []).map((ob) => ({ ...ob, z: ob.y, cx: ob.x || 0, cz: ob.y, ang: ob.ang || 0, w: ob.w || 3, d: ob.d || 1, hits: 0 }));
-    this.towers = (b.towers || []).map((tw) => ({ x: tw.x, z: tw.y, hp: tw.hp || 30, max: tw.hp || 30, rate: tw.rate || 0.4, count: tw.count || 2, acc: 0, r: 1.15, dead: false, hit: 0 }));
+    // towers spawn reds; a tower with a `kind` (raids) also acts on the blue crowd within `range`:
+    // 'slow' slows it down by `slow`, 'splash' shells the nearest blob (up to count×1.5 units around the
+    // impact), 'sniper' picks off `count` units of the nearest figure. Out of range they do nothing.
+    this.towers = (b.towers || []).map((tw) => ({ x: tw.x, z: tw.y, hp: tw.hp || 30, max: tw.hp || 30, rate: tw.rate || 0.4, count: tw.count || 2, acc: 0, r: 1.15, dead: false, hit: 0,
+      kind: ['slow', 'splash', 'sniper'].includes(tw.kind) ? tw.kind : '', range: Math.max(1.5, +tw.range || 4), slow: clamp(+tw.slow || 0.35, 0, 0.8), fx: 0 }));
     // champions
     const C = champById(o.champ || 'colosso');
     this.champDef = C; this.champLvl = o.champLvl || 0;
@@ -116,6 +124,7 @@ export class Sim {
     this.gcols = Math.ceil((this.W + 4) / this.cs); this.grows = Math.ceil((this.L + BASE_DEPTH + 6) / this.cs);
     this.cellStart = new Int32Array(this.gcols * this.grows + 1); this.cellIdx = new Int32Array(this.red.cap);
     this.input = { x: null, dx: 0, fire: false, champ: false };
+    this.slowT = this.towers.filter((tw) => tw.kind === 'slow'); if (!this.slowT.length) this.slowT = null;
   }
 
   // ---------- queries
@@ -146,6 +155,7 @@ export class Sim {
     for (let i = 0; i < this.blue.n; i++) this.blue.u[i] = this.units(this.blue, i);
     for (let i = 0; i < this.red.n; i++) this.red.u[i] = this.units(this.red, i);
     this.stats.peak = Math.max(this.stats.peak, this.blue.n);
+    if ((this._pk = (this._pk || 0) + 1) % 6 === 0) this.stats.peakUnits = Math.max(this.stats.peakUnits, this.blueUnits());
     this.updateCombo(dt);
     if (this.bonus) { if (this.time <= 0) { this.time = 0; this.end(true, 'bonus'); } return; }
     if (this.base.hp <= 0 && !this.base.dead) { this.base.hp = 0; this.base.dead = true; this.end(true, 'base'); }
@@ -165,12 +175,12 @@ export class Sim {
   }
   end(win, why) {
     this.state = win ? 'won' : 'lost'; this.why = why;
-    this.left = this.blueUnits();
+    this.left = this.blueUnits(); this.stats.peakUnits = Math.max(this.stats.peakUnits, this.left);
     this.emit({ t: win ? 'win' : 'lose', why });
     this.hooks.onEnd?.(this);
   }
   result() {
-    return { win: this.state === 'won', why: this.why, time: +this.t.toFixed(2), left: this.left ?? this.blueUnits(), cannonHp: this.cannon.hp, cannonMax: this.cannon.max, baseHp: Math.max(0, Math.round(this.base.hp)), baseMax: this.base.max, ...this.stats };
+    return { win: this.state === 'won', why: this.why, time: +this.t.toFixed(2), left: this.left ?? this.blueUnits(), cannonHp: this.cannon.hp, cannonMax: this.cannon.max, baseHp: Math.max(0, Math.round(this.base.hp)), baseMax: this.base.max, ...this.stats, maxCrowd: Math.max(this.stats.peakUnits, this.left ?? 0) };
   }
 
   moveCannon(dt, inp) {
@@ -187,7 +197,7 @@ export class Sim {
     for (const g of this.gates) {
       g.flash = Math.max(0, g.flash - dt * 3);
       if (g.type === 'rec') g.avail = Math.min(this.fallen, g.value);
-      if (g.move) g.cx = g.x0 + (g.move.amp || 3) * Math.sin(t * (g.move.speed || 0.5) * Math.PI * 2 + (g.move.phase || 0));
+      if (g.move) g.cx = g.x0 + (g.move.amp || 3) * dsin(t * (g.move.speed || 0.5) * Math.PI * 2 + (g.move.phase || 0));
       if (g.toggle && this.state === 'play') {
         const every = g.toggle.every || 3, k = Math.floor(t / every) % 2;
         g.tt = every - (t % every);
@@ -197,7 +207,7 @@ export class Sim {
     }
     for (const ob of this.obs) {
       if (ob.type === 'spin') ob.ang += (ob.speed ?? 1.6) * dt;
-      else if (ob.type === 'saw' || ob.type === 'barrier') ob.cx = ob.x + (ob.amp ?? 3) * Math.sin(t * (ob.speed ?? 0.4) * Math.PI * 2 + (ob.phase || 0));
+      else if (ob.type === 'saw' || ob.type === 'barrier') ob.cx = ob.x + (ob.amp ?? 3) * dsin(t * (ob.speed ?? 0.4) * Math.PI * 2 + (ob.phase || 0));
       if (ob.type === 'saw') ob.ang += dt * 12;
     }
   }
@@ -261,6 +271,7 @@ export class Sim {
       tw.hit = Math.max(0, tw.hit - dt * 4);
       tw.acc += tw.rate * dt;
       while (tw.acc >= 1) { tw.acc -= 1; for (let j = 0; j < tw.count; j++) this.addRed(tw.x + (this.rand() - 0.5) * 1.6, tw.z - tw.r - 0.3, 1); }
+      if (tw.kind === 'splash' || tw.kind === 'sniper') this.towerShot(tw, dt);
     }
     // boss phases: a wave, brutes, a moment of shield, a faster rhythm
     for (const p of b.phases) {
@@ -274,6 +285,25 @@ export class Sim {
       this.emit({ t: 'phase', n: b.phase, shield: p.shield || 0 });
       this.hooks.onWave?.(this, p);
     }
+  }
+  // a splash / sniper tower's own shot at the blue crowd in range (one per 1/rate s, held while empty)
+  towerShot(tw, dt) {
+    tw.fx = Math.min(1, tw.fx + tw.rate * dt);
+    if (tw.fx < 1) return;
+    const B = this.blue, R2 = tw.range * tw.range;
+    let t = -1, bd = R2;
+    for (let i = 0; i < B.n; i++) { if (B.h[i] <= 0 || B.air[i] > 0) continue; const d = sq(B.x[i] - tw.x) + sq(B.z[i] - tw.z); if (d < bd) { bd = d; t = i; } }
+    if (t < 0) return;
+    tw.fx = 0;
+    const x = B.x[t], z = B.z[t];
+    let left = tw.kind === 'sniper' ? tw.count : Math.round(tw.count * 1.5), lost = 0;
+    for (let i = 0; i < B.n && left > 0; i++) {
+      if (B.h[i] <= 0 || B.air[i] > 0 || (tw.kind === 'sniper' ? i !== t : sq(B.x[i] - x) + sq(B.z[i] - z) > 1.7 * 1.7)) continue;
+      const take = Math.min(left, B.u[i]); left -= take; lost += take;
+      B.u[i] -= take; B.h[i] = B.u[i] * this.hpB;
+    }
+    this.stats.lost += lost; this.fallen += lost; this.comboLoss += lost;
+    this.emit({ t: tw.kind === 'sniper' ? 'snipe' : 'shell', x, z, fx: tw.x, fz: tw.z, n: lost });
   }
   wave(n) {
     const b = this.base;
@@ -314,7 +344,7 @@ export class Sim {
       } else if (ob.type === 'pit') {
         if (Math.abs(x - ob.cx) < ob.w / 2 && Math.abs(z - ob.cz) < ob.d / 2) { this.emit({ t: 'fall', x, z, team: P === this.blue ? 0 : 1 }); ob.hits++; return 1; }
       } else if (ob.type === 'spin') {
-        const ca = Math.cos(ob.ang), sa = Math.sin(ob.ang), dx = x - ob.cx, dz = z - ob.cz, len = ob.len || 3.5;
+        const ca = dcos(ob.ang), sa = dsin(ob.ang), dx = x - ob.cx, dz = z - ob.cz, len = ob.len || 3.5;
         const along = clamp(dx * ca + dz * sa, -len, len), qx = dx - along * ca, qz = dz - along * sa;
         if (qx * qx + qz * qz < (0.22 + r) * (0.22 + r)) {
           // the bar swats: a figure is knocked aside (and back), one in three goes flying for good
@@ -334,15 +364,17 @@ export class Sim {
 
   moveBlue(dt) {
     const B = this.blue, b = this.base, L = this.L, lim = this.W / 2 - 0.3, spd = this.spdB, t = this.t;
-    const damp = Math.exp(-4 * dt);
+    const damp = dexp(-4 * dt);
     for (let i = 0; i < B.n; i++) {
       if (B.h[i] <= 0) continue;
       B.age[i] += dt;
       const u = B.u[i], r = 0.3 * unitScale(u), z0 = B.z[i];
       const air = B.air[i] > 0; if (air) B.air[i] = Math.max(0, B.air[i] - dt);
-      B.z[i] += spd * (u > 8 ? 0.85 : 1) * (air ? 1.15 : 1) * dt;
+      let k = 1;
+      if (this.slowT) for (const tw of this.slowT) if (!tw.dead && sq(B.x[i] - tw.x) + sq(z0 - tw.z) < tw.range * tw.range) k = Math.min(k, 1 - tw.slow);
+      B.z[i] += spd * (u > 8 ? 0.85 : 1) * (air ? 1.15 : 1) * k * dt;
       B.vx[i] *= damp;
-      B.x[i] += B.vx[i] * dt + Math.sin(t * 3 + B.ph[i] * 6.28) * 0.22 * dt;
+      B.x[i] += B.vx[i] * dt + dsin(t * 3 + B.ph[i] * 6.28) * 0.22 * dt;
       // funnel into the base front
       if (B.z[i] > L - 11) { const tx = clamp(B.x[i], -b.w / 2 + 0.7, b.w / 2 - 0.7); B.x[i] += (tx - B.x[i]) * Math.min(1, dt * 2.2); }
       B.x[i] = clamp(B.x[i], -lim, lim);
@@ -421,8 +453,8 @@ export class Sim {
       R.age[i] += dt;
       const u = R.u[i], kind = R.kind[i], brute = kind > 0, r = redR(R, i);
       R.z[i] -= this.spdR * (kind === 2 ? 0.4 : brute ? 0.5 : 1) * dt;
-      R.vx[i] *= Math.exp(-4 * dt);
-      R.x[i] += R.vx[i] * dt + Math.sin(this.t * 2.6 + R.ph[i] * 6.28) * 0.2 * dt;
+      R.vx[i] *= dexp(-4 * dt);
+      R.x[i] += R.vx[i] * dt + dsin(this.t * 2.6 + R.ph[i] * 6.28) * 0.2 * dt;
       // reds drift towards the cannon's lane all the way down, so they crash into the blue river
       R.x[i] += clamp(c.x - R.x[i], -1, 1) * (R.z[i] < 16 ? 1.8 : 0.9) * dt;
       R.x[i] = clamp(R.x[i], -lim, lim);
@@ -520,10 +552,10 @@ export class Sim {
           } else if (ob.type === 'pit') {
             if (Math.abs(dx) < ob.w / 2 && Math.abs(dz) < ob.d / 2) { spd *= 0.5; ch.hp -= 10 * dt; }
           } else if (ob.type === 'spin') {
-            const ca = Math.cos(ob.ang), sa = Math.sin(ob.ang), len = ob.len || 3.5, along = clamp(dx * ca + dz * sa, -len, len), qx = dx - along * ca, qz = dz - along * sa;
-            if (qx * qx + qz * qz < (st.r + 0.3) ** 2) { ch.hp -= 18 * dt; ch.hit = 1; }
+            const ca = dcos(ob.ang), sa = dsin(ob.ang), len = ob.len || 3.5, along = clamp(dx * ca + dz * sa, -len, len), qx = dx - along * ca, qz = dz - along * sa;
+            if (qx * qx + qz * qz < sq(st.r + 0.3)) { ch.hp -= 18 * dt; ch.hit = 1; }
           } else if (ob.type === 'saw') {
-            if (dx * dx + dz * dz < (st.r + (ob.r || 1.1)) ** 2) { ch.hp -= 18 * dt; ch.hit = 1; }
+            if (dx * dx + dz * dz < sq(st.r + (ob.r || 1.1))) { ch.hp -= 18 * dt; ch.hit = 1; }
           }
         }
       }
@@ -532,7 +564,7 @@ export class Sim {
       if (ch.z > L - 12) ch.x += (clamp(ch.x, -b.w / 2 + 1, b.w / 2 - 1) - ch.x) * Math.min(1, dt * 2);
       ch.x = clamp(ch.x, -this.W / 2 + st.r, this.W / 2 - st.r);
       if (jumper) { // hop cycle; each landing is a shockwave
-        const ph0 = ch.hop; ch.hop += dt / 0.72; ch.air = Math.sin((ch.hop % 1) * Math.PI) * 1.9;
+        const ph0 = ch.hop; ch.hop += dt / 0.72; ch.air = dsin((ch.hop % 1) * Math.PI) * 1.9;
         if (Math.floor(ch.hop) !== Math.floor(ph0)) this.slam(ch, st.slam);
       }
       // gates: the splitter multiplies too
@@ -559,7 +591,7 @@ export class Sim {
       // towers in the way take a big hit once
       for (const tw of this.towers) {
         if (tw.dead || ch.towers.has(tw)) continue;
-        if ((ch.x - tw.x) ** 2 + (ch.z - tw.z) ** 2 < (tw.r + st.r) ** 2) { ch.towers.add(tw); this.hitTower(tw, st.dmg); ch.hp -= 8; this.emit({ t: 'champTower', x: tw.x, z: tw.z }); }
+        if (sq(ch.x - tw.x) + sq(ch.z - tw.z) < sq(tw.r + st.r)) { ch.towers.add(tw); this.hitTower(tw, st.dmg); ch.hp -= 8; this.emit({ t: 'champTower', x: tw.x, z: tw.z }); }
       }
       if (ch.hp <= 0) { this.champDown(ch, false); continue; }
       if (ch.z >= L - st.r * 0.6) this.champDown(ch, true);
@@ -596,8 +628,8 @@ export class Sim {
     for (let k = 0; k < c; k++) {
       const u = per + (rem > 0 ? 1 : 0); if (rem > 0) rem--;
       const a = (k / c) * Math.PI * 2, rr = 0.5 + this.rand() * 1.4;
-      const j = B.add(clamp(x + Math.cos(a) * rr, -lim, lim), z + Math.sin(a) * rr * 0.5, u * this.hpB, all, this.rand());
-      if (j >= 0) { B.u[j] = u; B.vx[j] = Math.cos(a) * 3; }
+      const j = B.add(clamp(x + dcos(a) * rr, -lim, lim), z + dsin(a) * rr * 0.5, u * this.hpB, all, this.rand());
+      if (j >= 0) { B.u[j] = u; B.vx[j] = dcos(a) * 3; }
     }
     this.emit({ t: 'burst', x, z, n });
   }
@@ -619,7 +651,7 @@ export function autopilot(sim, o = {}) {
       if (g) {
         // where the gate will be (and what it will say) when a shot fired now gets there
         const ta = sim.t + (g.z - CANNON_Z) / sim.spdB;
-        const cx = g.move ? g.x0 + (g.move.amp || 3) * Math.sin(ta * (g.move.speed || 0.5) * Math.PI * 2 + (g.move.phase || 0)) : g.cx;
+        const cx = g.move ? g.x0 + (g.move.amp || 3) * dsin(ta * (g.move.speed || 0.5) * Math.PI * 2 + (g.move.phase || 0)) : g.cx;
         if (g.broken || Math.abs(x - cx) > g.w / 2 - 0.3) continue;
         const G = g.toggle && Math.floor(ta / (g.toggle.every || 3)) % 2 ? g.toggle : g.toggle ? g.base : g, type = G.type, value = G.value;
         if (type === 'split') { u *= value; return (lane(clamp(cx - g.to, -lim, lim), n + 1, u, k, airTo) + lane(clamp(cx + g.to, -lim, lim), n + 1, u, k, airTo)) / 2; }

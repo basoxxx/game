@@ -6,9 +6,11 @@ export const len = (x, y) => Math.sqrt(x * x + y * y);
 export const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
 export const pick = (r, arr) => arr[Math.floor(r() * arr.length) % arr.length];
 export function shuffle(r, a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
-// placements from scores (higher is better unless low=true), ties share the place: [10, 4, 10] -> [1, 3, 1]
-export function placesOf(scores, low = false) {
-  return scores.map((s) => 1 + scores.filter((o) => (low ? o < s - 1e-9 : o > s + 1e-9)).length);
+// placements from scores (higher is better unless low=true), ties share the place: [10, 4, 10] -> [1, 3, 1];
+// `tb` (optional, higher is better) breaks equal scores: [10, 4, 10] with tb [1, 0, 2] -> [2, 3, 1]
+export function placesOf(scores, low = false, tb = null) {
+  const better = (o, s, j, i) => (low ? o < s - 1e-9 : o > s + 1e-9) || (tb && Math.abs(o - s) <= 1e-9 && tb[j] > tb[i] + 1e-9);
+  return scores.map((s, i) => 1 + scores.filter((o, j) => j !== i && better(o, s, j, i)).length);
 }
 // steer an AI input towards a point: fills inp.x / inp.y with a unit vector, returns the distance
 export function aimAt(inp, fx, fy, tx, ty, dead = 0.15) {

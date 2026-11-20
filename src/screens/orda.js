@@ -9,7 +9,7 @@ import { getSettings } from '../engine/state.js';
 import { gfxTier } from '../ui/quality.js';
 import { ordaLoad, ordaSave, ordaStars } from '../orda/store.js';
 import { LEVELS, levelById, bonusLevel, MAIN_LEVELS } from '../orda/levels.js';
-import { UPGRADES, upCost, upEffects, CHAMPIONS, CHAMP_MAX, champCost, champById, SKINS, CANNONS, WORLDS, WORLD_STARS, CHEST_EVERY, LOGIN_REWARDS, rollChest, openChest } from '../orda/meta.js';
+import { UPGRADES, upCost, upEffects, CHAMPIONS, CHAMP_MAX, champCost, champById, SKINS, CANNONS, WORLDS, WORLD_STARS, CHEST_EVERY, LOGIN_REWARDS, rollChest, openChest, catchUp } from '../orda/meta.js';
 import '../orda/orda.css';
 import '../orda/hooks.css';
 import { registerOrdaModes } from '../orda/modes-entries.js';
@@ -196,6 +196,7 @@ function results(r, p, extra = '') {
         <div><b>${r.champions}</b><span>campioni</span></div>
         <div class="or-res-coins"><b data-count="${r.coins}">+0</b><span>monete</span></div>
       </div>
+      ${campaign && !r.win && catchUp(p.up, L.id, p.fails?.[L.id]) ? `<div class="or-res-unl or-res-spinta">💪 Al prossimo tentativo l’orda ti dà una <b>spinta</b>: +${catchUp(p.up, L.id, p.fails[L.id]).levels} livelli di potenziamento per questo livello.</div>` : ''}
       ${r.combo >= 2 ? `<div class="or-res-combo">🔥 Valanga x${r.combo}: +${(r.combo - 1) * 10}% monete</div>` : ''}
       ${p.chests ? `<button class="or-res-chest" data-a="or-chest">🎁 <b>Forziere!</b> <span>Tocca per aprirlo</span></button>` : ''}
       ${p.bonus && r.win ? `<button class="or-res-chest or-res-bonus" data-a="or-bonus">💰 <b>Livello bonus!</b> <span>Solo porte, monete a pioggia</span></button>` : ''}
@@ -219,6 +220,8 @@ function record(r, run) {
   st.games++; st.sent += r.figuresSent; st.kills += r.kills; st.coins += r.coins;
   if (r.win) st.wins++;
   if (run.mode === 'bonus') st.bonus = Math.max(0, (st.bonus || 0) - 1);
+  // losses in a row on a campaign level feed the catch-up boost (meta.js catchUp); a win clears them
+  if (run.mode === 'level' && run.level.id && !r.quit) { if (r.win) delete st.fails[run.level.id]; else st.fails[run.level.id] = (st.fails[run.level.id] || 0) + 1; }
   if (run.mode === 'level' && r.win && run.level.id) {
     const id = run.level.id;
     if (!st.stars[id]) { // a new level: towards the next chest and the next bonus level
@@ -277,8 +280,10 @@ registerScreen({
     const { OrdaGame } = await import('../orda/game.js');
     if (!V.playing || !root.isConnected) return;
     const s = getSettings();
+    // a player stuck on a campaign level far below the upgrade curve gets a temporary boost
+    const cu = run.mode === 'level' ? catchUp(p.up, run.level.id, p.fails?.[run.level.id]) : null;
     const g = V.game = new OrdaGame(root, {
-      level: run.level, mode: run.mode, seed: run.seed, label: run.label, upgrades: p.up, skin: p.skin, cannon: p.cannon, champion: p.champ, champLvl: p.clv[p.champ] || 0,
+      level: run.level, mode: run.mode, seed: run.seed, label: cu ? `Livello ${run.level.id} · 💪 spinta +${cu.levels}` : run.label, upgrades: cu ? cu.up : p.up, skin: p.skin, cannon: p.cannon, champion: p.champ, champLvl: p.clv[p.champ] || 0,
       prevStars: run.mode === 'level' ? p.stars[run.level.id] || 0 : 0,
       onRestart: () => { stopGame(); V.playing = true; App.refresh(); },
       tier: gfxTier(), volume: s.sound === false ? 0 : 0.6 * (s.volume ?? 0.5) / 0.5, autofire: p.opt.autofire, shake: p.opt.shake && !document.documentElement.classList.contains('reduce-motion'), numbers: p.opt.numbers,
@@ -366,6 +371,8 @@ function ORDA_ACTIONS() {
 function buyCosmetic(id, list, ownKey, selKey) {
   const p = ordaLoad(), s = list.find((x) => x.id === id); if (!s) return;
   if (p[ownKey].includes(s.id)) { p[selKey] = s.id; ordaSave(p); sfx.ok?.(); App.refresh(); return; }
+  // star prizes are granted after a match; one already earned (an older save, stars from elsewhere) is taken here
+  if (s.stars && ordaStars(p) >= s.stars) { p[ownKey].push(s.id); p[selKey] = s.id; ordaSave(p); sfx.ok?.(); App.refresh(); return; }
   if (s.stars) { sfx.bad?.(); App.toast('Premio a stelle', `«${s.name}» si sblocca raccogliendo ${s.stars} stelle (ne hai ${ordaStars(p)}).`, 'bad'); return; }
   if (p.coins < s.cost) { sfx.bad?.(); App.toast('Monete insufficienti', `Ti servono ancora ${fmt(s.cost - p.coins)} monete per «${s.name}».`, 'bad'); return; }
   App.confirm(`Sbloccare «${s.name}»?`, `Costa ${fmt(s.cost)} monete (ne hai ${fmt(p.coins)}).`, () => { const q = ordaLoad(); q.coins -= s.cost; q[ownKey].push(s.id); q[selKey] = s.id; ordaSave(q); sfx.coin?.(); App.refresh(); });

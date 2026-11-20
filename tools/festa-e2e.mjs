@@ -81,9 +81,23 @@ for (const C of CASES) {
     await shot(page, `${C.name}-board`);
     await playUntil(page, C, (s) => s.ph === 'board' && s.board.phase === 'roll' && s.board.round === 2, 600, { intro: 'b', play: 'b' });
     await shot(page, `${C.name}-board-r2`);
+    if (C.name === 'desktop') { // leave the party half-way and resume it from the menu: same round, same coins
+      const before = await page.evaluate(() => JSON.stringify(window.__festa.B.players.map((p) => [p.coins, p.stars, p.pos])));
+      await page.evaluate(() => window.__festa.togglePause(true));
+      await page.click('[data-fz=quit]');
+      await page.waitForSelector('[data-a=fz-home]', { timeout: 10000 }); await page.click('[data-a=fz-home]');
+      await page.waitForSelector('[data-a=fz-resume]', { timeout: 10000 }).catch(() => issues.push(`${C.name}: no «Riprendi la festa» after quitting a board`));
+      await page.screenshot({ path: `${OUT}/${C.name}-resume-card.png` });
+      await page.click('[data-a=fz-resume]');
+      await page.waitForFunction(() => window.__festa?.stage, null, { timeout: 30000 });
+      await page.evaluate(() => { window.__festa.hold = true; window.__festa.run(0.3); });
+      const r = await page.evaluate(() => ({ round: window.__festa.B.round, pl: JSON.stringify(window.__festa.B.players.map((p) => [p.coins, p.stars, p.pos])) }));
+      if (r.round !== 2 || r.pl !== before) issues.push(`${C.name}: resumed board differs (round ${r.round}, ${r.pl} vs ${before})`);
+    }
     await playUntil(page, C, (s) => s.ph === 'end', 900);
     await page.evaluate(() => window.__festa.run(1.5));
     await shot(page, `${C.name}-podium`);
+    if (await page.evaluate(() => !!localStorage.getItem('baso_festa_board_v1'))) issues.push(`${C.name}: finished board still saved`);
     // tournament (first to 2) on three minigames
     await page.evaluate(() => { const d = JSON.parse(localStorage.getItem('baso_festa_v1')); d.opts.minis = ['riflessi', 'porte', 'memoria']; localStorage.setItem('baso_festa_v1', JSON.stringify(d)); });
     await page.click('[data-fz=quit]');

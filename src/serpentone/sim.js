@@ -475,7 +475,8 @@ export class Sim {
   }
   // 0 (clear) .. 1 (wall of bodies right ahead) along a ray
   rayDanger(s, cx, cz, look, smart) {
-    const n = 7, wall = this.R - s.r * 1.6, ring = this.ring ? this.ring - s.r * 2 : 0;
+    // samples no further apart than a thin body: a longer look (hard rivals, boosting) must not skip over one
+    const n = Math.max(7, Math.ceil(look / 2.4)), wall = this.R - s.r * 1.6, ring = this.ring ? this.ring - s.r * 2 : 0;
     const steps = Math.max(2, Math.round(n * (0.55 + smart * 0.45)));
     for (let j = 1; j <= steps; j++) {
       const t = (j / n) * look, px = s.x + cx * t, pz = s.z + cz * t, w = 1 - (j - 1) / n;
@@ -518,10 +519,13 @@ export class Sim {
     let tgt = null, td = 1e9;
     for (const o of this.snakes) {
       if (o === s || !o.alive || o.m > s.m * 0.85 || o.spawnT > 0) continue;
-      const d = Math.hypot(o.x - s.x, o.z - s.z);
+      // the players are the prey: rivals size each other up less eagerly (a sharper pack would otherwise
+      // spend itself in rival-vs-rival duels and end up smaller and deader than an easier one)
+      const d = Math.hypot(o.x - s.x, o.z - s.z) * (o.ai ? 1.6 : 1);
       if (d < 40 + s.r * 4 && d < td) { td = d; tgt = o; }
     }
-    const hunt = tgt ? P.hunt * D.aggro : 0;
+    if (tgt) td = Math.hypot(tgt.x - s.x, tgt.z - s.z);
+    const hunt = tgt ? P.hunt * D.aggro * (tgt.ai ? 0.5 : 1) : 0;
     let ix = 0, iz = 0;
     if (tgt) {
       // cut it off: aim a few metres in front of its head (or circle it if we are big and patient)
@@ -558,7 +562,7 @@ export class Sim {
     if (canB && s.boostHold <= 0) {
       const r = this.rand();
       if (bdang > 0.3) { /* never sprint into trouble */ }
-      else if (tgt && td < 26 && r < 0.35 * D.boost * P.boost) s.boostHold = 0.4 + this.rand() * 0.6;
+      else if (tgt && td < 26 && r < 0.35 * D.boost * P.boost * (tgt.ai ? 0.4 : 1)) s.boostHold = 0.4 + this.rand() * 0.6;
       else if (bdang > 0.5 && r < 0.2 * D.boost * P.caution) s.boostHold = 0.3;
       else if (r < 0.025 * P.boost * D.boost) s.boostHold = 0.5 + this.rand();
       else if (this.ring && Math.hypot(s.x, s.z) > this.ring * 0.95 && r < 0.6) s.boostHold = 0.6;
