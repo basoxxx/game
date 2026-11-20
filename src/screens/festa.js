@@ -166,7 +166,7 @@ registerScreen({
       if (V.mode === 'board' && feLoadBoard()) App.confirm('Nuova festa?', 'C’è una festa sul tabellone in sospeso: iniziandone una nuova verrà sostituita.', go, 'Nuova festa');
       else go();
     },
-    'fz-resume'() { const S = feLoadBoard(); if (!S) { App.refresh(); return; } V.mode = 'board'; V.cfg = { ...S.cfg, mode: 'board', target: 3, tier: gfxTier(), resume: S }; V.playing = true; App.refresh(); },
+    'fz-resume'() { const S = feLoadBoard(); if (!S) { App.refresh(); return; } V.mode = 'board'; V.page = 'setup'; V.cfg = { ...S.cfg, mode: 'board', target: 3, tier: gfxTier(), resume: S }; V.playing = true; App.refresh(); },
     'fz-discard'() { App.confirm('Abbandonare la festa?', 'La partita sul tabellone in sospeso verrà cancellata.', () => { feClearBoard(); App.refresh(); }, 'Abbandona', true); },
     'fz-train'(el) { if (!MINI[el.dataset.id]) return; const d = feLoad(); V.cfg = buildCfg(d, el.dataset.id); V.playing = true; App.refresh(); },
     'fz-buy'(el) {
