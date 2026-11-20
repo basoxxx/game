@@ -62,15 +62,11 @@ MIT licence: 280000_parole_italiane.txt, 60000_parole_italiane.txt, lista_badwor
 (https://github.com/hermitdave/FrequencyWords; used only to sort the words by frequency, none of its data is
 redistributed), then curated
 by hand (src/quiz/words-src). Art, balloon illustration, sounds and the cover (tools/quiz-cover.mjs) are procedural.
-
-Carte Baso (src/carte): no external assets. Card faces (Napoletane, Piacentine, French + jokers), backs, felts and
-the cover (covers/carte.webp, tools/carte-cover.mjs) are original procedural SVG/CSS; sounds are synthesised (Web Audio).
-
-Solitari (src/carte/games/solitari*): no external assets or data. Rules, solvers, deal numbering and the layout are
-original code; the classic FreeCell numbering uses the publicly documented Microsoft deal algorithm (an LCG), not
-copied data. Cards and sounds come from Carte Baso's procedural art.
-
 Tavolo Baso (src/tavolo): no external assets. Boards, pieces (turned lathe profiles), ships, textures (wood grain,
 marble veins, sea) and the cover (covers/tavolo.webp, rendered by tools/tavolo-cover.mjs) are procedural; the
 chess engine, draughts/four-in-a-row/battleship AIs and the mate-in-two positions (tools/tavolo-puzzles.mjs) are
 original code and generated content. The opening book lists common mainstream opening moves.
+
+Solitari (src/carte/games/solitari*): no external assets or data. Rules, solvers, deal numbering and the layout are
+original code; the classic FreeCell numbering uses the publicly documented Microsoft deal algorithm (an LCG), not
+copied data. Cards and sounds come from Carte Baso's procedural art.

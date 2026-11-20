@@ -398,6 +398,22 @@ in `src/carte/games/` (API documentata in `src/carte/README.md`).
   `node tools/carte-blackjack-test.mjs` (pagamenti, divisioni, raddoppi, banco, strategia base, conteggio, maratona),
   `node tools/carte-poker-e2e.mjs <url> [cartella]` (Playwright, poker e blackjack a 4 risoluzioni).
 
+### Solitari (Carte Baso)
+
+Quattro solitari con le carte francesi, come plug-in di Carte Baso (`src/carte/games/solitari-*.js`, regole,
+risolutori e disposizione in `src/carte/games/solitari/`):
+- **Solitario (Klondike)** pesca 1 / pesca 3, punteggio standard (non Vegas) con bonus tempo; **Spider** a 1, 2 o 4
+  semi; **FreeCell** con numerazione propria (ogni numero verificato dal risolutore: tutte vincibili) o classica
+  (Windows, con le famose impossibili come la 11982 evitate); **Piramide** con 1, 2 o 3 giri del mazzo.
+- Partite numerate (1-1.000.000), «Solo vincibili» (risolutore deterministico), **Solitario del giorno** uguale per
+  tutti; annulla illimitato (ripetizione della partita dal numero), suggerimenti dal risolutore (Klondike, FreeCell,
+  Piramide) o dal pianificatore (Spider), tocca per spostare nel posto migliore, trascina le scale, completamento
+  automatico animato, tempo/mosse/punti, statistiche per variante (serie, tempi, mosse, punti), festa di vittoria
+  con le carte che rimbalzano; tasti U/H/N/D, frecce e Invio; verticale e orizzontale.
+- `node tools/carte-solitari-test.mjs` (regole, risolutori su molti numeri giocati attraverso il plug-in, annulla,
+  soak con controllo degli invarianti), `node tools/carte-solitari-e2e.mjs <url> [cartella]` (Playwright: vince una
+  partita di ogni solitario dall'interfaccia, con i suggerimenti, a 4 risoluzioni).
+
 ## Quiz e Parole (Baso Hub · Quiz)
 
 Raccolta di quattro giochi in italiano in un'unica tessera del Baso Hub (modalità: Quiz, Quiz del giorno, Parolina,
@@ -420,37 +436,6 @@ Impiccato, Anagrammi). Mouse, touch, tastiera e controller; verticale e orizzont
   CREDITS), `node tools/quiz-test.mjs` (schema, duplicati, bilanciamento, parole, determinismo del giorno),
   `node tools/quiz-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/quiz-cover.mjs <url>` (copertina).
 ## Tavolo Baso (Baso Hub · Tavolo)
-
-## Carte Baso (Baso Hub · Carte)
-
-Raccolta di giochi di carte in un'unica voce del Baso Hub, con un framework a plug-in in cui ogni gioco è un file
-in `src/carte/games/` (API documentata in `src/carte/README.md`).
-- **Scopa** (classica in 2, 3 o 4 a coppie, **Scopone scientifico** con Napola facoltativa, **Scopa d'assi**) e
-  **Briscola** (in 2 o 4 a coppie, con segnali tra compagni): regole e punteggi italiani completi (carte, denari,
-  settebello, primiera, scope; 120 punti in Briscola), CPU Facile / Normale / Difficile (conta le carte e simula le
-  mani possibili con playout Monte Carlo), partite a 11/21/31 punti o al meglio di 3/5.
-- Carte disegnate in modo procedurale (SVG originali): Napoletane, Piacentine, Francesi con jolly; dorsi e tavoli da
-  sbloccare con le monete vinte (niente soldi veri, niente pubblicità); statistiche e record per gioco.
-- Tavolo 2D/2.5D animato (distribuzione, giocata, girata, presa), tocca o trascina le carte, tastiera e controller,
-  verticale e orizzontale; da 1 a 4 umani a turno con schermata «passa il dispositivo»; partita salvata e ripresa.
-- `node tools/carte-test.mjs` (regole, punteggi e migliaia di partite IA contro IA), `node tools/carte-e2e.mjs <url> [cartella]`
-  (Playwright, partite complete di Scopa e Briscola a 4 risoluzioni), `node tools/carte-cover.mjs` (copertina).
-
-### Solitari (Carte Baso)
-
-Quattro solitari con le carte francesi, come plug-in di Carte Baso (`src/carte/games/solitari-*.js`, regole,
-risolutori e disposizione in `src/carte/games/solitari/`):
-- **Solitario (Klondike)** pesca 1 / pesca 3, punteggio standard (non Vegas) con bonus tempo; **Spider** a 1, 2 o 4
-  semi; **FreeCell** con numerazione propria (ogni numero verificato dal risolutore: tutte vincibili) o classica
-  (Windows, con le famose impossibili come la 11982 evitate); **Piramide** con 1, 2 o 3 giri del mazzo.
-- Partite numerate (1-1.000.000), «Solo vincibili» (risolutore deterministico), **Solitario del giorno** uguale per
-  tutti; annulla illimitato (ripetizione della partita dal numero), suggerimenti dal risolutore (Klondike, FreeCell,
-  Piramide) o dal pianificatore (Spider), tocca per spostare nel posto migliore, trascina le scale, completamento
-  automatico animato, tempo/mosse/punti, statistiche per variante (serie, tempi, mosse, punti), festa di vittoria
-  con le carte che rimbalzano; tasti U/H/N/D, frecce e Invio; verticale e orizzontale.
-- `node tools/carte-solitari-test.mjs` (regole, risolutori su molti numeri giocati attraverso il plug-in, annulla,
-  soak con controllo degli invarianti), `node tools/carte-solitari-e2e.mjs <url> [cartella]` (Playwright: vince una
-  partita di ogni solitario dall'interfaccia, con i suggerimenti, a 4 risoluzioni).
 
 Collezione di quattro classici da tavolo su scacchiere 3D (three.js: legno e marmo procedurali, luci morbide,
 riflessi d'ambiente, pezzi torniti, animazioni di salto e scivolamento; in 2D con qualità Bassa o senza WebGL),
