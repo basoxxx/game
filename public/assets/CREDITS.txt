@@ -50,6 +50,11 @@ Rompicapo (src/rompicapo): no external assets. Boards, tiles (original Mahjong f
 winds, gems, flowers, seasons), bricks, effects and sounds are drawn and synthesised in code; the cover
 (covers/rompicapo.webp) is rendered from the games by tools/rompicapo-cover.mjs.
 
+Carte Baso (src/carte): no external assets. Card faces (Napoletane, Piacentine, French + jokers), backs, felts and
+the cover (covers/carte.webp, tools/carte-cover.mjs) are original procedural SVG/CSS; sounds are synthesised (Web Audio).
+Texas Hold'em and Blackjack (src/carte/games/poker*, blackjack*): no external assets; chips, dealer button and felt
+prints are CSS. Play money only: the chips are fictional.
+
 Quiz e Parole (src/quiz): questions, explanations, hangman words and hints are original. Word lists for Parolina and
 Anagrammi are derived from "paroleitaliane" by Francesco Napoletano (https://github.com/napolux/paroleitaliane,
 MIT licence: 280000_parole_italiane.txt, 60000_parole_italiane.txt, lista_badwords.txt used as a filter,
@@ -64,3 +69,8 @@ the cover (covers/carte.webp, tools/carte-cover.mjs) are original procedural SVG
 Solitari (src/carte/games/solitari*): no external assets or data. Rules, solvers, deal numbering and the layout are
 original code; the classic FreeCell numbering uses the publicly documented Microsoft deal algorithm (an LCG), not
 copied data. Cards and sounds come from Carte Baso's procedural art.
+
+Tavolo Baso (src/tavolo): no external assets. Boards, pieces (turned lathe profiles), ships, textures (wood grain,
+marble veins, sea) and the cover (covers/tavolo.webp, rendered by tools/tavolo-cover.mjs) are procedural; the
+chess engine, draughts/four-in-a-row/battleship AIs and the mate-in-two positions (tools/tavolo-puzzles.mjs) are
+original code and generated content. The opening book lists common mainstream opening moves.

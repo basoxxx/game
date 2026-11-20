@@ -1,6 +1,6 @@
 // Bastione balance check: plays every level headlessly with the autopilot.
 //   node tools/bastione-balance.mjs            → campaign: levels in order, coins spent on the upgrade tree
-//   node tools/bastione-balance.mjs bare       → every level with no permanent upgrades (good autopilot)
+//   node tools/bastione-balance.mjs bare       → every level with no permanent upgrades (good autopilot, with the catch-up aid)
 //   node tools/bastione-balance.mjs casual     → the campaign played by the "casual" autopilot
 //   node tools/bastione-balance.mjs check      → asserts: maps valid, every level winnable, stars sensible (exit 1 on failure)
 //   node tools/bastione-balance.mjs endless    → how far the autopilot gets in endless on a few maps
@@ -8,7 +8,7 @@
 import { LEVELS, buildLevel, segDist, endlessLevel, dailyLevel, MAP_W, MAP_H } from '../src/bastione/levels.js';
 import { Sim } from '../src/bastione/sim.js';
 import { autoplay } from '../src/bastione/autopilot.js';
-import { TREE, treeCost, DIFFS, heroCost, HERO_MAX } from '../src/bastione/data.js';
+import { TREE, treeCost, DIFFS, heroCost, HERO_MAX, catchUp } from '../src/bastione/data.js';
 import { coinsFor } from '../src/bastione/store.js';
 
 const MODE = process.argv[2] || 'campaign';
@@ -47,7 +47,8 @@ function campaign(skill = 'good', verbose = true, diff = 'normale') {
     let r, tries = 0;
     for (;;) {
       tries++;
-      ({ r } = autoplay(Sim, l, { tree, hero, heroLvl, seed: tries, diff }, { skill, seed: tries }));
+      const cu = catchUp(l, tree, heroLvl);
+      ({ r } = autoplay(Sim, l, { tree, hero, heroLvl, seed: tries, diff, aid: cu.gold, aidBoss: cu.boss }, { skill, seed: tries }));
       P.coins += coinsFor(l, r, tries === 1 ? 0 : 3, diff);
       if (r.win || tries >= 3) break;
     }
@@ -79,7 +80,8 @@ if (MODE === 'tune') {
   }
   console.log('const TUNE = [\n  ' + rows.join(', ') + ',\n];');
 } else if (MODE === 'campaign' || MODE === 'casual') campaign(MODE === 'casual' ? 'casual' : 'good', true, process.argv[3] || 'normale');
-else if (MODE === 'bare') for (const l of LEVELS) console.log(fmt(l, autoplay(Sim, l, { seed: 1 }, { skill: 'good' }).r));
+const bare = (l, seed = 1) => { const cu = catchUp(l, {}, 0); return autoplay(Sim, l, { seed, aid: cu.gold, aidBoss: cu.boss }, { skill: 'good', seed }).r; };
+if (MODE === 'bare') for (const l of LEVELS) console.log(fmt(l, bare(l), `aid +${catchUp(l, {}, 0).gold}`));
 else if (MODE === 'level') {
   const l = LEVELS[(+process.argv[3] || 1) - 1];
   for (const d of DIFFS) for (const skill of ['good', 'casual']) console.log(d.id.padEnd(9), skill.padEnd(6), fmt(l, autoplay(Sim, l, { seed: 1, diff: d.id }, { skill }).r));
@@ -100,6 +102,10 @@ else if (MODE === 'level') {
   if (c3 > n * 0.5) { bad++; console.log('3 stars too easy: the casual autopilot gets them on most levels'); }
   if (cw < n * 0.3) { bad++; console.log('Normale too hard for a casual player'); }
   if (ew < n * 0.85) { bad++; console.log('Facile is not easy enough'); }
+  // gentle catch-up: a good player who never buys upgrades can still clear the campaign
+  const bw = LEVELS.filter((l) => bare(l).win).length;
+  console.log(`no upgrades + catch-up aid (good autopilot): ${bw}/${n} won`);
+  if (bw < n - 2) { bad++; console.log('late levels too hard without upgrades even with the catch-up aid'); }
   console.log(bad ? 'FAIL' : 'OK');
   process.exit(bad ? 1 : 0);
 }

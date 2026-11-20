@@ -23,6 +23,27 @@ for (const def of TRACKS) for (const key of [def.id, def.id + ':r']) {
   const tight = Math.max(...Array.from(m.curv, Math.abs));
   const msg = `${key.padEnd(12)} len ${m.len.toFixed(0)} m  nodes ${m.n}  clearance ${worst.toFixed(1)} (need ${need.toFixed(1)})  tightest R ${(1 / tight).toFixed(1)} m  cuts ${t.paths.length - 1}  boxes ${t.F.boxes.length} coins ${t.F.coins.length}`;
   if (worst < need || 1 / tight < 8) { bad++; console.log('!!', msg, wi); } else console.log('ok', msg);
+  // shortcut seams: driving down the cut's centre the ground never jumps, and the main road's
+  // shoulder / terrain skirt never covers the cut's road (it used to vanish into the hill on Picco Sorbetto)
+  {
+    let ymin = Infinity, ymax = -Infinity; for (let i = 0; i < m.n; i++) { ymin = Math.min(ymin, m.y[i]); ymax = Math.max(ymax, m.y[i]); }
+    const hilly = ymax - ymin > 0.5 && !t.void && t.off !== 'lava';
+    for (const p of t.paths.slice(1)) {
+      let step = 0, bury = 0, prev = null;
+      for (let s = -8; s <= p.len + 8; s += 0.5) {
+        const a = s < 0 ? m.pointAt(p.sFrom + s) : s > p.len ? m.pointAt(p.sTo + s - p.len) : p.pointAt(s);
+        const gy = t.probe(a.x, a.z, -1, {}).gy;
+        if (prev != null) step = Math.max(step, Math.abs(gy - prev)); prev = gy;
+        if (s < 0 || s > p.len || !hilly) continue;
+        const q = m.nearest(a.x, a.z, -1, {}), w2 = q.w / 2, al = Math.abs(q.lat);
+        const surf = al <= w2 ? null : al <= w2 + m.margin + 2 ? q.y - 0.06 : al <= w2 + m.margin + 26 ? q.y - 0.06 + (ymin - 0.05 - (q.y - 0.06)) * ((al - (w2 + m.margin + 2)) / 24) : null;
+        if (surf != null) bury = Math.max(bury, surf - (a.y + 0.03));
+      }
+      const good = step < 0.2 && bury < 0.15;
+      if (!good) bad++;
+      console.log(`${good ? 'ok' : '!!'} ${key.padEnd(12)} shortcut ${p.len.toFixed(0)} m: ground step ${step.toFixed(2)} m / 0.5 m, buried ${bury.toFixed(2)} m`);
+    }
+  }
   if (key.endsWith(':r')) continue;
   // plan
   let minx = Infinity, maxx = -Infinity, minz = Infinity, maxz = -Infinity;
