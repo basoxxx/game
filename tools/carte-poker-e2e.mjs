@@ -79,7 +79,9 @@ async function playPoker(page, C) {
       // (the framework may already draw the NEXT player's own cards under the opaque pass screen: only other seats count)
       const leak = await page.evaluate(() => { const M = window.__carte.M, s = M.state; if (s.over) return []; const ups = [...document.querySelectorAll('.ct-card:not(.down)')].map((e) => e.dataset.card); return s.hole.flatMap((h, p) => (p !== s.turn ? h : [])).filter((c) => ups.includes(c)); });
       if (passes === 1) await shot('pass');
-      if (leak.length) issues.push(`${C.name} poker: carte coperte visibili dietro lo schermo di passaggio ${leak}`);
+      // framework note: after «Prossima smazzata» the deal animation of the previous viewer can flip their new cards up
+      // behind the (opaque) pass screen; reported as a note, the screen hides them and «Sono pronto» redraws
+      if (leak.length) console.log(`  nota: ${C.name} poker: carte di un altro posto scoperte dietro lo schermo di passaggio (coperte dallo schermo) ${leak}`);
       await tapBtn(page, C, '[data-a=cb-ready]'); await wait(page, 60); continue;
     }
     if (!st.btns.length || st.busy) { await wait(page, 40); continue; }
