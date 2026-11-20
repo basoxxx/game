@@ -12,6 +12,15 @@
 
 ![Scontro Totale](site-src/shots/cover-derby.webp)
 
+## Novità della versione 6.5
+Cinque nuove raccolte nel Baso Hub (ora 17 giochi):
+- **Carte Baso** – Scopa (classica, Scopone scientifico, Scopa d'assi) e Briscola (1v1 e a coppie) con carte napoletane e piacentine originali; Solitari (Solitario, Spider, FreeCell, Piramide) con partite numerate, "solo vincibili" e solitario del giorno; Scala 40 e Burraco; Texas Hold'em e Blackjack con fiches finte, solo per gioco. CPU a 3 livelli, più giocatori sullo stesso dispositivo, dorsi e tappeti da sbloccare.
+- **Tavolo Baso** – Scacchi (6 livelli, problema del giorno, 200 problemi), Dama italiana, Quattro in fila e Battaglia navale in 3D, anche in due sul tablet in piano.
+- **Rompicapo** – Sudoku, Unisci, Mattoncini e Mahjong con sfide del giorno.
+- **Arcade Baso** – Astro Baso, Rimbalzo, Corri Baso e Labirinto Goloso al neon, con record e sfida del giorno.
+- **Quiz e Parole** – Quiz, quiz del giorno, Parolina, Impiccato e Anagrammi in italiano.
+- **Revisione generale dei bug**: Apex Dynasty (soste ai box, bandiera a scacchi, Monaco, import dei salvataggi, nomi delle prove rally, muretto box), Orda (Infinita, torri delle razzie, sfida del giorno identica su tutti i browser, spinta dopo le sconfitte), Kart Baso (scorciatoie, difficoltà del Gran Premio, schermo diviso più fluido), Bastione (Aiuto del Re), Ingorgo (generazione 3× più veloce, avviso vicolo cieco), Festa Baso (spareggi, partita salvabile), Serpentone, Minigolf e altro.
+
 ## Novità della versione 6.4
 - **Festa Baso** – party game per 2–4 giocatori sullo stesso schermo: tabellone 3D con dadi, monete e stelle, torneo e allenamento, 15 minigiochi costruiti con i pezzi degli altri giochi (tiro alla fune e corsa delle porte con Orda, sprint e palloncini con Kart Baso, autoscontro, mini voragine, arena dei serpenti, pittura del territorio, Bastione unito, più vicino alla buca, Ingorgo lampo, corsa all'officina, semaforo, ritmo e memoria). Tastiera a zone, fino a 4 controller e touch diviso anche con tablet sul tavolo. Il Baso Hub ora ha 12 giochi.
 
