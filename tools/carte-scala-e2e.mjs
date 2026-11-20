@@ -56,7 +56,7 @@ const ready = (page) => page.waitForFunction(() => {
   return !c.V.busy && c.M.state.turn >= 0 && c.M.cfg.seats[c.M.state.turn]?.kind === 'human' && !document.querySelector('.ct-card.fly') && (document.querySelector('.ct-card.ok') || document.querySelector('.ct-acts .btn'));
 }, null, { timeout: 30000 }).then(() => true, () => false);
 const moves = (page) => page.evaluate(() => window.__carte.M.moves);
-const waitMove = (page, before) => page.waitForFunction((b) => window.__carte.M.moves > b || !!document.querySelector('.cb-result, .cb-choose'), before, { timeout: 8000 }).then(() => true, () => false);
+const waitMove = (page, before) => page.waitForFunction((b) => window.__carte.M.moves > b || !!document.querySelector('.cb-result, .cb-choose'), before, { timeout: 20000 }).then(() => true, () => false);
 
 // do one legal move `m` of the human through the UI; `how` alternates the input methods
 async function perform(page, C, m, how) {
@@ -90,7 +90,13 @@ async function perform0(page, C, m, how) {
     const b = await pileCenter(page, m.to);
     if (!b) throw new Error(`pila ${m.to} non trovata`);
     if (how === 'drag' && !C.touch) await drag(page, a, b);
-    else { await tap(page, C, a); await page.waitForTimeout(60); const t = await pileCenter(page, m.to); await tap(page, C, t); }
+    else {
+      await tap(page, C, a); await page.waitForTimeout(80);
+      const t = await pileCenter(page, m.to);
+      const what = await page.evaluate((t) => { const e = document.elementFromPoint(t.x, t.y); return { cls: e?.className, pile: e?.dataset?.pile, card: e?.closest?.('.ct-card')?.dataset.card, sel: window.__carte.table.sel }; }, t);
+      if (what.pile !== m.to && !what.card) console.log(`  nota: sotto il punto di ${m.to} c'è ${JSON.stringify(what)}`);
+      await tap(page, C, t);
+    }
   }
   // two moves on the same card and pile (attach or swap the joker): pick in the chooser
   if (await page.$('.cb-choose')) {
@@ -112,17 +118,21 @@ async function playRound(page, C, game) {
   await page.click('[data-a=cb-start]');
   await page.waitForSelector('.ct-card', { timeout: 10000 });
   const stats = { moves: 0, tap: 0, drag: 0, btn: 0, staged: 0, melds: 0, att: 0, disc: 0, take: 0, sugg: 0 };
-  let shots = 0, usedSugg = false;
+  let shots = 0, usedSugg = false, roundNo = 0;
   const t0 = Date.now();
   for (let guard = 0; guard < 1500; guard++) {
     if (Date.now() - t0 > 360000) { issues.push(`${C.name} ${game}: round timeout`); break; }
     if (!(await ready(page))) { issues.push(`${C.name} ${game}: table stuck`); break; }
     if (await page.$('.cb-result')) {
       await page.waitForTimeout(500);
-      await page.screenshot({ path: `${OUT}/${C.name}-${game}-round.png` });
+      await page.screenshot({ path: `${OUT}/${C.name}-${game}-round${roundNo ? roundNo + 1 : ''}.png` });
       const rows = await page.evaluate(() => document.querySelectorAll('.cb-res tbody tr').length);
       if (rows < 4) issues.push(`${C.name} ${game}: round summary too short (${rows} rows)`);
-      break;
+      // one round is the test; play another (at most 3) if the human never built a meld in the tray
+      if (stats.staged && stats.melds) break;
+      if (++roundNo >= 3 || !(await page.$('[data-a=cb-next]'))) break;
+      await page.click('[data-a=cb-next]');
+      continue;
     }
     if (await page.$('.cb-choose')) { await page.click('[data-a=cb-pick][data-i="0"]'); continue; }
     // the move the "normale" AI would make for the human

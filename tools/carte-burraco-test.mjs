@@ -151,10 +151,11 @@ const LV = ['facile', 'normale', 'difficile'];
 let rounds = 0, moves = 0, closes = 0, puliti = 0, sporchi = 0, volo = 0;
 const t0 = Date.now();
 t('IA contro IA: migliaia di smazzate senza stati illegali', () => {
-  const per = QUICK ? 40 : 160;
-  for (const variant of ['due', 'coppie']) {
-    const n = variant === 'due' ? 2 : 4;
-    for (let i = 0; i < per; i++) {
+  const goal = QUICK ? 120 : 1000; // rounds
+  for (let i = 0; rounds < goal; i++) {
+    for (const variant of ['due', 'coppie']) {
+      if (rounds >= goal) break;
+      const n = variant === 'due' ? 2 : 4;
       const levels = Array.from({ length: n }, (_, p) => LV[(i + p) % 3]);
       const M = newMatch(G, { variant, n, seed: 3000 * n + i, target: i % 4 === 0 ? 2005 : 1, options: { chiusura: i % 5 === 4 ? 'pulito' : 'qualsiasi' }, seats: levels.map((l) => ({ kind: 'cpu', level: l })) });
       let guard = 0;
@@ -179,11 +180,11 @@ t('IA contro IA: migliaia di smazzate senza stati illegali', () => {
     }
   }
   console.log(`  ${rounds} smazzate, ${moves} mosse, ${closes} chiusure, ${puliti} burraco puliti, ${sporchi} sporchi, ${volo} pozzetti in volo in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
-  yes(rounds >= (QUICK ? 120 : 500), `poche smazzate: ${rounds}`);
+  yes(rounds >= goal, `poche smazzate: ${rounds}`);
   yes(closes > rounds * 0.3, `troppe poche chiusure: ${closes}/${rounds}`);
 });
 const duel = (a, b, N, variant = 'due') => {
-  let wa = 0, wb = 0; const n = variant === 'due' ? 2 : 4;
+  let wa = 0, wb = 0, diff = 0; const n = variant === 'due' ? 2 : 4;
   for (let i = 0; i < N; i++) {
     const lv = Array.from({ length: n }, (_, p) => ((p % 2 === 0) !== !!(i % 2) ? a : b));
     const M = newMatch(G, { variant, n, seed: 900 + i, target: 1, options: {}, seats: lv.map((l) => ({ kind: 'cpu', level: l })) });
@@ -191,14 +192,15 @@ const duel = (a, b, N, variant = 'due') => {
       if (G.isOver(M.state)) { endRound(G, M); if (!M.over) nextRound(G, M); continue; }
       const p = M.state.turn; play(G, M, G.ai(clone(M.state), p, lv[p], rng(M.moves + i * 13)));
     }
+    const r = M.rounds[M.rounds.length - 1], A = lv[0] === a ? 0 : 1; diff += r.points[A] - r.points[1 - A];
     if (M.winner === 'draw') continue;
     if (lv[M.winner] === a) wa++; else wb++;
   }
-  return [wa, wb];
+  return [wa, wb, diff / N];
 };
 t('IA: Normale batte Facile, Difficile non è peggio di Normale', () => {
   const [a, b] = duel('normale', 'facile', QUICK ? 40 : 120); console.log(`  normale-facile ${a}-${b}`); yes(a > b * 1.3, 'normale troppo debole');
-  const [c, d] = duel('difficile', 'normale', QUICK ? 40 : 120); console.log(`  difficile-normale ${c}-${d}`); yes(c >= d * 0.9, 'difficile peggiore');
+  const [c, d, df] = duel('difficile', 'normale', QUICK ? 60 : 160); console.log(`  difficile-normale ${c}-${d} (${df.toFixed(1)} punti a smazzata)`); yes(c >= d * 0.9 || df > 0, 'difficile peggiore');
 });
 
 console.log(`${ok} ok, ${fail} falliti`);

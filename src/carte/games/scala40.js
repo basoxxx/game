@@ -6,7 +6,7 @@ import meta from './scala40.meta.js';
 import { makeDeck, shuffle, clone } from '../core/cards.js';
 import {
   validate, attach, jokerTargets, swapJoker, sortHand, idsFor, cachedPartition, keepScore,
-  keyOf, short, shortList, meldGrid, injectCSS, sortMove, grouped, rank, suit, isJoker,
+  keyOf, short, shortList, meldGrid, injectCSS, sortMove, grouped, rank, suit, isJoker, SUITS,
 } from './scala40/ramino.js';
 
 injectCSS();
@@ -275,6 +275,25 @@ function chooseDiscard(s, p, level, rng, legal) {
     return { m, keep };
   }).sort((a, b) => a.keep - b.keep);
   if (level === 'facile') return sc[Math.min(sc.length - 1, Math.floor(rng() * Math.min(3, sc.length)))].m;
+  if (level === 'difficile' && sc.length > 1) {
+    // one-card lookahead over the few best candidates: which discard leaves the hand that improves most
+    // with the next draw, counting the copies of each card still unseen (2 decks, 4 jokers)
+    const sn = seen || seenCounts(s, p), cand = sc.slice(0, 4);
+    const keys = new Set(['J']);
+    for (const c of hand) { if (isJoker(c)) continue; const r = rank(c), su = suit(c); for (const t of SUITS) keys.add(`${r}${t}`); for (let d = -2; d <= 2; d++) { const q = r + d; if (q >= 1 && q <= 13) keys.add(`${q}${su}`); } if (r >= 12) keys.add(`1${su}`); }
+    const left = (k) => Math.max(0, (k === 'J' ? 4 : 2) - (sn[k] || 0));
+    let total = 0; for (const k of keys) total += left(k);
+    const score = (h) => { const pl = planFor(s, p, R, { hand: h, budget: 300, must: null }); return s.opened[p] ? pl.value : Math.min(OPEN, pl.melds.reduce((a, x) => a + meldPoints(x.meld), 0)) * 1.5 + pl.value * 0.2; };
+    let best = null;
+    for (const x of cand) {
+      const rest = hand.filter((c) => c !== x.m.card), base = score(rest);
+      let ev = 0;
+      for (const k of keys) { const n = left(k); if (!n) continue; const fake = k === 'J' ? '1J~9' : `${k}~9`; ev += n * Math.max(0, score([...rest, fake]) - base); }
+      const v = base + (total ? ev / total : 0) * 1.0 - penalty(x.m.card) * 0.15 - x.keep * 0.05;
+      if (!best || v > best.v) best = { v, m: x.m };
+    }
+    return best.m;
+  }
   return sc[0].m;
 }
 // the moves the AI needs, built directly (cheaper than the whole legalMoves list, same objects)

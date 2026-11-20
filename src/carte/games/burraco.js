@@ -214,6 +214,8 @@ function matchOver(totals, cfg, rounds) {
 
 // ------------------------------------------------------------------ AI
 const oppTeam = (s, T) => 1 - T;
+// the other side could close at any moment: get the points out of the hand
+const rush = (s, T) => s.tookPz[1 - T] && closeOk(s, 1 - T) && s.hands.some((h, q) => !s.teams[T].includes(q) && h.length <= 4);
 function seenCounts(s, p) {
   const seen = {}; const add = (c) => { const k = keyOf(c); seen[k] = (seen[k] || 0) + 1; };
   s.discard.forEach(add); s.melds.forEach((m) => m.cards.forEach(add)); s.hands[p].forEach(add);
@@ -243,7 +245,7 @@ function chooseDiscard(s, p, level, rng, moves) {
       for (const x of s.picked[nxt].slice(-12)) { if (isWild(x, R)) continue; if (rank(x) === rank(c)) keep += 3; if (suit(x) === suit(c) && Math.abs(rank(x) - rank(c)) <= 2) keep += 2; }
       for (const x of s.thrown[nxt].slice(-6)) if (rank(x) === rank(c)) keep -= 3;
     }
-    keep -= value(c) * 0.25;
+    keep -= value(c) * (level === 'difficile' && rush(s, T) ? 1.2 : 0.25);
     return { m, keep };
   }).sort((a, b) => a.keep - b.keep);
   if (level === 'facile') return sc[Math.floor(rng() * Math.min(3, sc.length))].m;
@@ -307,7 +309,7 @@ function ai(s, p, level = 'normale', rng = Math.random) {
     const closing = s.tookPz[T] && hand.length <= 3;
     const mk = wild.filter((m) => !isBurraco(s.melds[m.m]) && isBurraco(m.nm) && (level !== 'difficile' || hand.length <= 6 || s.stock.length < 15));
     if (mk.length) return clean(mk[0]);
-    if (closing || (!s.tookPz[T] && hand.length <= 2)) return clean(wild[0]);
+    if (closing || (!s.tookPz[T] && hand.length <= 2) || (level === 'difficile' && rush(s, T))) return clean(wild[0]);
   }
   // 3. discard
   return chooseDiscard(s, p, level, rng, moves) || clean(moves.find((m) => m.a === 'disc')) || { a: 'clear' };
@@ -317,8 +319,8 @@ function ai(s, p, level = 'normale', rng = Math.random) {
 function view(s, viewer, ctx = {}) {
   const P = ctx.portrait, piles = [], VT = teamOf(s, viewer), myTurn = s.turn === viewer && !s.over;
   piles.push({ id: 'rm', cls: 'rm-mark', x: 0, y: 0, cards: [] });
-  piles.push({ id: 'stock', x: P ? 0.08 : 0.05, y: P ? 0.06 : 0.22, scale: P ? 0.62 : 0.72, layout: 'stack', up: false, source: true, cards: s.stock, label: String(s.stock.length) });
-  s.pz.forEach((pz, i) => { if (pz) piles.push({ id: `pz${i}`, x: P ? 0.22 + i * 0.07 : 0.05, y: P ? 0.06 : 0.5 + i * 0.09, rot: P ? 0 : 90, scale: P ? 0.5 : 0.55, layout: 'stack', up: false, cards: pz, label: i === 0 ? 'Pozzetti' : '' }); });
+  piles.push({ id: 'stock', x: P ? 0.08 : 0.05, y: P ? 0.06 : 0.17, scale: P ? 0.62 : 0.68, layout: 'stack', up: false, source: true, cards: s.stock, label: String(s.stock.length) });
+  s.pz.forEach((pz, i) => { if (pz) piles.push({ id: `pz${i}`, x: P ? 0.22 + i * 0.07 : 0.05, y: P ? 0.06 : 0.48 + i * 0.09, rot: P ? 0 : 90, scale: P ? 0.5 : 0.55, layout: 'stack', up: false, cards: pz, label: i === 0 ? 'Pozzetti' : '' }); });
   piles.push({ id: 'discard', x: P ? 0.66 : 0.5, y: P ? 0.06 : 0.5, w: P ? 0.6 : 0.5, scale: P ? 0.62 : 0.6, layout: 'row', gap: 0.3, cards: s.discard.map((c) => ({ id: c, up: true })), outline: true, label: s.discard.length > 1 ? `Scarti · ${s.discard.length}` : 'Scarti' });
   const lab = (m) => (isBurraco(m) ? (isPulito(m) ? 'Burraco pulito' : 'Burraco sporco') : '');
   const grid = (T, rect, align) => meldGrid(s.melds.map((m, i) => ({ ...m, i })).filter((m) => m.team === T), rect, {
@@ -330,7 +332,7 @@ function view(s, viewer, ctx = {}) {
   const st = s.stage[viewer] || [];
   if ((myTurn && s.phase === 'play') || st.length) {
     const v = st.length ? validate(st, R) : null;
-    piles.push({ id: 'stage', cls: 'rm-stage', x: P ? 0.5 : 0.94, y: P ? 0.555 : 0.5, w: P ? 0.8 : 0.11, scale: P ? 0.56 : 0.56, layout: 'row', gap: 0.36, outline: true, cards: (v ? v.cards : st).map((c) => ({ id: c, up: true })), label: v ? 'Valida' : st.length ? 'Combinazione…' : 'Nuova combinazione' });
+    piles.push({ id: 'stage', cls: 'rm-stage', x: P ? 0.5 : 0.055, y: P ? 0.555 : 0.86, w: P ? 0.8 : 0.11, scale: P ? 0.56 : 0.56, layout: 'row', gap: 0.36, outline: true, cards: (v ? v.cards : st).map((c) => ({ id: c, up: true })), label: v ? 'Valida' : st.length ? 'Combinazione…' : 'Nuova combinazione' });
   }
   for (let p = 0; p < s.n; p++) {
     const mine = p === viewer, h = s.hands[p];
