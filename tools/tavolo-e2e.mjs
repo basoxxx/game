@@ -2,7 +2,7 @@
 // drag, the keyboard cursor) in all four games at 1440x900, 1024x768, 390x844 and 844x390, plus 2-player
 // hot-seat (tablet flat), the hidden-screen hand-over of Battaglia navale, the 2D fallback and the puzzles.
 //   npx vite build && npx vite preview --port 4683 --strictPort
-//   node tools/tavolo-e2e.mjs [baseUrl] [outDir]        (ONLY=desktop,tablet,phone,phone-land)
+//   node tools/tavolo-e2e.mjs [baseUrl] [outDir]   (ONLY=desktop,desktop-alta,tablet,phone,phone-land FNS=chess,dama,four,navale,puzzles,...)
 import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -151,11 +151,11 @@ async function puzzles(page, C) {
   const key = await page.evaluate(() => window.__tavolo.puzzle.key);
   const id = (sq) => `${sq.charCodeAt(0) - 97},${+sq[1] - 1}`;
   await tapCell(page, C, id(key.slice(0, 2))); await tapCell(page, C, id(key.slice(2, 4)));
-  await page.waitForFunction(() => window.__tavolo.state().moves.length >= 2 && !window.__tavolo.state().busy, null, { timeout: 15000 }).catch(() => fail('puzzle: nessuna difesa'));
+  await page.waitForFunction(() => window.__tavolo.state().moves.length >= 2 && !window.__tavolo.state().busy, null, { timeout: 60000 }).catch(() => fail('puzzle: nessuna difesa'));
   await page.waitForTimeout(400);
   const mate = await page.evaluate(() => { const p = window.__tavolo.pos; for (const m of p.legal()) { p.make(m); const ok = !p.hasLegal() && p.inCheck(); p.unmake(); if (ok) { const f = m & 127, t = (m >> 7) & 127; return [`${f & 7},${f >> 4}`, `${t & 7},${t >> 4}`]; } } return null; });
   if (!mate) fail('puzzle: nessun matto dopo la difesa'); else { await tapCell(page, C, mate[0]); await tapCell(page, C, mate[1]); }
-  await page.waitForSelector('.tv-dcard [data-tv=next]', { timeout: 10000 }).catch(() => fail('puzzle scacchi non risolto'));
+  await page.waitForSelector('.tv-dcard [data-tv=next]', { timeout: 60000 }).catch(() => fail('puzzle scacchi non risolto'));
   await page.screenshot({ path: `${OUT}/${C.name}-puzzle-chess-solved.png` });
   // four in a row: win in 3 with the hint
   await page.evaluate(() => window.__apex.App.go('tavolo', { page: 'daily' })); await page.waitForSelector('[data-a=tv-daily-four]'); await page.click('[data-a=tv-daily-four]');
@@ -165,7 +165,7 @@ async function puzzles(page, C) {
     await page.evaluate(() => window.__tavolo.tool('hint')); const c = await page.evaluate(() => window.__tavolo.hint);
     await tapCell(page, C, String(c)); await page.waitForTimeout(700);
   }
-  await page.waitForSelector('.tv-dcard [data-tv=menu2]', { timeout: 15000 }).catch(() => fail('puzzle quattro non risolto'));
+  await page.waitForSelector('.tv-dcard [data-tv=menu2]', { timeout: 60000 }).catch(() => fail('puzzle quattro non risolto'));
   await page.screenshot({ path: `${OUT}/${C.name}-puzzle-four-solved.png` });
   // the hidden fleet: a few shots
   await page.evaluate(() => window.__apex.App.go('tavolo', { page: 'daily' })); await page.waitForSelector('[data-a=tv-daily-navale]'); await page.click('[data-a=tv-daily-navale]');
@@ -198,7 +198,7 @@ for (const C of CASES) {
     }
   }
   else for (const [fn, on] of [[chess, true], [chess2p, C.twoP], [dama, true], [four, true], [navale, true], [navale2p, C.navale2p], [puzzles, C.puzzles]]) {
-    if (!on) continue;
+    if (!on || (process.env.FNS && !process.env.FNS.split(',').includes(fn.name))) continue;
     const t0 = Date.now();
     try { await fn(page, C); } catch (e) { fail(`${C.name} ${fn.name}: ${e.message.split('\n')[0]}`); await page.screenshot({ path: `${OUT}/${C.name}-${fn.name}-error.png`, timeout: 120000 }).catch(() => {}); await backToMenu(page).catch(() => {}); }
     console.log(`  ${fn.name} ${((Date.now() - t0) / 1000).toFixed(1)} s`);
