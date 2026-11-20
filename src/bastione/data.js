@@ -196,6 +196,15 @@ export const TREE = [
   { id: 'milizia', branch: 'Incantesimi', name: 'Milizia scelta', desc: 'Rinforzi più forti (+25% vita e danni) per livello.', max: 3, base: 100 },
   { id: 'eroismo', branch: 'Incantesimi', name: 'Eroismo', desc: 'Abilità dell’eroe: -10% ricarica per livello.', max: 3, base: 130, req: 'milizia' },
 ];
+// Gentle catch-up for campaign levels: a player whose upgrade tree (plus captain levels) lags behind
+// the campaign pace (about one node per level cleared) gets some extra starting gold and a slightly
+// weaker boss. A player on pace gets nothing; it never makes up for more than a third of the gold.
+export function catchUp(L, tree = {}, heroLvl = 0) {
+  if (!L || typeof L.id !== 'number' || L.endless) return { short: 0, gold: 0, boss: 1 };
+  const owned = Object.values(tree || {}).reduce((a, b) => a + (+b || 0), 0) + (+heroLvl || 0);
+  const short = Math.max(0, L.id - 2 - owned);
+  return { short, gold: Math.min(Math.round((L.gold || 0) * 0.35), short * 8), boss: L.boss ? 1 - Math.min(0.35, short * 0.016) : 1 };
+}
 export const BRANCHES = ['Tiratori', 'Artiglieria', 'Magia', 'Fortezza', 'Incantesimi'];
 export const treeCost = (n, l) => Math.round(n.base * (1 + l * 0.9));
 // the multipliers the sim applies, from the node levels

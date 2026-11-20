@@ -150,10 +150,15 @@ export class OrdaVersus {
       ${coop ? `<div class="ovs-boss" id="ovs-boss"><span>Fortezza</span><div class="ovs-hp"><i id="ovs-hp2"></i></div><span>Base</span><div class="ovs-hp ovs-hp-us"><i id="ovs-hp0"></i></div></div>` : ''}
       <button class="ovs-pause" id="ovs-pause" aria-label="Pausa">II</button>
       <div class="ovs-banner" id="ovs-banner"></div><div class="ovs-count" id="ovs-count"></div>
+      <div class="ovs-banner ovs-twin" id="ovs-banner-t" aria-hidden="true"></div><div class="ovs-count ovs-twin" id="ovs-count-t" aria-hidden="true"></div>
       <div class="ovs-help" id="ovs-help"></div>
     </div>`;
     this.$ = (id) => root.querySelector('#' + id);
     this.cv = root.querySelector('.ovs-cv');
+    // tablet lying flat: the countdown and the round banners are shown twice, the copy turned towards
+    // player 2 (CSS shows the copies only in .flat). A mirror of the originals, whatever writes them.
+    this.twinObs = new MutationObserver(() => { for (const id of ['ovs-banner', 'ovs-count']) { const a = this.$(id), b = this.$(id + '-t'); if (!a || !b) continue; if (b.innerHTML !== a.innerHTML) b.innerHTML = a.innerHTML; b.className = `${a.className} ovs-twin`; b.style.cssText = a.style.cssText; } });
+    for (const id of ['ovs-banner', 'ovs-count']) this.twinObs.observe(this.$(id), { attributes: true, childList: true, characterData: true, subtree: true });
     const tier = this.tier = this.o.tier;
     let r;
     try { r = this.renderer = new THREE.WebGLRenderer({ canvas: this.cv, antialias: tier !== 'low', powerPreference: 'high-performance' }); } catch (e) { throw new Error('WebGL non disponibile'); }
@@ -331,7 +336,8 @@ export class OrdaVersus {
     // corners that must be in frame: the arena and the castles
     const pts = [];
     for (const x of [-W / 2 - 1.2, W / 2 + 1.2]) for (const z of [-L / 2 - 2.4, L / 2 + 2.4]) for (const y of [0, 3]) pts.push(new THREE.Vector3(x, y, z));
-    const margin = coop && portrait ? [0.80, 0.84] : [0.86, 0.80]; // NDC x, y limits (room for the HUD)
+    // NDC x, y limits (room for the HUD); a phone on its side has little height: the lane takes more of it
+    const margin = coop && portrait ? [0.80, 0.84] : !portrait && Math.min(innerWidth, innerHeight) < 520 && this.root.clientHeight < 520 ? [0.9, 0.93] : [0.86, 0.80];
     let lo = 10, hi = 400;
     for (let it = 0; it < 26; it++) {
       const d = (lo + hi) / 2;
@@ -370,7 +376,7 @@ export class OrdaVersus {
     if (this.helpShown > 0) {
       const touch = matchMedia?.('(pointer: coarse)').matches;
       el.innerHTML = touch
-        ? '<div class="h1"><b>Giocatore 1</b>trascina per spostare il cannone · tieni premuto per sparare</div><div class="h2"><b>Giocatore 2</b>trascina per spostare il cannone · tieni premuto per sparare</div>'
+        ? [0, 1].map((p) => `<div class="h${p + 1}"><b>${this.names[p]}</b>trascina per spostare il cannone · tieni premuto per sparare</div>`).join('')
         : [0, 1].map((p) => { const k = this.input?.describe(p) || {}; return `<div class="h${p + 1}"><b>${this.names[p]}</b><kbd>${k.left}</kbd><kbd>${k.right}</kbd> muovi · <kbd>${k.fire}</kbd> spara · <kbd>${k.champ}</kbd> campione</div>`; }).join('');
       el.classList.add('on');
     } else el.classList.remove('on');
@@ -748,6 +754,7 @@ export class OrdaVersus {
   destroy() {
     cancelAnimationFrame(this.raf);
     clearTimeout(this._bt);
+    this.twinObs?.disconnect();
     this.input?.destroy();
     document.removeEventListener('visibilitychange', this.onVis);
     this.ro?.disconnect();

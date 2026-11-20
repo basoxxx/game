@@ -164,6 +164,7 @@ export class CardTable {
   }
   layout(animate) {
     const view = this.view; if (!view) return;
+    this.cancelPending(); // a newer render supersedes delayed deal/flip steps of the previous one
     const M = this.metrics(); this.M = M;
     this.box.style.setProperty('--cw', `${M.cw}px`); this.box.style.setProperty('--ch', `${M.ch}px`); document.documentElement.style.setProperty('--ch', `${M.ch}px`);
     const seen = new Set(), placed = [], piles = [];
@@ -218,7 +219,7 @@ export class CardTable {
         if (moved && animate) { el.classList.add('fly'); el.style.zIndex = String(300 + c.z); clearTimeout(el._zt); el._zt = setTimeout(() => { el.classList.remove('fly'); el.style.zIndex = String(c.z); }, 460); }
         else el.style.zIndex = String(c.z);
       };
-      if (fresh && animate) { void el.offsetWidth; if (delay) { el._dt = setTimeout(() => { doIt(); this.o.sound?.('deal'); }, delay); } else requestAnimationFrame(doIt); }
+      if (fresh && animate) { void el.offsetWidth; if (delay) { el._dt = setTimeout(() => { el._dt = 0; doIt(); this.o.sound?.('deal'); }, delay); } else el._raf = requestAnimationFrame(() => { el._raf = 0; doIt(); }); }
       else doIt();
       this.pos.set(c.id, c);
     }
@@ -231,6 +232,11 @@ export class CardTable {
     }
     this.seats(view.seats || [], M);
     this.actions();
+  }
+  // drop the delayed deal animations still queued (they carry the face-up state of the previous view:
+  // after a pass-the-device screen they would reveal the last player's new cards)
+  cancelPending() {
+    for (const el of this.els.values()) { if (el._dt) { clearTimeout(el._dt); el._dt = 0; } if (el._raf) { cancelAnimationFrame(el._raf); el._raf = 0; } }
   }
   setT(el, x, y, rot, scale, up, animate) {
     el.style.transition = animate ? '' : 'none';

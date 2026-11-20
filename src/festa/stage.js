@@ -39,6 +39,9 @@ export class Stage {
   // fit a world-space box (half sizes hx, hz) into the view from a tilted camera
   frame(cx, cz, hx, hz, tilt = 0.95, y0 = 0) {
     const cam = this.camera, a = cam.aspect, f = Math.tan((cam.fov * Math.PI) / 360);
+    // short screens (phone landscape): the arenas seen from above may lose a sliver of rim under the corner
+    // HUD, so cars and figures are not tiny
+    if (tilt >= 0.85 && this.h < 520 && a > 1.4) { hx *= 0.84; hz *= 0.84; }
     const dist = Math.max(hz * 1.15 / f, (hx * 1.12) / (f * a)) + hz * 0.35;
     cam.position.set(cx, y0 + Math.sin(tilt) * dist, cz + Math.cos(tilt) * dist); cam.lookAt(cx, y0, cz + hz * 0.06);
   }

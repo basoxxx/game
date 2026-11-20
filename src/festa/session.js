@@ -9,10 +9,10 @@ import { VIEWS, boardView, podiumView } from './views/index.js';
 import { MINI, cpuSkill } from './mini/index.js';
 import { SLOT_COLORS } from './mini/base.js';
 import { PartyInput, TouchZones, devById } from './input.js';
-import { newBoard, boardRoll, boardMove, boardAfterMini, boardFinal, MINI_COINS, newTourney, tourneyAfter } from './party.js';
+import { newBoard, boardRoll, boardMove, boardAfterMini, boardFinal, MINI_COINS, newTourney, tourneyAfter, boardSnapshot, boardRestore } from './party.js';
 import { blankInput } from './util.js';
 import { charById } from './roster.js';
-import { feLoad, feSave, noteMini } from './store.js';
+import { feLoad, feSave, noteMini, feSaveBoard, feClearBoard } from './store.js';
 import { disposeModelCaches } from '../kart/models.js';
 import { disposeMats } from '../bastione/models.js';
 import { sfx } from '../ui/audio.js';
@@ -47,7 +47,12 @@ export class FestaSession {
     root.addEventListener('click', this.onClick);
     window.__festa = this;
     root.classList.add('dz-root'); // the controllers belong to the party, not to the menu focus bridge (src/ui/gamepad.js)
-    if (this.mode === 'board') { this.B = newBoard({ n: this.n, rounds: c.rounds, seed: this.seed, names: this.players.map((p) => p.name), minis: c.minis }); this.enterBoard(); }
+    if (this.mode === 'board') {
+      const R = c.resume && boardRestore(c.resume.B);
+      if (R && R.n === this.n) { this.B = R; this.seed = c.resume.seed ?? this.seed; this.miniCount = c.resume.miniCount || 0; this.earned = c.resume.earned || 0; }
+      else this.B = newBoard({ n: this.n, rounds: c.rounds, seed: this.seed, names: this.players.map((p) => p.name), minis: c.minis });
+      this.enterBoard();
+    }
     else if (this.mode === 'torneo') { this.T = newTourney({ n: this.n, target: c.target, seed: this.seed, minis: c.minis }); this.announce(this.T.next, () => this.startMini(this.T.next)); }
     else this.startMini(c.mini);
     this.last = performance.now();
@@ -94,7 +99,7 @@ export class FestaSession {
     if (this.ph === 'end') return;
     this.paused = on; this.root.classList.toggle('dz-root', !on);
     let el = this.root.querySelector('.fz-pausecard');
-    if (on && !el) { el = document.createElement('div'); el.className = 'fz-card fz-pausecard'; el.innerHTML = `<h2>Pausa</h2><p>La festa ti aspetta.</p><div class="fz-btns"><button class="btn primary" data-fz="resume">Riprendi</button><button class="btn" data-fz="quit">Esci dalla festa</button></div>`; this.root.appendChild(el); requestAnimationFrame(() => el.querySelector('.btn')?.focus()); }
+    if (on && !el) { el = document.createElement('div'); el.className = 'fz-card fz-pausecard'; el.innerHTML = `<h2>Pausa</h2><p>${this.mode === 'board' ? 'La festa ti aspetta. Se esci resta salvata: la riprendi dal menu della festa.' : 'La festa ti aspetta.'}</p><div class="fz-btns"><button class="btn primary" data-fz="resume">Riprendi</button><button class="btn" data-fz="quit">Esci dalla festa</button></div>`; this.root.appendChild(el); requestAnimationFrame(() => el.querySelector('.btn')?.focus()); }
     if (!on) el?.remove();
   }
   setView(v) {
@@ -130,8 +135,14 @@ export class FestaSession {
       <div class="fz-bcards n${this.n}">${B.players.map((p, i) => `<div class="fz-bc ${B.turn === i && B.phase !== 'mini' ? 'on' : ''}" style="--c:${this.players[i].sc}"><b>${esc(this.players[i].name)}</b><span><i class="st">★</i> ${p.stars}</span><span><i class="co">●</i> ${p.coins}</span></div>`).join('')}</div>
       <div class="fz-msg" id="fz-msg">${esc(B.last?.text || 'Si parte! Chi arriva alla stella con 20 monete la compra.')}</div>`;
   }
+  // the board is saved at every quiet point (a turn about to roll, a minigame about to start): «Esci» keeps it
+  saveBoard() {
+    const c = this.cfg, B = this.B; if (!B || !['roll', 'mini'].includes(B.phase)) return;
+    feSaveBoard({ cfg: { mode: 'board', n: this.n, seats: c.seats.slice(0, this.n), rounds: c.rounds, diff: c.diff, flat: c.flat, minis: c.minis }, B: boardSnapshot(B), seed: this.seed, miniCount: this.miniCount || 0, earned: this.earned });
+  }
   boardTurn() {
     const B = this.B;
+    this.saveBoard();
     if (B.phase === 'roll') {
       const p = this.players[B.turn]; this.bview.focus = B.turn; this.boardHud();
       if (p.cpu) { this.card(`<div class="fz-dice">?</div><p><b style="color:${p.sc}">${esc(p.name)}</b> tira il dado…</p>`, 'mini'); this.after(0.9, () => this.doRoll()); }
@@ -266,7 +277,7 @@ export class FestaSession {
   finale() {
     this.ph = 'end'; this.paused = false; this.root.classList.add('end'); this.root.classList.remove('dz-root');
     let podium, title, awards = [];
-    if (this.mode === 'board') { podium = this.B.podium; awards = this.B.awards; title = 'Re della festa'; }
+    if (this.mode === 'board') { podium = this.B.podium; awards = this.B.awards; title = 'Re della festa'; feClearBoard(); }
     else { const T = this.T, pl = this.players.map((p, i) => 1 + T.wins.filter((w) => w > T.wins[i]).length); podium = this.players.map((p, i) => ({ i, place: pl[i], wins: T.wins[i] })).sort((a, b) => a.place - b.place); title = 'Campione del torneo'; }
     const king = podium[0].i;
     const d = feLoad(), hum = this.humans, humanKing = hum.includes(king);

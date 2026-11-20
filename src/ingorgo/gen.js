@@ -114,11 +114,11 @@ export function evalLayout(spec, L, r) {
   let best = -1, cand = [];
   for (let i = 0; i < ex.n; i++) {
     const d = ex.dist[i];
-    if (d < 2 || d > spec.target[1] || ex.states[i][B.hero] === EXITED) continue;
+    if (d < 2 || d > spec.target[1] || ex.at(i, B.hero) === EXITED) continue;
     if (d > best) { best = d; cand = [i]; } else if (d === best) cand.push(i);
   }
   if (best < 0) return null;
-  const s = ex.states[cand[Math.floor(r() * cand.length)]];
+  const s = ex.state(cand[Math.floor(r() * cand.length)]);
   return { L: levelFromState(L, B, s), opt: best, v: best };
 }
 
@@ -155,7 +155,8 @@ export function mutate(spec, L0, r) {
 // generate(seed, mech, d): always returns a solvable level. Random layouts are measured first; the
 // closest one to the target is then improved by hill climbing (small changes, kept when not worse).
 // The target is the optimal move count, or for 'all' puzzles the extra moves beyond one per car.
-export function generate(seed, mech = 'classico', d = 0.5, extra = {}) {
+// onProgress(f), optional: called with 0..1 as the search goes (the loading bar in the menus).
+export function generate(seed, mech = 'classico', d = 0.5, extra = {}, onProgress = null) {
   const r = rng(seed);
   const spec = { ...MECHS[mech](clamp(d, 0, 1)), ...extra };
   if (mech === 'tutti') spec.walls = d > 0.4 ? 1 + Math.floor(r() * 2) : 0;
@@ -165,13 +166,17 @@ export function generate(seed, mech = 'classico', d = 0.5, extra = {}) {
   const tries = spec.tries || (isAll ? 40 : 10), climb = spec.climb ?? (isAll ? 700 : 30);
   const gapOf = (x) => (x.v < lo ? lo - x.v : x.v > hi ? x.v - hi : 0);
   let got = null, gap = Infinity;
+  const total = tries + climb; let lastP = 0;
+  const prog = (k) => { if (onProgress && k - lastP >= total / 40) { lastP = k; try { onProgress(Math.min(0.99, k / total)); } catch {} } };
   for (let a = 0; (a < tries || (!got && a < tries * 6)) && gap > 0; a++) {
+    prog(Math.min(a, tries));
     // nothing solvable yet after the planned tries: lighter traffic
     const sp = a < tries ? spec : { ...spec, cars: [Math.max(3, spec.cars[0] - 1 - ((a / tries) | 0)), Math.max(4, spec.cars[1] - 1 - ((a / tries) | 0))] };
     const x = evalLayout(spec, layout(sp, r), r); if (!x) continue;
     const g = gapOf(x); if (g < gap) { gap = g; got = x; }
   }
   for (let a = 0; a < climb && got && gap > 0; a++) {
+    prog(tries + a);
     const x = evalLayout(spec, mutate(spec, got.L, r), r); if (!x) continue;
     const g = gapOf(x); if (g <= gap) { gap = g; got = x; }
   }
@@ -191,9 +196,9 @@ export function dailyInfo(d = new Date()) {
   const key = dayKey(d), [mech, diff] = WEEK[d.getDay()];
   return { key, num: dayNumber(d), seed: hashStr(`ingorgo-daily:${key}:v${GEN_VERSION}`), mech, diff, reward: 40 + Math.round(diff * 40) };
 }
-export function dailyLevel(d = new Date()) {
+export function dailyLevel(d = new Date(), onProgress = null) {
   const info = dailyInfo(d);
-  const L = generate(info.seed, info.mech, info.diff);
+  const L = generate(info.seed, info.mech, info.diff, {}, onProgress);
   delete L.time; // the daily is about moves, not speed
   L.id = `daily-${info.key}`;
   return { info, L };
@@ -206,11 +211,11 @@ export const PACKS = [
   { id: 'difficile', name: 'Difficile', d: [0.55, 0.85], n: 100, color: '#ff6a3d' },
   { id: 'esperto', name: 'Esperto', d: [0.8, 1], n: 100, color: '#c54bff' },
 ];
-export function packLevel(packId, n) {
+export function packLevel(packId, n, onProgress = null) {
   const P = PACKS.find((p) => p.id === packId) || PACKS[0];
   const mech = MECH_IDS[(n - 1) % MECH_IDS.length];
   const d = lerp(P.d[0], P.d[1], (n - 1) / Math.max(1, P.n - 1));
-  const L = generate(hashStr(`ingorgo-pack:${P.id}:${n}`), mech, d);
+  const L = generate(hashStr(`ingorgo-pack:${P.id}:${n}`), mech, d, {}, onProgress);
   L.id = `${P.id}-${n}`;
   return L;
 }

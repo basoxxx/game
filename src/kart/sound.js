@@ -1,4 +1,4 @@
-// Kart Baso — sound: reuses the hub's procedural audio engine (engine synth for player 1, the
+// Kart Baso — sound: reuses the hub's procedural audio engine (one engine synth: player 1, or the next one still racing; the
 // shared effect kits) and maps race events to cartoon sounds. Every call is guarded: audio never
 // breaks the game (locked context, muted settings, headless tests).
 import { sfx, osfx, engineStart, engineSet, engineStop } from '../ui/audio.js';
@@ -13,7 +13,7 @@ export class KartSound {
     if (this.eng) safe(() => engineSet(Math.max(0, k.fwd) / 42, { throttle: k.input.thr ? 1 : 0.2, slip: k.drift ? 0.5 + k.dTier * 0.15 : k.spinT > 0 ? 0.8 : 0, view: 'chase', surface: k.surf === 'road' || k.surf === 'void' ? 'tarmac' : 'gravel' }));
   }
   stopEngine() { if (this.eng) safe(() => engineStop()); this.eng = false; }
-  // mine: the event concerns a human player (always audible); near: close to player 1
+  // mine: the event concerns a human player (always audible); near: close to any player (split screen)
   event(e, mine, near) {
     if (!this.on) return;
     const p = (f, key, gap = 60) => { if (!key || this.rate(key, gap)) safe(f); };

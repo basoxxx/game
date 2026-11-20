@@ -39,13 +39,15 @@ export default {
   targets: [{ v: 1, label: 'Una partita' }],   // match length choices (sum of round points to reach). default [11,21,31]
   defaultTarget: 1,
   records: { mosse: 'Meno mosse' },  // keys of scores().records shown in Statistiche (max is kept)
+  roundWord: 'Mano',                 // optional: what a round is called in the HUD/results (default 'Smazzata')
+  noCpu: true,                       // optional: no CPU seats/level in the lobby (solitaires, hot-seat only games)
   undo: true | 'facile' | false,     // undo of the human's last move (true = always, 'facile' = only vs Facile CPU)
   setup(seed, opts) -> state,        // ONE round (deal). opts: { n, variant, teams, target, dealer, round, totals, ...options }
   legalMoves(state, player) -> Move[],
   apply(state, move) -> newState,    // PURE: must not mutate `state` (use clone())
   ai(state, player, level, rng) -> Move,   // level 'facile'|'normale'|'difficile'; rng() -> [0,1)
   isOver(state) -> bool,             // round over
-  scores(state) -> { points: [per side], rows: [{ label, values: [per side] }], records?, coins?, note? },
+  scores(state) -> { points: [per side, may be negative], rows: [{ label, values: [per side] }], records?, coins?, note? },
   view(state, viewer, ctx) -> View,  // what is on the table, from `viewer`'s seat (see 4)
   steps?(state, move) -> [state...], // optional intermediate snapshots for animation only (e.g. a full trick before it is collected; set snapshot.pause = ms)
   status?(state, viewer) -> string,  // small HUD line ("Briscola: Coppe · 12 carte nel mazzo")

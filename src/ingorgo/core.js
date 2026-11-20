@@ -174,26 +174,75 @@ export function solve(B, s0, cap = 250000) {
 
 // Full exploration of everything reachable from s0 (generator): forward BFS with the edges kept, then
 // distance-to-goal for every state by a backward BFS. Returns null when more than `cap` states.
+// Speed: states are keyed by a number (3 bits per entry, EXITED = 7) updated incrementally from the
+// parent's key, and a neighbour's array is only built when it is new; the visiting order (and so every
+// generated level) is exactly the same as with the string keys.
+const enc3 = (v) => (v === EXITED ? 7 : v);
+export function numKeyer(len) {
+  if (len > 17) return null; // 3 × 17 = 51 bits: still exact in a double
+  const P = new Float64Array(len); for (let i = 0; i < len; i++) P[i] = 8 ** i;
+  return { P, of: (s) => { let k = 0; for (let i = 0; i < len; i++) k += enc3(s[i]) * P[i]; return k; } };
+}
+// key of apply(B, s, m) from the key ks of s, without building the state
+const nextKey = (B, K, s, ks, m) => {
+  const j = m[0] < 0 ? B.n : m[0];
+  let k = ks + (enc3(m[1]) - enc3(s[j])) * K.P[j];
+  if (B.hasLights) k += (s[B.n + 1] ? -1 : 1) * K.P[B.n + 1];
+  return k;
+};
 export function explore(B, s0, cap = 40000) {
-  const occ = new Uint8Array(B.N);
-  const idx = new Map(), states = [], adj = [];
-  idx.set(stateKey(s0), 0); states.push(s0);
-  for (let q = 0; q < states.length; q++) {
-    const s = states[q], out = [];
-    if (!isGoal(B, s)) for (const m of searchMoves(B, s, occ)) {
-      const t = apply(B, s, m), k = stateKey(t);
+  const occ = new Uint8Array(B.N), len = s0.length;
+  const K = numKeyer(len), idx = new Map();
+  // states live in one flat buffer (len entries each) and the edges in flat lists: no per-state arrays
+  let flat = new Int8Array(Math.min(cap, 4096) * len), n = 1;
+  flat.set(s0, 0);
+  const keys = [K ? K.of(s0) : stateKey(s0)]; idx.set(keys[0], 0);
+  let eFrom = new Int32Array(1 << 14), eTo = new Int32Array(1 << 14), ne = 0;
+  const s = new Int8Array(len), goal = new Uint8Array(cap);
+  for (let q = 0; q < n; q++) {
+    const base = q * len; for (let i = 0; i < len; i++) s[i] = flat[base + i];
+    if (isGoal(B, s)) { goal[q] = 1; continue; }
+    const ks = keys[q];
+    for (const m of searchMoves(B, s, occ)) {
+      const k = K ? nextKey(B, K, s, ks, m) : stateKey(apply(B, s, m));
       let j = idx.get(k);
-      if (j === undefined) { j = states.length; if (j >= cap) return null; idx.set(k, j); states.push(t); }
-      out.push(j);
+      if (j === undefined) {
+        j = n; if (j >= cap) return null;
+        if ((n + 1) * len > flat.length) { const f = new Int8Array(Math.min(cap, n * 2) * len); f.set(flat); flat = f; }
+        const o = n * len; for (let i = 0; i < len; i++) flat[o + i] = s[i];
+        flat[o + (m[0] < 0 ? B.n : m[0])] = m[1]; if (B.hasLights) flat[o + B.n + 1] ^= 1;
+        idx.set(k, j); keys.push(k); n++;
+      }
+      if (ne === eFrom.length) { const a = new Int32Array(ne * 2), b = new Int32Array(ne * 2); a.set(eFrom); b.set(eTo); eFrom = a; eTo = b; }
+      eFrom[ne] = q; eTo[ne] = j; ne++;
     }
-    adj.push(out);
   }
-  const n = states.length, rev = Array.from({ length: n }, () => []);
-  for (let i = 0; i < n; i++) for (const j of adj[i]) rev[j].push(i);
-  const dist = new Int32Array(n).fill(-1), queue = [];
-  for (let i = 0; i < n; i++) if (isGoal(B, states[i])) { dist[i] = 0; queue.push(i); }
-  for (let q = 0; q < queue.length; q++) { const i = queue[q]; for (const j of rev[i]) if (dist[j] < 0) { dist[j] = dist[i] + 1; queue.push(j); } }
-  return { states, dist, n };
+  // distance to the goal for every state: backward BFS over the reversed edges (CSR)
+  const start = new Int32Array(n + 1), rev = new Int32Array(ne);
+  for (let e = 0; e < ne; e++) start[eTo[e] + 1]++;
+  for (let i = 0; i < n; i++) start[i + 1] += start[i];
+  const fill = start.slice(0, n);
+  for (let e = 0; e < ne; e++) rev[fill[eTo[e]]++] = eFrom[e];
+  const dist = new Int32Array(n).fill(-1), queue = new Int32Array(n); let qn = 0;
+  for (let i = 0; i < n; i++) if (goal[i]) { dist[i] = 0; queue[qn++] = i; }
+  for (let q = 0; q < qn; q++) { const i = queue[q]; for (let e = start[i]; e < start[i + 1]; e++) { const j = rev[e]; if (dist[j] < 0) { dist[j] = dist[i] + 1; queue[qn++] = j; } } }
+  return { flat, len, dist, n, at: (i, k) => flat[i * len + k], state: (i) => flat.slice(i * len, (i + 1) * len) };
+}
+
+// ---------------------------------------------------------------- input (pure, tested in node)
+// samples: [[timeStamp ms, position (cells), clientX, clientY], …] of one drag
+// Release speed (cells / s) of a flick, 0 when the release was not one. Measured over the last 90 ms
+// before the finger lifted (older movement does not count), and only when the finger itself moved fast
+// on screen (≥ 750 px/s): on a phone a cell is ~55 px, so a quick but careful drag (the old test was
+// 6 cells/s over the last 8 samples ≈ 330 px/s) no longer flings the car to the end of its lane.
+export const FLICK = { cells: 6, px: 750, window: 90 };
+export function flickSpeed(sm, tUp) {
+  if (!sm || sm.length < 2) return 0;
+  const b = sm[sm.length - 1]; if (tUp - b[0] > 80) return 0; // the finger stopped before lifting
+  let a = sm[0]; for (const q of sm) if (b[0] - q[0] <= FLICK.window) { a = q; break; }
+  const dt = (b[0] - a[0]) / 1000; if (dt < 0.016) return 0;
+  const vel = (b[1] - a[1]) / dt, px = Math.hypot(b[2] - a[2], b[3] - a[3]) / dt;
+  return Math.abs(vel) >= FLICK.cells && px >= FLICK.px ? vel : 0;
 }
 
 // stars: 3 = optimal (+ a little slack on long puzzles), 2 = within ~50%, 1 = solved

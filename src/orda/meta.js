@@ -11,13 +11,26 @@ export const UPGRADES = [
   { id: 'charge', name: 'Carica', icon: 'bolt', desc: 'Il campione si carica prima.', max: 8, base: 35, eff: (l) => 1 - 0.06 * l, fmt: (v) => `carica ×${(1 / v).toFixed(2)}` },
   { id: 'armor', name: 'Bastione', icon: 'wrench', desc: 'Il cannone regge più nemici prima di cadere.', max: 6, base: 30, eff: (l) => 1 + 0.2 * l, fmt: (v) => `difesa ×${v.toFixed(1)}` },
 ];
+// the upgrade levels a player who buys along the way owns around campaign level n
+export const expectedUps = (n) => ({ rate: Math.round(n / 6), shot: Math.round(n / 10), hp: Math.round(n / 7), speed: Math.round(n / 6), charge: Math.round(n / 8), armor: Math.round(n / 6) });
+// gentle catch-up: a player who lost a level while far below that curve replays it with a temporary
+// "spinta" up to half of it (¾ after three losses in a row). Returns null when no help is due.
+export function catchUp(up = {}, levelId, fails = 0) {
+  const f = fails >= 3 ? 0.75 : fails >= 1 ? 0.5 : 0;
+  if (!f || !(+levelId > 0)) return null;
+  const E = expectedUps(+levelId), out = { ...up }; let levels = 0;
+  for (const u of UPGRADES) { const t = Math.min(u.max, Math.floor(E[u.id] * f)), own = up[u.id] || 0; if (own < t) { levels += t - own; out[u.id] = t; } }
+  return levels ? { up: out, levels } : null;
+}
 export const upCost = (u, l) => Math.round((u.base * Math.pow(1.5, l)) / 5) * 5;
 // pace of a match outside the simulation (seconds): countdown, end-of-match delay before the
 // results, a tap. The metrics tool (tools/orda-metrics.mjs) adds them to the play time.
 export const PACE = { countdown: 1, endDelayWin: 1.1, endDelayLose: 0.8, overhead: 1 + 1.1 + 0.6 };
 // champion charge: the crowd is big now, so the meter needs more hits (champion every ~10-15 s)
 export const CHARGE_K = 6;
-export const upEffects = (up = {}) => Object.fromEntries(UPGRADES.map((u) => [u.id, u.eff(Math.min(u.max, up[u.id] || 0))]));
+// bonus: levels on top of the cap (Infinita perks keep working on a maxed cannon), at most UP_OVER
+export const UP_OVER = 6;
+export const upEffects = (up = {}, bonus = null) => Object.fromEntries(UPGRADES.map((u) => [u.id, u.eff(Math.min(u.max, up[u.id] || 0) + Math.max(0, Math.min(UP_OVER, bonus?.[u.id] || 0)))]));
 
 // ---- champions: big characters launched when the charge meter is full
 // hp: how much red they can take · dmg: damage on the base · spd: walk speed · r: body radius

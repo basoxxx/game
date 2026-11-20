@@ -55,7 +55,7 @@ export class Porte extends Base {
   constructor(o) {
     super(o, 40);
     this.L = 240; this.speed = 9; this.W = 8; this.unit = 'omini';
-    this.d = 0; this.x = new Array(this.n).fill(0); this.count = new Array(this.n).fill(10); this.score = this.count.slice(); this.tgt = new Array(this.n).fill(0);
+    this.d = 0; this.x = new Array(this.n).fill(0); this.count = new Array(this.n).fill(10); this.raw = this.count.slice(); this.goodAt = new Array(this.n).fill(0); this.score = this.count.slice(); this.tgt = new Array(this.n).fill(0);
     const r = this.r, rows = [];
     for (let z = 26, k = 0; z < this.L - 12; z += 21, k++) {
       if (k % 3 === 2) rows.push({ z, kind: 'saw', ph: r() * TAU, w: 1.1 + r() * 0.9 });
@@ -76,8 +76,8 @@ export class Porte extends Base {
       if (!(d0 < row.z && this.d >= row.z)) continue;
       for (let i = 0; i < this.n; i++) {
         const c0 = this.count[i];
-        if (row.kind === 'gate') { const g = row.g[this.x[i] < 0 ? 0 : 1]; this.count[i] = clamp(Math.round(GATE[g.t](c0, g.v)), 1, 999); this.ev('gate', { i, g, good: this.count[i] >= c0 }); }
-        else if (Math.abs(this.x[i] - this.sawX(row, this.t)) < 1.7) { this.count[i] = Math.max(1, Math.round(c0 * 0.6)); this.ev('saw', { i }); }
+        if (row.kind === 'gate') { const g = row.g[this.x[i] < 0 ? 0 : 1]; this.count[i] = clamp(Math.round(GATE[g.t](c0, g.v)), 1, 9999); this.raw[i] = clamp(GATE[g.t](this.raw[i], g.v), 1, 1e12); this.ev('gate', { i, g, good: this.count[i] >= c0 }); }
+        else if (Math.abs(this.x[i] - this.sawX(row, this.t)) < 1.7) { this.count[i] = Math.max(1, Math.round(c0 * 0.6)); this.raw[i] = Math.max(1, this.raw[i] * 0.6); this.ev('saw', { i }); }
       }
     }
     this.score = this.count.slice();
@@ -99,6 +99,8 @@ export class Porte extends Base {
     }
     const dx = this.tgt[i] - this.x[i]; inp.x = Math.abs(dx) < 0.2 ? 0 : clamp(dx * 1.5, -1, 1);
   }
+  // a full crowd (9999) still ranks by what the gates would have given it
+  tie() { return this.raw.slice(); }
   hud(i) { return `${this.count[i]} omini`; }
 }
 
@@ -170,7 +172,14 @@ export class Palloncini extends Base {
     super(o, 60);
     this.RA = 20; this.unit = 'palloncini';
     this.k = Array.from({ length: this.n }, (_, i) => { const a = (i / this.n) * TAU + Math.PI / 4; return { x: Math.cos(a) * 13, y: Math.sin(a) * 13, h: a + Math.PI, v: 0, b: 3, cd: 0.5, inv: 0, hits: 0, out: 0 }; });
-    this.shots = []; this.sid = 0; this.aimN = new Array(this.n).fill(0);
+    this.shots = []; this.sid = 0; this.aimN = new Array(this.n).fill(0); this.extra = false;
+  }
+  // a draw at the bell (same balloons and hits at the top) goes to a 15 s sudden death: the next pop decides
+  finish() {
+    if (this.done) return;
+    const top = Math.max(...this.score);
+    if (!this.extra && this.alive() > 1 && this.score.filter((v) => v === top).length > 1) { this.extra = true; this.dur = this.t + 15; this.ev('overtime'); return; }
+    super.finish();
   }
   alive() { return this.k.filter((k) => k.b > 0).length; }
   update(dt, inp) {
@@ -194,16 +203,17 @@ export class Palloncini extends Base {
       for (let j = 0; j < this.n; j++) {
         const k = this.k[j]; if (k.b <= 0 || k.inv > 0 || (j === s.o && s.life > 1.4)) continue;
         if (Math.hypot(k.x - s.x, k.y - s.y) < 1.4) {
-          s.life = 0; k.b--; k.inv = 1.5; if (j !== s.o) this.k[s.o].hits++;
+          s.life = 0; k.b--; k.inv = 1.5; k.lostAt = this.t; if (j !== s.o) this.k[s.o].hits++;
           this.ev('pop', { i: j, by: s.o, x: k.x, y: k.y });
           if (k.b <= 0) { k.out = this.t; this.ev('out', { i: j }); }
+          if (this.extra) this.pend = true;
           break;
         }
       }
     }
     this.shots = this.shots.filter((s) => s.life > 0);
     this.score = this.k.map((k) => (k.b > 0 ? 1000 + k.b * 100 + k.hits : k.out * 10 + k.hits));
-    if (this.alive() <= 1) this.finish();
+    if (this.alive() <= 1 || this.pend) { this.pend = false; const top = Math.max(...this.score); if (this.alive() <= 1 || this.score.filter((v) => v === top).length === 1) super.finish(); }
   }
   ai(i, inp) {
     const k = this.k[i], sk = this.skill[i]; if (k.b <= 0) return;
@@ -213,11 +223,14 @@ export class Palloncini extends Base {
     const lead = bd / 21, tx = best.x + Math.cos(best.h) * best.v * lead * sk, ty = best.y + Math.sin(best.h) * best.v * lead * sk;
     const want = Math.atan2(ty - k.y, tx - k.x);
     if (bd > 7) aimAt(inp, k.x, k.y, tx, ty);
-    else { const a = want + (Math.sin(this.t * 0.9 + i) > 0 ? 0.5 : -0.5); inp.x = Math.cos(a); inp.y = Math.sin(a); }
+    else { const a = want + 0.6 * Math.sin(this.t * (1.4 + sk * 0.6) + i * 1.3); inp.x = Math.cos(a); inp.y = Math.sin(a); } // weave in and out of the line of fire
     if (Math.hypot(k.x, k.y) > this.RA - 4) aimAt(inp, k.x, k.y, 0, 0);
-    if (Math.abs(angDiff(k.h, want)) < 0.12 + (1 - sk) * 0.25 && bd < 15 && k.cd <= 0 && this.ar() < 0.15 + sk * 0.3) inp.ap = true;
+    // each shot carries an aim error (smaller for stronger CPUs), so duels last and the seats do not mirror
+    if (Math.abs(angDiff(k.h, want + this.aimN[i])) < 0.1 + (1 - sk) * 0.2 && bd < 15 && k.cd <= 0 && this.ar() < 0.1 + sk * 0.2) { inp.ap = true; this.aimN[i] = (this.ar() - 0.5) * (0.3 + (1 - sk) * 0.6); }
   }
-  hud(i) { const k = this.k[i]; return k.b > 0 ? `${'●'.repeat(k.b)} · ${k.hits} colpi` : 'Fuori!'; }
+  // still level after the sudden death: who kept the balloons longer (the latest pop taken ranks lower)
+  tie() { return this.k.map((k) => -(k.lostAt || 0)); }
+  hud(i) { const k = this.k[i]; return k.b > 0 ? `${this.extra && !this.done ? 'Spareggio! ' : ''}${'●'.repeat(k.b)} · ${k.hits} colpi` : 'Fuori!'; }
 }
 
 // ─────────────────────────────── Autoscontro: bumper cars on a shrinking platform
@@ -276,5 +289,7 @@ export class Autoscontro extends Base {
     const want = Math.atan2(best.y - c.y, best.x - c.x);
     if (far < 5 && Math.abs(angDiff(c.h, want)) < 0.35 && c.cd <= 0 && this.ar() < 0.1 + sk * 0.25) inp.ap = true;
   }
-  hud(i) { const c = this.c[i]; return c.fall > 0 ? 'Giù!' : `${c.ko} K.O. · ${c.falls} cadute`; }
+  // same points: fewer falls, then more K.O.
+  tie() { return this.c.map((c) => -c.falls * 100 + c.ko); }
+  hud(i) { const c = this.c[i]; return c.fall > 0 ? 'Giù!' : `${c.ko} K.O. · ${c.falls} ${c.falls === 1 ? 'caduta' : 'cadute'}`; }
 }

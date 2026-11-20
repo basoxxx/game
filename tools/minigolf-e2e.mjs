@@ -176,6 +176,9 @@ for (const [name, w, h] of VIEWS) {
   // editor
   await p.evaluate(() => window.__apex.App.go('minigolf-editor', {}));
   await p.waitForSelector('#mge-cv');
+  // the grid is sized to its panel after layout: read the box once it has settled (a slow machine clicked a stale one)
+  await p.waitForFunction(() => { const c = document.getElementById('mge-cv'); return c && c.style.width && c.getBoundingClientRect().width > 100; }, null, { timeout: 30000 });
+  await p.waitForTimeout(400);
   const box = await (await p.$('#mge-cv')).boundingBox();
   await p.click('[data-a=mge-tool][data-t=B]');
   await p.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.45);
