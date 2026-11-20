@@ -213,7 +213,7 @@ export function pick(no, eo, budget = 30000) {
 export function greedy(s) {
   const ms = moves(s);
   const score = (m) => {
-    if (m.act === 'draw') return 1; if (m.act === 'recycle') return s.pass > 3 ? -9 : 0.5;
+    if (m.act === 'draw') return 1; if (m.act === 'recycle') return s.pass > 3 ? 0.1 : 0.5;
     const L = locate(s, m.card);
     if (m.to[0] === 'f') return L[0] === 'f' ? -9 : 10;
     if (L[0] === 'f') return -9;
@@ -257,7 +257,7 @@ export function view(s, D) {
   s.f.forEach((f, i) => { const [x, y] = fpos(i); piles.push(pileAt(D, `f${i}`, f, x, y, cw, { layout: 'stack', outline: true, cls: 'sol-found' })); });
   const maxH = (H - pad - ch / 2 - tabY) / H;
   s.t.forEach((col, i) => {
-    piles.push(pileAt(D, `t${i}`, col.map((c, j) => (j < s.d[i] ? { id: c, up: false } : c)), colX(i), tabY, cw, { layout: 'cascade', outline: true, upGap: 0.27, downGap: 0.11, maxH }));
+    piles.push(pileAt(D, `t${i}`, col.map((c, j) => (j < s.d[i] ? { id: c, up: false } : c)), colX(i), tabY, cw, { layout: 'cascade', outline: true, upGap: D.portrait ? 0.34 : 0.27, downGap: D.portrait ? 0.14 : 0.11, maxH }));
   });
   return { piles };
 }

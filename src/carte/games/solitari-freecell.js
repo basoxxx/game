@@ -28,7 +28,7 @@ export default makeSolitaire(E, meta, {
     desc: 'Tutte le 52 carte sono scoperte in otto colonne: con l’aiuto di quattro celle libere bisogna portarle sulle fondazioni. Le partite numerate sono controllate dal risolutore: si possono vincere tutte.',
     thumb: ['1S', '13H', '12C'],
     options: [
-      { id: 'partita', name: 'Partita', values: [{ v: 'casuale', label: 'Casuale (vincibile)' }, { v: 'giorno', label: 'Del giorno' }], default: 'casuale' },
+      { id: 'partita', name: 'Mescolata', values: [{ v: 'casuale', label: 'Casuale (vincibile)' }, { v: 'giorno', label: 'Del giorno' }], default: 'casuale' },
       { id: 'numeri', name: 'Numerazione', values: [{ v: 'baso', label: 'Baso' }, { v: 'classica', label: 'Classica (Windows)' }], default: 'baso' },
     ],
     rules: `<h3>Scopo</h3><p>Portare tutte le carte sulle quattro <b>fondazioni</b> (a destra in alto), una per seme, dall’Asso al Re.</p>

@@ -234,7 +234,7 @@ export function view(s, D) {
   s.c.forEach((c, i) => { const [x, y] = cellP(i); piles.push(pileAt(D, `c${i}`, c ? [c] : [], x, y, cw, { layout: 'stack', outline: true, cls: 'sol-cell' })); });
   s.f.forEach((f, i) => { const [x, y] = fP(i); piles.push(pileAt(D, `f${i}`, f, x, y, cw, { layout: 'stack', outline: true, cls: 'sol-found' })); });
   const maxH = (H - pad - ch / 2 - tabY) / H;
-  s.t.forEach((col, i) => piles.push(pileAt(D, `t${i}`, col, colX(i), tabY, cw, { layout: 'cascade', outline: true, upGap: 0.25, maxH })));
+  s.t.forEach((col, i) => piles.push(pileAt(D, `t${i}`, col, colX(i), tabY, cw, { layout: 'cascade', outline: true, upGap: D.portrait ? 0.36 : 0.25, maxH })));
   // deal animation source: an invisible spot in the middle
   piles.push(pileAt(D, 'deck', [], W / 2, H / 2, cw, { layout: 'stack', source: true }));
   return { piles };

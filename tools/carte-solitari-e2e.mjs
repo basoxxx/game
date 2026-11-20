@@ -71,7 +71,15 @@ async function playGame(page, C, G, gi) {
       const tap = m.card ? window.__solitari.tapPick(m.card) : null;
       const same = tap && tap.to === m.to && tap.act === m.act;
       let to = null;
-      if (m.to) { const pv = T.view.piles.find((p) => p.id === m.to); const last = pv?.cards?.[pv.cards.length - 1]; const id = last && (typeof last === 'string' ? last : last.id); to = rect(id && id !== m.card ? T.els.get(id) : T.pileEls.get(m.to)); }
+      if (m.to) { // drop where the table itself looks for that pile (its hit box), checked with pileAt
+        const pv = T.view.piles.find((p) => p.id === m.to); const last = pv?.cards?.[pv.cards.length - 1]; const id = last && (typeof last === 'string' ? last : last.id);
+        to = rect(id && id !== m.card ? T.els.get(id) : T.pileEls.get(m.to));
+        const B = T.box.getBoundingClientRect(), h = T.pileEls.get(m.to)?._hit;
+        const cands = [[to.x + to.w / 2, to.y + to.h / 2], [to.x + to.w / 2, to.y + to.h * 0.25]];
+        if (h) cands.push([B.left + h.x, B.top + (pv.layout === 'cascade' ? h.y + (h.h - T.M.ch) / 2 : h.y)], [B.left + h.x, B.top + h.y]);
+        const ok = cands.find(([x, y]) => T.pileAt(x, y) === m.to);
+        if (ok) to = { x: ok[0] - 1, y: ok[1] - 1, w: 2, h: 2 };
+      }
       return { m, solved: h.solved, same, card: rect(m.card && T.els.get(m.card)), to, stock: rect(T.pileEls.get('stock')), moves: window.__carte.M.moves };
     });
     if (!info) { // finished by the automatic completion?

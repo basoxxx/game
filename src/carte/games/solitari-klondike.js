@@ -13,7 +13,7 @@ const E = {
   pick: (no, eo) => K.pick(no, eo, 8000),
   ai: (s) => K.greedy(s),
   // the solver's whole plan from here (UI moves), or null when it finds none within the budget
-  plan(s, budget = 20000) { const r = K.solve(K.toSolver(s), s.draw, budget); return r.ok ? K.planUI(s, r.path) : null; },
+  plan(s, budget = 20000) { for (const b of [budget, budget * 4]) { const r = K.solve(K.toSolver(s), s.draw, b); if (r.ok) return K.planUI(s, r.path); if (r.exhausted) break; } return null; },
   heuristic: (s) => K.greedy(s),
   // the destination of a tapped card: foundation first, then a column (building on a card beats an
   // empty column), back from the foundation only when nothing else is possible

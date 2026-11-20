@@ -9,7 +9,7 @@
 import { App } from '../../../app.js';
 import { icon } from '../../../ui/icons.js';
 import { esc } from '../../../ui/dom.js';
-import { ui, fmtClock, dayKey } from './common.js';
+import { ui, fmtClock, dayKey, dims } from './common.js';
 import { moveKey } from '../../core/match.js';
 import { cardName } from '../../core/cards.js';
 
@@ -78,7 +78,7 @@ function measure() {
 }
 function rerender() {
   const T = W()?.table, M = W()?.M, g = C.game; if (!T?.box?.isConnected || !M || !g || !ui.dims) return;
-  T.render({ size: 1, ...g.engine.view(M.state, ui.dims) }, { n: 1, viewer: 0, legal: T.legal, instant: true });
+  T.render({ size: 1, ...g.engine.view(M.state, dims()) }, { n: 1, viewer: 0, legal: T.legal, instant: true });
 }
 // ------------------------------------------------------------------ HUD + toolbar
 function decorate(play) {

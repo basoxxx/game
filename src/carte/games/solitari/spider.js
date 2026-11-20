@@ -169,6 +169,6 @@ export function view(s, D) {
   const fc = s.f.flat();
   piles.push(pileAt(D, 'found', fc, foundP[0] + (side ? 0 : Math.max(0, s.f.length - 1) * cw * 0.12), foundP[1], cw, { layout: 'stack', outline: true, cls: 'sol-found', label: `${s.f.length}/8` }));
   const maxH = (H - pad - ch / 2 - tabY) / H;
-  s.t.forEach((col, i) => piles.push(pileAt(D, `t${i}`, col.map((c, j) => (j < s.d[i] ? { id: c, up: false } : c)), colX(i), tabY, cw, { layout: 'cascade', outline: true, upGap: 0.26, downGap: 0.09, maxH })));
+  s.t.forEach((col, i) => piles.push(pileAt(D, `t${i}`, col.map((c, j) => (j < s.d[i] ? { id: c, up: false } : c)), colX(i), tabY, cw, { layout: 'cascade', outline: true, upGap: D.portrait ? 0.34 : 0.26, downGap: 0.09, maxH })));
   return { piles };
 }

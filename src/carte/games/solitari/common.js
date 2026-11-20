@@ -166,7 +166,7 @@ export function makeSolitaire(E, meta, def = {}) {
 }
 // options shared by all the solitaires (lobby)
 export const DEAL_OPTION = (winnable = true) => ({
-  id: 'partita', name: 'Partita',
+  id: 'partita', name: 'Mescolata',
   values: [{ v: 'casuale', label: 'Casuale' }, ...(winnable ? [{ v: 'vincibile', label: 'Solo vincibili' }] : []), { v: 'giorno', label: 'Del giorno' }],
   default: 'casuale',
 });

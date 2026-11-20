@@ -100,19 +100,18 @@ export function view(s, D) {
   const side = W / H > 1.25;
   // the pyramid: 7 cards wide, rows overlap by half a card
   let cw;
-  if (side) cw = Math.min((W - pad * 2) / (7 * 1.08 + 2.6), (H - pad * 2) / (6 * 0.52 + 1) * 0.7);
+  if (side) cw = Math.min((W - pad * 2) / (7 * 1.08 + 3.8), (H - pad * 2) / (6 * 0.52 + 1) * 0.7);
   else cw = Math.min((W - pad * 2) / (7 * 1.08), (H - pad * 2) / (6 * 0.52 + 1 + 1.4) * 0.7);
   const ch = cw / 0.7, g = cw * 1.08, rowH = ch * 0.52;
-  const px = side ? W / 2 - cw * 0.9 : W / 2, py = side ? (H - (6 * rowH + ch)) / 2 + ch / 2 : pad + ch / 2;
+  const px = W / 2, py = side ? (H - (6 * rowH + ch)) / 2 + ch / 2 : pad + ch / 2;
   const pc = s.p.map((c, i) => (c ? { c, i } : null));
   pc.forEach((x, i) => {
     const [r, k] = ROW[i];
     piles.push(pileAt(D, `p${i}`, x ? [x.c] : [], px + (k - r / 2) * g, py + r * rowH, cw, { layout: 'stack', z: r * 2 }));
   });
   let stP, waP, fP;
-  if (side) { const x = px + 3 * g + cw * 1.4; stP = [x, py]; waP = [x, py + ch * 1.15]; fP = [x + g * 0, py + ch * 2.3]; }
+  if (side) { const x = px + 3 * g + cw * 1.4; stP = [x, py]; waP = [x, py + ch * 1.15]; fP = [px - 3 * g - cw * 1.4, py]; } // removed cards on the left
   else { const y = py + 6 * rowH + ch * 1.25; stP = [W / 2 - g * 1.6, y]; waP = [W / 2, y]; fP = [W / 2 + g * 1.6, y]; }
-  if (side && fP[1] + ch / 2 > H - pad) fP = [stP[0] - g * 0 - g * 7.5, py];
   piles.push(pileAt(D, 'stock', s.st.map((c) => ({ id: c, up: false })), stP[0], stP[1], cw, { layout: 'stack', outline: true, source: true, label: s.st.length ? `${s.st.length} · giro ${s.pass}/${s.passes}` : s.wa.length && s.pass < s.passes ? '↻' : '' }));
   piles.push(pileAt(D, 'waste', s.wa.slice(-12), waP[0], waP[1], cw, { layout: 'stack', outline: true, z: 60 }));
   piles.push(pileAt(D, 'found', s.f.slice(-12), fP[0], fP[1], cw, { layout: 'stack', outline: true, cls: 'sol-out', z: 60, label: s.f.length ? String(s.f.length) : '' }));
