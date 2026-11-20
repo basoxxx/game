@@ -8,7 +8,7 @@ let wa = 0, wb = 0, diff = 0;
 for (let i = 0; i < +N; i++) {
   const lv = Array.from({ length: +n }, (_, p) => ((p % 2 === 0) !== !!(i % 2) ? a : b));
   const variant = id === 'burraco' ? (+n === 4 ? 'coppie' : 'due') : undefined;
-  const M = newMatch(G, { variant, n: +n, seed: 5000 + i, target: id === 'burraco' ? 1 : 101, options: {}, seats: lv.map((l) => ({ kind: 'cpu', level: l })) });
+  const M = newMatch(G, { variant, n: +n, seed: 5000 + Math.floor(i / 2), target: id === 'burraco' ? 1 : 101, options: {}, seats: lv.map((l) => ({ kind: 'cpu', level: l })) });
   while (!G.isOver(M.state)) { const p = M.state.turn; play(G, M, G.ai(clone(M.state), p, lv[p], rng(M.moves + i * 13))); }
   const r = endRound(G, M), A = lv[0] === a ? 0 : 1;
   // burraco: higher is better; scala40: penalties, lower is better

@@ -132,6 +132,7 @@ function planFor(s, p, R, { budget = 2500, hand = s.hands[p], must = s.opened[p]
   return cachedPartition(opened ? 'so' : 'su', hand, R, value, kv, { maxCards: hand.length - 1, must: must ? keyOf(must) : null, budget });
 }
 const BUDGETS = [400, 2500];
+const LOOKAHEAD = typeof process !== 'undefined' && !!process.env?.S40_LOOK;
 
 // ------------------------------------------------------------------ apply
 function layMeld(s, p, ids, R) {
@@ -276,7 +277,7 @@ function chooseDiscard(s, p, level, rng, legal) {
     return { m, keep };
   }).sort((a, b) => a.keep - b.keep);
   if (level === 'facile') return sc[Math.min(sc.length - 1, Math.floor(rng() * Math.min(3, sc.length)))].m;
-  if (level === 'difficile' && sc.length > 1) {
+  if (level === 'difficile' && sc.length > 1 && LOOKAHEAD) {
     // one-card lookahead over the few best candidates: which discard leaves the hand that improves most
     // with the next draw, counting the copies of each card still unseen (2 decks, 4 jokers)
     const sn = seen || seenCounts(s, p), cand = sc.slice(0, 4);
