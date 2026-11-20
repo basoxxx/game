@@ -366,6 +366,38 @@ Le monete sbloccano **8 temi** che ricolorano tutti i giochi. Niente pubblicità
   `node tools/rompicapo-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni, si gioca dalla UI),
   `node tools/rompicapo-cover.mjs <url>` (copertina `public/covers/rompicapo.webp`).
 
+## Carte Baso (Baso Hub · Carte)
+
+Raccolta di giochi di carte in un'unica voce del Baso Hub, con un framework a plug-in in cui ogni gioco è un file
+in `src/carte/games/` (API documentata in `src/carte/README.md`).
+- **Scopa** (classica in 2, 3 o 4 a coppie, **Scopone scientifico** con Napola facoltativa, **Scopa d'assi**) e
+  **Briscola** (in 2 o 4 a coppie, con segnali tra compagni): regole e punteggi italiani completi (carte, denari,
+  settebello, primiera, scope; 120 punti in Briscola), CPU Facile / Normale / Difficile (conta le carte e simula le
+  mani possibili con playout Monte Carlo), partite a 11/21/31 punti o al meglio di 3/5.
+- Carte disegnate in modo procedurale (SVG originali): Napoletane, Piacentine, Francesi con jolly; dorsi e tavoli da
+  sbloccare con le monete vinte (niente soldi veri, niente pubblicità); statistiche e record per gioco.
+- Tavolo 2D/2.5D animato (distribuzione, giocata, girata, presa), tocca o trascina le carte, tastiera e controller,
+  verticale e orizzontale; da 1 a 4 umani a turno con schermata «passa il dispositivo»; partita salvata e ripresa.
+- `node tools/carte-test.mjs` (regole, punteggi e migliaia di partite IA contro IA), `node tools/carte-e2e.mjs <url> [cartella]`
+  (Playwright, partite complete di Scopa e Briscola a 4 risoluzioni), `node tools/carte-cover.mjs` (copertina).
+
+### Carte Baso: Texas Hold'em e Blackjack (fiches finte, solo per gioco)
+- **Texas Hold'em** (`src/carte/games/poker.js`, motore in `src/carte/games/poker/`): da 2 a 6 posti, **Sit & Go** con
+  bui che salgono (Turbo/Normale/Lenta) o **tavolo cash** con ricarica automatica di fiches finte; giri di puntata
+  completi (lascia/passa/vedi/punta/rilancia/all-in, rilancio minimo, all-in corti che non riaprono il giro, puntate
+  non viste restituite, piatti laterali, piatti divisi), showdown con i nomi italiani dei punti, storico della mano,
+  hot-seat con carte coperte. CPU con 4 stili (Roccia, Squalo, Maniaco, Pescatore) e 3 livelli: equity Monte Carlo,
+  pot odds, posizione, bluff.
+- **Blackjack** (`src/carte/games/blackjack.js`, `src/carte/games/blackjack/`): tu contro il banco, sabot da 6 mazzi con
+  carta di taglio, S17/H17, raddoppio, divisione (assi una carta), assicurazione, resa facoltativa, blackjack 3:2,
+  pulsante **Consiglio** (strategia base), allenamento al conteggio **Hi-Lo** (mostra o quiz), statistiche di sessione.
+- Le fiches sono numeri finti: nessun acquisto, nessuna conversione (le monete del Baso Hub arrivano solo come premio
+  cosmetico di fine partita, come negli altri giochi di carte).
+- `node tools/carte-poker-test.mjs` (valutatore su tutte le 2.598.960 mani da 5 carte e su mani casuali contro un
+  riferimento lento, piatti laterali, macchina a stati delle puntate, maratona con conservazione delle fiches, IA),
+  `node tools/carte-blackjack-test.mjs` (pagamenti, divisioni, raddoppi, banco, strategia base, conteggio, maratona),
+  `node tools/carte-poker-e2e.mjs <url> [cartella]` (Playwright, poker e blackjack a 4 risoluzioni).
+
 ## Quiz e Parole (Baso Hub · Quiz)
 
 Raccolta di quattro giochi in italiano in un'unica tessera del Baso Hub (modalità: Quiz, Quiz del giorno, Parolina,
@@ -387,18 +419,3 @@ Impiccato, Anagrammi). Mouse, touch, tastiera e controller; verticale e orizzont
 - `node tools/quiz-build.mjs` (testi → JSON), `node tools/quiz-words.mjs <cartella sorgenti>` (liste di parole, vedi
   CREDITS), `node tools/quiz-test.mjs` (schema, duplicati, bilanciamento, parole, determinismo del giorno),
   `node tools/quiz-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/quiz-cover.mjs <url>` (copertina).
-
-## Carte Baso (Baso Hub · Carte)
-
-Raccolta di giochi di carte in un'unica voce del Baso Hub, con un framework a plug-in in cui ogni gioco è un file
-in `src/carte/games/` (API documentata in `src/carte/README.md`).
-- **Scopa** (classica in 2, 3 o 4 a coppie, **Scopone scientifico** con Napola facoltativa, **Scopa d'assi**) e
-  **Briscola** (in 2 o 4 a coppie, con segnali tra compagni): regole e punteggi italiani completi (carte, denari,
-  settebello, primiera, scope; 120 punti in Briscola), CPU Facile / Normale / Difficile (conta le carte e simula le
-  mani possibili con playout Monte Carlo), partite a 11/21/31 punti o al meglio di 3/5.
-- Carte disegnate in modo procedurale (SVG originali): Napoletane, Piacentine, Francesi con jolly; dorsi e tavoli da
-  sbloccare con le monete vinte (niente soldi veri, niente pubblicità); statistiche e record per gioco.
-- Tavolo 2D/2.5D animato (distribuzione, giocata, girata, presa), tocca o trascina le carte, tastiera e controller,
-  verticale e orizzontale; da 1 a 4 umani a turno con schermata «passa il dispositivo»; partita salvata e ripresa.
-- `node tools/carte-test.mjs` (regole, punteggi e migliaia di partite IA contro IA), `node tools/carte-e2e.mjs <url> [cartella]`
-  (Playwright, partite complete di Scopa e Briscola a 4 risoluzioni), `node tools/carte-cover.mjs` (copertina).
