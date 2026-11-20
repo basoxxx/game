@@ -19,6 +19,9 @@ const CPU_NAMES = ['Nonna Pina', 'Zio Totò', 'Don Ciccio', 'Rosetta', 'Compare 
 const SIDE_COLORS = ['#ffd23f', '#5ec8ff', '#ff6b8a', '#7dff9a', '#c59bff', '#ffa94d'];
 const V = { view: 'home', gameId: null, from: 'launcher', tab: 'giochi', M: null, table: null, viewer: 0, busy: false, timers: [], token: 0, choose: null, paused: false };
 const fmt = (n) => Math.round(n || 0).toLocaleString('it-IT');
+const signed = (v) => (typeof v === 'number' ? (v > 0 ? `+${fmt(v)}` : v < 0 ? `−${fmt(-v)}` : '0') : esc(String(v)));
+const rw = (g) => g?.roundWord || 'Smazzata'; // a game may call its rounds differently ('Mano', 'Partita'...)
+const nextWord = (g) => (g?.roundWord ? `Prossima ${g.roundWord.toLowerCase()}` : 'Prossima smazzata');
 const levelOf = (id) => LEVELS.find((l) => l.id === id) || LEVELS[1];
 const volume = () => { const s = getSettings(); return s.sound === false ? 0 : 0.7 * (s.volume ?? 0.5) / 0.5; };
 const later = (fn, ms) => { const t = setTimeout(fn, ms); V.timers.push(t); return t; };
@@ -31,7 +34,7 @@ function lobbyCfg(game, p = cbLoad()) {
   const variant = variantOf(game, L.variant)?.id ?? null;
   const [lo, hi] = playersRange(game, variant);
   const n = Math.max(lo, Math.min(hi, L.n || lo));
-  const kinds = Array.from({ length: n }, (_, i) => (i === 0 ? 'human' : L.kinds?.[i] === 'human' ? 'human' : 'cpu'));
+  const kinds = Array.from({ length: n }, (_, i) => (i === 0 || game.noCpu ? 'human' : L.kinds?.[i] === 'human' ? 'human' : 'cpu'));
   const targets = game.targets || [{ v: 11, label: '11 punti' }, { v: 21, label: '21 punti' }, { v: 31, label: '31 punti' }];
   const target = targets.some((t) => t.v === L.target) ? L.target : (game.defaultTarget ?? targets[0].v);
   const options = {};
@@ -94,9 +97,9 @@ function lobby(p, game) {
       <section class="cb-panel">
         ${game.variants?.length > 1 ? `<div class="cb-row"><label>Variante</label><div class="cb-vars">${game.variants.map((v) => `<button class="cb-var ${v.id === c.variant ? 'on' : ''}" data-a="cb-variant" data-v="${v.id}"><b>${esc(v.name)}</b><span>${esc(v.desc || '')}</span></button>`).join('')}</div></div>` : ''}
         ${hi > lo ? `<div class="cb-row"><label>Giocatori</label>${seg('cb-n', Array.from({ length: hi - lo + 1 }, (_, i) => ({ v: lo + i, label: String(lo + i) })), c.n)}</div>` : ''}
-        <div class="cb-row"><label>Al tavolo${teams ? ' <small>(a coppie: 1 e 3 contro 2 e 4)</small>' : ''}</label><div class="cb-seats">${seats.map((s, i) => `<button class="cb-seatb ${s.kind}" data-a="cb-seat" data-i="${i}" ${i === 0 ? 'aria-disabled="true"' : ''} style="--sc:${SIDE_COLORS[teams ? i % 2 : i]}"><i>${i + 1}</i><b>${esc(s.name)}</b><span>${i === 0 ? 'Tu' : s.kind === 'cpu' ? `CPU · ${levelOf(c.level).name}` : 'Umano (a turno)'}</span></button>`).join('')}</div>
-          <p class="cb-note">Tocca un posto per passare da CPU a giocatore umano: con più umani il dispositivo passa di mano e le carte restano coperte finché non sei pronto.</p></div>
-        <div class="cb-row"><label>Livello CPU</label>${seg('cb-level', LEVELS.map((l) => ({ v: l.id, label: l.name })), c.level)}</div>
+        ${game.noCpu && c.n === 1 ? '' : `<div class="cb-row"><label>Al tavolo${teams ? ' <small>(a coppie: 1 e 3 contro 2 e 4)</small>' : ''}</label><div class="cb-seats">${seats.map((s, i) => `<button class="cb-seatb ${s.kind}" data-a="cb-seat" data-i="${i}" ${i === 0 ? 'aria-disabled="true"' : ''} style="--sc:${SIDE_COLORS[teams ? i % 2 : i]}"><i>${i + 1}</i><b>${esc(s.name)}</b><span>${i === 0 ? 'Tu' : s.kind === 'cpu' ? `CPU · ${levelOf(c.level).name}` : 'Umano (a turno)'}</span></button>`).join('')}</div>
+          <p class="cb-note">${game.noCpu ? 'Si gioca a turno sullo stesso dispositivo:' : 'Tocca un posto per passare da CPU a giocatore umano: con più umani'} il dispositivo passa di mano e le carte restano coperte finché non sei pronto.</p></div>`}
+        ${game.noCpu ? '' : `<div class="cb-row"><label>Livello CPU</label>${seg('cb-level', LEVELS.map((l) => ({ v: l.id, label: l.name })), c.level)}</div>`}
         <div class="cb-row"><label>Partita</label>${seg('cb-target', c.targets, c.target)}</div>
         ${opts}${deckStyles}
         <div class="cb-go"><button class="btn primary lg" data-a="cb-start">${icon('play')} Gioca</button><button class="btn" data-a="cb-rules">${icon('book')} Regole</button></div>
@@ -121,7 +124,7 @@ function playShell(game) {
 const G = () => gameById(V.M?.gameId);
 function hud() {
   const M = V.M, g = G(); if (!M || !g) return;
-  const st = document.getElementById('cb-status'); if (st) st.textContent = g.status?.(M.state, V.viewer) || `Smazzata ${M.round + 1}`;
+  const st = document.getElementById('cb-status'); if (st) st.textContent = g.status?.(M.state, V.viewer) || `${rw(g)} ${M.round + 1}`;
   const sc = document.getElementById('cb-score');
   if (sc) sc.innerHTML = M.teams.map((t, i) => `<span class="cb-chip" style="--sc:${SIDE_COLORS[i]}"><i></i><em>${esc(sideName(M, i))}</em><b>${fmt(M.totals[i])}</b></span>`).join('') + `<span class="cb-target">${esc((g.targets || []).find((x) => x.v === M.cfg.target)?.label || `a ${M.cfg.target}`)}</span>`;
   const u = document.getElementById('cb-undo'); if (u) u.hidden = !canUndo();
@@ -201,6 +204,7 @@ function loop() {
 }
 function passScreen(p) {
   const ov = document.getElementById('cb-over'); if (!ov) return;
+  V.table?.cancelPending();
   draw(V.M.state, { instant: true });
   ov.innerHTML = `<div class="cb-pass" role="dialog" aria-label="Cambio giocatore"><div class="cb-pass-c">${icon('users')}<div class="cb-k">Passa il dispositivo</div><h2>Tocca a ${esc(V.M.cfg.seats[p].name)}</h2><p>Gli altri non guardino! Le carte si scoprono quando sei pronto.</p><button class="btn primary lg" data-a="cb-ready">${icon('eye')} Sono pronto</button></div></div>`;
   requestAnimationFrame(() => ov.querySelector('.btn.primary')?.focus());
@@ -271,14 +275,14 @@ function roundOver() {
     const ov = document.getElementById('cb-over'); if (!ov) return;
     const head = M.teams.map((_, i) => `<th style="--sc:${SIDE_COLORS[i]}">${esc(sideName(M, i))}</th>`).join('');
     const rows = res.rows.map((r) => `<tr><td>${esc(r.label)}</td>${r.values.map((v, i) => `<td class="${r.best === i ? 'best' : ''}">${esc(String(v))}</td>`).join('')}</tr>`).join('');
-    const title = M.over ? (M.winner === 'draw' ? 'Pareggio' : M.winner === humanSide && solo ? 'Hai vinto la partita!' : solo ? 'Partita persa' : `Vince ${esc(sideName(M, M.winner))}!`) : `Fine smazzata ${M.round + 1}`;
-    ov.innerHTML = `<div class="cb-result ${M.over ? 'final' : ''}" role="dialog" aria-label="${esc(title)}"><div class="cb-k">${esc(g.name)} · ${M.over ? 'Fine partita' : `Smazzata ${M.round + 1}`}</div><h2>${title}</h2>
+    const title = M.over ? (M.winner === 'draw' ? 'Pareggio' : M.winner === humanSide && solo ? 'Hai vinto la partita!' : solo ? 'Partita persa' : `Vince ${esc(sideName(M, M.winner))}!`) : `Fine ${rw(g).toLowerCase()} ${M.round + 1}`;
+    ov.innerHTML = `<div class="cb-result ${M.over ? 'final' : ''}" role="dialog" aria-label="${esc(title)}"><div class="cb-k">${esc(g.name)} · ${M.over ? 'Fine partita' : `${esc(rw(g))} ${M.round + 1}`}</div><h2>${title}</h2>
       ${res.note ? `<p class="cb-note">${esc(res.note)}</p>` : ''}
       <div class="cb-tablewrap"><table class="cb-res"><thead><tr><th></th>${head}</tr></thead><tbody>${rows}
-      <tr class="pts"><td>Punti della smazzata</td>${res.points.map((v) => `<td>+${v}</td>`).join('')}</tr>
+      <tr class="pts"><td>Punti ${esc(rw(g).toLowerCase() === 'smazzata' ? 'della smazzata' : `della ${rw(g).toLowerCase()}`)}</td>${res.points.map((v) => `<td>${signed(v)}</td>`).join('')}</tr>
       <tr class="tot"><td>Totale partita</td>${M.totals.map((v, i) => `<td class="${M.over && M.winner === i ? 'best' : ''}">${v}</td>`).join('')}</tr></tbody></table></div>
       ${coins + matchCoins ? `<div class="cb-coins">${icon('coin')} +${coins + matchCoins} monete</div>` : ''}
-      <div class="cb-res-a">${M.over ? `<button class="btn primary lg" data-a="cb-again">${icon('replay')} Rivincita</button><button class="btn" data-a="cb-tolobby">${icon('left')} Cambia impostazioni</button>` : `<button class="btn primary lg" data-a="cb-next">${icon('right')} Prossima smazzata</button><button class="btn ghost" data-a="cb-tolobby">Esci</button>`}</div></div>`;
+      <div class="cb-res-a">${M.over ? `<button class="btn primary lg" data-a="cb-again">${icon('replay')} Rivincita</button><button class="btn" data-a="cb-tolobby">${icon('left')} Cambia impostazioni</button>` : `<button class="btn primary lg" data-a="cb-next">${icon('right')} ${esc(nextWord(g))}</button><button class="btn ghost" data-a="cb-tolobby">Esci</button>`}</div></div>`;
     try { if (M.over) (M.winner === humanSide ? sfx.win : sfx.bad)?.(); else snd.chime(); } catch {}
     requestAnimationFrame(() => ov.querySelector('.btn.primary')?.focus({ preventScroll: true }));
   }, fast() ? 0 : 1100);
@@ -326,7 +330,7 @@ registerScreen({
     'cb-open'(el) { V.gameId = el.dataset.id; V.view = 'lobby'; App.refresh(); },
     'cb-variant'(el) { const g = gameById(V.gameId); const v = variantOf(g, el.dataset.v); const L = cbLoad().lobby[g.id] || {}; const [lo, hi] = v.players || g.players; saveLobby(g, { variant: v.id, n: Math.max(lo, Math.min(hi, L.n || lo)) }); App.refresh(); },
     'cb-n'(el) { saveLobby(gameById(V.gameId), { n: +el.dataset.v }); App.refresh(); },
-    'cb-seat'(el) { const i = +el.dataset.i; if (!i) return; const g = gameById(V.gameId), c = lobbyCfg(g); const kinds = c.kinds.slice(); kinds[i] = kinds[i] === 'cpu' ? 'human' : 'cpu'; saveLobby(g, { kinds }); App.refresh(); },
+    'cb-seat'(el) { const i = +el.dataset.i; if (!i) return; const g = gameById(V.gameId), c = lobbyCfg(g); if (g.noCpu) return; const kinds = c.kinds.slice(); kinds[i] = kinds[i] === 'cpu' ? 'human' : 'cpu'; saveLobby(g, { kinds }); App.refresh(); },
     'cb-level'(el) { saveLobby(gameById(V.gameId), { level: el.dataset.v }); App.refresh(); },
     'cb-target'(el) { const g = gameById(V.gameId); const t = (lobbyCfg(g).targets.find((x) => String(x.v) === el.dataset.v) || {}).v; saveLobby(g, { target: t }); App.refresh(); },
     'cb-opt'(el) { const g = gameById(V.gameId), o = g.options.find((x) => x.id === el.dataset.id), v = o.values.find((x) => String(x.v) === el.dataset.v); saveLobby(g, { options: { ...(cbLoad().lobby[g.id]?.options || {}), [o.id]: v.v } }); App.refresh(); },

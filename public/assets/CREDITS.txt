@@ -62,3 +62,7 @@ MIT licence: 280000_parole_italiane.txt, 60000_parole_italiane.txt, lista_badwor
 (https://github.com/hermitdave/FrequencyWords; used only to sort the words by frequency, none of its data is
 redistributed), then curated
 by hand (src/quiz/words-src). Art, balloon illustration, sounds and the cover (tools/quiz-cover.mjs) are procedural.
+Tavolo Baso (src/tavolo): no external assets. Boards, pieces (turned lathe profiles), ships, textures (wood grain,
+marble veins, sea) and the cover (covers/tavolo.webp, rendered by tools/tavolo-cover.mjs) are procedural; the
+chess engine, draughts/four-in-a-row/battleship AIs and the mate-in-two positions (tools/tavolo-puzzles.mjs) are
+original code and generated content. The opening book lists common mainstream opening moves.
