@@ -365,3 +365,25 @@ Le monete sbloccano **8 temi** che ricolorano tutti i giochi. Niente pubblicità
 - `node tools/rompicapo-test.mjs` (500 sudoku unici, 300 smazzate risolvibili, rotazioni/kick/linee, regole di Unisci),
   `node tools/rompicapo-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni, si gioca dalla UI),
   `node tools/rompicapo-cover.mjs <url>` (copertina `public/covers/rompicapo.webp`).
+
+## Quiz e Parole (Baso Hub · Quiz)
+
+Raccolta di quattro giochi in italiano in un'unica tessera del Baso Hub (modalità: Quiz, Quiz del giorno, Parolina,
+Impiccato, Anagrammi). Mouse, touch, tastiera e controller; verticale e orizzontale su telefono, tablet e PC.
+- **Quiz**: 1.311 domande originali a scelta multipla con spiegazione, in 9 categorie (Motori e Formula, Cultura
+  generale, Geografia, Storia, Scienza, Sport, Cinema e musica, Lingua italiana, Tecnologia) e 3 livelli. Modalità
+  Partita (10 domande a tempo, bonus velocità e serie), Sopravvivenza (3 vite, livello crescente), Sfida 2-4 giocatori
+  sullo stesso schermo (prenotazione con Q/P/Z/M, un controller a testa o pulsanti touch, anche «tablet sul tavolo»)
+  e Quiz del giorno (uguale per tutti, risultato in emoji da condividere). Aiuti: 50:50, Salta, +10 secondi. Nessuna
+  domanda si ripete finché la categoria non è esaurita; le domande sono JSON per categoria caricati a richiesta.
+- **Parolina**: la parola di 5 lettere in 6 tentativi; parola del giorno e partite libere, modalità difficile,
+  statistiche e serie, griglia emoji da condividere, tastiera italiana a schermo (le lettere accentate valgono come
+  semplici). 1.838 soluzioni comuni scelte a mano + ~6.700 tentativi validi.
+- **Impiccato** con la mongolfiera (niente forca: ogni errore fa cadere un sacchetto di sabbia), 8 categorie con indizi.
+- **Anagrammi a tempo**: 7 lettere, 90 secondi (+2 per parola), parolone da 7 lettere, sfida del giorno.
+- Monete guadagnate giocando (niente pubblicità) e 7 temi grafici da sbloccare.
+- Codice: `src/quiz/` (domande sorgente in `questions/*.txt`, dati generati in `data/`, viste in `views/`, logica
+  deterministica in `daily.js`), schermata `src/screens/quiz.js`, voce del hub `src/hub/games/quiz.js`.
+- `node tools/quiz-build.mjs` (testi → JSON), `node tools/quiz-words.mjs <cartella sorgenti>` (liste di parole, vedi
+  CREDITS), `node tools/quiz-test.mjs` (schema, duplicati, bilanciamento, parole, determinismo del giorno),
+  `node tools/quiz-e2e.mjs <url> [cartella]` (Playwright, 4 risoluzioni), `node tools/quiz-cover.mjs <url>` (copertina).
